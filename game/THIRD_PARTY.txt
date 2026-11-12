@@ -13,5 +13,8 @@ Jack Mava, Old Military Crate, https://polyhaven.com/a/old_military_crate
 Poly Haven Pine Tree 01 bark/twig/alpha textures, https://polyhaven.com/a/pine_tree_01
 Tree geometry is lightweight locally assembled geometry; the 17M-triangle pine source model is not included.
 ambientCG / Lennart Demes, Ground 015, https://ambientcg.com/view?id=Ground015
+First-person tactical arms v0.5.2 additions (CC0):
+Blender Studio, Human Base Meshes Bundle v1.4.1 (GEO-body_male_realistic), https://www.blender.org/download/demo-files/
+ambientCG / Lennart Demes, Fabric 030 & Leather 026, https://ambientcg.com/view?id=Fabric030 , https://ambientcg.com/view?id=Leather026
 CC0 details and modification records: licenses/Slice-CC0-sources.txt
 Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

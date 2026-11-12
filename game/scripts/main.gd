@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.1"
+const VERSION = "0.5.2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -599,7 +599,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5.1 战备简报】\n• 拟真第一人称战术手套与护袖握持 + 军规帐篷、补给箱与空投舱全面升级\n• 常规物资箱考「单词」；高级/传说大金密码箱考「词组+课本整句」连破！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
+	_text(menu, "【v0.5.2 战备简报】\n• Blender 写实人体雕刻战术双臂、半指手套与 39 骨骼动态换弹全面实装\n• 常规物资箱考「单词」；高级/传说大金密码箱考「词组+课本整句」连破！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 2-Column 9-Item Tactical Shop
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)

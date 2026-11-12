@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-12",
-  "stage": "v0.5.1 拟真战术手臂、写实营地箱体建模与阶梯式词句破译精修版",
+  "stage": "v0.5.2 Blender写实人体雕刻战术手臂与39骨骼换弹升级版",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
@@ -64,9 +64,9 @@
     "renderer": "Compatibility (gl_compatibility)",
     "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
     "initial_resolution": "1280x720",
-    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1)"
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2)"
   },
-  "playtest": "playtest/windows-v0.5.1/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.5.2/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

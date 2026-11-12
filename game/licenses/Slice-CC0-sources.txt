@@ -32,6 +32,24 @@ Modification: selected 1K color, OpenGL normal and roughness textures; the local
 terrain shader blends paths and forest floor. Other source maps are not shipped.
 License: https://docs.ambientcg.com/license/
 
+Smoke Mountain / Yanshan v0.5.2 first-person tactical arms additions (Retrieved 2026-11-12, CC0 1.0):
+
+Blender Studio, Human Base Meshes Bundle v1.4.1 (GEO-body_male_realistic)
+https://www.blender.org/download/demo-files/
+Original public file: https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip
+Modification: evaluated Multires Level 1 sculpted male arms and hands in Blender 4.5,
+trimmed outside shoulder armpits, tailored BDU ripstop sleeves, half-finger tactical
+gloves, carbon knuckle guards, and 3D left-wrist telemetry watch, rigged to a 39-bone
+armature with 5 weapon-grip / ADS / reload / trigger poses, exported as fp_arms.glb.
+
+ambientCG / Lennart Demes, Fabric 030 & Leather 026
+https://ambientcg.com/view?id=Fabric030
+https://ambientcg.com/view?id=Leather026
+Modification: resampled 1K cloth weave and leather grain maps into 512x512 olive-drab
+ripstop, woodland camouflage, matte tactical glove, and skin pore PBR channels.
+License: https://docs.ambientcg.com/license/
+
 Original download sizes and SHA-256 hashes are recorded in the project under
-downloads/slice-v040/*download-record.json. Conversion record is in
-docs/slice-v040-conversion.json. No proprietary game assets are included.
+downloads/slice-v040/*download-record.json and downloads/slice-v052/download-record.json.
+Conversion records are in docs/slice-v040-conversion.json and docs/slice-v052-arms-build.json.
+No proprietary game assets are included.

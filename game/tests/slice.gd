@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.1" and game.words.size() == 175 and game.crate_nodes.size() == 3, "v0.5.1 slice uses 175-entry word pack and 3 tiered vault crates")
+	verify(game.VERSION == "0.5.2" and game.words.size() == 175 and game.crate_nodes.size() == 3, "v0.5.2 slice uses 175-entry word pack and 3 tiered vault crates")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -147,6 +147,8 @@ func run():
 	verify(is_instance_valid(game.player.weapon_view) and game.player.weapon_view.get_parent() == game.player.weapon_root, "new deployment binds the new animated rifle instance")
 	verify(is_instance_valid(game.player.weapon_view.magazine) and is_instance_valid(game.player.weapon_view.optic_root), "rifle has animated magazine and reflex optic")
 	verify(is_instance_valid(game.player.weapon_view.right_arm_rig) and is_instance_valid(game.player.weapon_view.left_hand_pivot) and is_instance_valid(game.player.weapon_view.left_sleeve), "rifle view includes first-person tactical sleeves and gloved hands")
+	verify(game.player.weapon_view.arms_skeleton is Skeleton3D and game.player.weapon_view.arms_skeleton.get_bone_count() == 39 and game.player.weapon_view.pose_cache.size() >= 5, "v0.5.2 first-person arms use 39-bone CC0 sculpted skeleton with 5 tactical pose actions")
+	verify(is_instance_valid(game.player.weapon_view.arms_mesh) and game.player.weapon_view.arms_mesh.mesh.get_surface_count() >= 8, "v0.5.2 sculpted arms carry multi-surface PBR sleeve, glove, skin, nail, and watch materials")
 	verify(is_equal_approx(game.crate_nodes[2].get_meta("lid_node").rotation.x, 0.0), "new deployment resets vault crate lids back to closed position")
 	game.player.ammo = 1
 	game.player.reload()

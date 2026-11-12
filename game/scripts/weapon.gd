@@ -1,33 +1,33 @@
 extends Node3D
-## Tactical YS-04 Carbine viewmodel with Reflex Optic, articulated ripstop sleeves, carbon-knuckle half-finger gloves, wrist watch & live mag-grab reload.
-
-const TacticalProps = preload("res://scripts/tactical_props.gd")
+## Tactical YS-04 Carbine viewmodel with Reflex Optic and Blender-sculpted CC0 39-bone skinned tactical arms (fp_arms.glb).
 
 var game
 var rifle: Node3D
 var optic_root: Node3D
 var reticle_dot: MeshInstance3D
 var support_grip: Node3D
+
+# Skinned first-person arms nodes & compatibility references
+var arms_root: Node3D
+var arms_skeleton: Skeleton3D
+var arms_mesh: MeshInstance3D
 var right_arm_rig: Node3D
-var trigger_finger: Node3D
 var left_hand_pivot: Node3D
-var left_wrist_marker: Node3D
 var left_sleeve: MeshInstance3D
+
 var flash: MeshInstance3D
 var light: OmniLight3D
 var magazine: Node3D
-var shot_left = 0.0
-var elapsed = 0.0
+var shot_left := 0.0
+var elapsed := 0.0
+var aim_blend := 0.0
 
-var sleeve_mat: StandardMaterial3D
-var cuff_mat: StandardMaterial3D
-var glove_mat: StandardMaterial3D
-var knuckle_mat: StandardMaterial3D
-var skin_mat: StandardMaterial3D
+var left_hand_bone := -1
+var right_index_bones: Array[int] = []
+var pose_cache := {}
 
 func _ready():
 	var has_skin = "forest_skin" in game.rules.profile.owned
-	_init_arm_materials(has_skin)
 
 	rifle = game._model(self, "res://assets/slice/rifle.glb", Vector3.ZERO, 0.22, 0)
 	magazine = rifle.find_child("YS04_magazine", true, false)
@@ -56,16 +56,13 @@ func _ready():
 		else:
 			m.material_override = body_mat
 
-	# Integrated under-barrel angled tactical handstop
+	# Low-profile M-LOK rail cover under forend (flush with handguard so sculpted hand cradles barrel cleanly)
 	support_grip = Node3D.new()
-	support_grip.position = Vector3(0.0, 0.126, -0.148)
+	support_grip.position = Vector3(0.0, 0.136, -0.145)
 	rifle.add_child(support_grip)
-	var cradle = _box_part(support_grip, Vector3.ZERO, Vector3(0.030, 0.022, 0.088), cuff_mat)
-	cradle.rotation.x = 0.06
 
 	_build_reflex_optic()
-	_build_right_firing_arm()
-	_build_left_support_arm()
+	_setup_skinned_arms(has_skin)
 
 	# Muzzle flash aligned precisely with YS-04 barrel centerline (y = 0.158)
 	flash = MeshInstance3D.new()
@@ -87,137 +84,130 @@ func _ready():
 	light.light_energy = 0.0
 	add_child(light)
 
-func _init_arm_materials(has_skin: bool):
-	sleeve_mat = StandardMaterial3D.new()
-	sleeve_mat.albedo_texture = TacticalProps.ripstop_texture(has_skin)
-	sleeve_mat.uv1_scale = Vector3(2.2, 3.0, 1.0)
-	sleeve_mat.roughness = 0.88
-	sleeve_mat.metallic = 0.04
+func _setup_skinned_arms(has_skin: bool):
+	var path := "res://assets/slice/fp_arms.glb"
+	if not game.scene_cache.has(path):
+		game.scene_cache[path] = load(path)
+	arms_root = game.scene_cache[path].instantiate()
+	rifle.add_child(arms_root)
 
-	cuff_mat = StandardMaterial3D.new()
-	cuff_mat.albedo_color = Color("1b2224")
-	cuff_mat.roughness = 0.72
-	cuff_mat.metallic = 0.18
+	var skels = arms_root.find_children("*", "Skeleton3D", true, false)
+	if skels.size() > 0:
+		arms_skeleton = skels[0] as Skeleton3D
+		left_hand_bone = arms_skeleton.find_bone("hand.L")
+		right_index_bones.clear()
+		for bname in ["index_01.R", "index_02.R", "index_03.R"]:
+			var bi := arms_skeleton.find_bone(bname)
+			if bi >= 0:
+				right_index_bones.append(bi)
 
-	glove_mat = StandardMaterial3D.new()
-	glove_mat.albedo_color = Color("22282b")
-	glove_mat.roughness = 0.66
-	glove_mat.metallic = 0.15
+	var meshes = arms_root.find_children("*", "MeshInstance3D", true, false)
+	for m in meshes:
+		var mi := m as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.extra_cull_margin = 1.5
+		if arms_mesh == null:
+			arms_mesh = mi
 
-	knuckle_mat = StandardMaterial3D.new()
-	knuckle_mat.albedo_color = Color("2b483d") if has_skin else Color("30383e")
-	knuckle_mat.metallic = 0.52
-	knuckle_mat.roughness = 0.34
+	if is_instance_valid(arms_mesh) and arms_mesh.mesh != null and has_skin:
+		for surf_idx in arms_mesh.mesh.get_surface_count():
+			var base_mat: Material = arms_mesh.mesh.surface_get_material(surf_idx)
+			if base_mat is BaseMaterial3D:
+				var bm := base_mat as BaseMaterial3D
+				var mname: String = bm.resource_name
+				if mname.begins_with("Mat_Sleeve"):
+					var dup := bm.duplicate() as BaseMaterial3D
+					dup.albedo_texture = load("res://assets/slice/arm_sleeve_forest.jpg")
+					arms_mesh.set_surface_override_material(surf_idx, dup)
 
-	skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color("d8ab88")
-	skin_mat.roughness = 0.78
-	skin_mat.metallic = 0.0
+	# Cache bone pose tracks from Blender NLA animations for fast, zero-alloc frame blending
+	pose_cache.clear()
+	var anim_players = arms_root.find_children("*", "AnimationPlayer", true, false)
+	if anim_players.size() > 0 and is_instance_valid(arms_skeleton):
+		var ap := anim_players[0] as AnimationPlayer
+		ap.stop()
+		for anim_name in ap.get_animation_list():
+			var anim := ap.get_animation(anim_name)
+			if anim == null:
+				continue
+			var bone_map := {}
+			for t in anim.get_track_count():
+				var tpath := anim.track_get_path(t)
+				if tpath.get_subname_count() == 0:
+					continue
+				var bname := String(tpath.get_concatenated_subnames())
+				var bidx := arms_skeleton.find_bone(bname)
+				if bidx < 0:
+					continue
+				if not bone_map.has(bidx):
+					bone_map[bidx] = {
+						"pos": arms_skeleton.get_bone_rest(bidx).origin,
+						"rot": arms_skeleton.get_bone_rest(bidx).basis.get_rotation_quaternion(),
+					}
+				var ttype := anim.track_get_type(t)
+				if ttype == Animation.TYPE_POSITION_3D:
+					bone_map[bidx]["pos"] = anim.position_track_interpolate(t, 0.0)
+				elif ttype == Animation.TYPE_ROTATION_3D:
+					bone_map[bidx]["rot"] = anim.rotation_track_interpolate(t, 0.0)
+			pose_cache[String(anim_name)] = bone_map
 
-func _box_part(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material) -> MeshInstance3D:
-	var m := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = sz
-	m.mesh = b
-	m.position = pos
-	m.material_override = mat
-	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(m)
-	return m
-
-func _limb_segment(parent: Node3D, a: Vector3, b: Vector3, r_a: float, r_b: float, mat: Material, segs := 12) -> MeshInstance3D:
-	var m := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	var length := maxf(0.005, a.distance_to(b))
-	cyl.top_radius = r_a
-	cyl.bottom_radius = r_b
-	cyl.height = length
-	cyl.radial_segments = segs
-	m.mesh = cyl
-	m.material_override = mat
-	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(m)
-	_orient_cylinder(m, a, b)
-	return m
-
-func _orient_cylinder(m: MeshInstance3D, a: Vector3, b: Vector3):
-	var diff := a - b
-	var length := maxf(0.005, diff.length())
-	if m.mesh is CylinderMesh:
-		(m.mesh as CylinderMesh).height = length
-	var y_axis := diff / length
-	var ref := Vector3.FORWARD if absf(y_axis.dot(Vector3.UP)) > 0.94 else Vector3.UP
-	var x_axis := ref.cross(y_axis).normalized()
-	var z_axis := x_axis.cross(y_axis).normalized()
-	m.transform = Transform3D(Basis(x_axis, y_axis, z_axis), (a + b) * 0.5)
-
-func _build_right_firing_arm():
-	# Attached to rifle so grip hand moves 1:1 with recoil & reload tilt
-	right_arm_rig = Node3D.new()
-	rifle.add_child(right_arm_rig)
-
-	var wrist := Vector3(0.024, 0.076, 0.168)
-	var elbow := Vector3(0.172, -0.092, 0.445)
-	_limb_segment(right_arm_rig, wrist, elbow, 0.031, 0.049, sleeve_mat, 14)
-	_limb_segment(right_arm_rig, Vector3(0.019, 0.082, 0.154), wrist + Vector3(0.006, -0.006, 0.014), 0.029, 0.032, cuff_mat, 12)
-
-	# Gloved right palm & carbon knuckle guard wrapping pistol grip
-	var palm = _box_part(right_arm_rig, Vector3(0.016, 0.084, 0.136), Vector3(0.022, 0.054, 0.042), glove_mat)
-	palm.rotation = Vector3(-0.22, 0.08, 0.12)
-	var knuckle = _box_part(right_arm_rig, Vector3(0.027, 0.090, 0.134), Vector3(0.007, 0.044, 0.032), knuckle_mat)
-	knuckle.rotation = palm.rotation
-
-	# Articulated index trigger finger
-	trigger_finger = Node3D.new()
-	trigger_finger.position = Vector3(0.019, 0.109, 0.118)
-	right_arm_rig.add_child(trigger_finger)
-	_limb_segment(trigger_finger, Vector3.ZERO, Vector3(-0.004, 0.005, -0.022), 0.0065, 0.0060, glove_mat, 8)
-	_limb_segment(trigger_finger, Vector3(-0.004, 0.005, -0.022), Vector3(-0.013, 0.004, -0.032), 0.0056, 0.0048, skin_mat, 8)
-
-	# Three curled fingers wrapping front of pistol grip
-	for idx in 3:
-		var fy := 0.094 - float(idx) * 0.015
-		var fz := 0.116 + float(idx) * 0.004
-		_limb_segment(right_arm_rig, Vector3(0.018, fy, fz + 0.012), Vector3(0.002, fy, fz - 0.005), 0.0068, 0.0062, glove_mat, 8)
-		_limb_segment(right_arm_rig, Vector3(0.002, fy, fz - 0.005), Vector3(-0.013, fy + 0.002, fz + 0.004), 0.0058, 0.0050, skin_mat, 8)
-
-	# Right thumb wrapping upper-left grip web
-	_limb_segment(right_arm_rig, Vector3(0.012, 0.112, 0.150), Vector3(-0.008, 0.118, 0.136), 0.0078, 0.0068, glove_mat, 8)
-	_limb_segment(right_arm_rig, Vector3(-0.008, 0.118, 0.136), Vector3(-0.016, 0.114, 0.122), 0.0064, 0.0054, skin_mat, 8)
-
-func _build_left_support_arm():
-	# Dynamic left support hand: grips forend in fire/ADS, reaches down to swap magazine during reload
+	# Compatibility markers for external inspection & tests
+	right_arm_rig = arms_root
+	left_sleeve = arms_mesh
 	left_hand_pivot = Node3D.new()
-	left_hand_pivot.position = Vector3(-0.008, 0.122, -0.148)
 	add_child(left_hand_pivot)
+	_apply_arm_pose(0.0, 0.0, 0.0)
 
-	var palm = _box_part(left_hand_pivot, Vector3(-0.012, -0.004, 0.006), Vector3(0.024, 0.032, 0.052), glove_mat)
-	palm.rotation = Vector3(0.10, -0.14, -0.45)
-	var knuckle = _box_part(left_hand_pivot, Vector3(-0.022, -0.010, 0.008), Vector3(0.008, 0.026, 0.042), knuckle_mat)
-	knuckle.rotation = palm.rotation
+func _blend_bone_maps(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
+	if w <= 0.0001 or b.is_empty():
+		return a
+	if w >= 0.9999 or a.is_empty():
+		return b
+	var out := {}
+	for bidx in a.keys():
+		var pa: Dictionary = a[bidx]
+		if b.has(bidx):
+			var pb: Dictionary = b[bidx]
+			out[bidx] = {
+				"pos": (pa["pos"] as Vector3).lerp(pb["pos"] as Vector3, w),
+				"rot": (pa["rot"] as Quaternion).slerp(pb["rot"] as Quaternion, w),
+			}
+		else:
+			out[bidx] = pa
+	return out
 
-	# Four fingers curling under foregrip onto lower-right rail
-	for idx in 4:
-		var fz := -0.018 + float(idx) * 0.013
-		_limb_segment(left_hand_pivot, Vector3(-0.006, -0.014, fz), Vector3(0.016, -0.006, fz), 0.0065, 0.0060, glove_mat, 8)
-		_limb_segment(left_hand_pivot, Vector3(0.016, -0.006, fz), Vector3(0.022, 0.012, fz), 0.0056, 0.0048, skin_mat, 8)
+func _apply_arm_pose(ads_w: float, dip: float, fire_w: float):
+	if not is_instance_valid(arms_skeleton) or not pose_cache.has("pose_hip"):
+		return
+	var hip_map: Dictionary = pose_cache["pose_hip"]
+	var ads_map: Dictionary = pose_cache.get("pose_ads", hip_map)
+	var base_map := _blend_bone_maps(hip_map, ads_map, ads_w)
 
-	# Left thumb resting forward along left handguard cheek (stays well below top optic sightline)
-	_limb_segment(left_hand_pivot, Vector3(-0.018, 0.010, 0.016), Vector3(-0.022, 0.024, -0.010), 0.0076, 0.0066, glove_mat, 8)
-	_limb_segment(left_hand_pivot, Vector3(-0.022, 0.024, -0.010), Vector3(-0.021, 0.029, -0.030), 0.0062, 0.0052, skin_mat, 8)
+	var final_map := base_map
+	if dip > 0.002 and pose_cache.has("pose_reload_reach") and pose_cache.has("pose_reload_pull"):
+		var reach_map: Dictionary = pose_cache["pose_reload_reach"]
+		var pull_map: Dictionary = pose_cache["pose_reload_pull"]
+		if dip < 0.28:
+			final_map = _blend_bone_maps(base_map, reach_map, smoothstep(0.0, 0.28, dip))
+		else:
+			final_map = _blend_bone_maps(reach_map, pull_map, smoothstep(0.28, 1.0, dip))
 
-	# Cuff + Tactical left-wrist telemetry watch
-	left_wrist_marker = Node3D.new()
-	left_wrist_marker.position = Vector3(-0.024, -0.016, 0.046)
-	left_hand_pivot.add_child(left_wrist_marker)
-	_limb_segment(left_hand_pivot, Vector3(-0.016, -0.008, 0.026), left_wrist_marker.position + Vector3(-0.006, -0.005, 0.012), 0.028, 0.031, cuff_mat, 12)
+	for bidx in final_map.keys():
+		var entry: Dictionary = final_map[bidx]
+		arms_skeleton.set_bone_pose_position(bidx, entry["pos"])
+		arms_skeleton.set_bone_pose_rotation(bidx, entry["rot"])
 
-	var watch_case = _box_part(left_hand_pivot, Vector3(-0.020, 0.010, 0.036), Vector3(0.024, 0.009, 0.020), knuckle_mat)
-	watch_case.rotation = Vector3(0.18, -0.15, -0.42)
-	var watch_screen = _box_part(left_hand_pivot, Vector3(-0.018, 0.014, 0.036), Vector3(0.017, 0.003, 0.013), game._material(Color("6ef2c8"), true))
-	watch_screen.rotation = watch_case.rotation
+	if fire_w > 0.001 and pose_cache.has("pose_fire"):
+		var fire_map: Dictionary = pose_cache["pose_fire"]
+		for bidx in right_index_bones:
+			if final_map.has(bidx) and fire_map.has(bidx):
+				var r0: Quaternion = final_map[bidx]["rot"]
+				var r1: Quaternion = fire_map[bidx]["rot"]
+				arms_skeleton.set_bone_pose_rotation(bidx, r0.slerp(r1, fire_w))
 
-	left_sleeve = _limb_segment(self, left_hand_pivot.position + left_wrist_marker.position, Vector3(-0.47, -0.085, 0.38), 0.030, 0.048, sleeve_mat, 14)
+	if left_hand_bone >= 0 and is_instance_valid(left_hand_pivot):
+		var hand_in_skel := arms_skeleton.get_bone_global_pose(left_hand_bone).origin
+		left_hand_pivot.position = rifle.transform * (arms_skeleton.transform * hand_in_skel)
 
 func _build_reflex_optic():
 	optic_root = Node3D.new()
@@ -266,34 +256,24 @@ func _build_reflex_optic():
 	optic_root.add_child(reticle_dot)
 
 func shot():
-	shot_left = 0.055
+	shot_left = 0.065
 
 func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 	elapsed += delta
 	shot_left = maxf(0, shot_left - delta)
 	flash.visible = shot_left > 0
 	light.light_energy = 1.6 if shot_left > 0 else 0.0
-	if is_instance_valid(trigger_finger):
-		trigger_finger.rotation.x = 0.18 if shot_left > 0 else 0.0
+	aim_blend = move_toward(aim_blend, 1.0 if aimed else 0.0, delta * 10.0)
 
 	var dip = sin(reload_progress * PI)
-	rifle.rotation.z = dip * -0.30
+	rifle.rotation.z = dip * -0.26
 	optic_root.rotation.z = rifle.rotation.z
 	if is_instance_valid(magazine):
-		magazine.position = Vector3(0, -dip * 0.18, dip * 0.08)
-		magazine.rotation.x = -dip * 0.15
+		magazine.position = Vector3(0, -dip * 0.16, dip * 0.07)
+		magazine.rotation.x = -dip * 0.14
 
-	# Left hand grips handguard normally, and smoothly drops to grip & swap magazine during reload
-	if is_instance_valid(left_hand_pivot) and is_instance_valid(left_sleeve):
-		var grip_pose := Vector3(-0.008, 0.122, -0.148)
-		var mag_pose := Vector3(-0.008, 0.055 - dip * 0.145, -0.006 + dip * 0.065)
-		var blend := smoothstep(0.02, 0.25, dip)
-		left_hand_pivot.position = grip_pose.lerp(mag_pose, blend)
-		left_hand_pivot.rotation = Vector3(-0.24 * blend, 0.18 * blend, rifle.rotation.z * (1.0 - blend * 0.5))
-		var wrist_local: Vector3 = left_hand_pivot.transform * left_wrist_marker.position
-		var parent_offset: Vector3 = get_parent().position if get_parent() is Node3D else Vector3(0.21, -0.245, -0.58)
-		var left_elbow: Vector3 = Vector3(-0.27, -0.33, -0.20) - parent_offset
-		_orient_cylinder(left_sleeve, wrist_local, left_elbow)
+	var fire_w := clampf(shot_left / 0.065, 0.0, 1.0)
+	_apply_arm_pose(aim_blend, dip, fire_w)
 
 	position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0035)
 	position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0025)
