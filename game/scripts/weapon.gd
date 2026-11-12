@@ -1,60 +1,146 @@
 extends Node3D
-## Tabasco's CC0 rifle with locally authored view animation and gloved hands.
+## Tactical YS-04 Carbine viewmodel with Reflex Optic, two-tone metallic finish, and clean grip (no cylinder arms).
+
 var game
 var rifle: Node3D
-var support: Node3D
+var optic_root: Node3D
+var reticle_dot: MeshInstance3D
+var support_grip: Node3D
 var flash: MeshInstance3D
 var light: OmniLight3D
 var magazine: Node3D
-var shot_left=0.0
-var elapsed=0.0
+var shot_left = 0.0
+var elapsed = 0.0
 
 func _ready():
-	rifle=game._model(self,"res://assets/slice/rifle.glb",Vector3.ZERO,0.22,0)
-	magazine=rifle.find_child("YS04_magazine",true,false)
-	if is_instance_valid(magazine) and "magazine" in game.rules.profile.owned:magazine.scale.y=1.25
-	for m in rifle.find_children("*","MeshInstance3D",true,false):
-		m.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if "forest_skin" in game.rules.profile.owned:
-			var skin=game._material(Color("376c55"));skin.metallic=0.55;skin.roughness=0.48;m.material_override=skin
-	var glove=game._material(Color("343b30"));glove.roughness=0.82
-	var cloth=game._material(Color("5f6650"))
-	support=Node3D.new();add_child(support);support.position=Vector3(-0.03,0.11,-0.18)
-	_hand(support,glove,cloth,false)
-	var trigger=Node3D.new();trigger.position=Vector3(0.045,0.075,0.13);add_child(trigger)
-	_hand(trigger,glove,cloth,true)
-	flash=MeshInstance3D.new();var sphere=SphereMesh.new();sphere.radius=0.024;sphere.height=0.10
-	flash.mesh=sphere;flash.rotation.x=PI/2;flash.position=Vector3(0,0.08,-0.36)
-	flash.material_override=game._material(Color("ffd993"),true);flash.hide();add_child(flash)
-	light=OmniLight3D.new();light.position=flash.position;light.omni_range=2.5;light.light_color=Color("ffd6a2");light.light_energy=0;add_child(light)
+	rifle = game._model(self, "res://assets/slice/rifle.glb", Vector3.ZERO, 0.22, 0)
+	magazine = rifle.find_child("YS04_magazine", true, false)
+	var has_mag2 = "magazine2" in game.rules.profile.owned
+	var has_mag1 = "magazine" in game.rules.profile.owned
+	if is_instance_valid(magazine):
+		if has_mag2:
+			magazine.scale = Vector3(1.18, 1.42, 1.15)
+		elif has_mag1:
+			magazine.scale.y = 1.25
 
-func _hand(parent,glove,cloth,right: bool):
-	var palm=MeshInstance3D.new();var mesh=SphereMesh.new();mesh.radius=0.05;mesh.height=0.11
-	palm.mesh=mesh;palm.scale=Vector3(0.75,0.72,1.3);palm.material_override=glove;parent.add_child(palm)
-	for i in 4:
-		var f=game._mesh_box(parent,Vector3(-0.035+i*0.021,0.018,-0.026),Vector3(0.018,0.04,0.06),Color("30382d"))
-		f.rotation.x=-0.3
-	var wrist=Vector3(0,-0.015,0.035)
-	var elbow=Vector3(0.20 if right else -0.24,-0.30,0.40)
-	var sleeve=MeshInstance3D.new();var c=CylinderMesh.new();c.top_radius=0.07;c.bottom_radius=0.04;c.height=wrist.distance_to(elbow);c.radial_segments=10
-	sleeve.mesh=c;sleeve.material_override=cloth;sleeve.position=(wrist+elbow)/2
-	sleeve.quaternion=Quaternion(Vector3.UP,(elbow-wrist).normalized());parent.add_child(sleeve)
+	var has_skin = "forest_skin" in game.rules.profile.owned
+	var body_mat = StandardMaterial3D.new()
+	body_mat.albedo_color = Color("376c55") if has_skin else Color("2b3136")
+	body_mat.metallic = 0.62 if has_skin else 0.55
+	body_mat.roughness = 0.38 if has_skin else 0.44
+
+	var mag_mat = StandardMaterial3D.new()
+	mag_mat.albedo_color = Color("234538") if has_skin else Color("3b423c")
+	mag_mat.metallic = 0.35
+	mag_mat.roughness = 0.62
+
+	for m in rifle.find_children("*", "MeshInstance3D", true, false):
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if is_instance_valid(magazine) and (m == magazine or magazine.is_ancestor_of(m)):
+			m.material_override = mag_mat
+		else:
+			m.material_override = body_mat
+
+	# Integrated under-barrel tactical handguard foregrip (centered cleanly under barrel)
+	var glove = StandardMaterial3D.new()
+	glove.albedo_color = Color("1e2524")
+	glove.metallic = 0.35
+	glove.roughness = 0.65
+	support_grip = Node3D.new()
+	support_grip.position = Vector3(0.0, 0.112, -0.15)
+	add_child(support_grip)
+	var cradle = MeshInstance3D.new()
+	var cradle_box = BoxMesh.new()
+	cradle_box.size = Vector3(0.032, 0.026, 0.092)
+	cradle.mesh = cradle_box
+	cradle.material_override = glove
+	cradle.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	support_grip.add_child(cradle)
+
+	_build_reflex_optic()
+
+	# Crisp multi-fin muzzle flash
+	flash = MeshInstance3D.new()
+	var sphere = SphereMesh.new()
+	sphere.radius = 0.028
+	sphere.height = 0.13
+	flash.mesh = sphere
+	flash.rotation.x = PI / 2
+	flash.position = Vector3(0, 0.135, -0.42)
+	flash.material_override = game._material(Color("ffe29a"), true)
+	flash.hide()
+	add_child(flash)
+
+	light = OmniLight3D.new()
+	light.position = flash.position
+	light.omni_range = 3.2
+	light.light_color = Color("ffd699")
+	light.light_energy = 0.0
+	add_child(light)
+
+func _build_reflex_optic():
+	optic_root = Node3D.new()
+	optic_root.position = Vector3(0.0, 0.212, 0.03)
+	add_child(optic_root)
+
+	var upgraded = "red_dot" in game.rules.profile.owned
+	var frame_color = Color("233833") if upgraded else Color("1e2428")
+	var frame_mat = StandardMaterial3D.new()
+	frame_mat.albedo_color = frame_color
+	frame_mat.metallic = 0.65
+	frame_mat.roughness = 0.35
+
+	# Rail mount base + open reflex hood
+	var base = game._mesh_box(optic_root, Vector3(0, 0.0, 0), Vector3(0.036, 0.012, 0.075), frame_color)
+	base.material_override = frame_mat
+	base.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for side_x in [-0.019, 0.019]:
+		var wall = game._mesh_box(optic_root, Vector3(side_x, 0.022, 0), Vector3(0.004, 0.034, 0.056), frame_color)
+		wall.material_override = frame_mat
+		wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var top_hood = game._mesh_box(optic_root, Vector3(0, 0.039, 0), Vector3(0.042, 0.004, 0.056), frame_color)
+	top_hood.material_override = frame_mat
+	top_hood.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	# Subtle anti-reflective glass window
+	var glass = MeshInstance3D.new()
+	var quad = BoxMesh.new()
+	quad.size = Vector3(0.034, 0.030, 0.002)
+	glass.mesh = quad
+	glass.position = Vector3(0, 0.022, -0.01)
+	var glass_mat = StandardMaterial3D.new()
+	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass_mat.albedo_color = Color(0.35, 0.88, 0.82, 0.11)
+	glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glass.material_override = glass_mat
+	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	optic_root.add_child(glass)
+
+	# Glowing precision reticle dot inside glass
+	reticle_dot = MeshInstance3D.new()
+	var dot_mesh = SphereMesh.new()
+	dot_mesh.radius = 0.0024 if upgraded else 0.0030
+	dot_mesh.height = dot_mesh.radius * 2.0
+	reticle_dot.mesh = dot_mesh
+	reticle_dot.position = Vector3(0, 0.022, -0.011)
+	reticle_dot.material_override = game._material(Color("5cffd6") if upgraded else Color("ff5964"), true)
+	reticle_dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	optic_root.add_child(reticle_dot)
 
 func shot():
-	shot_left=0.05
+	shot_left = 0.055
 
-func animate(delta: float,reload_progress: float,moving: float,aimed: bool):
-	elapsed+=delta
-	shot_left=maxf(0,shot_left-delta)
-	flash.visible=shot_left>0
-	light.light_energy=1.4 if shot_left>0 else 0.0
-	var dip=sin(reload_progress*PI)
-	rifle.rotation.z=dip*-0.32
-	support.position=Vector3(-0.03,0.11-dip*0.20,-0.18+dip*0.23)
-	support.rotation.x=dip*0.75
+func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
+	elapsed += delta
+	shot_left = maxf(0, shot_left - delta)
+	flash.visible = shot_left > 0
+	light.light_energy = 1.6 if shot_left > 0 else 0.0
+	var dip = sin(reload_progress * PI)
+	rifle.rotation.z = dip * -0.30
+	optic_root.rotation.z = rifle.rotation.z
+	support_grip.position = Vector3(0.0, 0.112 - dip * 0.14, -0.15 + dip * 0.14)
 	if is_instance_valid(magazine):
-		magazine.position=Vector3(0,-dip*0.18,dip*0.08)
-		magazine.rotation.x=-dip*0.15
-	# Small sway remains readable while aiming at a word badge.
-	position.x=sin(elapsed*7)*moving*(0.001 if aimed else 0.004)
-	position.y=absf(sin(elapsed*7))*moving*0.003
+		magazine.position = Vector3(0, -dip * 0.18, dip * 0.08)
+		magazine.rotation.x = -dip * 0.15
+	position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0035)
+	position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0025)

@@ -8,14 +8,17 @@ const Layout = preload("res://scripts/layout.gd")
 const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
-const VERSION = "0.4.0"
+const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
+const VERSION = "0.5.0"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
+
 const INK = Color("101f29")
 const MINT = Color("8de8c0")
 const CREAM = Color("f1f2df")
 const GOLD = Color("f4ca84")
+
 var rules = Rules.new()
 var font: Font
 var player
@@ -39,6 +42,11 @@ var wrong_words = []
 var paused = true
 var scene_cache = {}
 var sound_cache = {}
+var sfx_cache = {}
+var tts_voice_id = ""
+var listening_mode = false
+var distractor_rng := RandomNumberGenerator.new()
+
 var ui: Control
 var hud: Control
 var menu: Control
@@ -56,13 +64,25 @@ var unit_label: Label
 var stat_label: Label
 var mission_label: Label
 var bag_label: Label
+var bag_slots_box: HFlowContainer
+var bag_signature = ""
 var ammo_label: Label
+var interaction_panel: Panel
 var interaction_label: Label
 var feedback_label: Label
 var feedback_panel: Panel
 var feedback_left = 0.0
 var closest_interaction
 var screen_flash: ColorRect
+var crosshair_label: Label
+var hitmarker_label: Label
+var hitmarker_left = 0.0
+var threat_banner: Panel
+var threat_label: Label
+var hp_bar_fill: ColorRect
+var shield_bar_fill: ColorRect
+var extract_pulse_clock = 0.0
+
 var qa_mode = false
 var screenshot_path = ""
 var profile_path_override = ""
@@ -79,14 +99,17 @@ var combat: Node3D
 var combat_panel: Panel
 var combat_label: Label
 var exploration
+var cipher_terminal
 var landscape
 
 func _ready():
 	qa_mode = "--qa" in OS.get_cmdline_user_args() or "--hardware-check" in OS.get_cmdline_user_args()
+	distractor_rng.randomize()
 	var variable_font = FontVariation.new()
 	variable_font.base_font = load("res://assets/font/NotoSansSC.ttf")
-	variable_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"):500.0}
+	variable_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500.0}
 	font = variable_font
+	_init_tts()
 	_load_words()
 	_load_profile()
 	_build_world()
@@ -101,6 +124,9 @@ func _ready():
 	exploration = Exploration.new()
 	add_child(exploration)
 	exploration.setup(self)
+	cipher_terminal = CipherTerminal.new()
+	add_child(cipher_terminal)
+	cipher_terminal.setup(self)
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if "--hardware-check" in OS.get_cmdline_user_args():
@@ -114,19 +140,12 @@ func _ready():
 		await get_tree().process_frame
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		_capture("preview-v02.png")
+		_capture("preview-v05.png")
 	if qa_mode and "--preview-combat" in OS.get_cmdline_user_args():
 		seed(42030)
 		start_action(true)
 		await get_tree().physics_frame
-		interact()
-		await get_tree().process_frame
-		await RenderingServer.frame_post_draw
-		_capture("preview-range.png")
-		combat.range_left = 0.01
-		await get_tree().process_frame
-		await get_tree().process_frame
-		player.position = stations[1].position+Vector3(0,0.1,2)
+		player.position = Layout.on_ground(Layout.COMBAT_ZONES[0].at) + Vector3(0, 0.1, 3.0)
 		await get_tree().create_timer(0.7).timeout
 		await RenderingServer.frame_post_draw
 		_capture("preview-combat.png")
@@ -134,12 +153,35 @@ func _ready():
 		await get_tree().create_timer(3).timeout
 		get_tree().quit()
 
+func _init_tts():
+	if qa_mode or DisplayServer.get_name() == "headless":
+		return
+	var voices = DisplayServer.tts_get_voices_for_language("en")
+	if voices.size() > 0:
+		tts_voice_id = voices[0]
+
+func speak_english(text: String):
+	if qa_mode or DisplayServer.get_name() == "headless" or tts_voice_id == "" or text.strip_edges() == "":
+		return
+	var clean = text.replace("...", " ").replace("’", "'").strip_edges()
+	DisplayServer.tts_stop()
+	DisplayServer.tts_speak(clean, tts_voice_id, 85, 1.0, 0.96)
+
+func replay_question_audio():
+	if question.is_empty():
+		return
+	if tts_voice_id != "":
+		speak_english(question.english)
+		_notice("🔊 正在朗读英文发音", MINT)
+	else:
+		_notice("提示：当前环境未检测到系统英文语音包", GOLD)
+
 func _load_words():
 	for file in DirAccess.get_files_at("res://data/wordpacks"):
 		if file.ends_with(".json"):
 			var pack = JSON.parse_string(FileAccess.get_file_as_string("res://data/wordpacks/" + file))
-			if pack is Dictionary and pack.get("schema_version",0) == 1:
-				words.append_array(pack.get("entries",[]))
+			if pack is Dictionary and pack.get("schema_version", 0) == 1:
+				words.append_array(pack.get("entries", []))
 	assert(words.size() >= 4, "词库至少需要四个词条")
 
 func _save_path() -> String:
@@ -155,26 +197,34 @@ func _load_profile():
 		for key in rules.profile:
 			if data.has(key) and typeof(data[key]) == typeof(rules.profile[key]):
 				rules.profile[key] = data[key]
-		# JSON numbers are floats; persistent integer balances are normalized.
-		for key in ["coins","xp","points","extractions"]:
-			rules.profile[key] = maxi(0,int(data.get(key,0)))
+		for key in ["coins", "xp", "points", "extractions"]:
+			rules.profile[key] = maxi(0, int(data.get(key, 0)))
+		var normalized_wh = []
+		for item in rules.profile.warehouse:
+			if item is Dictionary:
+				normalized_wh.append({
+					"title": str(item.get("title", "物资")),
+					"value": maxi(1, int(item.get("value", 20))),
+					"rarity": clampi(int(item.get("rarity", 1)), 1, 5)
+				})
+		rules.profile.warehouse = normalized_wh
 
 func _save():
 	if qa_mode and profile_path_override == "":
 		return
-	var file = FileAccess.open(_save_path() + ".tmp",FileAccess.WRITE)
+	var file = FileAccess.open(_save_path() + ".tmp", FileAccess.WRITE)
 	if file:
-		file.store_string(JSON.stringify(rules.profile,"\t"))
+		file.store_string(JSON.stringify(rules.profile, "\t"))
 		file.close()
-		DirAccess.rename_absolute(_save_path()+".tmp",_save_path())
+		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
 
 func terrain_height(x: float, z: float) -> float:
-	return Layout.height(x,z)
+	return Layout.height(x, z)
 
 func _material(color: Color, unshaded = false) -> StandardMaterial3D:
 	var material = StandardMaterial3D.new()
 	material.albedo_color = color
-	material.roughness = 0.95
+	material.roughness = 0.92
 	if unshaded:
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
@@ -207,7 +257,7 @@ func _label3d(parent: Node3D, text: String, at: Vector3, size = 60, color = CREA
 	label.position = at
 	label.modulate = color
 	label.outline_size = 9
-	label.outline_modulate = Color("182b27")
+	label.outline_modulate = Color("142421")
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = false
 	parent.add_child(label)
@@ -220,7 +270,7 @@ func _bounds(node: Node3D, transform_so_far = Transform3D.IDENTITY) -> AABB:
 		result = xf * node.get_aabb()
 	for child in node.get_children():
 		if child is Node3D:
-			var bound = _bounds(child,xf)
+			var bound = _bounds(child, xf)
 			if bound.size.length() > 0:
 				result = bound if result.size.length() == 0 else result.merge(bound)
 	return result
@@ -230,15 +280,15 @@ func _model(parent: Node3D, path: String, at: Vector3, height: float, angle = 0.
 		scene_cache[path] = load(path)
 	var instance = scene_cache[path].instantiate()
 	var bound = _bounds(instance)
-	var scale_factor = height / maxf(bound.size.y,0.01)
+	var scale_factor = height / maxf(bound.size.y, 0.01)
 	var pivot = Node3D.new()
 	parent.add_child(pivot)
 	pivot.position = at
 	pivot.rotation.y = angle
 	pivot.add_child(instance)
 	instance.scale *= scale_factor
-	instance.position -= Vector3(bound.get_center().x,bound.position.y,bound.get_center().z)*scale_factor
-	for mesh in instance.find_children("*","MeshInstance3D",true,false):
+	instance.position -= Vector3(bound.get_center().x, bound.position.y, bound.get_center().z) * scale_factor
+	for mesh in instance.find_children("*", "MeshInstance3D", true, false):
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if physics != "":
 		Props.mesh_collision(pivot, physics)
@@ -253,23 +303,39 @@ func _build_tower(at: Vector3):
 	var tower = Node3D.new()
 	tower.position = at
 	add_child(tower)
-	for x in [-0.9,0.9]:
-		for z in [-0.9,0.9]:
-			_mesh_box(tower,Vector3(x,3.4,z),Vector3(0.16,6.8,0.16),Color("636d61"),true)
-	for y in [1.0,3.3,5.8]:
-		_mesh_box(tower,Vector3(0,y,0),Vector3(2.1,0.1,2.1),Color("4a5a4e"),true)
-	_mesh_box(tower,Vector3(0,7.7,0),Vector3(0.13,2.6,0.13),Color("d0c6a5"))
-	_mesh_box(tower,Vector3(0,7.9,0),Vector3(2.4,0.08,0.08),Color("d0c6a5"))
-	_label3d(tower,"烟山观察哨",Vector3(0,6.5,0),43,GOLD)
+	var steel_mat = StandardMaterial3D.new()
+	steel_mat.albedo_color = Color("526058")
+	steel_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
+	steel_mat.metallic = 0.35
+	steel_mat.roughness = 0.62
+	for x in [-0.9, 0.9]:
+		for z in [-0.9, 0.9]:
+			var leg = _mesh_box(tower, Vector3(x, 3.4, z), Vector3(0.16, 6.8, 0.16), Color("636d61"), true)
+			leg.material_override = steel_mat
+	for y in [1.0, 3.3, 5.8]:
+		var deck = _mesh_box(tower, Vector3(0, y, 0), Vector3(2.1, 0.12, 2.1), Color("4a5a4e"), true)
+		deck.material_override = steel_mat
+	_mesh_box(tower, Vector3(0, 7.7, 0), Vector3(0.13, 2.6, 0.13), Color("d0c6a5"))
+	_mesh_box(tower, Vector3(0, 7.9, 0), Vector3(2.4, 0.08, 0.08), Color("d0c6a5"))
+	_label3d(tower, "烟山观察哨", Vector3(0, 6.5, 0), 43, GOLD)
 
-func _make_crate(title: String,tier: int,at: Vector3):
+func _crate_accent(tier: int) -> Color:
+	if tier >= 3:
+		return Color("ffd15c")
+	if tier == 2:
+		return Color("cf8aff")
+	return GOLD
+
+func _make_crate(title: String, tier: int, at: Vector3):
 	var crate = Node3D.new()
 	crate.position = at
-	crate.set_meta("title",title)
-	crate.set_meta("tier",tier)
+	crate.set_meta("title", title)
+	crate.set_meta("tier", tier)
 	add_child(crate)
-	_model(crate,"res://assets/survival/chest.glb",Vector3.ZERO,0.85,0,"convex")
-	_label3d(crate,title+"\n"+("5题 · 70%正确率" if tier==1 else "10题 · 85%正确率"),Vector3(0,1.7,0),39,GOLD)
+	_model(crate, "res://assets/survival/chest.glb", Vector3.ZERO, 0.85, 0, "convex")
+	var req = rules.crate_requirements(tier)
+	var tag = "%s\n%d题 · %d%%正确率 · 拼写解锁" % [title, req.minimum, roundi(req.accuracy * 100)]
+	_label3d(crate, tag, Vector3(0, 1.75, 0), 36, _crate_accent(tier))
 	crate_nodes.append(crate)
 
 func attach_weapon(parent: Node3D):
@@ -281,7 +347,9 @@ func attach_weapon(parent: Node3D):
 func play_sound(id: String, volume = -16):
 	if DisplayServer.get_name() == "headless":
 		return
-	var path = "res://assets/fps/sounds/"+id+".ogg"
+	var path = "res://assets/fps/sounds/" + id + ".ogg"
+	if not ResourceLoader.exists(path):
+		return
 	if not sound_cache.has(id):
 		sound_cache[id] = load(path)
 	var sound = AudioStreamPlayer.new()
@@ -291,13 +359,30 @@ func play_sound(id: String, volume = -16):
 	sound.finished.connect(sound.queue_free)
 	sound.play()
 
+func play_sfx(id: String, volume = -13):
+	if DisplayServer.get_name() == "headless":
+		return
+	var path = "res://assets/sfx/" + id + ".wav"
+	if not ResourceLoader.exists(path):
+		return
+	if not sfx_cache.has(id):
+		sfx_cache[id] = load(path)
+	var sound = AudioStreamPlayer.new()
+	sound.stream = sfx_cache[id]
+	sound.volume_db = volume
+	add_child(sound)
+	sound.finished.connect(sound.queue_free)
+	sound.play()
+
 func _exit_tree():
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.tts_stop()
 	for child in get_children():
 		if child is AudioStreamPlayer:
 			child.stop()
 			child.stream = null
 
-func _panel(parent: Control,rect: Rect2,color = Color(0.045,0.09,0.12,0.91),border = Color(0.45,0.72,0.60,0.3)):
+func _panel(parent: Control, rect: Rect2, color = Color(0.042, 0.095, 0.118, 0.86), border = Color(0.45, 0.78, 0.65, 0.34)):
 	var panel = Panel.new()
 	panel.position = rect.position
 	panel.size = rect.size
@@ -307,38 +392,41 @@ func _panel(parent: Control,rect: Rect2,color = Color(0.045,0.09,0.12,0.91),bord
 	style.border_color = border
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel",style)
+	panel.add_theme_stylebox_override("panel", style)
 	parent.add_child(panel)
 	return panel
 
-func _text(parent: Control,text: String,at: Vector2,size: Vector2,font_size = 20,color = CREAM):
+func _text(parent: Control, text: String, at: Vector2, size: Vector2, font_size = 20, color = CREAM):
 	var label = Label.new()
 	label.text = text
 	label.position = at
 	label.size = size
-	label.add_theme_font_size_override("font_size",font_size)
-	label.add_theme_color_override("font_color",color)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(label)
 	return label
 
-func _button(parent: Control,text: String,rect: Rect2,callback: Callable,accent = false):
+func _button(parent: Control, text: String, rect: Rect2, callback: Callable, accent = false):
 	var button = Button.new()
 	button.text = text
 	button.position = rect.position
 	button.size = rect.size
-	button.add_theme_font_size_override("font_size",18)
-	for style_name in ["normal","hover","pressed","disabled"]:
+	button.add_theme_font_size_override("font_size", 16)
+	for style_name in ["normal", "hover", "pressed", "disabled"]:
 		var style = StyleBoxFlat.new()
-		style.bg_color = Color("85d8b1") if accent else Color("243a40")
+		style.bg_color = Color("85d8b1") if accent else Color("22383e")
 		if style_name == "hover":
 			style.bg_color = style.bg_color.lightened(0.12)
 		if style_name == "disabled":
-			style.bg_color = Color("203037")
-		style.set_corner_radius_all(5)
-		button.add_theme_stylebox_override(style_name,style)
-	button.add_theme_color_override("font_color",INK if accent else CREAM)
-	button.add_theme_color_override("font_hover_color",INK if accent else CREAM)
+			style.bg_color = Color("19272d")
+		style.border_color = Color(0.52, 0.85, 0.72, 0.35 if style_name != "disabled" else 0.12)
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(6)
+		button.add_theme_stylebox_override(style_name, style)
+	button.add_theme_color_override("font_color", INK if accent else CREAM)
+	button.add_theme_color_override("font_hover_color", INK if accent else CREAM)
+	button.add_theme_color_override("font_disabled_color", Color("6f8680"))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
@@ -352,116 +440,197 @@ func _build_ui():
 	ui.theme = Theme.new()
 	ui.theme.default_font = font
 	canvas.add_child(ui)
+
 	hud = Control.new()
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(hud)
-	_panel(hud,Rect2(22,18,1236,54))
-	_text(hud,"YANSHAN  /  烟山基地",Vector2(40,28),Vector2(310,32),22,MINT)
-	stat_label = _text(hud,"",Vector2(355,29),Vector2(890,32),20)
-	fps_label = _text(hud,"",Vector2(1162,33),Vector2(87,24),14,MINT)
-	_panel(hud,Rect2(22,92,246,174))
-	_text(hud,"本 局 任 务",Vector2(40,106),Vector2(210,30),17,GOLD)
-	mission_label = _text(hud,"",Vector2(40,143),Vector2(215,115),17)
-	_panel(hud,Rect2(22,280,246,190))
-	guide_label = _text(hud,"",Vector2(40,294),Vector2(215,167),16)
-	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_panel(hud,Rect2(296,92,688,112))
-	question_label = _text(hud,"",Vector2(318,104),Vector2(644,65),30)
+
+	# ZONE 1: Top-Left Compact Mission & Telemetry Card
+	_panel(hud, Rect2(18, 16, 344, 146))
+	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 23), Vector2(230, 22), 14, MINT)
+	fps_label = _text(hud, "", Vector2(276, 23), Vector2(72, 22), 13, Color("9ecfc0"))
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	stat_label = _text(hud, "", Vector2(32, 47), Vector2(318, 24), 16, CREAM)
+	mission_label = _text(hud, "", Vector2(32, 74), Vector2(318, 44), 14, GOLD)
+	mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide_label = _text(hud, "", Vector2(32, 126), Vector2(318, 24), 13, Color("a9c7ba"))
+
+	# ZONE 2: Top-Center Sleek Word Prompt Card
+	_panel(hud, Rect2(384, 16, 512, 92), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
+	question_label = _text(hud, "", Vector2(398, 22), Vector2(484, 52), 28, CREAM)
 	question_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	question_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	question_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	unit_label = _text(hud,"",Vector2(320,172),Vector2(640,24),14,MINT)
+	unit_label = _text(hud, "", Vector2(398, 76), Vector2(484, 24), 13, MINT)
 	unit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_panel(hud,Rect2(1088,92,170,209))
-	_text(hud,"N  /  A → B 山路",Vector2(1104,100),Vector2(148,25),13,MINT)
+
+	# Threat Warning Banner (only shown when actively locked on)
+	threat_banner = _panel(hud, Rect2(445, 114, 390, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
+	threat_label = _text(threat_banner, "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！", Vector2(10, 4), Vector2(370, 22), 14, Color("ffd6d6"))
+	threat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	threat_banner.hide()
+
+	# ZONE 3: Top-Right Radar Minimap
+	_panel(hud, Rect2(1092, 16, 170, 196))
+	_text(hud, "N  ·  烟山战术雷达", Vector2(1108, 22), Vector2(142, 20), 13, MINT)
 	var map = MapWidget.new()
 	map.game = self
-	map.position = Vector2(1090,126)
-	map.size = Vector2(166,166)
+	map.position = Vector2(1094, 44)
+	map.size = Vector2(166, 166)
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(map)
-	combat_panel = _panel(hud,Rect2(1013,313,245,123))
-	combat_label = _text(combat_panel,"",Vector2(15,12),Vector2(215,98),16)
-	combat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	combat_panel.hide()
-	_panel(hud,Rect2(22,494,246,166))
-	_text(hud,"随 身 背 包",Vector2(40,506),Vector2(210,25),15,GOLD)
-	bag_label = _text(hud,"",Vector2(40,537),Vector2(215,118),16)
-	_panel(hud,Rect2(1030,572,228,103))
-	ammo_label = _text(hud,"",Vector2(1048,582),Vector2(202,86),20)
-	_panel(hud,Rect2(326,592,630,44))
-	interaction_label = _text(hud,"",Vector2(334,592),Vector2(614,44),19,GOLD)
-	interaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	feedback_panel = _panel(hud,Rect2(280,477,720,80))
+
+	# ZONE 4A: Bottom-Left Vitals (Shield/HP Bars) + Rarity Loot Slots
+	combat_panel = _panel(hud, Rect2(18, 542, 344, 160))
+	combat_label = _text(combat_panel, "", Vector2(14, 8), Vector2(316, 22), 14, CREAM)
+
+	var shield_bg = ColorRect.new()
+	shield_bg.position = Vector2(14, 33)
+	shield_bg.size = Vector2(316, 8)
+	shield_bg.color = Color(0.10, 0.20, 0.24, 0.9)
+	shield_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(shield_bg)
+	shield_bar_fill = ColorRect.new()
+	shield_bar_fill.position = Vector2(14, 33)
+	shield_bar_fill.size = Vector2(316, 8)
+	shield_bar_fill.color = Color("56d8ff")
+	shield_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(shield_bar_fill)
+
+	var hp_bg = ColorRect.new()
+	hp_bg.position = Vector2(14, 45)
+	hp_bg.size = Vector2(316, 10)
+	hp_bg.color = Color(0.16, 0.12, 0.12, 0.9)
+	hp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(hp_bg)
+	hp_bar_fill = ColorRect.new()
+	hp_bar_fill.position = Vector2(14, 45)
+	hp_bar_fill.size = Vector2(316, 10)
+	hp_bar_fill.color = Color("6ae3a8")
+	hp_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(hp_bar_fill)
+
+	bag_label = _text(combat_panel, "", Vector2(14, 62), Vector2(316, 22), 14, GOLD)
+	bag_slots_box = HFlowContainer.new()
+	bag_slots_box.position = Vector2(14, 86)
+	bag_slots_box.size = Vector2(316, 66)
+	bag_slots_box.add_theme_constant_override("h_separation", 5)
+	bag_slots_box.add_theme_constant_override("v_separation", 4)
+	bag_slots_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(bag_slots_box)
+
+	# ZONE 4B: Bottom-Right Weapon, Ammo & Medkit Card
+	_panel(hud, Rect2(1018, 576, 244, 126))
+	ammo_label = _text(hud, "", Vector2(1034, 586), Vector2(214, 108), 16, CREAM)
+
+	# Center Prompts & Tactical Reticles
+	feedback_panel = _panel(hud, Rect2(370, 520, 540, 64), Color(0.04, 0.11, 0.12, 0.92), Color(0.55, 0.88, 0.72, 0.5))
 	feedback_panel.hide()
-	feedback_label = _text(hud,"",Vector2(295,482),Vector2(690,70),22,MINT)
+	feedback_label = _text(hud, "", Vector2(384, 526), Vector2(512, 52), 19, MINT)
 	feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var crosshair = _text(hud,"+",Vector2(622,338),Vector2(36,42),29)
-	crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_text(hud,"WASD 移动   Shift 奔跑   空格 跳跃   左键 射击   右键 瞄准   R 换弹   E 交互   Esc 暂停",Vector2(285,681),Vector2(735,25),13,Color("cfdfd0"))
+
+	interaction_panel = _panel(hud, Rect2(390, 594, 500, 38), Color(0.04, 0.09, 0.11, 0.82))
+	interaction_label = _text(hud, "", Vector2(400, 596), Vector2(480, 34), 17, GOLD)
+	interaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	interaction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	crosshair_label = _text(hud, "+", Vector2(622, 338), Vector2(36, 42), 26, Color(0.92, 0.98, 0.94, 0.85))
+	crosshair_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	hitmarker_label = _text(hud, "×", Vector2(616, 332), Vector2(48, 48), 34, MINT)
+	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hitmarker_label.hide()
+
+	_text(hud, "[WASD]移动  [Shift]冲刺  [左键]射击  [右键]开镜  [R]换弹  [H]医疗包  [Q]读音  [E]交互", Vector2(370, 682), Vector2(540, 22), 12, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	screen_flash.color = Color(0.4,1,0.7,0)
+	screen_flash.color = Color(0.4, 1, 0.7, 0)
 	screen_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(screen_flash)
+
+	# CAMP / PAUSE MENU
 	menu = Control.new()
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(menu)
 	var veil = ColorRect.new()
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	veil.color = Color(0.035,0.07,0.085,0.54)
+	veil.color = Color(0.03, 0.065, 0.08, 0.62)
 	menu.add_child(veil)
-	_panel(menu,Rect2(98,70,1084,575),Color(0.04,0.085,0.105,0.96))
-	menu_title = _text(menu,"烟山基地",Vector2(130,98),Vector2(590,68),44,MINT)
-	_text(menu,"英语搜撤行动  /  PLAYTEST "+VERSION,Vector2(132,165),Vector2(530,34),19,GOLD)
-	_button(menu,"退出",Rect2(1085,102,65,36),func(): get_tree().quit())
-	abandon_button = _button(menu,"放弃本局",Rect2(939,102,130,36),func(): _end_run(false))
+	_panel(menu, Rect2(86, 56, 1108, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
+
+	menu_title = _text(menu, "烟山基地", Vector2(120, 80), Vector2(470, 60), 42, MINT)
+	_text(menu, "英语战术搜撤行动  ·  VERSION " + VERSION, Vector2(122, 142), Vector2(460, 28), 17, GOLD)
+	_button(menu, "退出", Rect2(1098, 84, 68, 36), func(): get_tree().quit())
+	abandon_button = _button(menu, "放弃本局", Rect2(956, 84, 130, 36), func(): _end_run(false))
 	abandon_button.hide()
-	menu_summary = _text(menu,"",Vector2(132,215),Vector2(465,115),17)
+
+	menu_summary = _text(menu, "", Vector2(122, 186), Vector2(460, 126), 16)
 	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	review_button = _button(menu,"查看本局全部错词",Rect2(132,323,460,26),_show_review)
+	review_button = _button(menu, "查看本局错词本（含页码）", Rect2(122, 316, 456, 30), _show_review)
 	review_button.hide()
+
 	unit_picker = OptionButton.new()
-	unit_picker.position = Vector2(132,352)
-	unit_picker.size = Vector2(306,42)
+	unit_picker.position = Vector2(122, 358)
+	unit_picker.size = Vector2(290, 40)
 	unit_picker.add_item("全部单元 · 175 条词汇")
-	for i in range(1,9):
-		unit_picker.add_item("Unit "+str(i))
+	for i in range(1, 9):
+		unit_picker.add_item("Unit " + str(i))
 	menu.add_child(unit_picker)
+
 	include_extra = CheckBox.new()
 	include_extra.text = "含拓展词与专名"
-	include_extra.position = Vector2(132,400)
+	include_extra.position = Vector2(422, 360)
 	include_extra.button_pressed = true
-	include_extra.add_theme_font_size_override("font_size",17)
+	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
-	start_button = _button(menu,"部署词兵行动  →",Rect2(132,454,270,54),start_action.bind(true),true)
-	practice_button = _button(menu,"自由练习",Rect2(414,454,178,54),start_action)
-	_text(menu,"建议游玩 5–8 分钟 · A营地 → B竹林\n35秒热身，沿路探索、识词与搜集。\n100分撤离 · 数学/古诗机关可选",Vector2(132,528),Vector2(480,89),16,Color("b6cbbd"))
-	menu_finance = _text(menu,"",Vector2(650,112),Vector2(420,76),19,GOLD)
-	_text(menu,"仓 库 与 补 给",Vector2(650,217),Vector2(420,28),22,MINT)
-	sell_button = _button(menu,"出售仓库物资",Rect2(650,262,500,40),_sell)
-	var y = 316
-	for id in ["magazine","backpack","forest_skin","scout","reward_point"]:
-		shop_buttons[id] = _button(menu,"",Rect2(650,y,500,40),_buy.bind(id))
-		y += 48
-	menu_status = _text(menu,"书后词表 175 条 · 单人离线 · 进度自动保存",Vector2(650,570),Vector2(510,55),14,Color("b6cbbd"))
+
+	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(true), true)
+	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
+
+	_text(menu, "【v0.5 战备简报】\n• 三大兵种守卫3处前哨：突击机甲 / 浮空无人机 / 激光重狙卫兵\n• 高价值密码箱需「键盘拼写英文单词」破译，爆史诗与传说大金！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
+
+	# Right Column: Progress, Warehouse & 2-Column 9-Item Tactical Shop
+	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
+	_text(menu, "军 需 仓 库 与 装 备 升 级", Vector2(616, 214), Vector2(360, 28), 20, MINT)
+	sell_button = _button(menu, "出售仓库物资", Rect2(616, 248, 548, 40), _sell, true)
+
+	var shop_order = [
+		"red_dot", "magazine",
+		"magazine2", "shield_core",
+		"backpack", "medkit_pack",
+		"forest_skin", "scout",
+		"reward_point"
+	]
+	for idx in shop_order.size():
+		var id = shop_order[idx]
+		var col = idx % 2
+		var row = int(idx / 2)
+		var w = 548 if id == "reward_point" else 268
+		var rect = Rect2(616 + col * 280, 298 + row * 48, w, 40)
+		shop_buttons[id] = _button(menu, "", rect, _buy.bind(id))
+
+	menu_status = _text(menu, "五上词库 175 条 · 离线标准英文读音 · 自动保存进度", Vector2(616, 594), Vector2(548, 48), 14, Color("a9c4b6"))
 	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	# Review Overlay
 	review_overlay = Control.new()
 	review_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(review_overlay)
 	var shade = ColorRect.new()
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.color = Color(0.02,0.04,0.04,0.92)
+	shade.color = Color(0.02, 0.04, 0.04, 0.92)
 	review_overlay.add_child(shade)
-	_panel(review_overlay,Rect2(190,80,900,560))
-	_text(review_overlay,"本局错词 · 再记一遍",Vector2(220,103),Vector2(700,44),28,MINT)
-	_button(review_overlay,"返回",Rect2(947,105,105,40),func(): review_overlay.hide())
+	_panel(review_overlay, Rect2(190, 80, 900, 560))
+	_text(review_overlay, "本局错词复盘 · 点击单词可听标准发音", Vector2(220, 103), Vector2(680, 44), 27, MINT)
+	_button(review_overlay, "返回营地", Rect2(942, 105, 112, 40), func(): review_overlay.hide())
 	review_text = RichTextLabel.new()
-	review_text.position = Vector2(220,170)
-	review_text.size = Vector2(830,430)
-	review_text.add_theme_font_size_override("normal_font_size",23)
+	review_text.position = Vector2(220, 170)
+	review_text.size = Vector2(830, 430)
+	review_text.add_theme_font_size_override("normal_font_size", 22)
 	review_text.bbcode_enabled = false
 	review_overlay.add_child(review_text)
 	review_overlay.hide()
@@ -470,56 +639,91 @@ func _build_ui():
 func _show_review():
 	var lines = []
 	for word in wrong_words:
-		lines.append("%s  —  %s\nUnit %d · 课本第 %d 页\n" % [word.english,word.chinese,word.unit,word.textbook_page])
-	review_text.text = "\n".join(lines) if not lines.is_empty() else "本局还没有错词。"
+		lines.append("%s  —  %s\nUnit %d · 课本第 %d 页\n" % [word.english, word.chinese, word.unit, word.textbook_page])
+	review_text.text = "\n".join(lines) if not lines.is_empty() else "本局还没有错词，表现非常棒！"
 	review_text.scroll_to_line(0)
 	review_overlay.show()
 
+func _warehouse_total_value() -> int:
+	var sum = 0
+	for item in rules.profile.warehouse:
+		sum += int(item.get("value", 0))
+	return sum
+
 func _refresh_menu(result = ""):
-	menu_finance.text = "Lv.%d  ·  %d / 100 经验\n货币 %d   |   奖励积分 %d" % [rules.level(),rules.profile.xp%100,rules.profile.coins,rules.profile.points]
+	var mastered = rules.mastered_count()
+	var collected = rules.profile.collection.size()
+	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / 6 件" % [
+		rules.level(), rules.profile.xp % 120, rules.profile.coins, rules.profile.points,
+		mastered, words.size(), collected
+	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "山脚出发，沿竹林小路前往B补给点。\n找纸条、解石刻和机关，带回物资。\n答对+10分，100分撤离；机关可选。"
-	sell_button.text = "出售仓库物资（%d 件）" % rules.profile.warehouse.size()
-	sell_button.disabled = rules.profile.warehouse.is_empty() or rules.phase in ["active","extracting"]
+		menu_summary.text = "山脚营地出发，突破林间前哨、山道拦截哨与竹林阵地。\n识词击破敌方全息护盾，拼写单词解锁高价值密码箱！\n满 260 分且攻克至少 1 处前哨，即可前往 B 信标撤离。"
+
+	var wh_count = rules.profile.warehouse.size()
+	var wh_val = _warehouse_total_value()
+	sell_button.text = "一键出售仓库物资（%d 件 · 合计 %d 币）" % [wh_count, wh_val]
+	sell_button.disabled = wh_count == 0 or rules.phase in ["active", "extracting"]
+
 	for id in shop_buttons:
 		var item = Rules.ITEMS[id]
 		var owned = id in rules.profile.owned
-		shop_buttons[id].text = item.title+"    "+("已拥有" if owned else str(item.cost)+" 币")
-		shop_buttons[id].disabled = owned or rules.profile.coins < item.cost or rules.phase in ["active","extracting"]
-	start_button.text = "继续行动  →" if rules.phase in ["active","extracting"] else "部署词兵行动  →"
-	practice_button.visible = rules.phase not in ["active","extracting"]
-	abandon_button.visible = rules.phase in ["active","extracting"]
-	unit_picker.disabled = rules.phase in ["active","extracting"]
+		var prereq_missing = (id == "magazine2" and not ("magazine" in rules.profile.owned))
+		var suffix = "已装备" if owned else (("需先购扩容I · %d币" % item.cost) if prereq_missing else ("%d 币" % item.cost))
+		if id == "reward_point":
+			suffix = "%d 币（可重复兑换）" % item.cost
+		shop_buttons[id].text = item.title.split(" · ")[0] + "  ·  " + suffix
+		shop_buttons[id].tooltip_text = item.title
+		shop_buttons[id].disabled = (owned and id != "reward_point") or prereq_missing or rules.profile.coins < item.cost or rules.phase in ["active", "extracting"]
+
+	start_button.text = "继续行动  →" if rules.phase in ["active", "extracting"] else "部署战术行动  →"
+	practice_button.visible = rules.phase not in ["active", "extracting"]
+	abandon_button.visible = rules.phase in ["active", "extracting"]
+	unit_picker.disabled = rules.phase in ["active", "extracting"]
 	include_extra.disabled = unit_picker.disabled
 
 func _sell():
 	var value = rules.sell_all()
+	if value > 0:
+		play_sfx("cipher_unlock", -12)
 	_save()
 	_refresh_menu()
-	menu_status.text = "物资已出售，获得 %d 枚游戏货币。" % value
+	menu_status.text = "物资已全部结算出售，获得 %d 枚游戏货币！" % value
 
 func _buy(id: String):
 	if rules.purchase(id):
+		play_sfx("loot_epic" if id == "reward_point" else "cipher_unlock", -11)
 		_save()
 		_refresh_menu()
-		menu_status.text = "已兑换："+Rules.ITEMS[id].title
+		menu_status.text = "已解锁装备：" + Rules.ITEMS[id].title
 		if id == "reward_point":
-			menu_status.text += "。现实奖励兑换规则由家长约定。"
+			menu_status.text += "（线下奖励可与爸爸妈妈核对兑现！）"
+
+func _build_weighted_queue() -> Array:
+	var deck = []
+	for w in pool:
+		deck.append(w)
+		if rules.word_priority(w.id) >= 2.8:
+			deck.append(w)
+	deck.shuffle()
+	return deck
 
 func start_action(as_combat = false):
-	if rules.phase not in ["active","extracting"]:
+	if rules.phase not in ["active", "extracting"]:
 		review_button.hide()
 		review_overlay.hide()
 		tutorial_moved = false
 		_leave_station()
-		rules.start_run()
+		rules.start_run(as_combat)
 		exploration.reset()
-		if as_combat: combat.begin()
-		else: combat.stop()
-		time_left = 480
-		next_question_left = 0
+		if is_instance_valid(cipher_terminal):
+			cipher_terminal.reset()
+		player.medkits = rules.starter_medkits()
+		time_left = 480.0
+		next_question_left = 0.0
 		wrong_words = []
+		bag_signature = "__dirty__"
 		pool = []
 		for word in words:
 			if unit_picker.selected > 0 and word.unit != unit_picker.selected:
@@ -529,23 +733,27 @@ func start_action(as_combat = false):
 			pool.append(word)
 		if pool.size() < 4:
 			pool = words.duplicate()
-		question_queue = pool.duplicate()
-		question_queue.shuffle()
-		player.position = Layout.on_ground(Layout.SPAWN)+Vector3.UP*0.15
-		player.yaw = 0
-		player.pitch = 0
+		question_queue = _build_weighted_queue()
+		player.position = Layout.on_ground(Layout.SPAWN) + Vector3.UP * 0.15
+		player.yaw = 0.0
+		player.pitch = 0.0
 		player.ammo = rules.magazine()
-		player.reload_left = 0
-		player.cooldown = 0
-		player.recoil = 0
+		player.reload_left = 0.0
+		player.cooldown = 0.0
+		player.recoil = 0.0
 		for node in pickup_nodes:
-			Props.set_enabled(node,true)
+			Props.set_enabled(node, true)
 		for node in crate_nodes:
-			node.get_child(node.get_child_count()-1).modulate = GOLD
+			var tier = int(node.get_meta("tier"))
+			node.get_child(node.get_child_count() - 1).modulate = _crate_accent(tier)
 		for child in player.weapon_root.get_children():
 			child.queue_free()
 		player.weapon_view = attach_weapon(player.weapon_root)
-		_next_question()
+		if as_combat:
+			combat.begin()
+		else:
+			combat.stop()
+			_next_question()
 	paused = false
 	get_viewport().gui_release_focus()
 	player.clear_movement_input()
@@ -553,95 +761,133 @@ func start_action(as_combat = false):
 	player.camera.fov = 75
 	menu.hide()
 	hud.show()
-	combat_panel.visible = combat.stage!=Combat.Stage.OFF
+	combat_panel.show()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _pick_smart_distractors(target: Dictionary) -> Array:
+	var target_en: String = target.english.strip_edges()
+	var target_is_phrase: bool = target.get("kind", "word") == "phrase" or (" " in target_en)
+	var target_proper: bool = bool(target.get("proper_name", false))
+	var target_first: String = target_en.substr(0, 1).to_lower()
+	var target_len: int = target_en.length()
+	var target_unit: int = int(target.get("unit", 0))
+
+	var scored = []
+	var source = pool if pool.size() >= 4 else words
+	for candidate in source:
+		if candidate.english.to_lower() == target_en.to_lower() or candidate.chinese == target.chinese:
+			continue
+		var cand_en: String = candidate.english.strip_edges()
+		var cand_is_phrase: bool = candidate.get("kind", "word") == "phrase" or (" " in cand_en)
+		var s := distractor_rng.randf() * 1.15
+		if cand_is_phrase == target_is_phrase:
+			s += 4.2
+		if bool(candidate.get("proper_name", false)) == target_proper:
+			s += 3.0
+		if int(candidate.get("unit", -1)) == target_unit:
+			s += 1.4
+		if cand_en.substr(0, 1).to_lower() == target_first:
+			s += 1.2
+		s += maxf(0.0, 2.0 - absf(float(cand_en.length() - target_len)) * 0.25)
+		scored.append({"word": candidate, "score": s})
+
+	scored.sort_custom(func(a, b): return a.score > b.score)
+	var picked = [target]
+	for entry in scored:
+		var cand = entry.word
+		var dup = false
+		for c in picked:
+			if cand.english.to_lower() == c.english.to_lower() or cand.chinese == c.chinese:
+				dup = true
+				break
+		if not dup:
+			picked.append(cand)
+		if picked.size() == 4:
+			break
+	return picked
 
 func _next_question():
 	if question_queue.is_empty():
-		question_queue = pool.duplicate()
-		question_queue.shuffle()
+		question_queue = _build_weighted_queue()
 	question = question_queue.pop_back()
-	# Revisit a missed entry periodically, after other questions have intervened.
-	if rules.answered > 0 and rules.answered%6 == 0 and wrong_words.size() > 0:
+	if rules.answered > 0 and rules.answered % 6 == 0 and wrong_words.size() > 0:
 		question = wrong_words.pick_random()
-	choices = [question]
-	var distractors = pool.duplicate()
-	distractors.shuffle()
-	for candidate in distractors:
-		var duplicate = false
-		for chosen in choices:
-			if candidate.english.to_lower() == chosen.english.to_lower() or candidate.chinese == chosen.chinese:
-				duplicate = true
-		if not duplicate:
-			choices.append(candidate)
-		if choices.size() == 4:
-			break
+	choices = _pick_smart_distractors(question)
 	choices.shuffle()
+	answer_index = 0
 	for i in choices.size():
 		if choices[i].id == question.id:
 			answer_index = i
+	listening_mode = (tts_voice_id != "" and rules.answered >= 4 and rules.answered % 5 == 0)
 	rules.open_question()
 	_sync_question()
+	if listening_mode and not paused:
+		speak_english(question.english)
 
 func _sync_question():
-	if combat.in_field():
+	if combat.in_field() and combat.zone >= 0:
 		combat.show_question()
 		return
 	if active_station < 0:
-		question_label.text = "靠近绿色终端，按 E 开始挑战"
-		unit_label.text = "A山脚营地 → 林间前哨 → B竹林补给点"
-		if combat.in_warmup():
-			question_label.text = "在营地终端旁按 E 开始限时热身"
-			unit_label.text = "热身成绩决定后续词兵的基础伤害"
+		if combat.in_field():
+			combat.show_question()
+		else:
+			question_label.text = "靠近绿色终端，按 [E] 启动识词靶场"
+			unit_label.text = "A 山脚营地 → 林间前哨 → B 竹林撤离点  |  自由探索与识词"
 		return
 	for i in choices.size():
-		_fit_word(targets[i],choices[i].english)
+		_fit_word(targets[i], choices[i].english)
 		target_materials[i].albedo_color = Color("182e30")
-	question_label.text = question.chinese
-	unit_label.text = "%s · Unit %d · 课本第 %d 页" % [stations[active_station].title,question.unit,question.textbook_page]
+	if listening_mode and rules.question_open:
+		question_label.text = "🔊 听音辨词挑战 · 按 [Q] 重播读音"
+	else:
+		question_label.text = question.chinese
+	unit_label.text = "%s · Unit %d · 第 %d 页  |  [Q] 听标准发音" % [stations[active_station].title, question.unit, question.textbook_page]
 	if not rules.question_open:
 		target_materials[answer_index].albedo_color = Color("3b8a62")
 		unit_label.text = "已结算 · 下一题即将出现"
 
-func _fit_word(label: Label3D,word: String,height_limit = 138):
-	label.text = word.replace("’","'")
+func _fit_word(label: Label3D, word: String, height_limit = 138):
+	label.text = word.replace("’", "'")
 	label.font_size = 64
 	var parts = label.text.split(" ")
-	while label.font_size>28:
-		var fits = font.get_multiline_string_size(label.text,HORIZONTAL_ALIGNMENT_CENTER,label.width,label.font_size).y<=height_limit
+	while label.font_size > 28:
+		var fits = font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, label.width, label.font_size).y <= height_limit
 		for part in parts:
-			if font.get_string_size(part,HORIZONTAL_ALIGNMENT_LEFT,-1,label.font_size).x>label.width-55:
+			if font.get_string_size(part, HORIZONTAL_ALIGNMENT_LEFT, -1, label.font_size).x > label.width - 55:
 				fits = false
 				break
-		if fits: break
+		if fits:
+			break
 		label.font_size -= 2
 
 func _activate_station(index: int):
-	if combat.in_field() or (combat.in_warmup() and index!=0):
+	if combat.in_field() and (combat.zone >= 0 or index != 0):
 		return
-	if index < 0 or index >= stations.size() or player.position.distance_to(_interaction_position(stations[index]))>3.2 or not _can_interact(stations[index]):
+	if index < 0 or index >= stations.size() or player.position.distance_to(_interaction_position(stations[index])) > 3.2 or not _can_interact(stations[index]):
 		return
-	if active_station >= 0: stations[active_station].clear()
+	if active_station >= 0:
+		stations[active_station].clear()
 	active_station = index
 	targets = stations[index].targets
 	target_materials = stations[index].materials
-	combat.start_range()
 	_sync_question()
-	_notice(stations[index].title+" · 看中文，射击对应英文。",MINT)
+	_notice(stations[index].title + " · 看中文射击对应英文靶牌（按 Q 可听发音）", MINT)
 
 func _leave_station():
-	if active_station >= 0: stations[active_station].clear()
+	if active_station >= 0:
+		stations[active_station].clear()
 	active_station = -1
 	targets = []
 	target_materials = []
 	_sync_question()
 
 func _interaction_position(node: Node3D) -> Vector3:
-	return node.global_position + (Vector3(2,0,2) if node.has_meta("station_id") else Vector3.ZERO)
+	return node.global_position + (Vector3(2, 0, 2) if node.has_meta("station_id") else Vector3.ZERO)
 
 func _can_interact(node: Node3D) -> bool:
-	var endpoint = _interaction_position(node)+Vector3(0,0.6,0)
-	var query = PhysicsRayQueryParameters3D.create(player.camera.global_position,endpoint,3,[player.get_rid()])
+	var endpoint = _interaction_position(node) + Vector3(0, 0.6, 0)
+	var query = PhysicsRayQueryParameters3D.create(player.camera.global_position, endpoint, 3, [player.get_rid()])
 	var hit = get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty() or hit.collider == node or node.is_ancestor_of(hit.collider)
 
@@ -649,55 +895,107 @@ func fire(camera: Camera3D):
 	if rules.phase != "active" or paused:
 		return
 	rules.shots += 1
-	if not combat.in_field() and (active_station < 0 or player.position.distance_to(stations[active_station].position)>15):
+	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
+	if not shooting_field and (active_station < 0 or player.position.distance_to(stations[active_station].position) > 15):
 		return
 	var from = camera.global_position
-	var to = from - camera.global_basis.z*80
-	var query = PhysicsRayQueryParameters3D.create(from,to,7 if combat.in_field() else 3,[player.get_rid()])
-	query.collide_with_areas = combat.in_field()
+	var to = from - camera.global_basis.z * 85
+	var query = PhysicsRayQueryParameters3D.create(from, to, 7 if shooting_field else 3, [player.get_rid()])
+	query.collide_with_areas = shooting_field
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
-	if combat.in_field():
-		if result: combat.hit(result.collider)
+	if shooting_field:
+		if result:
+			combat.hit(result.collider)
 		return
 	if result and active_station >= 0 and result.collider.get_meta("station_id", "") == stations[active_station].station_id and result.collider.has_meta("answer_index"):
 		resolve_answer(int(result.collider.get_meta("answer_index")))
 
-func resolve_answer(index: int,mobile = false):
-	if (not mobile and active_station<0) or index<0 or index>=choices.size():
+func resolve_answer(index: int, mobile = false):
+	if (not mobile and active_station < 0) or index < 0 or index >= choices.size():
 		return
 	var correct = index == answer_index
-	var warmup = combat.stage==Combat.Stage.RANGE
-	if warmup:
-		if not rules.question_open: return
-		rules.question_open = false
-		combat.record_range(correct)
-	elif not rules.answer(correct):
+	var prev_score = rules.score
+	if not rules.answer(correct, str(question.get("id", ""))):
 		return
+	var gained = rules.score - prev_score
+
+	hitmarker_left = 0.20
+	hitmarker_label.text = "×" if correct else "✕"
+	hitmarker_label.add_theme_color_override("font_color", MINT if correct else Color("ff6b6b"))
+	hitmarker_label.show()
+	play_sfx("hit_correct" if correct else "hit_wrong", -11)
+	speak_english(question.english)
+
 	if mobile:
 		combat.record_field(correct)
-		combat.hit_feedback(index,correct)
+		combat.hit_feedback(index, correct)
 	elif correct:
 		target_materials[index].albedo_color = Color("3b8a62")
 	else:
 		target_materials[index].albedo_color = Color("8d4b47")
 		target_materials[answer_index].albedo_color = Color("3b8a62")
+
 	if correct:
-		_notice(("热身答对 · " if warmup else "答对了！ +10 分 · ")+question.english,MINT)
-		if not warmup and rules.correct%3 == 0:
-			rules.add_loot("知识芯片",20+maxi(0,rules.level()-1)*2)
+		var streak_tag = (" · 🔥%d连击!" % rules.streak) if rules.streak >= 3 else ""
+		if not (mobile and combat.zone >= 0 and combat.waves_done.get(combat.zone, 0) == combat.waves_target.get(combat.zone, -1)):
+			_notice("命中正确！ +%d 分%s · %s（%s）" % [gained, streak_tag, question.english, question.chinese], MINT)
+		if rules.correct % 3 == 0:
+			var chip_rarity = 3 if rules.streak >= 4 else 2
+			rules.add_loot("战术知识芯片", 46 + maxi(0, rules.level() - 1) * 4, chip_rarity)
 	else:
-		var warning = "\n词兵强化 7 秒 · 当前伤害 ×%.2f" % combat.damage_multiplier() if mobile else ""
-		_notice("正确答案："+question.english+"  ·  "+question.chinese+warning,Color("f0be9a"))
+		var warning = "\n⚠ 敌方狂暴强化 7 秒 · 当前伤害 ×%.2f" % combat.damage_multiplier() if mobile else ""
+		_notice("正确答案：%s  —  %s%s" % [question.english, question.chinese, warning], Color("f5b995"))
 		if question not in wrong_words:
 			wrong_words.append(question)
-	screen_flash.color = Color(0.3,1,0.65,0.07) if correct else Color(1,0.4,0.2,0.07)
-	next_question_left = (0.85 if correct else 1.55) if warmup else (1.65 if correct else 2.6)
+
+	screen_flash.color = Color(0.3, 1, 0.65, 0.08) if correct else Color(1, 0.35, 0.2, 0.09)
+	next_question_left = 1.45 if correct else 2.45
 	unit_label.text = "已结算 · 下一题即将出现"
 
-func _notice(text: String,color = GOLD):
+func _notice(text: String, color = GOLD):
 	feedback_label.text = text
-	feedback_label.add_theme_color_override("font_color",color)
-	feedback_left = 3.5
+	feedback_label.add_theme_color_override("font_color", color)
+	feedback_left = 3.4
+
+func _refresh_bag_pills():
+	var sig_parts = [str(rules.capacity())]
+	for item in rules.bag:
+		sig_parts.append("%s:%d:%d" % [item.title, int(item.value), int(item.get("rarity", 1))])
+	var sig = "|".join(sig_parts)
+	if sig == bag_signature:
+		return
+	bag_signature = sig
+	for child in bag_slots_box.get_children():
+		child.queue_free()
+	if rules.bag.is_empty():
+		var empty_lbl = Label.new()
+		empty_lbl.text = "沿路搜刮物资与密码箱（支持拼写开大金）"
+		empty_lbl.add_theme_font_size_override("font_size", 12)
+		empty_lbl.add_theme_color_override("font_color", Color("89a89b"))
+		bag_slots_box.add_child(empty_lbl)
+		return
+	for item in rules.bag:
+		var r = clampi(int(item.get("rarity", 1)), 1, 5)
+		var col: Color = Rules.RARITY_COLORS[r]
+		var pill = PanelContainer.new()
+		var st = StyleBoxFlat.new()
+		st.bg_color = Color(col.r * 0.17, col.g * 0.17, col.b * 0.19, 0.92)
+		st.border_color = col
+		st.set_border_width_all(1)
+		st.set_corner_radius_all(4)
+		st.content_margin_left = 6
+		st.content_margin_right = 6
+		st.content_margin_top = 2
+		st.content_margin_bottom = 2
+		pill.add_theme_stylebox_override("panel", st)
+		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var lbl = Label.new()
+		lbl.text = item.title
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", col)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pill.add_child(lbl)
+		bag_slots_box.add_child(pill)
 
 func _process(delta):
 	render_age += delta
@@ -707,9 +1005,9 @@ func _process(delta):
 		return
 	exploration.update(delta)
 	combat.update(delta)
-	if active_station >= 0 and player.position.distance_to(stations[active_station].position)>15:
+	if active_station >= 0 and player.position.distance_to(stations[active_station].position) > 15:
 		_leave_station()
-	if rules.phase in ["active","extracting"] and not combat.in_warmup():
+	if rules.phase in ["active", "extracting"]:
 		time_left -= delta
 		if time_left <= 0:
 			_end_run(false)
@@ -719,83 +1017,111 @@ func _process(delta):
 		if next_question_left <= 0:
 			_next_question()
 	if rules.phase == "extracting":
-		if player.position.distance_to(exit_position) > 4:
+		if player.position.distance_to(exit_position) > 4.0:
 			rules.phase = "active"
 			_next_question()
-			_notice("已离开撤离圈，撤离取消。")
+			_notice("已离开撤离信标范围，读条中断！")
 		else:
+			extract_pulse_clock -= delta
+			if extract_pulse_clock <= 0:
+				extract_pulse_clock = 1.0
+				play_sfx("extract_pulse", -14)
 			extraction_left -= delta
 			if extraction_left <= 0:
 				_end_run(true)
 				return
-	feedback_left = maxf(0,feedback_left-delta)
+
+	feedback_left = maxf(0, feedback_left - delta)
 	feedback_label.visible = feedback_left > 0
 	feedback_panel.visible = feedback_label.visible
-	screen_flash.color.a = maxf(0,screen_flash.color.a-delta*0.16)
-	stat_label.text = "积分 %03d   |   正确率 %d%%（%d/%d）   |   %02d:%02d   |   Lv.%d" % [rules.score,roundi(rules.accuracy()*100),rules.correct,rules.answered,int(time_left)/60,int(time_left)%60,rules.level()]
-	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age>2 else "预热中"
-	mission_label.text = "① 单词挑战：答对 +10\n② 普通箱："+_crate_progress(1)+"\n③ 高级箱："+_crate_progress(2)+"\n④ 撤离："+("已解锁" if rules.score>=100 else "还差 %d 分" % (100-rules.score))
+	screen_flash.color.a = maxf(0, screen_flash.color.a - delta * 0.22)
+
+	if hitmarker_left > 0:
+		hitmarker_left = maxf(0, hitmarker_left - delta)
+		if hitmarker_left <= 0:
+			hitmarker_label.hide()
+
+	crosshair_label.visible = not player.aiming
+
+	var streak_str = ("  🔥×%d" % rules.streak) if rules.streak >= 3 else ""
+	stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
+		rules.score, Rules.EXTRACTION_SCORE, roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
+	]
+	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
+
+	var outpost_part = ("前哨 %d/1" % rules.outposts_cleared) if rules.combat_mode else "自由靶场"
+	var extract_part = "信标已就绪" if rules.can_extract() else ("差%d分" % maxi(0, Rules.EXTRACTION_SCORE - rules.score) if rules.score < Rules.EXTRACTION_SCORE else "需清1前哨")
+	mission_label.text = "%s  ·  密码箱 %d/%d  ·  %s\n撤离状态：%s" % [
+		outpost_part, rules.crates.size(), crate_nodes.size(), exploration.status_text(), extract_part
+	]
 	_update_guide()
-	if not combat.in_warmup(): guide_label.text += "\n"+exploration.status_text()
 	_update_combat_hud()
-	var names = []
-	for item in rules.bag:
-		if not item.title in names:
-			names.append(item.title)
-	bag_label.text = "%d / %d 格  ·  估值 %d 币\n%s\n\n撤离成功后物资入库" % [rules.bag.size(),rules.capacity(),rules.bag_value(),"、".join(names) if names.size()>0 else "林间有普通补给可拾取"]
-	bag_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	ammo_label.text = "YS-04  /  训练步枪\n"+("换弹中…" if player.reload_left>0 else "%02d / %02d   [R] 换弹" % [player.ammo,rules.magazine()])+"\n"+("林地涂装" if "forest_skin" in rules.profile.owned else "单发 · 精准识词")
+
+	bag_label.text = "随身背包 %d / %d 格  ·  估值 %d 币" % [rules.bag.size(), rules.capacity(), rules.bag_value()]
+	_refresh_bag_pills()
+
+	var optic_tag = "全息稳瞄镜" if "red_dot" in rules.profile.owned else "机械反射镜"
+	ammo_label.text = "YS-04 战术卡宾枪\n%s\n[H] 医疗包 ×%d   |   %s" % [
+		("换弹装填中…" if player.reload_left > 0 else "弹药 %02d / %02d  [R]" % [player.ammo, rules.magazine()]),
+		player.medkits,
+		optic_tag
+	]
 	_update_interaction()
 
 func _crate_progress(tier: int) -> String:
-	var minimum = 5 if tier == 1 else 10
-	var percent = 70 if tier == 1 else 85
-	if rules.crate_ready(tier): return "可开启"
-	if rules.answered < minimum: return "还差 %d 题/%d%%" % [minimum-rules.answered,percent]
-	return "正确率需 %d%%" % percent
+	var req = rules.crate_requirements(tier)
+	var pct = roundi(req.accuracy * 100)
+	if rules.crate_ready(tier):
+		return "可拼写破译"
+	if rules.answered < req.minimum:
+		return "需答 %d 题/%d%%" % [req.minimum, pct]
+	return "正确率需 %d%%" % pct
 
 func _update_guide():
-	if combat.in_warmup():
-		guide_label.text = "35 秒热身\n按 E 启动营地靶场。\n命中越多、正确率越高，\n后续词兵的火力越弱。"
-		return
-	if combat.in_field() and rules.score<100:
-		guide_label.text = "词兵行动\n看中文，射击对应胸牌。\n冲刺和跳跃更容易躲枪。\n橙色预警时也可找掩体。"
-		return
-	if player.position.distance_to(Vector3(0,0,4.5))>1.0: tutorial_moved = true
-	if rules.score>=100:
-		guide_label.text = "撤离已解锁\n沿小地图绿色圆圈前进。\n进入圈内按 E，停留3秒。\n物资带回后可出售升级。"
-	elif not tutorial_moved and rules.answered==0 and active_station<0:
-		guide_label.text = "第1步 · 熟悉操作\nWASD 或方向键移动。\n鼠标转向，空格跳跃。\n身旁绿色终端按 E 开始。"
-	elif active_station<0:
-		guide_label.text = "寻找单词挑战\n小地图蓝点是挑战区域。\n靠近绿色终端，按 E。\n离开后未答题会保留。"
-	elif rules.answered==0:
-		guide_label.text = "看中文，认英文\n鼠标瞄准前方英文靶牌。\n左键射击，R 换弹。\n第一次击中选项后结算。"
+	if player.position.distance_to(Vector3(0, 0, 4.5)) > 1.2:
+		tutorial_moved = true
+	if rules.can_extract():
+		guide_label.text = "★ 撤离条件已满足！前往B点绿色信标按 [E] 坚守5秒"
+	elif combat.in_field() and combat.zone >= 0:
+		guide_label.text = "射击正确英文护盾 · 冲刺跳跃可大幅闪避敌弹"
+	elif combat.in_field():
+		guide_label.text = "沿山路推进至前哨阵地，清剿词兵并开启密码箱"
+	elif not tutorial_moved and active_station < 0:
+		guide_label.text = "按 [E] 开启身旁营地终端，或沿山路探索"
 	else:
-		guide_label.text = "边学边搜物资\n答对 +10分，打错显示答案。\n正确率：答对数 ÷ 作答数。\n沿山路找箱子，按 E 开启。"
+		guide_label.text = "看中文射英文 · 答对+%d分 · 3连击额外+%d分" % [Rules.BASE_ANSWER_SCORE, Rules.STREAK_BONUS_SCORE]
 
 func _update_combat_hud():
-	if combat.in_warmup():
-		var timing = "等候开始" if combat.stage==Combat.Stage.READY else "%02d 秒" % ceili(combat.range_left)
-		combat_label.text = "热身 · "+timing+"\n答对 %d / %d\n预估基础伤害 ×%.2f" % [combat.range_hits,combat.range_answers,Combat.warmup_multiplier(combat.range_hits,combat.range_answers)]
-	elif combat.in_field():
-		var status = "火力强化 · %.0f 秒" % ceilf(combat.rage_left) if combat.rage_left>0 else "答对可压低敌方火力"
-		if combat.miss_left>0:
-			status = "敌方打偏了"
-		if combat.zone>=0:
-			for soldier in combat.troops[combat.zone]:
-				if not soldier.defeated and soldier.action==Combat.Soldier.Action.AIM:
-					status = "瞄准中 · 跑跳或找掩体"
-					break
-		combat_label.text = "体力 %d / 100\n无遮挡命中 %d%%\n敌伤 %d/发 · ×%.2f\n%s" % [combat.health,roundi(combat.hit_chance()*100),combat.damage_per_shot(),combat.damage_multiplier(),status]
+	if combat.in_field():
+		var max_sh = maxf(1.0, float(rules.max_shield()))
+		shield_bar_fill.size.x = 316.0 * clampf(float(combat.shield) / max_sh, 0.0, 1.0)
+		hp_bar_fill.size.x = 316.0 * clampf(float(combat.health) / float(Combat.MAX_HEALTH), 0.0, 1.0)
+		hp_bar_fill.color = Color("6ae3a8") if combat.health > 55 else (Color("f4ca64") if combat.health > 28 else Color("ff5c66"))
+		var threats = combat.active_threat_count()
+		threat_banner.visible = threats > 0
+		var state_tag = "闪避成功!" if combat.miss_left > 0 else ("狂暴 ×%.2f" % combat.damage_multiplier() if combat.rage_left > 0 else ("受瞄准 ×%d" % threats if threats > 0 else "护盾自动充能"))
+		combat_label.text = "生命 %d/100  ·  护盾 %d/%d  ·  %s" % [combat.health, roundi(combat.shield), rules.max_shield(), state_tag]
+	else:
+		threat_banner.hide()
+		shield_bar_fill.size.x = 316.0
+		hp_bar_fill.size.x = 316.0
+		hp_bar_fill.color = Color("6ae3a8")
+		combat_label.text = "自由靶场模式  ·  护盾与生命常驻满值"
+
+func _extraction_blocker_text() -> String:
+	if rules.score < Rules.EXTRACTION_SCORE and rules.combat_mode and rules.outposts_cleared < 1:
+		return "还差 %d 积分 且 需攻克至少 1 处前哨" % (Rules.EXTRACTION_SCORE - rules.score)
+	if rules.score < Rules.EXTRACTION_SCORE:
+		return "积分不足 · 还需 %d 分（当前 %d/%d）" % [Rules.EXTRACTION_SCORE - rules.score, rules.score, Rules.EXTRACTION_SCORE]
+	if rules.combat_mode and rules.outposts_cleared < 1:
+		return "尚未攻克任何词兵前哨（需至少占领 1 处）"
+	return ""
 
 func _update_interaction():
-	if combat.in_warmup():
-		interaction_label.text = "[E] 开始热身" if combat.stage==Combat.Stage.READY else "热身倒计时 %d 秒 · 看中文射击" % ceili(combat.range_left)
-		return
 	closest_interaction = null
 	var nearest = 3.2
-	for node in pickup_nodes+crate_nodes+stations+exploration.nodes:
-		if combat.in_field() and node.has_meta("station_id"):
+	for node in pickup_nodes + crate_nodes + stations + exploration.nodes:
+		if combat.in_field() and node.has_meta("station_id") and (combat.zone >= 0 or node != stations[0]):
 			continue
 		if not node.visible:
 			continue
@@ -803,40 +1129,45 @@ func _update_interaction():
 		if distance < nearest and _can_interact(node):
 			closest_interaction = node
 			nearest = distance
+
 	if rules.phase == "extracting":
-		interaction_label.text = "撤离倒计时 %.1f 秒 · 留在绿色圆圈内" % maxf(0,extraction_left)
-	elif player.position.distance_to(exit_position)<3.5:
-		interaction_label.text = "[E] 开始撤离 · 100 分已达标" if rules.score>=100 else "撤离点未解锁 · 还需 %d 分" % (100-rules.score)
+		interaction_label.text = "★ 撤离信标传输中 %.1f 秒 · 请留在光圈内！" % maxf(0, extraction_left)
+	elif player.position.distance_to(exit_position) < 3.6:
+		interaction_label.text = "[E] 启动战术撤离（坚守 5 秒）" if rules.can_extract() else ("撤离锁定 · " + _extraction_blocker_text())
 	elif closest_interaction:
 		if closest_interaction.has_meta("explore_id"):
-			interaction_label.text = "[E] "+closest_interaction.get_meta("prompt")
+			interaction_label.text = "[E] " + closest_interaction.get_meta("prompt")
 		elif closest_interaction.has_meta("station_id"):
-			interaction_label.text = "[E] 开始/继续 · "+closest_interaction.title
+			interaction_label.text = "[E] 开启识词靶场 · " + closest_interaction.title
 		elif closest_interaction.has_meta("tier"):
 			var title = closest_interaction.get_meta("title")
-			var tier = closest_interaction.get_meta("tier")
+			var tier = int(closest_interaction.get_meta("tier"))
 			if title in rules.crates:
-				interaction_label.text = title+" · 已收集"
+				interaction_label.text = title + " · 已破译搜刮"
 			elif rules.crate_ready(tier):
-				interaction_label.text = "[E] 打开 "+title
+				interaction_label.text = "[E] 拼写破译 · " + title
 			else:
-				interaction_label.text = title+" · "+_crate_progress(tier)
+				interaction_label.text = title + " · " + _crate_progress(tier)
 		else:
-			interaction_label.text = "[E] 拾取普通补给 · 估值25币"
+			interaction_label.text = "[E] 搜刮野外物资箱"
 	else:
-		interaction_label.text = "B点撤离圈  %d m  ·  %s" % [roundi(player.position.distance_to(exit_position)),"已解锁" if rules.score>=100 else "100分解锁"]
+		interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
+			roundi(player.position.distance_to(exit_position)),
+			"已解锁可撤离" if rules.can_extract() else ("%d分%s解锁" % [Rules.EXTRACTION_SCORE, "+清哨" if rules.combat_mode else ""])
+		]
 
 func interact():
 	if rules.phase != "active" or paused:
 		return
-	if combat.in_warmup():
-		_activate_station(0)
-		return
-	if player.position.distance_to(exit_position)<3.5:
+	if player.position.distance_to(exit_position) < 3.6:
 		if rules.request_extraction():
-			extraction_left = 3
+			extraction_left = Rules.EXTRACTION_SECONDS
+			extract_pulse_clock = 0.05
+			play_sfx("extract_pulse", -12)
+			_notice("信标已激活！坚守 %.0f 秒完成撤离入库！" % Rules.EXTRACTION_SECONDS, MINT)
 		else:
-			_notice("累计100分即可撤离，撤离不要求正确率。")
+			play_sfx("hit_wrong", -14)
+			_notice("无法撤离：" + _extraction_blocker_text())
 		return
 	_update_interaction()
 	if not is_instance_valid(closest_interaction):
@@ -848,52 +1179,66 @@ func interact():
 		_activate_station(stations.find(closest_interaction))
 		return
 	if closest_interaction.has_meta("tier"):
-		var title = closest_interaction.get_meta("title")
-		if rules.open_crate(title,int(closest_interaction.get_meta("tier"))):
-			closest_interaction.get_child(closest_interaction.get_child_count()-1).modulate = MINT
-			_notice("补给箱已开启，物资装入背包。",MINT)
-		else:
-			_notice("请检查答题数、正确率、背包空间或箱子是否已打开。")
-	elif rules.add_loot("普通补给",int(closest_interaction.get_meta("value"))):
-		Props.set_enabled(closest_interaction,false)
-		_notice("已拾取普通补给 · 估值25币",MINT)
+		cipher_terminal.open_for_crate(closest_interaction)
+		return
+	var rolled = rules.roll_field_pickup()
+	if rules.add_loot(rolled.title, rolled.value, rolled.rarity):
+		Props.set_enabled(closest_interaction, false)
+		play_sfx("cipher_key", -12)
+		var r_name = Rules.RARITY_NAMES[rolled.rarity]
+		_notice("已搜刮【%s】%s · 估值 %d 币" % [r_name, rolled.title, rolled.value], Rules.RARITY_COLORS[rolled.rarity])
 	else:
-		_notice("背包已满，先带着物资撤离。")
+		play_sfx("hit_wrong", -14)
+		_notice("随身背包已满（%d/%d格），请先前往B点撤离！" % [rules.bag.size(), rules.capacity()])
 
 func _end_run(success: bool, title = ""):
-	var count = rules.bag.size()
-	var value = rules.bag_value()
+	var pre_wh = rules.profile.warehouse.size()
+	var carried_value = rules.bag_value()
 	if success:
 		if not rules.finish_extraction():
 			return
+		play_sfx("loot_epic", -10)
 		_save()
 	else:
 		rules.abandon()
+	var banked_count = rules.profile.warehouse.size() - pre_wh
 	combat.stop()
+	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
+		cipher_terminal.reset()
 	paused = true
 	player.clear_movement_input()
 	player.active = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	menu.show()
 	hud.hide()
-	_refresh_menu(title if title!="" else ("成功撤离" if success else "行动结束"))
+	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
-	menu_summary.text = ("带回 %d 件物资，估值 %d 币。\n" % [count,value] if success else "本局物资留在烟山，可重新开始。\n")+"答对 %d / %d 题 · 正确率 %d%%\n" % [rules.correct,rules.answered,roundi(rules.accuracy()*100)]
-	menu_summary.text += "探索 %d/3 · 用时 %d分%02d秒\n" % [exploration.completed(),int(exploration.began)/60,int(exploration.began)%60]
+	var header = ("成功带回 %d 件物资（含清哨奖励），随身估值 %d 币！\n" % [banked_count, carried_value]) if success else "本局未撤离物资遗留在烟山，调整装备再战！\n"
+	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
+		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
+	]
+	menu_summary.text += "攻克前哨 %d 处 · 完美拼写破译 %d 箱 · 支线探索 %d/3\n" % [
+		rules.outposts_cleared, rules.perfect_ciphers, exploration.completed()
+	]
 	if wrong_words.size() > 0:
-		menu_summary.text += "本局有 %d 个错词，点击下方查看。" % wrong_words.size()
+		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()
 	else:
-		menu_summary.text += "到右侧出售物资，可以兑换升级配件。"
+		menu_summary.text += "零错词完成行动！可在右侧出售物资兑换新装备。"
 
 func _input(event):
 	if event is InputEventKey and event.pressed and not event.echo:
-		if is_instance_valid(exploration) and exploration.busy and (event.physical_keycode == KEY_ESCAPE or event.keycode == KEY_ESCAPE):
+		var is_esc = (event.physical_keycode == KEY_ESCAPE or event.keycode == KEY_ESCAPE)
+		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:
+			cipher_terminal.close()
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(exploration) and exploration.busy and is_esc:
 			exploration.close()
 			get_viewport().set_input_as_handled()
 			return
-		if (event.physical_keycode == KEY_ESCAPE or event.keycode == KEY_ESCAPE) and rules.phase in ["active","extracting"]:
+		if is_esc and rules.phase in ["active", "extracting"]:
 			if paused:
-				start_action()
+				start_action(rules.combat_mode)
 			else:
 				paused = true
 				player.clear_movement_input()
@@ -905,11 +1250,11 @@ func _input(event):
 			get_viewport().set_input_as_handled()
 		elif event.physical_keycode == KEY_F6 or event.keycode == KEY_F6:
 			landscape.set_low_quality(not landscape.low_quality)
-			var quality_text="画质：低负载 · 实时阴影关闭" if landscape.low_quality else "画质：标准 · 近景实时阴影"
-			_notice(quality_text,MINT)
-			menu_status.text=quality_text
+			var quality_text = "画质：低负载 · 实时阴影关闭" if landscape.low_quality else "画质：标准 · 近景实时阴影"
+			_notice(quality_text, MINT)
+			menu_status.text = quality_text
 		elif event.physical_keycode == KEY_F12 or event.keycode == KEY_F12:
-			_capture("yanshan-"+str(Time.get_unix_time_from_system())+".png")
+			_capture("yanshan-" + str(Time.get_unix_time_from_system()) + ".png")
 
 func _capture(filename: String):
 	var folder = OS.get_environment("DRZ_SCREENSHOT_DIR")
@@ -918,4 +1263,4 @@ func _capture(filename: String):
 	DirAccess.make_dir_recursive_absolute(folder)
 	screenshot_path = folder.path_join(filename)
 	var error = get_viewport().get_texture().get_image().save_png(screenshot_path)
-	print("SCREENSHOT ",error," ",screenshot_path)
+	print("SCREENSHOT ", error, " ", screenshot_path)

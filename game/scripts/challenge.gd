@@ -11,8 +11,16 @@ func setup(game, data: Dictionary):
 	title = data.title
 	position = game.Layout.on_ground(data.at)
 	set_meta("station_id",station_id)
-	game._mesh_box(self,Vector3(2,0.6,2),Vector3(0.8,1.2,0.6),Color("376359"),true)
-	terminal_label = game._label3d(self,title+"\n[E] 单词挑战",Vector3(2,2.1,2),30,game.MINT)
+	var rel_ground = game.Layout.min_ground_height(position.x + 2.0, position.z + 2.0, 0.55) - position.y
+	var body_mat = StandardMaterial3D.new()
+	body_mat.albedo_color = Color("2b4842")
+	body_mat.metallic = 0.45
+	body_mat.roughness = 0.52
+	var pedestal = game._mesh_box(self, Vector3(2, rel_ground + 0.50, 2), Vector3(0.76, 1.55, 0.58), Color("2b4842"), true)
+	pedestal.material_override = body_mat
+	var screen = game._mesh_box(self, Vector3(2, rel_ground + 0.92, 2.30), Vector3(0.58, 0.42, 0.04), Color("67e0b4"))
+	screen.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terminal_label = game._label3d(self, title + "\n[E] 单词挑战", Vector3(2, rel_ground + 1.88, 2), 30, game.MINT)
 	for i in 4:
 		var board = StaticBody3D.new()
 		board.collision_layer = 3

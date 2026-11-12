@@ -22,9 +22,9 @@ def main():
     assets = ROOT / "game/assets"
     nature = ROOT / "third_party/kenney-nature-kit/Models/GLTF format"
     survival = ROOT / "third_party/kenney-survival-kit/Models/GLB format"
-    for name in ("tree_pineTallA", "tree_pineRoundD", "tree_oak", "tree_default_dark", "rock_largeA", "rock_largeC", "rock_tallC"):
+    for name in ("tree_pineTallA", "tree_pineRoundD", "tree_oak", "tree_default_dark", "rock_largeA", "rock_largeC", "rock_tallC", "statue_obelisk"):
         copy_asset(nature / f"{name}.glb", assets / "nature" / f"{name}.glb")
-    for name in ("tent-canvas", "barrel", "box-large", "box", "chest"):
+    for name in ("tent-canvas", "barrel", "box-large", "box-large-open", "box", "chest", "patch-grass-large", "grass-large", "structure-roof", "structure-metal-wall", "signpost", "fence-fortified", "workbench"):
         copy_asset(survival / f"{name}.glb", assets / "survival" / f"{name}.glb")
     for folder, destination in ((nature / "Textures", assets / "nature/Textures"), (survival / "Textures", assets / "survival/Textures")):
         if folder.exists():
@@ -32,9 +32,10 @@ def main():
                 if source.is_file():
                     copy_asset(source, destination/source.name)
     fps = ROOT / "third_party/kenney-fps"
-    copy_asset(fps / "models/blaster.glb", assets / "fps/blaster.glb")
+    for name in ("blaster", "enemy-flying", "wall-low", "wall-high"):
+        copy_asset(fps / f"models/{name}.glb", assets / f"fps/{name}.glb")
     copy_asset(fps / "models/Textures/colormap.png", assets / "fps/Textures/colormap.png")
-    for filename in ("blaster.ogg", "land.ogg", "weapon_change.ogg"):
+    for filename in ("blaster.ogg", "blaster_repeater.ogg", "enemy_attack.ogg", "enemy_destroy.ogg", "enemy_hurt.ogg", "jump_a.ogg", "land.ogg", "walking.ogg", "weapon_change.ogg"):
         copy_asset(fps / "sounds" / filename, assets / "fps/sounds" / filename)
     copy_asset(ROOT / "third_party/noto-sans-sc/NotoSansSC[wght].ttf", assets / "font/NotoSansSC.ttf")
     for source, target in ((fps/"LICENSE.md", "Kenney-FPS-MIT.txt"), (ROOT/"third_party/kenney-nature-kit/License.txt", "Nature-CC0.txt"), (ROOT/"third_party/kenney-survival-kit/License.txt", "Survival-CC0.txt"), (ROOT/"third_party/noto-sans-sc/OFL.txt", "NotoSansSC-OFL.txt"), (ROOT/"docs/licenses/GODOT_LICENSE.txt", "Godot-MIT.txt"), (ROOT/"docs/licenses/GODOT_COPYRIGHT.txt", "Godot-COPYRIGHT.txt")):

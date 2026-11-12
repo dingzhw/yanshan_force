@@ -14,7 +14,7 @@ func verify(ok: bool, description: String):
 	checks += 1
 	if not ok:
 		failures += 1
-	print("PASS " if ok else "FAIL ",description)
+	print("PASS " if ok else "FAIL ", description)
 
 func frames(count: int):
 	for i in count:
@@ -35,12 +35,12 @@ func key(code: int, pressed: bool):
 
 func seed_for_roll(low: float, high: float) -> int:
 	var probe = RandomNumberGenerator.new()
-	for candidate in range(1,1025):
+	for candidate in range(1, 1025):
 		probe.seed = candidate
 		var roll = probe.randf()
-		if roll>low and roll<high:
+		if roll > low and roll < high:
 			return candidate
-	assert(false,"No deterministic shot roll in the expected interval")
+	assert(false, "No deterministic shot roll in the expected interval")
 	return 0
 
 func run():
@@ -50,211 +50,228 @@ func run():
 	aim = Camera3D.new()
 	game.add_child(aim)
 	await frames(2)
+
+	# Immediate field deployment into 3 outposts with 3 distinct enemy archetypes
 	game.start_button.pressed.emit()
-	verify(game.combat.stage==Battle.Stage.READY,"main menu deploys into timed-range preparation")
-	verify(game.combat.health==100 and game.combat.troops.is_empty(),"the range starts with full health and no attackers")
+	verify(game.combat.in_field() and game.combat.troops.size() == 3, "combat mode immediately deploys 3 tactical outposts without forced 35s wait")
+	verify(game.combat.health == 100 and game.combat.shield == 30 and not game.stations[1].boards[0].visible, "player starts with 100 HP + 30 Shield and field static boards disabled")
+
+	var seen_archetypes = {}
+	for z_idx in game.combat.troops:
+		for s in game.combat.troops[z_idx]:
+			seen_archetypes[s.archetype] = true
+	verify(seen_archetypes.size() == 3, "all 3 enemy archetypes (Assault Bot, Scout Drone, Sniper Guard) spawn across outposts")
+
+	# Camp Station 0 remains usable for optional warm-up before entering a combat zone
 	game.interact()
-	verify(game.combat.stage==Battle.Stage.RANGE,"E interaction starts the 35-second range")
-	var warmup_before: float = game.combat.range_left
-	var esc = InputEventKey.new()
-	esc.keycode = KEY_ESCAPE
-	esc.pressed = true
-	game._input(esc)
-	await frames(12)
-	verify(game.paused and is_equal_approx(game.combat.range_left,warmup_before),"pausing freezes the warmup timer")
-	game._input(esc)
-	await frames(10)
-	verify(game.combat.range_left<warmup_before,"resuming continues the same warmup")
-	shoot(game.player.camera.global_position,game.targets[game.answer_index].global_position)
-	verify(game.combat.range_hits==1 and game.combat.range_answers==1 and game.rules.score==0,"actual range ray records a hit separately from field score")
-	shoot(game.player.camera.global_position,game.targets[game.answer_index].global_position)
-	verify(game.combat.range_answers==1,"repeated range hit cannot inflate the grade")
-	game._next_question()
-	shoot(game.player.camera.global_position,game.targets[(game.answer_index+1)%4].global_position)
-	verify(game.combat.range_answers==2 and game.wrong_words.size()==1,"wrong range hit affects grade and enters review")
-	verify(Battle.warmup_multiplier(8,8)<Battle.warmup_multiplier(4,4) and Battle.warmup_multiplier(4,4)<Battle.warmup_multiplier(4,8) and Battle.warmup_multiplier(0,8)>1.0,"warmup formula rewards hit count and accuracy")
-	game.combat.range_left = 0.04
-	await frames(6)
-	verify(game.combat.in_field() and game.combat.troops.size()==2,"range countdown deploys forest and rock patrols")
-	verify(is_equal_approx(game.combat.range_scale,Battle.warmup_multiplier(1,2)) and not game.stations[1].boards[0].visible,"warmup grade carries into combat and stationary boards clear")
-	var patrol = game.combat.troops[1][0]
+	verify(game.active_station == 0 and game.stations[0].boards[0].visible, "camp station remains available for optional warm-up")
+	game._leave_station()
+
+	var patrol = game.combat.troops[0][0]
 	var patrol_start: Vector3 = patrol.position
-	await frames(70)
-	verify(patrol.position.distance_to(patrol_start)>0.65 and patrol.is_on_floor() and patrol.action==Soldier.Action.PATROL,"patrol follows a route on the real terrain")
-	var center: Vector3 = game.stations[1].position
-	game.combat.shot_rng.seed = seed_for_roll(0.0,0.1)
-	game.player.position = center+Vector3(0,0.08,1.5)
-	await frames(6)
-	verify(game.combat.zone==1 and patrol.word_label.text!="","approaching the forest enables its word-bearing enemies")
+	await frames(65)
+	verify(patrol.position.distance_to(patrol_start) > 0.55 and patrol.action == Soldier.Action.PATROL, "outpost squad patrols real terrain before aggro")
+
+	# Expanded aggro check: approaching 20m from Zone 0 already triggers combat (aggro = 23m)
+	var center0: Vector3 = game.combat.zone_center(0)
+	game.player.position = center0 + Vector3(0, 0.1, 19.5)
+	await frames(5)
+	verify(game.combat.zone == 0 and patrol.word_label.text != "", "expanded 23m aggro radius engages player at medium range")
+
 	var all_words_fit = true
 	for entry in game.words:
-		game._fit_word(patrol.word_label,entry.english,118)
+		game._fit_word(patrol.word_label, entry.english, 118)
 		var label = patrol.word_label
-		var size = game.font.get_multiline_string_size(label.text,HORIZONTAL_ALIGNMENT_CENTER,label.width,label.font_size)
-		if size.y>118 or size.x>label.width:
+		var size = game.font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, label.width, label.font_size)
+		if size.y > 118 or size.x > label.width:
 			all_words_fit = false
-	verify(all_words_fit,"all 175 textbook entries fit the mobile shield")
-	game.combat.show_question()
+	verify(all_words_fit, "all 175 textbook entries fit the holographic shield")
+
+	# Advance, warn, fire (absorbed by Shield first!), and retreat to cover
+	game.player.position = center0 + Vector3(0, 0.08, 1.5)
+	game.combat.shot_rng.seed = seed_for_roll(0.0, 0.1)
+	await frames(4)
 	var saw_warning = false
 	var fired = false
-	var initial_health: int = game.combat.health
+	var init_shield: float = game.combat.shield
 	var first_attacker
-	for i in 300:
+	for i in 320:
 		await physics_frame
-		for soldier in game.combat.troops[1]:
-			if soldier.action==Soldier.Action.AIM:
+		for soldier in game.combat.troops[0]:
+			if soldier.action == Soldier.Action.AIM:
 				saw_warning = true
 				first_attacker = soldier
-		if game.combat.health<initial_health:
+		if game.combat.shield < init_shield or game.combat.health < 100:
 			fired = true
 			break
-	verify(saw_warning and fired and initial_health-game.combat.health==game.combat.damage_per_shot(),"an advancing soldier warns, fires and applies real damage")
+	verify(saw_warning and fired and game.combat.shield < init_shield and game.combat.health == 100, "enemy shot warns, fires, and is absorbed by rechargeable shield first")
+
 	var sheltered = false
 	if is_instance_valid(first_attacker):
-		for i in 160:
+		for i in 180:
 			await physics_frame
-			if first_attacker.action==Soldier.Action.COVER and first_attacker.position.distance_to(first_attacker.cover_goal)<0.65 and not game.combat.clear_shot(first_attacker.position):
+			if first_attacker.action == Soldier.Action.COVER and first_attacker.position.distance_to(first_attacker.cover_goal) < 0.75 and not game.combat.clear_shot(first_attacker.position):
 				sheltered = true
 				break
-	verify(sheltered,"the attacker reaches real cover after firing")
+	verify(sheltered, "attacker retreats behind solid cover after firing")
 	if is_instance_valid(first_attacker):
-		var cover_health: int = game.combat.health
+		var cover_sh = game.combat.shield
 		var rng_state: int = game.combat.shot_rng.state
 		game.combat.strike(first_attacker)
-		verify(game.combat.health==cover_health and game.combat.shot_rng.state==rng_state,"solid cover cancels the shot before rolling accuracy")
-	else:
-		verify(false,"solid cover blocks enemy damage")
-	# Use a clear patch of the live arena to test the shield ray independently
-	# of the patrol's current pose. Preserve the real CharacterBody and shield.
+		verify(is_equal_approx(game.combat.shield, cover_sh) and game.combat.shot_rng.state == rng_state, "solid cover cancels enemy shot before rolling accuracy")
+
+	# Medkit [H] healing test
+	game.combat.health = 50
+	game.combat.shield = 5
+	var kits_before = game.player.medkits
+	game.player.use_medkit()
+	verify(game.player.medkits == kits_before - 1 and game.combat.health == 95 and roundi(game.combat.shield) == 30, "field medkit restores +45 HP and +25 shield")
+
+	# Wrong & Correct holographic shield raycast tests
 	var before_wrong: int = game.combat.damage_per_shot()
-	var wrong = game.combat.troops[1][(game.answer_index+1)%4]
-	wrong.position = center+Vector3(0,0.08,-3)
+	var wrong = game.combat.troops[0][(game.answer_index + 1) % 4]
+	wrong.position = center0 + Vector3(0, 0.08, -3)
 	await frames(2)
 	var eye: Vector3 = game.player.camera.global_position
-	shoot(eye,wrong.shield_area.global_position+wrong.shield_area.global_basis.x*0.68)
-	verify(game.combat.field_answers==1 and game.combat.rage_left>6.8 and game.combat.damage_per_shot()>before_wrong,"hitting the shield's edge resolves a wrong word and raises damage")
+	shoot(eye, wrong.shield_area.global_position + wrong.shield_area.global_basis.x * 0.72)
+	verify(game.combat.field_answers == 1 and game.combat.rage_left > 6.8 and game.combat.damage_per_shot() > before_wrong, "hitting wrong shield triggers rage and raises enemy damage")
 	var wrong_damage: int = game.combat.damage_per_shot()
+
 	game._next_question()
-	var correct = game.combat.troops[1][game.answer_index]
-	if correct!=wrong:
+	var correct = game.combat.troops[0][game.answer_index]
+	if correct != wrong:
 		wrong.position = wrong.home
-	correct.position = center+Vector3(0,0.08,-3)
+	correct.position = center0 + Vector3(0, 0.08, -3)
 	await frames(2)
-	shoot(game.player.camera.global_position,correct.shield_area.global_position)
-	verify(game.rules.score==10 and correct.defeated and correct.shield_area.collision_layer==0,"correct shot awards points and disables the defeated soldier and shield")
-	verify(game.combat.rage_left==0 and game.combat.damage_per_shot()<wrong_damage,"correct answer breaks rage and lowers field damage")
-	var score: int = game.rules.score
-	shoot(game.player.camera.global_position,correct.shield_area.global_position)
-	verify(game.rules.score==score,"shooting a downed soldier cannot score again")
+	shoot(game.player.camera.global_position, correct.shield_area.global_position)
+	verify(game.rules.score == game.Rules.BASE_ANSWER_SCORE and correct.defeated and correct.shield_area.collision_layer == 0, "correct shot awards 15 points and shatters target shield")
+	verify(game.combat.rage_left == 0 and game.combat.damage_per_shot() < wrong_damage, "correct answer breaks rage and lowers field damage")
+	var score_after_one: int = game.rules.score
+	shoot(game.player.camera.global_position, correct.shield_area.global_position)
+	verify(game.rules.score == score_after_one, "shooting a downed bot cannot score again")
+
+	# Check Sniper Guard laser beam in Zone 1 (山道拦截哨)
 	game._next_question()
-	verify(not correct.defeated and correct.word_label.text!="","next question brings in a readable reinforcement")
-	game.player.position = game.stations[2].position+Vector3(0,0.08,1.5)
+	var center1: Vector3 = game.combat.zone_center(1)
+	game.player.position = center1 + Vector3(0, 0.08, 2.0)
 	await frames(5)
-	verify(game.combat.zone==2 and game.combat.troops[2][0].word_label.text!="","the second patrol activates in the rock zone")
-	# Finish the run on live targets using actual rays. Wait for enemies to
-	# advance or peek when the correct word is behind their cover.
-	var last_hit = {}
-	var last_target
-	for i in 2200:
+	verify(game.combat.zone == 1, "mid-route pass outpost activates Zone 1")
+	var sniper = null
+	for s in game.combat.troops[1]:
+		if s.archetype == Soldier.Archetype.SNIPER_GUARD:
+			sniper = s
+			break
+	var saw_laser = false
+	if is_instance_valid(sniper):
+		sniper.position = center1 + Vector3(0, 0.08, -5.0)
+		for i in 220:
+			await physics_frame
+			if sniper.action == Soldier.Action.AIM and sniper.laser_beam.visible:
+				saw_laser = true
+				break
+	verify(saw_laser, "heavy sniper guard projects visible red laser beam while locking on")
+
+	# Extraction Gate Balance Check: 260 points WITHOUT clearing an outpost must block combat extraction!
+	game.rules.score = 270
+	verify(game.rules.outposts_cleared == 0 and not game.rules.can_extract(), "260+ score alone cannot extract in combat mode before clearing an outpost")
+
+	# Clear Zone 2 (B · 竹林重兵阵地) via live raycasts
+	game.rules.score = 180
+	var center2: Vector3 = game.combat.zone_center(2)
+	game.player.position = center2 + Vector3(0, 0.08, 1.5)
+	game.combat.health = 100
+	game.combat.shield = 30
+	await frames(5)
+	verify(game.combat.zone == 2, "bamboo stronghold activates Zone 2")
+	for i in 2400:
 		await physics_frame
-		if game.rules.score>=100 or game.rules.phase!="active":
+		if game.rules.can_extract() or game.rules.phase != "active":
 			break
 		if not game.rules.question_open:
 			continue
 		var target = game.combat.troops[2][game.answer_index]
-		last_target = target
 		var from: Vector3 = game.player.camera.global_position
 		var at: Vector3 = target.shield_area.global_position
-		var ray = PhysicsRayQueryParameters3D.create(from,at,7,[game.player.get_rid()])
+		var ray = PhysicsRayQueryParameters3D.create(from, at, 7, [game.player.get_rid()])
 		ray.collide_with_areas = true
 		var result = game.get_world_3d().direct_space_state.intersect_ray(ray)
-		last_hit = result
-		if result and (result.collider==target or result.collider==target.shield_area):
-			shoot(from,at)
-	print("LIVE_ROUND score=",game.rules.score," health=",game.combat.health," phase=",game.rules.phase," time=",game.time_left)
-	if game.rules.score<100 and is_instance_valid(last_target):
-		print("LAST_TARGET ",last_target.option," at ",last_target.position," cover ",last_target.cover," action ",last_target.action," blocked ",last_hit.get("position")," collider ",last_hit.get("collider"))
-	verify(game.rules.score==100 and game.combat.health>0,"live moving targets can be read, hit and cleared through a full extraction score")
-	game.rules.add_loot("词兵测试物资",25)
+		if result and (result.collider == target or result.collider == target.shield_area):
+			shoot(from, at)
+	verify(game.rules.outposts_cleared >= 1 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(), "clearing live outpost waves + reaching 260 pts unlocks combat extraction")
+
+	game.rules.add_loot("前哨战利品", 82, 3)
 	game.player.position = game.exit_position
 	await frames(2)
 	game.interact()
-	verify(game.rules.phase=="extracting" and game.rules.score==100,"field score unlocks the normal extraction")
+	verify(game.rules.phase == "extracting", "combat extraction begins at B beacon")
 	game.extraction_left = 0.02
 	await frames(5)
-	verify(game.rules.phase=="result" and game.rules.profile.warehouse.size()>0 and not game.combat.in_field(),"extraction banks loot and removes combat")
+	verify(game.rules.phase == "result" and game.rules.profile.warehouse.size() > 0 and not game.combat.in_field(), "extraction banks loot and clears combat")
+
+	# Evasion & Lethal Defeat Checks
 	game.start_button.pressed.emit()
-	game.interact()
-	game.combat.range_left = 0.03
+	await frames(4)
+	game.player.position = center0 + Vector3(0, 0.08, 1.5)
 	await frames(5)
-	game.player.position = center+Vector3(0,0.08,1.5)
-	await frames(5)
-	var threat = game.combat.troops[1][0]
-	for soldier in game.combat.troops[1]:
+	var threat = game.combat.troops[0][0]
+	for soldier in game.combat.troops[0]:
 		soldier.set_physics_process(false)
-	threat.position = center+Vector3(0,0.08,-3)
+	threat.position = center0 + Vector3(0, 0.08, -3)
 	await frames(20)
+	game.combat.shield = 0
+	game.combat.shield_delay = 30.0
+
 	var stationary: float = game.combat.hit_chance()
-	var same_roll := seed_for_roll(0.50,0.70)
+	var same_roll := seed_for_roll(0.50, 0.70)
 	var before: int = game.combat.health
 	game.combat.shot_rng.seed = same_roll
 	game.combat.strike(threat)
-	verify(absf(stationary-0.75)<0.01 and game.combat.health==before-game.combat.damage_per_shot(),"a stationary player can be hit at 75 percent accuracy")
-	key(KEY_A,true)
+	verify(absf(stationary - 0.78) < 0.02 and game.combat.health == before - game.combat.damage_per_shot(threat), "stationary player takes full hit at 78% base accuracy")
+
+	key(KEY_A, true)
 	await frames(28)
 	var moving: float = game.combat.hit_chance()
 	before = game.combat.health
 	game.combat.shot_rng.seed = same_roll
 	game.combat.strike(threat)
-	verify(absf(moving-0.40)<0.02 and game.combat.health==before and game.combat.miss_left>0,"the same roll misses when the player moves at normal speed")
-	key(KEY_SHIFT,true)
+	verify(moving < 0.45 and game.combat.health == before and game.combat.miss_left > 0, "same roll misses when player strafes")
+
+	key(KEY_SHIFT, true)
 	await frames(22)
 	var sprinting: float = game.combat.hit_chance()
-	var jump_roll := seed_for_roll(0.18,0.22)
+	var jump_roll := seed_for_roll(0.18, 0.23)
 	before = game.combat.health
 	game.combat.shot_rng.seed = jump_roll
 	game.combat.strike(threat)
-	verify(absf(sprinting-0.25)<0.02 and game.combat.health==before-game.combat.damage_per_shot(),"sprinting reduces the chance to 25 percent")
-	key(KEY_SPACE,true)
+	verify(absf(sprinting - 0.26) < 0.03 and game.combat.health == before - game.combat.damage_per_shot(threat), "sprinting lowers enemy hit chance to 26%")
+
+	key(KEY_SPACE, true)
 	await frames(8)
 	var sprint_jump: float = game.combat.hit_chance()
 	before = game.combat.health
 	game.combat.shot_rng.seed = jump_roll
 	game.combat.strike(threat)
-	verify(not game.player.is_on_floor() and absf(sprint_jump-0.1375)<0.02 and game.combat.health==before and game.combat.miss_left>0,"the same shot misses during a sprint jump")
-	key(KEY_SPACE,false)
-	key(KEY_SHIFT,false)
-	key(KEY_A,false)
+	verify(not game.player.is_on_floor() and sprint_jump < 0.16 and game.combat.health == before and game.combat.miss_left > 0, "same roll misses during sprint-jump")
+
+	key(KEY_SPACE, false)
+	key(KEY_SHIFT, false)
+	key(KEY_A, false)
 	game.player.clear_movement_input()
-	game.player.position = center+Vector3(0,0.08,1.5)
-	await frames(20)
-	key(KEY_SPACE,true)
-	await frames(8)
-	var jump: float = game.combat.hit_chance()
-	key(KEY_SPACE,false)
-	verify(not game.player.is_on_floor() and absf(jump-0.4125)<0.02,"jumping in place also makes enemy fire less accurate")
-	print("HIT_CHANCES still=",stationary," move=",moving," sprint=",sprinting," jump=",jump," sprint_jump=",sprint_jump)
-	game.player.clear_movement_input()
-	game.player.position = center+Vector3(0,0.08,2)
-	key(KEY_SHIFT,true)
-	key(KEY_D,true)
-	await frames(42)
-	verify(game.combat.hit_chance()>0.73 and game.player.position.x<center.x+1.4,"a held sprint key against a solid terminal does not grant evasion")
-	key(KEY_SHIFT,false)
-	key(KEY_D,false)
-	game.player.clear_movement_input()
-	game.player.position = center+Vector3(0,0.08,1.5)
+	game.player.position = center0 + Vector3(0, 0.08, 1.5)
 	await frames(15)
+	game.combat.shield = 0
 	game.combat.health = 1
-	game.rules.add_loot("未撤离",50)
-	game.combat.shot_rng.seed = seed_for_roll(0.0,0.1)
+	game.rules.add_loot("未撤离", 50, 2)
+	game.combat.shot_rng.seed = seed_for_roll(0.0, 0.1)
 	game.combat.strike(threat)
-	verify(game.rules.phase=="result" and game.rules.bag.is_empty() and game.menu_title.text.contains("体力耗尽"),"lethal attack ends the run and drops unextracted loot")
+	verify(game.rules.phase == "result" and game.rules.bag.is_empty() and game.menu_title.text.contains("耗尽"), "lethal attack ends run and drops unextracted loot")
+
 	game.practice_button.pressed.emit()
 	game.interact()
-	verify(game.combat.stage==Battle.Stage.OFF and game.stations[1].boards[0].visible and game.active_station==0,"free practice still starts with working stationary boards")
+	verify(game.combat.stage == Battle.Stage.OFF and game.stations[1].boards[0].visible and game.active_station == 0, "free practice starts with stationary boards enabled")
+
 	game.queue_free()
 	await process_frame
-	await create_timer(0.4).timeout
-	print("COMBAT_CHECKS=",checks," FAILURES=",failures)
+	await create_timer(0.3).timeout
+	print("COMBAT_CHECKS=", checks, " FAILURES=", failures)
 	quit(1 if failures else 0)

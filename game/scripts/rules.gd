@@ -1,40 +1,128 @@
 extends RefCounted
 
-const ITEMS = {
-	"magazine": {"cost":120,"title":"扩容弹匣 · 8→14发"},
-	"backpack": {"cost":160,"title":"野外背包 · 8→12格"},
-	"forest_skin": {"cost":90,"title":"林地枪械涂装 · 绿色外观"},
-	"scout": {"cost":240,"title":"山林侦察员 · 移速+10%"},
-	"reward_point": {"cost":300,"title":"奖励积分券 · 家长线下兑现"}
+const EXTRACTION_SCORE = 260
+const EXTRACTION_SECONDS = 5.0
+const BASE_ANSWER_SCORE = 15
+const STREAK_BONUS_SCORE = 5
+const OUTPOST_CLEAR_SCORE = 30
+const CIPHER_PERFECT_SCORE = 25
+
+const RARITY_NAMES = {
+	1: "普通",
+	2: "精良",
+	3: "稀有",
+	4: "史诗",
+	5: "传说·大金"
 }
+
+const RARITY_COLORS = {
+	1: Color("cad4cf"),
+	2: Color("74e3a3"),
+	3: Color("66beff"),
+	4: Color("cf8aff"),
+	5: Color("ffd15c")
+}
+
+const LOOT_TABLE = {
+	1: [
+		{"title": "旧巡护电池", "value": 28, "rarity": 1},
+		{"title": "压缩干粮", "value": 30, "rarity": 1},
+		{"title": "信号铜线", "value": 32, "rarity": 1}
+	],
+	2: [
+		{"title": "林间指北针", "value": 48, "rarity": 2},
+		{"title": "防水战术手电", "value": 54, "rarity": 2},
+		{"title": "巡护员徽章", "value": 58, "rarity": 2}
+	],
+	3: [
+		{"title": "加密无线电台", "value": 82, "rarity": 3},
+		{"title": "光学测距模块", "value": 90, "rarity": 3},
+		{"title": "古树琥珀标本", "value": 96, "rarity": 3}
+	],
+	4: [
+		{"title": "无人机核心芯片", "value": 145, "rarity": 4},
+		{"title": "竹海古玉残片", "value": 155, "rarity": 4},
+		{"title": "军用黑匣子", "value": 165, "rarity": 4}
+	],
+	5: [
+		{"title": "烟山古铜虎符", "value": 260, "rarity": 5},
+		{"title": "特级金质勋章", "value": 290, "rarity": 5},
+		{"title": "量子词典原型机", "value": 320, "rarity": 5}
+	]
+}
+
+const ITEMS = {
+	"red_dot": {"cost": 110, "title": "全息精准瞄具 · 开镜高倍稳瞄"},
+	"magazine": {"cost": 140, "title": "扩容弹匣 I · 8→14发"},
+	"magazine2": {"cost": 260, "title": "战术弹鼓 II · 14→20发"},
+	"shield_core": {"cost": 200, "title": "纳米护盾核心 · 护盾30→60"},
+	"backpack": {"cost": 180, "title": "野外战术背包 · 8→14格"},
+	"medkit_pack": {"cost": 160, "title": "急救扩容包 · 医疗包1→3"},
+	"forest_skin": {"cost": 120, "title": "竹影迷彩涂装 · 翡翠定制枪身"},
+	"scout": {"cost": 240, "title": "山林侦察靴 · 移速+12%"},
+	"reward_point": {"cost": 350, "title": "奖励积分券 · 家长线下兑现"}
+}
+
 var phase = "camp"
+var combat_mode = false
 var score = 0
 var correct = 0
 var answered = 0
+var streak = 0
+var best_streak = 0
 var shots = 0
+var outposts_cleared = 0
+var perfect_ciphers = 0
 var question_open = false
 var bag = []
 var crates = []
-var profile = {"coins":0,"xp":0,"points":0,"warehouse":[],"owned":[],"extractions":0}
+var loot_rng := RandomNumberGenerator.new()
+
+var profile = {
+	"coins": 0,
+	"xp": 0,
+	"points": 0,
+	"warehouse": [],
+	"owned": [],
+	"extractions": 0,
+	"mastery": {},
+	"collection": []
+}
+
+func _init():
+	loot_rng.randomize()
 
 func accuracy() -> float:
 	return float(correct) / float(answered) if answered > 0 else 0.0
 
 func capacity() -> int:
-	return 12 if "backpack" in profile.owned else 8
+	return 14 if "backpack" in profile.owned else 8
 
 func magazine() -> int:
+	if "magazine2" in profile.owned:
+		return 20
 	return 14 if "magazine" in profile.owned else 8
 
-func level() -> int:
-	return 1 + int(profile.xp / 100)
+func max_shield() -> int:
+	return 60 if "shield_core" in profile.owned else 30
 
-func start_run():
+func starter_medkits() -> int:
+	return 3 if "medkit_pack" in profile.owned else 1
+
+func level() -> int:
+	return 1 + int(profile.xp / 120)
+
+func start_run(as_combat = false):
 	phase = "active"
+	combat_mode = as_combat
 	score = 0
 	correct = 0
 	answered = 0
+	streak = 0
+	best_streak = 0
 	shots = 0
+	outposts_cleared = 0
+	perfect_ciphers = 0
 	bag = []
 	crates = []
 	question_open = false
@@ -42,36 +130,146 @@ func start_run():
 func open_question():
 	question_open = phase == "active"
 
-func answer(is_correct: bool) -> bool:
+func answer(is_correct: bool, word_id: String = "") -> bool:
 	if phase != "active" or not question_open:
 		return false
 	question_open = false
 	answered += 1
 	if is_correct:
 		correct += 1
-		score += 10
+		streak += 1
+		best_streak = maxi(best_streak, streak)
+		var bonus = STREAK_BONUS_SCORE if streak >= 3 else 0
+		score += BASE_ANSWER_SCORE + bonus
+	else:
+		streak = 0
+	if word_id != "":
+		record_word_result(word_id, is_correct)
 	return true
+
+func record_word_result(word_id: String, is_correct: bool):
+	var entry = profile.mastery.get(word_id, {"seen": 0, "correct": 0, "wrong": 0, "spelled": 0})
+	entry["seen"] = int(entry.get("seen", 0)) + 1
+	if is_correct:
+		entry["correct"] = int(entry.get("correct", 0)) + 1
+	else:
+		entry["wrong"] = int(entry.get("wrong", 0)) + 1
+	profile.mastery[word_id] = entry
+
+func record_word_spelled(word_id: String):
+	if word_id == "":
+		return
+	var entry = profile.mastery.get(word_id, {"seen": 0, "correct": 0, "wrong": 0, "spelled": 0})
+	entry["spelled"] = int(entry.get("spelled", 0)) + 1
+	entry["correct"] = int(entry.get("correct", 0)) + 1
+	profile.mastery[word_id] = entry
+
+func mastered_count() -> int:
+	var count = 0
+	for word_id in profile.mastery:
+		var m = profile.mastery[word_id]
+		if m is Dictionary and int(m.get("correct", 0)) >= 2 and int(m.get("correct", 0)) > int(m.get("wrong", 0)):
+			count += 1
+	return count
+
+func word_priority(word_id: String) -> float:
+	if not profile.mastery.has(word_id):
+		return 2.2
+	var m = profile.mastery[word_id]
+	if not (m is Dictionary):
+		return 2.0
+	var c = int(m.get("correct", 0))
+	var w = int(m.get("wrong", 0))
+	if w > 0 and c <= w + 1:
+		return 3.5 + float(w - c) * 0.5
+	if c >= 3 and w == 0:
+		return 0.45
+	return 1.3
+
+func crate_requirements(tier: int) -> Dictionary:
+	if tier <= 1:
+		return {"minimum": 5, "accuracy": 0.70, "slots": 2}
+	if tier == 2:
+		return {"minimum": 9, "accuracy": 0.80, "slots": 3}
+	return {"minimum": 12, "accuracy": 0.85, "slots": 3}
 
 func crate_ready(tier: int) -> bool:
-	return phase == "active" and answered >= (5 if tier == 1 else 10) and accuracy() >= (0.70 if tier == 1 else 0.85)
+	var req = crate_requirements(tier)
+	return phase == "active" and answered >= req.minimum and accuracy() >= req.accuracy
 
-func add_loot(title: String, value: int) -> bool:
+func add_loot(title: String, value: int, rarity: int = 1) -> bool:
 	if phase != "active" or bag.size() >= capacity():
 		return false
-	bag.append({"title":title,"value":value})
+	bag.append({"title": title, "value": value, "rarity": clampi(rarity, 1, 5)})
 	return true
 
-func open_crate(crate_id: String, tier: int) -> bool:
+func roll_item_by_rarity(rarity: int) -> Dictionary:
+	var clamped = clampi(rarity, 1, 5)
+	var list: Array = LOOT_TABLE[clamped]
+	return list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
+
+func roll_field_pickup() -> Dictionary:
+	var r = 2 if loot_rng.randf() < 0.28 else 1
+	return roll_item_by_rarity(r)
+
+func roll_crate_rarity(tier: int, perfect_spell: bool) -> int:
+	var roll = loot_rng.randf()
+	if tier <= 1:
+		if perfect_spell:
+			if roll < 0.10: return 5
+			if roll < 0.36: return 4
+			if roll < 0.78: return 3
+			return 2
+		else:
+			if roll < 0.14: return 3
+			if roll < 0.58: return 2
+			return 1
+	elif tier == 2:
+		if perfect_spell:
+			if roll < 0.24: return 5
+			if roll < 0.64: return 4
+			return 3
+		else:
+			if roll < 0.08: return 5
+			if roll < 0.32: return 4
+			if roll < 0.75: return 3
+			return 2
+	else:
+		if perfect_spell:
+			if roll < 0.42: return 5
+			if roll < 0.85: return 4
+			return 3
+		else:
+			if roll < 0.18: return 5
+			if roll < 0.55: return 4
+			return 3
+
+func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Array:
+	var awarded = []
 	if crate_id in crates or not crate_ready(tier) or bag.size() >= capacity():
-		return false
-	var count = mini(2 if tier == 1 else 3, capacity() - bag.size())
+		return awarded
+	var req = crate_requirements(tier)
+	var count = mini(req.slots, capacity() - bag.size())
 	for i in count:
-		add_loot("野外补给" if tier == 1 else "精密组件", 35 if tier == 1 else 70)
+		var rarity = roll_crate_rarity(tier, perfect_spell and i == 0)
+		var item = roll_item_by_rarity(rarity)
+		if add_loot(item.title, item.value, item.rarity):
+			awarded.append(item)
+	if perfect_spell:
+		perfect_ciphers += 1
+		score += CIPHER_PERFECT_SCORE
 	crates.append(crate_id)
+	return awarded
+
+func can_extract() -> bool:
+	if phase != "active" or score < EXTRACTION_SCORE:
+		return false
+	if combat_mode and outposts_cleared < 1:
+		return false
 	return true
 
 func request_extraction() -> bool:
-	if phase != "active" or score < 100:
+	if not can_extract():
 		return false
 	phase = "extracting"
 	question_open = false
@@ -80,8 +278,16 @@ func request_extraction() -> bool:
 func finish_extraction() -> bool:
 	if phase != "extracting":
 		return false
+	for item in bag:
+		if int(item.get("rarity", 1)) >= 4 and not (item.title in profile.collection):
+			profile.collection.append(item.title)
+	if combat_mode and outposts_cleared >= 2 and bag.size() < capacity():
+		var bonus_item = roll_item_by_rarity(4 if loot_rng.randf() < 0.65 else 5)
+		bag.append(bonus_item)
+		if not (bonus_item.title in profile.collection):
+			profile.collection.append(bonus_item.title)
 	profile.warehouse.append_array(bag.duplicate(true))
-	profile.xp += correct * 5 + 50
+	profile.xp += correct * 6 + outposts_cleared * 25 + perfect_ciphers * 15 + 60
 	profile.extractions += 1
 	bag.clear()
 	phase = "result"
@@ -104,6 +310,8 @@ func sell_all() -> int:
 
 func purchase(id: String) -> bool:
 	if phase in ["active", "extracting"] or not ITEMS.has(id):
+		return false
+	if id == "magazine2" and not ("magazine" in profile.owned):
 		return false
 	if id != "reward_point" and id in profile.owned:
 		return false
