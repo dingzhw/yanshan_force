@@ -1,0 +1,18 @@
+{
+  "godot_version": "4.7.2",
+  "runtime_root": "C:\\Users\\chvdi\\AppData\\Local\\Temp\\drz-english-shooter-20261103",
+  "executable": "C:\\Users\\chvdi\\AppData\\Local\\Temp\\drz-english-shooter-20261103\\godot-4.7.2\\Godot_v4.7.2-stable_win64.exe",
+  "console_executable": "C:\\Users\\chvdi\\AppData\\Local\\Temp\\drz-english-shooter-20261103\\godot-4.7.2\\Godot_v4.7.2-stable_win64_console.exe",
+  "sample_project": "C:\\Users\\chvdi\\AppData\\Local\\Temp\\drz-english-shooter-20261103\\fps-template",
+  "renderer": "gl_compatibility",
+  "source_template": "E:\\01_项目\\※F1.【学习】丁润知\\英语单词搜撤游戏\\third_party\\kenney-fps",
+  "python_used": "C:\\Python314\\python.exe",
+  "self_contained_mode": true,
+  "export_templates_installed": true,
+  "export_template_platforms": [
+    "Windows x86_64"
+  ],
+  "game_source": "E:\\01_项目\\※F1.【学习】丁润知\\英语单词搜撤游戏\\game",
+  "game_working_copy": "C:\\Users\\chvdi\\AppData\\Local\\Temp\\drz-english-shooter-20261103\\yanshan-v01",
+  "playtest_executable": "E:\\01_项目\\※F1.【学习】丁润知\\英语单词搜撤游戏\\playtest\\windows-v0.4.0\\YanshanBase.exe"
+}

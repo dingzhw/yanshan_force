@@ -1,0 +1,17 @@
+This game uses Godot Engine (MIT) and Kenney game assets (CC0).
+Player movement/camera code is adapted from Kenney Starter Kit FPS (MIT).
+Original FPS revision: 185fd2326d74a5cf858cffc616f87cf9696f9cc0
+Nature Kit: https://kenney.nl/assets/nature-kit
+Survival Kit: https://kenney.nl/assets/survival-kit
+Noto Sans SC: SIL Open Font License 1.1, Google Fonts revision a85815a42757630ce188fdad368c2dfc444d4773.
+License texts are included in licenses/.
+Polished slice v0.4.0 additions (CC0):
+Tabasco, Various Small Arms (M4 geometry), https://opengameart.org/node/3609
+Author page public-domain update dated 2023-12-15. Converted axes/scale, materials and bevelled edges; view animation and hands are local additions.
+Kless Gyzen, Rock Moss Set 01, https://polyhaven.com/a/rock_moss_set_01
+Jack Mava, Old Military Crate, https://polyhaven.com/a/old_military_crate
+Poly Haven Pine Tree 01 bark/twig/alpha textures, https://polyhaven.com/a/pine_tree_01
+Tree geometry is lightweight locally assembled geometry; the 17M-triangle pine source model is not included.
+ambientCG / Lennart Demes, Ground 015, https://ambientcg.com/view?id=Ground015
+CC0 details and modification records: licenses/Slice-CC0-sources.txt
+Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

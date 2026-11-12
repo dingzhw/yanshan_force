@@ -1,0 +1,37 @@
+Smoke Mountain / Yanshan v0.4.0 resource record
+Retrieved 2026-11-07. All assets below use CC0 1.0 Universal.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+
+Tabasco, Various Small Arms (M4 geometry)
+https://opengameart.org/node/3609
+Author page lists CC0 and an older CC-BY 3.0 entry; the author explicitly placed
+the assets in the public domain in the 2023-12-15 update.
+Original public file: https://opengameart.org/sites/default/files/smallarms.zip
+Modification: selected m4.blend, normalized scale/axes, converted material slots
+to PBR, bevelled edges, exported static GLB. New view animation and hands are local.
+
+Kless Gyzen, Rock Moss Set 01
+https://polyhaven.com/a/rock_moss_set_01
+Modification: 1K diffuse/normal/roughness textures, six individual rocks exported
+as GLB, simplified to approximately 1800 polygons per rock before triangulation.
+
+Jack Mava, Old Military Crate
+https://polyhaven.com/a/old_military_crate
+Modification: selected variant A, rebuilt PBR material from 1K source channels,
+exported GLB. The local interaction supplies crate-opening and reward state.
+
+Poly Haven, Pine Tree 01
+https://polyhaven.com/a/pine_tree_01
+Only 1K bark diffuse, twig diffuse and twig alpha textures are used. Local
+lightweight trunks/foliage placement replace the heavy original tree geometry.
+License details for all Poly Haven assets: https://polyhaven.com/license
+
+ambientCG / Lennart Demes, Ground 015
+https://ambientcg.com/view?id=Ground015
+Modification: selected 1K color, OpenGL normal and roughness textures; the local
+terrain shader blends paths and forest floor. Other source maps are not shipped.
+License: https://docs.ambientcg.com/license/
+
+Original download sizes and SHA-256 hashes are recorded in the project under
+downloads/slice-v040/*download-record.json. Conversion record is in
+docs/slice-v040-conversion.json. No proprietary game assets are included.

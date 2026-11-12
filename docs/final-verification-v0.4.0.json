@@ -1,0 +1,159 @@
+{
+  "version": "0.4.0",
+  "date": "2026-11-07",
+  "checks_passed": 182,
+  "checks": [
+    {
+      "test": "smoke",
+      "exit_code": 0,
+      "passes": 28,
+      "failures": [],
+      "summary": [
+        "PLAYTEST_CHECKS_PASSED=28"
+      ]
+    },
+    {
+      "test": "navigation",
+      "exit_code": 0,
+      "passes": 8,
+      "failures": [],
+      "summary": [
+        "NAVIGATION_CHECKS=8 FAILURES=0"
+      ]
+    },
+    {
+      "test": "movement",
+      "exit_code": 0,
+      "passes": 14,
+      "failures": [],
+      "summary": [
+        "MOVEMENT_CHECKS=14 FAILURES=0"
+      ]
+    },
+    {
+      "test": "economy",
+      "exit_code": 0,
+      "passes": 14,
+      "failures": [],
+      "summary": [
+        "ECONOMY_CHECKS=14 FAILURES=0"
+      ]
+    },
+    {
+      "test": "combat",
+      "exit_code": 0,
+      "passes": 34,
+      "failures": [],
+      "summary": [
+        "LIVE_ROUND score=100 health=56 phase=active time=457.268450666708",
+        "COMBAT_CHECKS=34 FAILURES=0"
+      ]
+    },
+    {
+      "test": "physics",
+      "exit_code": 0,
+      "passes": 18,
+      "failures": [],
+      "summary": [
+        "PHYSICS_CHECKS=18 FAILURES=0"
+      ]
+    },
+    {
+      "test": "challenges",
+      "exit_code": 0,
+      "passes": 11,
+      "failures": [],
+      "summary": [
+        "CHALLENGE_CHECKS=11 FAILURES=0"
+      ]
+    },
+    {
+      "test": "learning",
+      "exit_code": 0,
+      "passes": 8,
+      "failures": [],
+      "summary": [
+        "LEARNING_CHECKS=8 FAILURES=0"
+      ]
+    },
+    {
+      "test": "slice",
+      "exit_code": 0,
+      "passes": 36,
+      "failures": [],
+      "summary": [
+        "SLICE_CHECKS=36 FAILURES=0"
+      ]
+    },
+    {
+      "test": "terrain_render",
+      "exit_code": 0,
+      "passes": 11,
+      "failures": [],
+      "summary": [
+        "TERRAIN_RENDER_CHECKS=11 FAILURES=0"
+      ]
+    },
+    {
+      "test": "slice_visual",
+      "exit_code": 0,
+      "passes": 0,
+      "failures": [],
+      "summary": []
+    }
+  ],
+  "windows_package_crc": "passed",
+  "package_matches_release_directory": true,
+  "source_checkpoint_matches": true,
+  "full_game_snapshot": {
+    "path": "docs\\checkpoints\\source-0.4.0-full.zip",
+    "files": 73,
+    "sha256": "e07e96a2d869fb17a04f123776c1afa7ca02dabcb9d181820c5aac1f2d34c936"
+  },
+  "exact_pck_json_payloads": {
+    "data/wordpacks/jiangsu-5a-2026.json": {
+      "sha256": "a25ca1c4a6711772b6eb19340c8224e4ecba8798827e845c441c46b451696bbb",
+      "exact_payload_offset": 43617504
+    },
+    "data/exploration/grade5a.json": {
+      "sha256": "661c7d8efd83ba0ac7ed190a6c89d96947968721ca2f06aadc464cf10814cbab",
+      "exact_payload_offset": 43616240
+    }
+  },
+  "old_v031_release_hashes_unchanged": true,
+  "launchers_updated": true,
+  "normal_save_path_unchanged": true,
+  "automated_runs_used_qa_mode": true,
+  "packaged_complete_tour": {
+    "average_fps": 99.7652275470379,
+    "blocked_at": "",
+    "duration_seconds": 50.898,
+    "gpu": "AMD Radeon RX 6600",
+    "low_quality": true,
+    "max_frame_ms": 61.9973333333331,
+    "mode": "practice-route rendering, actual raycasts, three discoveries, crate and extraction; combat has separate integration checks",
+    "opened_crates": 1,
+    "optional_discoveries": 3,
+    "os": "Windows",
+    "p95_frame_ms": 10.0,
+    "p95_meets_30fps_budget": true,
+    "profile_saved": false,
+    "render_frames": 5078,
+    "renderer": "gl_compatibility",
+    "route_and_extraction_passed": true,
+    "score": 100,
+    "version": "0.4.0",
+    "viewport": "(1280.0, 720.0)"
+  },
+  "native_window_observed": true,
+  "sky_keyboard_injection_counted": false,
+  "sky_note": "Input protection reported concurrent user input twice; attempts stopped. Actual movement input-event and capsule tests passed.",
+  "target_vega8_tested": false,
+  "human_5_to_8_minute_pacing_tested": false,
+  "unconfirmed_extra_probe": "External --script resource probe emitted no observable result and was not counted; exact PCK JSON payload matching and complete packaged tour passed.",
+  "extra_prop_ground_contact_check": {
+    "exit_code": 0,
+    "log": "docs/v040-checks/prop_contact.log",
+    "counted_in_182": false
+  }
+}

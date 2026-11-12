@@ -1,0 +1,96 @@
+{
+  "recorded_date": "2026-11-07",
+  "stage": "v0.4.0 A到B山林探索精修试玩；Vega 8待实测",
+  "working_title": "英语单词搜撤游戏",
+  "vocabulary_scope": {
+    "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
+    "range": "以该课本书后附带的单词表为准",
+    "future_updates": "通过游戏更新追加单词包",
+    "extraction_status": "已提取175条，单元表与字母索引逐项交叉核对，包含13条专有名词"
+  },
+  "first_map": "烟山基地",
+  "map_description": "中国农村小山坡，树林与怪石密布",
+  "planned_maps": [
+    "烟山基地",
+    "诚庄村河岗",
+    "鲸塘中心小学"
+  ],
+  "gameplay": {
+    "prompt": "屏幕显示中文提示，射击对应英文单词获得分数",
+    "supply_crates": "普通箱至少答5题且70%；高级箱至少答10题且85%",
+    "extraction": "累计100分独立解锁，圈内按E并停留3秒",
+    "loot": "成功撤离后物资入库，出售获取虚拟货币",
+    "word_combat": {
+      "warmup_seconds": 35,
+      "rage_seconds": 7,
+      "max_damage_multiplier": 2.5,
+      "zones": [
+        "林间前哨",
+        "B · 竹林补给点"
+      ],
+      "practice_available": true,
+      "unobstructed_hit_chance": {
+        "standing": 0.75,
+        "normal_move_at_4_2m_per_s": 0.4,
+        "sprint_at_6m_per_s": 0.25,
+        "airborne_multiplier": 0.55,
+        "standing_jump": 0.4125,
+        "sprint_jump": 0.1375
+      },
+      "active_shooters_per_group": 2
+    },
+    "exploration": {
+      "english": "next to 寻找路牌旁补给",
+      "math": "五上图形平移；打开近道木门",
+      "poem": "五上山居秋暝石刻",
+      "optional": true,
+      "reading_pauses_run": true,
+      "full_bag_reward_swap": true
+    }
+  },
+  "rewards": {
+    "main_direction": "游戏内升级变强，积攒更多虚拟货币",
+    "planned_items": [
+      "枪支改进配件",
+      "角色外观",
+      "新角色",
+      "特殊道具"
+    ],
+    "special_items": [
+      "现实货币奖励",
+      "可兑换现实奖励的积分"
+    ],
+    "redemption_rules": "具体额度与兑换规则待讨论"
+  },
+  "target_machine": {
+    "os": "Windows 11 专业版 64位",
+    "cpu": "AMD Ryzen 7 5700G",
+    "gpu": "AMD Radeon Vega 8 核显，无独立显卡",
+    "ram": "32GB DDR4-3200 双通道",
+    "storage": "1TB NVMe SSD"
+  },
+  "technical_direction": {
+    "engine": "Godot 4.7.2 Standard Windows x86_64",
+    "starter": "Kenney Starter Kit FPS",
+    "renderer": "Compatibility",
+    "initial_platform": "Windows 单人离线",
+    "initial_resolution": "1280x720，最终表现需在目标电脑实测",
+    "camera": "第一人称。第三人称待后续开发"
+  },
+  "playtest": "playtest/windows-v0.4.0/YanshanBase.exe",
+  "challenge_points": [
+    "A · 山脚营地",
+    "林间前哨",
+    "B · 竹林补给点"
+  ],
+  "slice": {
+    "target_minutes": [
+      5,
+      8
+    ],
+    "human_duration_validated": false,
+    "route": "A山脚营地—林间前哨—B竹林补给点",
+    "art": "半写实江南山林方向；免费开放许可素材优先",
+    "quality_toggle": "F6 / --low-quality"
+  }
+}
