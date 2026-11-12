@@ -52,4 +52,9 @@ License: https://docs.ambientcg.com/license/
 Original download sizes and SHA-256 hashes are recorded in the project under
 downloads/slice-v040/*download-record.json and downloads/slice-v052/download-record.json.
 Conversion records are in docs/slice-v040-conversion.json and docs/slice-v052-arms-build.json.
+
+Smoke Mountain / Yanshan v0.5.3 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_fp_arms.py: extended 39-bone fp_arms.glb with pose_knife_idle, pose_knife_slash_a, and pose_knife_slash_b actions mapped to hand.R finger ring coordinates.
+- tools/build_v053_assets.py: built procedural Blender 4.5 GLB assets tactical_knife.glb, rifle_attachments.glb (att_scope_2x, att_suppressor, att_compensator, att_angled_grip), and tactical_pickups.glb (pickup_ammo_crate, pickup_smoke_emp, pickup_energy_drink).
+- tools/generate_sfx.py: synthesized 7 additional offline 16-bit PCM WAV files into game/assets/sfx/.
 No proprietary game assets are included.

@@ -106,6 +106,24 @@ func run():
 	game.time_left = 0.01
 	game._process(0.02)
 	verify(game.rules.bag.is_empty() and game.rules.profile.warehouse.size() == 1 and game.rules.profile.coins == saved_coins, "timeout clears carried loot and preserves previous progress")
+
+	# v0.5.3 Gunsmith 2.0 & starter tactical kit checks
+	game.rules.profile.coins = 5000
+	for mod_id in ["scope_2x", "suppressor", "compensator", "angled_grip", "tactical_rig", "tactical_belt"]:
+		game._buy(mod_id)
+	verify(game.rules.active_optic() == "scope_2x" and game.rules.active_muzzle() == "compensator" and game.rules.active_grip() == "angled_grip", "buying Gunsmith 2.0 mods auto-equips each slot cleanly")
+	verify(game.rules.equip_attachment("muzzle", "suppressor") and game.rules.active_muzzle() == "suppressor", "gunsmith allows switching equipped muzzle between compensator and suppressor")
+	verify(game.rules.equip_attachment("muzzle", "suppressor") and game.rules.active_muzzle() == "", "clicking active attachment unequips it cleanly")
+	game.rules.equip_attachment("muzzle", "suppressor")
+	game.rules.profile.owned.erase("tactical_belt")
+	game.rules.profile.coins = 0
+	verify(game.rules.unlock_blueprint("tactical_belt") and ("tactical_belt" in game.rules.profile.owned), "Boss blueprint unlocks tactical_belt even with 0 coins")
+	game.start_action(true)
+	verify(game.player.reserve_ammo == 4 * game.rules.magazine() and game.player.grenades == 2 and game.player.stims == 2, "tactical_rig + tactical_belt grant 4 reserve mags, 2 smoke/EMP, and 2 stims in combat")
+	var wv = game.player.weapon_view
+	verify(wv.att_nodes["att_scope_2x"].visible and wv.att_nodes["att_suppressor"].visible and wv.att_nodes["att_angled_grip"].visible and not wv.att_nodes["att_compensator"].visible, "equipped Gunsmith 2.0 attachments render visibly on YS-04 carbine")
+	game._end_run(false)
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

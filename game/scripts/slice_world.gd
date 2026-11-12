@@ -380,7 +380,7 @@ func _camp():
 		[Vector3(-12, 0, -17), "林间前哨  ↑\n石刻支路  ←"],
 		[Vector3(-20, 0, -28), "← 古诗石刻\n主路前哨  →"],
 		[Vector3(-14, 0, -53), "巡护站近道 →\n山道拦截哨 ↑"],
-		[Vector3(14, 0, -72), "B · 撤离信标\n260分·清哨开启"]
+		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2哨·首领"]
 	]:
 		signpost(info[0], info[1])
 
@@ -413,7 +413,7 @@ func _landmarks():
 	inner_pad.material_override = game._material(game.GOLD, true)
 	add_child(inner_pad)
 
-	game._label3d(self, "B · 战术撤离信标\n260分 · 攻克前哨 · 停留5秒", game.exit_position + Vector3.UP * 2.8, 40, game.MINT)
+	game._label3d(self, "B · 战术撤离信标\n260分 · 攻2哨 · 败统领", game.exit_position + Vector3.UP * 2.8, 40, game.MINT)
 
 	var pickup_spots = [
 		Vector3(5.2, 0, 7.2),
@@ -434,6 +434,60 @@ func _landmarks():
 		TacticalProps.build_supply_box(game, pickup)
 		game._label3d(pickup, "常规物资箱 · 单词解锁 [E]", Vector3(0, 0.96, 0), 26, game.GOLD)
 		game.pickup_nodes.append(pickup)
+
+	# Tactical Field Ammo Crates & Consumable Pouches (tactical_pickups.glb)
+	var field_tactical = [
+		{"at": Vector3(8.8, 0, 8.2), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(-5.5, 0, -21.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(2.2, 0, -58.4), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "巡护站备弹箱", "col": Color("ffd15c")},
+		{"at": Vector3(-9.5, 0, -76.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "前哨弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(13.2, 0, -89.4), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "竹林弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(-2.0, 0, -104.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "B区突击弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(-17.8, 0, -34.2), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "石刻旁弹药箱", "col": Color("ffd15c")},
+		{"at": Vector3(7.4, 0, 10.6), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
+		{"at": Vector3(0.4, 0, -58.5), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
+		{"at": Vector3(15.2, 0, -88.2), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
+		{"at": Vector3(-6.2, 0, -105.0), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")},
+		{"at": Vector3(-1.4, 0, -57.2), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")},
+		{"at": Vector3(11.5, 0, -87.4), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")}
+	]
+	for idx in field_tactical.size():
+		var td = field_tactical[idx]
+		var node = Node3D.new()
+		node.position = game.Layout.on_ground(td.at)
+		node.set_meta("tactical_item", td.kind)
+		node.set_meta("tactical_id", "tac_%d" % idx)
+		node.set_meta("title", td.title)
+		game.add_child(node)
+		_attach_tactical_mesh(node, td.mesh, td.col)
+		game.pickup_nodes.append(node)
+
+func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
+	var path := "res://assets/slice/tactical_pickups.glb"
+	if ResourceLoader.exists(path):
+		if not game.scene_cache.has(path):
+			game.scene_cache[path] = load(path)
+		var inst: Node3D = game.scene_cache[path].instantiate()
+		var sub = inst.find_child(mesh_name, true, false)
+		if is_instance_valid(sub):
+			inst.remove_child(sub)
+			sub.owner = null
+			sub.position = Vector3.ZERO
+			sub.scale = Vector3.ONE * (1.85 if mesh_name != "pickup_ammo_crate" else 1.45)
+			parent.add_child(sub)
+		inst.queue_free()
+	var ring = MeshInstance3D.new()
+	var tm = TorusMesh.new()
+	tm.inner_radius = 0.34
+	tm.outer_radius = 0.42
+	tm.rings = 16
+	tm.ring_segments = 6
+	ring.mesh = tm
+	ring.position.y = 0.04
+	ring.material_override = game._material(glow_col, true)
+	parent.add_child(ring)
+	var tag = "[E] %s" % parent.get_meta("title", "战术补给")
+	game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
 
 func _boundary():
 	for i in 17:

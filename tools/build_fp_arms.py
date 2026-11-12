@@ -1005,6 +1005,122 @@ def apply_pose_preset(rig_obj: bpy.types.Object, preset: str) -> dict:
         pbone.scale = (1.0, 1.0, 1.0)
     bpy.context.view_layer.update()
 
+    if preset == "pose_knife_idle":
+        # Natural human sabre grip: knuckles rake forward-down (-Y,-Z) so top of fist & blade aim forward-up-left (-X,+Y,-Z)
+        r_info = pose_arm_chain(
+            rig_obj,
+            "R",
+            wrist_bl=gd(+0.025, +0.005, +0.165),
+            mcp_target_bl=gd(-0.008, -0.035, +0.082),
+            hand_dorsal_bl=gd(+0.76, +0.42, +0.32),
+            elbow_dir_bl=gd(+0.195, -0.155, +0.325),
+            shoulder_dir_bl=gd(+0.285, -0.075, +0.545),
+            finger_curls_deg={
+                "thumb": (28.0, 38.0, 26.0),
+                "index": (68.0, 86.0, 62.0),
+                "middle": (72.0, 90.0, 66.0),
+                "ring": (74.0, 92.0, 68.0),
+                "little": (76.0, 94.0, 68.0),
+            },
+            thumb_abduct_deg=(-12.0, +14.0),
+            index_abduct_deg=(+4.0, 0.0),
+        )
+        # Left hand kept low in natural non-obstructing tactical balance position
+        l_info = pose_arm_chain(
+            rig_obj,
+            "L",
+            wrist_bl=gd(-0.365, -0.135, +0.185),
+            mcp_target_bl=gd(-0.315, -0.105, +0.105),
+            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
+            elbow_dir_bl=gd(-0.465, -0.265, +0.345),
+            shoulder_dir_bl=gd(-0.545, -0.205, +0.535),
+            finger_curls_deg={
+                "thumb": (16.0, 22.0, 14.0),
+                "index": (34.0, 44.0, 30.0),
+                "middle": (38.0, 48.0, 32.0),
+                "ring": (42.0, 52.0, 36.0),
+                "little": (46.0, 56.0, 38.0),
+            },
+            thumb_abduct_deg=(+14.0, -10.0),
+        )
+        return {**r_info, **l_info}
+    elif preset == "pose_knife_slash_a":
+        # Fast forehand diagonal cleave from upper-right to lower-left across screen center
+        r_info = pose_arm_chain(
+            rig_obj,
+            "R",
+            wrist_bl=gd(-0.185, +0.095, +0.055),
+            mcp_target_bl=gd(-0.260, +0.055, -0.015),
+            hand_dorsal_bl=gd(+0.22, +0.90, -0.32),
+            elbow_dir_bl=gd(+0.035, -0.075, +0.235),
+            shoulder_dir_bl=gd(+0.205, -0.055, +0.465),
+            finger_curls_deg={
+                "thumb": (30.0, 40.0, 28.0),
+                "index": (70.0, 88.0, 64.0),
+                "middle": (74.0, 92.0, 68.0),
+                "ring": (76.0, 94.0, 70.0),
+                "little": (78.0, 96.0, 70.0),
+            },
+            thumb_abduct_deg=(-12.0, +14.0),
+            index_abduct_deg=(+4.0, 0.0),
+        )
+        l_info = pose_arm_chain(
+            rig_obj,
+            "L",
+            wrist_bl=gd(-0.415, -0.175, +0.205),
+            mcp_target_bl=gd(-0.365, -0.145, +0.125),
+            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
+            elbow_dir_bl=gd(-0.505, -0.295, +0.365),
+            shoulder_dir_bl=gd(-0.565, -0.215, +0.545),
+            finger_curls_deg={
+                "thumb": (16.0, 22.0, 14.0),
+                "index": (38.0, 48.0, 32.0),
+                "middle": (42.0, 52.0, 36.0),
+                "ring": (46.0, 56.0, 38.0),
+                "little": (50.0, 60.0, 42.0),
+            },
+            thumb_abduct_deg=(+14.0, -10.0),
+        )
+        return {**r_info, **l_info}
+    elif preset == "pose_knife_slash_b":
+        # Reverse diagonal cross-slash sweeping back lower-left to upper-right
+        r_info = pose_arm_chain(
+            rig_obj,
+            "R",
+            wrist_bl=gd(-0.075, +0.120, +0.035),
+            mcp_target_bl=gd(+0.015, +0.155, -0.035),
+            hand_dorsal_bl=gd(+0.55, -0.62, +0.55),
+            elbow_dir_bl=gd(+0.115, -0.085, +0.225),
+            shoulder_dir_bl=gd(+0.235, -0.055, +0.465),
+            finger_curls_deg={
+                "thumb": (28.0, 38.0, 26.0),
+                "index": (68.0, 86.0, 62.0),
+                "middle": (72.0, 90.0, 66.0),
+                "ring": (74.0, 92.0, 68.0),
+                "little": (76.0, 94.0, 68.0),
+            },
+            thumb_abduct_deg=(-12.0, +14.0),
+            index_abduct_deg=(+4.0, 0.0),
+        )
+        l_info = pose_arm_chain(
+            rig_obj,
+            "L",
+            wrist_bl=gd(-0.385, -0.155, +0.195),
+            mcp_target_bl=gd(-0.335, -0.125, +0.115),
+            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
+            elbow_dir_bl=gd(-0.485, -0.275, +0.355),
+            shoulder_dir_bl=gd(-0.555, -0.205, +0.535),
+            finger_curls_deg={
+                "thumb": (16.0, 22.0, 14.0),
+                "index": (34.0, 44.0, 30.0),
+                "middle": (38.0, 48.0, 32.0),
+                "ring": (42.0, 52.0, 36.0),
+                "little": (46.0, 56.0, 38.0),
+            },
+            thumb_abduct_deg=(+14.0, -10.0),
+        )
+        return {**r_info, **l_info}
+
     # Right Hand seated cleanly outside YS-04 Pistol Grip (+0.013 right wall) + Index Finger hooked onto Trigger Blade
     trig_curl = (24.0, 52.0, 36.0) if preset == "pose_fire" else (8.0, 34.0, 26.0)
     r_info = pose_arm_chain(
@@ -1108,9 +1224,18 @@ def apply_pose_preset(rig_obj: bpy.types.Object, preset: str) -> dict:
 
 
 def bake_actions_to_nla(rig_obj: bpy.types.Object) -> dict:
-    """Create 5 distinct 2-frame pose Actions FIRST (without NLA interference), then push to NLA tracks."""
+    """Create distinct 2-frame pose Actions FIRST (without NLA interference), then push to NLA tracks."""
     rig_obj.animation_data_create()
-    pose_names = ["pose_hip", "pose_ads", "pose_reload_reach", "pose_reload_pull", "pose_fire"]
+    pose_names = [
+        "pose_hip",
+        "pose_ads",
+        "pose_reload_reach",
+        "pose_reload_pull",
+        "pose_fire",
+        "pose_knife_idle",
+        "pose_knife_slash_a",
+        "pose_knife_slash_b",
+    ]
     diagnostics = {}
     baked_actions = []
 
@@ -1185,6 +1310,41 @@ def measure_posed_bounds_godot(arm_obj: bpy.types.Object, rig_obj: bpy.types.Obj
     }
 
 
+def measure_knife_hand_frame(rig_obj: bpy.types.Object) -> dict:
+    was_nla = rig_obj.animation_data.use_nla if rig_obj.animation_data else False
+    if rig_obj.animation_data:
+        rig_obj.animation_data.use_nla = False
+    apply_pose_preset(rig_obj, "pose_knife_idle")
+    pb = rig_obj.pose.bones
+    inv_hand = pb["hand.R"].matrix.inverted()
+    samples = {}
+    for bname in [
+        "hand.R",
+        "thumb_01.R", "thumb_02.R", "thumb_03.R",
+        "index_01.R", "index_02.R", "index_03.R",
+        "middle_01.R", "middle_02.R", "middle_03.R",
+        "ring_01.R", "ring_02.R", "ring_03.R",
+        "little_01.R", "little_02.R", "little_03.R",
+    ]:
+        h_loc = inv_hand @ pb[bname].head
+        t_loc = inv_hand @ pb[bname].tail
+        samples[bname] = {
+            "head": [round(float(x), 4) for x in h_loc],
+            "tail": [round(float(x), 4) for x in t_loc],
+        }
+    idx_tail = Vector(samples["index_01.R"]["tail"])
+    lit_tail = Vector(samples["little_01.R"]["tail"])
+    grip_axis = (idx_tail - lit_tail).normalized()
+    grip_center = (idx_tail.lerp(lit_tail, 0.52) + Vector((0.0, 0.0, -0.015)))
+    if rig_obj.animation_data:
+        rig_obj.animation_data.use_nla = was_nla
+    return {
+        "grip_center_bone_local": [round(float(x), 4) for x in grip_center],
+        "grip_axis_to_index_bone_local": [round(float(x), 4) for x in grip_axis],
+        "finger_samples_bone_local": samples,
+    }
+
+
 def main():
     tex_paths = prepare_pbr_textures()
     arm_obj, poly_fs = extract_sculpted_arms()
@@ -1197,6 +1357,7 @@ def main():
     bounds_hip = measure_posed_bounds_godot(arm_obj, rig_obj, "pose_hip")
     bounds_ads = measure_posed_bounds_godot(arm_obj, rig_obj, "pose_ads")
     bounds_pull = measure_posed_bounds_godot(arm_obj, rig_obj, "pose_reload_pull")
+    knife_frame = measure_knife_hand_frame(rig_obj)
     apply_pose_preset(rig_obj, "pose_hip")
 
     # Export fp_arms.glb
@@ -1230,6 +1391,7 @@ def main():
         "bounds_hip": bounds_hip,
         "bounds_ads": bounds_ads,
         "bounds_pull": bounds_pull,
+        "knife_hand_local": knife_frame,
         "poses": pose_diag,
     }
     report_path = ROOT / "docs" / "slice-v052-arms-build.json"

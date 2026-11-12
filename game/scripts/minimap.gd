@@ -36,18 +36,29 @@ func _draw():
 				for soldier in game.combat.troops[z_idx]:
 					if not soldier.defeated:
 						var dot_col = Color("f59b56")
+						var r = 2.4
 						if soldier.archetype == 1:
 							dot_col = Color("ffd166") # Scout Drone
 						elif soldier.archetype == 2:
 							dot_col = Color("ff4d6d") # Sniper Guard
-						draw_circle(point(soldier.position), 2.4, dot_col)
+						elif soldier.archetype == 3:
+							dot_col = Color("ffda44") # Boss Warden
+							r = 4.2
+						draw_circle(point(soldier.position), r, dot_col)
+						if soldier.archetype == 3:
+							draw_arc(point(soldier.position), 6.0, 0, TAU, 16, Color("ff5c5c"), 1.3)
 	else:
 		for station in game.Layout.STATIONS:
 			draw_circle(point(station.at), 3.8, Color("86c5eb"))
 
 	for sup in game.pickup_nodes:
 		if sup.visible:
-			draw_circle(point(sup.position), 2.1, Color("66d9ef"))
+			if sup.has_meta("tactical_item"):
+				var tk = str(sup.get_meta("tactical_item"))
+				var tc = Color("f5c542") if tk == "ammo_crate" else (Color("56e8ff") if tk == "smoke_emp" else Color("6ae3a8"))
+				draw_circle(point(sup.position), 1.9, tc)
+			else:
+				draw_circle(point(sup.position), 2.1, Color("66d9ef"))
 
 	for chest in game.crate_nodes:
 		var opened = chest.get_meta("title") in game.rules.crates

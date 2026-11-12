@@ -5,6 +5,7 @@ const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
 const OUTPOST_CLEAR_SCORE = 30
+const BOSS_DEFEAT_SCORE = 60
 const SUPPLY_PERFECT_SCORE = 10
 const CIPHER_PERFECT_SCORE = 25
 
@@ -48,21 +49,41 @@ const LOOT_TABLE = {
 	5: [
 		{"title": "烟山古铜虎符", "value": 260, "rarity": 5},
 		{"title": "特级金质勋章", "value": 290, "rarity": 5},
-		{"title": "量子词典原型机", "value": 320, "rarity": 5}
+		{"title": "量子词典原型机", "value": 320, "rarity": 5},
+		{"title": "烟山统领黄金核心", "value": 380, "rarity": 5}
 	]
 }
 
 const ITEMS = {
-	"red_dot": {"cost": 110, "title": "全息精准瞄具 · 开镜高倍稳瞄"},
-	"magazine": {"cost": 140, "title": "扩容弹匣 I · 8→14发"},
-	"magazine2": {"cost": 260, "title": "战术弹鼓 II · 14→20发"},
-	"shield_core": {"cost": 200, "title": "纳米护盾核心 · 护盾30→60"},
-	"backpack": {"cost": 180, "title": "野外战术背包 · 8→14格"},
-	"medkit_pack": {"cost": 160, "title": "急救扩容包 · 医疗包1→3"},
-	"forest_skin": {"cost": 120, "title": "竹影迷彩涂装 · 翡翠定制枪身"},
-	"scout": {"cost": 240, "title": "山林侦察靴 · 移速+12%"},
-	"reward_point": {"cost": 350, "title": "奖励积分券 · 家长线下兑现"}
+	"red_dot": {"cost": 110, "slot": "optic", "title": "全息精准瞄具 · 开镜高倍稳瞄"},
+	"scope_2x": {"cost": 220, "slot": "optic", "title": "2倍战术棱镜镜 · 远距清晰稳瞄"},
+	"suppressor": {"cost": 240, "slot": "muzzle", "title": "钛合金消音器 · 低噪潜行不惊动远敌"},
+	"compensator": {"cost": 190, "slot": "muzzle", "title": "双室制退器 · 后坐力-35%更稳定"},
+	"angled_grip": {"cost": 175, "slot": "grip", "title": "战术直角握把 · 开镜提速45%+稳枪"},
+	"magazine": {"cost": 140, "slot": "mag", "title": "扩容弹匣 I · 8→14发"},
+	"magazine2": {"cost": 260, "slot": "mag", "title": "战术弹鼓 II · 14→20发"},
+	"shield_core": {"cost": 200, "slot": "armor", "title": "纳米护盾核心 · 护盾30→60"},
+	"backpack": {"cost": 180, "slot": "pack", "title": "野外战术背包 · 8→14格"},
+	"medkit_pack": {"cost": 160, "slot": "med", "title": "急救扩容包 · 医疗包1→3"},
+	"tactical_rig": {"cost": 210, "slot": "rig", "title": "模块化携行弹挂 · 开局备弹+2弹匣"},
+	"tactical_belt": {"cost": 165, "slot": "belt", "title": "特战腰带 · 开局+1烟雾EMP +1能量饮"},
+	"forest_skin": {"cost": 120, "slot": "skin", "title": "竹影迷彩涂装 · 翡翠定制枪身"},
+	"scout": {"cost": 240, "slot": "boots", "title": "山林侦察靴 · 移速+12%"},
+	"reward_point": {"cost": 350, "slot": "reward", "title": "奖励积分券 · 家长线下兑现"}
 }
+
+const GUNSMITH_ORDER = [
+	"red_dot", "scope_2x",
+	"suppressor", "compensator",
+	"angled_grip", "tactical_rig",
+	"tactical_belt", "magazine",
+	"magazine2", "shield_core",
+	"backpack", "medkit_pack",
+	"forest_skin", "scout",
+	"reward_point"
+]
+
+const BOSS_BLUEPRINTS = ["scope_2x", "suppressor", "compensator", "angled_grip", "tactical_rig", "tactical_belt"]
 
 var phase = "camp"
 var combat_mode = false
@@ -74,6 +95,7 @@ var best_streak = 0
 var shots = 0
 var outposts_cleared = 0
 var perfect_ciphers = 0
+var boss_defeated = false
 var question_open = false
 var bag = []
 var crates = []
@@ -86,6 +108,7 @@ var profile = {
 	"points": 0,
 	"warehouse": [],
 	"owned": [],
+	"equipped": {"optic": "", "muzzle": "", "grip": ""},
 	"extractions": 0,
 	"mastery": {},
 	"collection": []
@@ -111,6 +134,67 @@ func max_shield() -> int:
 func starter_medkits() -> int:
 	return 3 if "medkit_pack" in profile.owned else 1
 
+func starter_reserve_ammo() -> int:
+	if not combat_mode:
+		return -1
+	var mags = 4 if "tactical_rig" in profile.owned else 2
+	return mags * magazine()
+
+func starter_grenades() -> int:
+	return 2 if "tactical_belt" in profile.owned else 1
+
+func starter_stims() -> int:
+	return 2 if "tactical_belt" in profile.owned else 1
+
+func ensure_equipped():
+	if not profile.has("equipped") or not (profile.equipped is Dictionary):
+		profile["equipped"] = {"optic": "", "muzzle": "", "grip": ""}
+	var eq: Dictionary = profile["equipped"]
+	for slot in ["optic", "muzzle", "grip"]:
+		var val = str(eq.get(slot, ""))
+		if val != "" and not (val in profile.owned):
+			eq[slot] = ""
+	# Backward compatibility: legacy saves owning red_dot auto-equip it unless scope_2x is equipped
+	if str(eq.get("optic", "")) == "":
+		if "scope_2x" in profile.owned:
+			eq["optic"] = "scope_2x"
+		elif "red_dot" in profile.owned:
+			eq["optic"] = "red_dot"
+
+func active_optic() -> String:
+	ensure_equipped()
+	return str(profile["equipped"].get("optic", ""))
+
+func active_muzzle() -> String:
+	ensure_equipped()
+	return str(profile["equipped"].get("muzzle", ""))
+
+func active_grip() -> String:
+	ensure_equipped()
+	return str(profile["equipped"].get("grip", ""))
+
+func equip_attachment(slot: String, id: String) -> bool:
+	if phase in ["active", "extracting"]:
+		return false
+	ensure_equipped()
+	if id == "":
+		profile["equipped"][slot] = ""
+		return true
+	if not (id in profile.owned) or not ITEMS.has(id) or ITEMS[id].get("slot", "") != slot:
+		return false
+	profile["equipped"][slot] = "" if str(profile["equipped"].get(slot, "")) == id else id
+	return true
+
+func unlock_blueprint(id: String) -> bool:
+	if not ITEMS.has(id) or id == "reward_point" or id in profile.owned:
+		return false
+	profile.owned.append(id)
+	var slot = str(ITEMS[id].get("slot", ""))
+	if slot in ["optic", "muzzle", "grip"]:
+		ensure_equipped()
+		profile["equipped"][slot] = id
+	return true
+
 func level() -> int:
 	return 1 + int(profile.xp / 120)
 
@@ -125,6 +209,7 @@ func start_run(as_combat = false):
 	shots = 0
 	outposts_cleared = 0
 	perfect_ciphers = 0
+	boss_defeated = false
 	bag = []
 	crates = []
 	supplies_opened = []
@@ -311,7 +396,7 @@ func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false)
 func can_extract() -> bool:
 	if phase != "active" or score < EXTRACTION_SCORE:
 		return false
-	if combat_mode and outposts_cleared < 1:
+	if combat_mode and (outposts_cleared < 2 or not boss_defeated):
 		return false
 	return true
 
@@ -329,12 +414,12 @@ func finish_extraction() -> bool:
 		if int(item.get("rarity", 1)) >= 4 and not (item.title in profile.collection):
 			profile.collection.append(item.title)
 	if combat_mode and outposts_cleared >= 2 and bag.size() < capacity():
-		var bonus_item = roll_item_by_rarity(4 if loot_rng.randf() < 0.65 else 5)
+		var bonus_item = roll_item_by_rarity(5 if boss_defeated else (4 if loot_rng.randf() < 0.65 else 5))
 		bag.append(bonus_item)
 		if not (bonus_item.title in profile.collection):
 			profile.collection.append(bonus_item.title)
 	profile.warehouse.append_array(bag.duplicate(true))
-	profile.xp += correct * 6 + outposts_cleared * 25 + perfect_ciphers * 15 + 60
+	profile.xp += correct * 6 + outposts_cleared * 25 + perfect_ciphers * 15 + (60 if boss_defeated else 0) + 60
 	profile.extractions += 1
 	bag.clear()
 	phase = "result"
@@ -369,6 +454,10 @@ func purchase(id: String) -> bool:
 		profile.points += 1
 	else:
 		profile.owned.append(id)
+		var slot = str(ITEMS[id].get("slot", ""))
+		if slot in ["optic", "muzzle", "grip"]:
+			ensure_equipped()
+			profile["equipped"][slot] = id
 	return true
 
 func bag_value() -> int:

@@ -1,24 +1,34 @@
 extends Node3D
-## Tactical YS-04 Carbine viewmodel with Reflex Optic and Blender-sculpted CC0 39-bone skinned tactical arms (fp_arms.glb).
+## Tactical YS-04 Carbine & Held Combat Knife viewmodel with Blender CC0 arms (fp_arms.glb) and Gunsmith 2.0 attachments.
 
 var game
 var rifle: Node3D
+var rifle_meshes: Array[MeshInstance3D] = []
+var attachments_root: Node3D
+var att_nodes := {}
 var optic_root: Node3D
+var optic_housing: Node3D
 var reticle_dot: MeshInstance3D
 var support_grip: Node3D
 
-# Skinned first-person arms nodes & compatibility references
+# Skinned first-person arms nodes & knife attachment
 var arms_root: Node3D
 var arms_skeleton: Skeleton3D
 var arms_mesh: MeshInstance3D
 var right_arm_rig: Node3D
 var left_hand_pivot: Node3D
 var left_sleeve: MeshInstance3D
+var knife_mount: BoneAttachment3D
+var knife_root: Node3D
 
 var flash: MeshInstance3D
 var light: OmniLight3D
 var magazine: Node3D
 var shot_left := 0.0
+var slash_left := 0.0
+var slash_duration := 0.34
+var slash_combo := 0
+var weapon_slot := 0  # 0 = YS-04 Carbine, 1 = Tactical Knife
 var elapsed := 0.0
 var aim_blend := 0.0
 
@@ -49,22 +59,27 @@ func _ready():
 	mag_mat.metallic = 0.35
 	mag_mat.roughness = 0.62
 
+	rifle_meshes.clear()
 	for m in rifle.find_children("*", "MeshInstance3D", true, false):
-		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if is_instance_valid(magazine) and (m == magazine or magazine.is_ancestor_of(m)):
-			m.material_override = mag_mat
+		var mi := m as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if is_instance_valid(magazine) and (mi == magazine or magazine.is_ancestor_of(mi)):
+			mi.material_override = mag_mat
 		else:
-			m.material_override = body_mat
+			mi.material_override = body_mat
+		rifle_meshes.append(mi)
 
-	# Low-profile M-LOK rail cover under forend (flush with handguard so sculpted hand cradles barrel cleanly)
+	# Low-profile M-LOK rail cover marker under forend
 	support_grip = Node3D.new()
 	support_grip.position = Vector3(0.0, 0.136, -0.145)
 	rifle.add_child(support_grip)
 
 	_build_reflex_optic()
+	_build_attachments()
 	_setup_skinned_arms(has_skin)
+	_setup_knife_attachment()
 
-	# Muzzle flash aligned precisely with YS-04 barrel centerline (y = 0.158)
+	# Muzzle flash aligned with YS-04 barrel centerline (y = 0.158)
 	flash = MeshInstance3D.new()
 	var sphere = SphereMesh.new()
 	sphere.radius = 0.026
@@ -83,6 +98,117 @@ func _ready():
 	light.light_color = Color("ffd699")
 	light.light_energy = 0.0
 	add_child(light)
+
+	refresh_loadout()
+	set_weapon_slot(0)
+
+func _build_attachments():
+	attachments_root = Node3D.new()
+	add_child(attachments_root)
+	var path := "res://assets/slice/rifle_attachments.glb"
+	if not ResourceLoader.exists(path):
+		return
+	if not game.scene_cache.has(path):
+		game.scene_cache[path] = load(path)
+	var inst: Node3D = game.scene_cache[path].instantiate()
+	attachments_root.add_child(inst)
+	for key in ["att_scope_2x", "att_suppressor", "att_compensator", "att_angled_grip"]:
+		var node = inst.find_child(key, true, false)
+		if is_instance_valid(node):
+			for mi in ([node] + node.find_children("*", "MeshInstance3D", true, false)):
+				if mi is MeshInstance3D:
+					var mesh_i := mi as MeshInstance3D
+					mesh_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					if mesh_i.mesh != null:
+						for s_idx in mesh_i.mesh.get_surface_count():
+							var smat: Material = mesh_i.mesh.surface_get_material(s_idx)
+							if smat != null and smat.resource_name.begins_with("Mat_OpticGlass"):
+								var glass_ov := StandardMaterial3D.new()
+								glass_ov.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+								glass_ov.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+								glass_ov.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+								glass_ov.albedo_color = Color(0.10, 0.32, 0.28, 0.04)
+								mesh_i.set_surface_override_material(s_idx, glass_ov)
+			node.hide()
+			att_nodes[key] = node
+
+func _setup_knife_attachment():
+	if not is_instance_valid(arms_skeleton):
+		return
+	var r_hand_idx := arms_skeleton.find_bone("hand.R")
+	if r_hand_idx < 0:
+		return
+	knife_mount = BoneAttachment3D.new()
+	knife_mount.name = "RightHandKnifeMount"
+	knife_mount.bone_name = "hand.R"
+	arms_skeleton.add_child(knife_mount)
+	var path := "res://assets/slice/tactical_knife.glb"
+	if ResourceLoader.exists(path):
+		if not game.scene_cache.has(path):
+			game.scene_cache[path] = load(path)
+		knife_root = game.scene_cache[path].instantiate()
+		knife_mount.add_child(knife_root)
+		for m in knife_root.find_children("*", "MeshInstance3D", true, false):
+			var mi := m as MeshInstance3D
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.extra_cull_margin = 1.5
+		knife_root.hide()
+
+func refresh_loadout():
+	var optic_id: String = game.rules.active_optic()
+	var muzzle_id: String = game.rules.active_muzzle()
+	var grip_id: String = game.rules.active_grip()
+
+	if att_nodes.has("att_scope_2x"):
+		att_nodes["att_scope_2x"].visible = optic_id == "scope_2x"
+	if att_nodes.has("att_suppressor"):
+		att_nodes["att_suppressor"].visible = muzzle_id == "suppressor"
+	if att_nodes.has("att_compensator"):
+		att_nodes["att_compensator"].visible = muzzle_id == "compensator"
+	if att_nodes.has("att_angled_grip"):
+		att_nodes["att_angled_grip"].visible = grip_id == "angled_grip"
+
+	if is_instance_valid(optic_housing):
+		optic_housing.visible = optic_id != "scope_2x"
+	if is_instance_valid(reticle_dot):
+		var col := Color("4effc4") if optic_id == "scope_2x" else (Color("5cffd6") if optic_id == "red_dot" else Color("ff5964"))
+		reticle_dot.material_override = game._material(col, true)
+	if is_instance_valid(flash):
+		if muzzle_id == "suppressor":
+			flash.position = Vector3(0, 0.158, -0.505)
+			flash.scale = Vector3(0.45, 0.55, 0.45)
+		elif muzzle_id == "compensator":
+			flash.position = Vector3(0, 0.158, -0.415)
+			flash.scale = Vector3(0.75, 0.78, 0.75)
+		else:
+			flash.position = Vector3(0, 0.158, -0.37)
+			flash.scale = Vector3.ONE
+		if is_instance_valid(light):
+			light.position = flash.position
+
+func set_weapon_slot(slot: int):
+	weapon_slot = clampi(slot, 0, 1)
+	var is_rifle := weapon_slot == 0
+	for mi in rifle_meshes:
+		if is_instance_valid(mi):
+			mi.visible = is_rifle
+	if is_instance_valid(optic_root):
+		optic_root.visible = is_rifle
+	if is_instance_valid(attachments_root):
+		attachments_root.visible = is_rifle
+	if is_instance_valid(knife_root):
+		knife_root.visible = not is_rifle
+	if not is_rifle:
+		shot_left = 0.0
+		if is_instance_valid(flash):
+			flash.hide()
+		if is_instance_valid(light):
+			light.light_energy = 0.0
+	_apply_arm_pose(aim_blend if is_rifle else 0.0, 0.0, 0.0)
+
+func trigger_knife_slash(combo_idx: int = 0):
+	slash_combo = combo_idx % 2
+	slash_left = slash_duration
 
 func _setup_skinned_arms(has_skin: bool):
 	var path := "res://assets/slice/fp_arms.glb"
@@ -179,25 +305,36 @@ func _blend_bone_maps(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
 func _apply_arm_pose(ads_w: float, dip: float, fire_w: float):
 	if not is_instance_valid(arms_skeleton) or not pose_cache.has("pose_hip"):
 		return
-	var hip_map: Dictionary = pose_cache["pose_hip"]
-	var ads_map: Dictionary = pose_cache.get("pose_ads", hip_map)
-	var base_map := _blend_bone_maps(hip_map, ads_map, ads_w)
+	var final_map: Dictionary
+	if weapon_slot == 1 and pose_cache.has("pose_knife_idle"):
+		var k_idle: Dictionary = pose_cache["pose_knife_idle"]
+		final_map = k_idle
+		if slash_left > 0.001:
+			var t := clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0)
+			var w := sin(t * PI)
+			var s_name := "pose_knife_slash_a" if slash_combo == 0 else "pose_knife_slash_b"
+			var k_slash: Dictionary = pose_cache.get(s_name, k_idle)
+			final_map = _blend_bone_maps(k_idle, k_slash, w)
+	else:
+		var hip_map: Dictionary = pose_cache["pose_hip"]
+		var ads_map: Dictionary = pose_cache.get("pose_ads", hip_map)
+		var base_map := _blend_bone_maps(hip_map, ads_map, ads_w)
 
-	var final_map := base_map
-	if dip > 0.002 and pose_cache.has("pose_reload_reach") and pose_cache.has("pose_reload_pull"):
-		var reach_map: Dictionary = pose_cache["pose_reload_reach"]
-		var pull_map: Dictionary = pose_cache["pose_reload_pull"]
-		if dip < 0.28:
-			final_map = _blend_bone_maps(base_map, reach_map, smoothstep(0.0, 0.28, dip))
-		else:
-			final_map = _blend_bone_maps(reach_map, pull_map, smoothstep(0.28, 1.0, dip))
+		final_map = base_map
+		if dip > 0.002 and pose_cache.has("pose_reload_reach") and pose_cache.has("pose_reload_pull"):
+			var reach_map: Dictionary = pose_cache["pose_reload_reach"]
+			var pull_map: Dictionary = pose_cache["pose_reload_pull"]
+			if dip < 0.28:
+				final_map = _blend_bone_maps(base_map, reach_map, smoothstep(0.0, 0.28, dip))
+			else:
+				final_map = _blend_bone_maps(reach_map, pull_map, smoothstep(0.28, 1.0, dip))
 
 	for bidx in final_map.keys():
 		var entry: Dictionary = final_map[bidx]
 		arms_skeleton.set_bone_pose_position(bidx, entry["pos"])
 		arms_skeleton.set_bone_pose_rotation(bidx, entry["rot"])
 
-	if fire_w > 0.001 and pose_cache.has("pose_fire"):
+	if weapon_slot == 0 and fire_w > 0.001 and pose_cache.has("pose_fire"):
 		var fire_map: Dictionary = pose_cache["pose_fire"]
 		for bidx in right_index_bones:
 			if final_map.has(bidx) and fire_map.has(bidx):
@@ -213,6 +350,8 @@ func _build_reflex_optic():
 	optic_root = Node3D.new()
 	optic_root.position = Vector3(0.0, 0.212, 0.03)
 	add_child(optic_root)
+	optic_housing = Node3D.new()
+	optic_root.add_child(optic_housing)
 
 	var upgraded = "red_dot" in game.rules.profile.owned
 	var frame_color = Color("233833") if upgraded else Color("1e2428")
@@ -221,14 +360,14 @@ func _build_reflex_optic():
 	frame_mat.metallic = 0.65
 	frame_mat.roughness = 0.35
 
-	var base = game._mesh_box(optic_root, Vector3(0, 0.0, 0), Vector3(0.036, 0.012, 0.075), frame_color)
+	var base = game._mesh_box(optic_housing, Vector3(0, 0.0, 0), Vector3(0.036, 0.012, 0.075), frame_color)
 	base.material_override = frame_mat
 	base.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for side_x in [-0.019, 0.019]:
-		var wall = game._mesh_box(optic_root, Vector3(side_x, 0.022, 0), Vector3(0.004, 0.034, 0.056), frame_color)
+		var wall = game._mesh_box(optic_housing, Vector3(side_x, 0.022, 0), Vector3(0.004, 0.034, 0.056), frame_color)
 		wall.material_override = frame_mat
 		wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var top_hood = game._mesh_box(optic_root, Vector3(0, 0.039, 0), Vector3(0.042, 0.004, 0.056), frame_color)
+	var top_hood = game._mesh_box(optic_housing, Vector3(0, 0.039, 0), Vector3(0.042, 0.004, 0.056), frame_color)
 	top_hood.material_override = frame_mat
 	top_hood.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
@@ -243,7 +382,7 @@ func _build_reflex_optic():
 	glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glass.material_override = glass_mat
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	optic_root.add_child(glass)
+	optic_housing.add_child(glass)
 
 	reticle_dot = MeshInstance3D.new()
 	var dot_mesh = SphereMesh.new()
@@ -261,19 +400,34 @@ func shot():
 func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 	elapsed += delta
 	shot_left = maxf(0, shot_left - delta)
-	flash.visible = shot_left > 0
-	light.light_energy = 1.6 if shot_left > 0 else 0.0
-	aim_blend = move_toward(aim_blend, 1.0 if aimed else 0.0, delta * 10.0)
+	slash_left = maxf(0, slash_left - delta)
+	var firing := shot_left > 0 and weapon_slot == 0
+	flash.visible = firing
+	var muzzle_id: String = game.rules.active_muzzle()
+	light.light_energy = (0.55 if muzzle_id == "suppressor" else 1.6) if firing else 0.0
+	aim_blend = move_toward(aim_blend, 1.0 if (aimed and weapon_slot == 0) else 0.0, delta * 10.0)
 
-	var dip = sin(reload_progress * PI)
-	rifle.rotation.z = dip * -0.26
-	optic_root.rotation.z = rifle.rotation.z
-	if is_instance_valid(magazine):
-		magazine.position = Vector3(0, -dip * 0.16, dip * 0.07)
-		magazine.rotation.x = -dip * 0.14
-
-	var fire_w := clampf(shot_left / 0.065, 0.0, 1.0)
-	_apply_arm_pose(aim_blend, dip, fire_w)
-
-	position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0035)
-	position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0025)
+	if weapon_slot == 0:
+		var dip = sin(reload_progress * PI)
+		rifle.rotation.z = dip * -0.26
+		optic_root.rotation.z = rifle.rotation.z
+		if is_instance_valid(attachments_root):
+			attachments_root.rotation.z = rifle.rotation.z
+		if is_instance_valid(magazine):
+			magazine.position = Vector3(0, -dip * 0.16, dip * 0.07)
+			magazine.rotation.x = -dip * 0.14
+		var fire_w := clampf(shot_left / 0.065, 0.0, 1.0)
+		_apply_arm_pose(aim_blend, dip, fire_w)
+		position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0035)
+		position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0025)
+		position.z = 0.0
+		rotation = rotation.lerp(Vector3.ZERO, minf(delta * 18.0, 1.0))
+	else:
+		rifle.rotation.z = 0.0
+		_apply_arm_pose(0.0, 0.0, 0.0)
+		var slash_t := sin(clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0) * PI) if slash_left > 0.0 else 0.0
+		var dir_sign := -1.0 if slash_combo == 0 else 1.0
+		position.x = sin(elapsed * 8.5) * moving * 0.0045 + dir_sign * slash_t * 0.14
+		position.y = absf(sin(elapsed * 8.5)) * moving * 0.0035 + slash_t * (0.045 if slash_combo == 0 else -0.025)
+		position.z = -slash_t * 0.12
+		rotation = Vector3(-slash_t * 0.18, dir_sign * slash_t * 0.16, -dir_sign * slash_t * 0.36)

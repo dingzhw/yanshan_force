@@ -146,6 +146,103 @@ def gen_heal_shield() -> None:
     _write_wav("heal_shield.wav", out, 0.44)
 
 
+def gen_knife_slash() -> None:
+    dur = 0.16
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 1337
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        freq = 540.0 - 320.0 * (t / dur)
+        env = _envelope(t, 0.012, dur, 2.1)
+        s = 0.65 * noise * (0.4 + 0.6 * math.sin(math.pi * t / dur)) + 0.45 * math.sin(2 * math.pi * freq * t)
+        out.append(s * env)
+    _write_wav("knife_slash.wav", out, 0.46)
+
+
+def gen_knife_hit() -> None:
+    dur = 0.20
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.002, dur, 2.4)
+        s = math.sin(2 * math.pi * 165.0 * math.exp(-t * 10.0) * t) + 0.55 * math.sin(2 * math.pi * 1950.0 * t) * math.exp(-t * 28.0)
+        out.append(s * env)
+    _write_wav("knife_hit.wav", out, 0.56)
+
+
+def gen_dry_fire() -> None:
+    dur = 0.075
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.001, dur, 3.8)
+        s = math.sin(2 * math.pi * 2400.0 * t) * math.exp(-t * 45.0) + 0.5 * math.sin(2 * math.pi * 620.0 * t)
+        out.append(s * env)
+    _write_wav("dry_fire.wav", out, 0.36)
+
+
+def gen_ammo_pickup() -> None:
+    dur = 0.22
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        pulse = 1.0 if t < 0.09 else 0.85
+        f = 720.0 if t < 0.09 else 1180.0
+        env = _envelope(t % 0.095, 0.002, 0.09, 2.6) * pulse
+        s = math.sin(2 * math.pi * f * t) + 0.35 * math.sin(2 * math.pi * f * 2.0 * t)
+        out.append(s * env)
+    _write_wav("ammo_pickup.wav", out, 0.44)
+
+
+def gen_smoke_emp() -> None:
+    dur = 0.52
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 4242
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        env = _envelope(t, 0.008, dur, 1.45)
+        zap = math.sin(2 * math.pi * (1400.0 * math.exp(-t * 4.5) + 180.0) * t)
+        out.append((0.60 * noise + 0.45 * zap) * env)
+    _write_wav("smoke_emp.wav", out, 0.50)
+
+
+def gen_boss_phase() -> None:
+    dur = 0.58
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.015, dur, 1.35)
+        f = 130.0 - 45.0 * (t / dur)
+        s = math.tanh((math.sin(2 * math.pi * f * t) + 0.65 * math.sin(2 * math.pi * f * 1.49 * t) + 0.35 * math.sin(2 * math.pi * 620.0 * t * math.exp(-t * 4.0))) * 1.5)
+        out.append(s * env)
+    _write_wav("boss_phase.wav", out, 0.54)
+
+
+def gen_shot_suppressed() -> None:
+    dur = 0.14
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 777
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        env = _envelope(t, 0.002, dur, 2.8)
+        thump = math.sin(2 * math.pi * (320.0 * math.exp(-t * 28.0) + 110.0) * t)
+        out.append((0.55 * thump + 0.45 * noise) * env)
+    _write_wav("shot_suppressed.wav", out, 0.48)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -155,7 +252,14 @@ def main() -> None:
     gen_warning_lock()
     gen_extract_pulse()
     gen_heal_shield()
-    print("Generated 8 procedural SFX files in", OUT_DIR)
+    gen_knife_slash()
+    gen_knife_hit()
+    gen_dry_fire()
+    gen_ammo_pickup()
+    gen_smoke_emp()
+    gen_boss_phase()
+    gen_shot_suppressed()
+    print("Generated 15 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

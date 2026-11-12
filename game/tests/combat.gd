@@ -60,11 +60,15 @@ func run():
 	for z_idx in game.combat.troops:
 		for s in game.combat.troops[z_idx]:
 			seen_archetypes[s.archetype] = true
-	verify(seen_archetypes.size() == 3, "all 3 enemy archetypes (Assault Bot, Scout Drone, Sniper Guard) spawn across outposts")
+	verify(seen_archetypes.size() == 4 and is_instance_valid(game.combat.boss_unit), "all 4 enemy archetypes (Assault Bot, Scout Drone, Sniper Guard, Boss Warden) spawn across outposts")
+	verify(not game.player.has_infinite_ammo() and game.player.reserve_ammo == game.rules.starter_reserve_ammo(), "combat starts with finite reserve ammo while practice keeps infinite")
 
-	# Camp Station 0 remains usable for optional warm-up before entering a combat zone
+	# Camp Station 0 remains usable for optional warm-up, WITHOUT farming combat extraction score!
 	game.interact()
 	verify(game.active_station == 0 and game.stations[0].boards[0].visible, "camp station remains available for optional warm-up")
+	var camp_score_before: int = game.rules.score
+	game.resolve_answer(game.answer_index, false)
+	verify(game.rules.score == camp_score_before, "camp Station 0 warm-up awards 0 combat score in field runs")
 	game._leave_station()
 
 	var patrol = game.combat.troops[0][0]
@@ -150,7 +154,7 @@ func run():
 	shoot(game.player.camera.global_position, correct.shield_area.global_position)
 	verify(game.rules.score == score_after_one, "shooting a downed bot cannot score again")
 
-	# Check Sniper Guard laser beam in Zone 1 (山道拦截哨)
+	# Dual weapon + Knife backstab ammo drop + Smoke/EMP + Stim tests in Zone 1
 	game._next_question()
 	var center1: Vector3 = game.combat.zone_center(1)
 	game.player.position = center1 + Vector3(0, 0.08, 2.0)
@@ -171,33 +175,116 @@ func run():
 				break
 	verify(saw_laser, "heavy sniper guard projects visible red laser beam while locking on")
 
-	# Extraction Gate Balance Check: 260 points WITHOUT clearing an outpost must block combat extraction!
-	game.rules.score = 270
-	verify(game.rules.outposts_cleared == 0 and not game.rules.can_extract(), "260+ score alone cannot extract in combat mode before clearing an outpost")
+	# Throw Smoke/EMP grenade [G]: stuns Zone 1 squad and conceals player from Sniper clear_shot
+	var gren_before: int = game.player.grenades
+	game.player.camera.global_position = game.player.position + Vector3(0, 1.58, 0)
+	game.player.camera.look_at(center1 + Vector3(0, 0.2, -3.0))
+	game.player.throw_smoke_emp()
+	await frames(2)
+	verify(game.player.grenades == gren_before - 1 and game.combat.smoke_zones.size() >= 1 and is_instance_valid(sniper) and sniper.stun_left > 1.0, "smoke/EMP grenade consumes 1 charge, deploys smoke cloud, and stuns squad")
+	game.combat.deploy_smoke_emp(game.player.position)
+	verify(game.combat.player_in_smoke() and is_instance_valid(sniper) and not game.combat.clear_shot(sniper.position), "standing inside smoke cloud blocks sniper clear_shot")
 
-	# Clear Zone 2 (B · 竹林重兵阵地) via live raycasts
-	game.rules.score = 180
+	# Test Adrenaline Stim [T]
+	game.combat.health = 70
+	var stim_before: int = game.player.stims
+	game.player.use_stim()
+	verify(game.player.stims == stim_before - 1 and game.player.stim_left > 5.0 and game.combat.health > 70, "adrenaline stim triggers sprint+regen buff")
+
+	# Knife backstab execution on a stunned Zone-1 unit recovers +magazine() reserve ammo!
+	var knife_victim = game.combat.troops[1][3]
+	knife_victim.stun(3.0)
+	knife_victim.rotation.y = 0.0
+	game.player.position = knife_victim.position - knife_victim.global_transform.basis.z * 1.4
+	game.player.ammo = 4
+	var res_before: int = game.player.reserve_ammo
+	aim.global_position = game.player.position + Vector3(0, 1.58, 0)
+	aim.look_at(knife_victim.global_position + Vector3(0, 1.15, 0))
+	game.melee_strike(aim)
+	verify(knife_victim.defeated and game.player.reserve_ammo == res_before + game.rules.magazine(), "knife backstab executes enemy and recovers +1 magazine reserve ammo")
+
+	# Clear Zone 1 remaining waves so outposts_cleared becomes 1
+	game.player.position = center1 + Vector3(0, 0.08, 1.5)
+	game.combat.health = 100
+	game.combat.shield = 30
+	await frames(2)
+	if not game.rules.question_open:
+		game._next_question()
+	for i in 1000:
+		await physics_frame
+		if game.combat.zone_cleared.get(1, false) or game.rules.phase != "active":
+			break
+		if not game.rules.question_open:
+			continue
+		var t1 = game.combat.troops[1][game.answer_index]
+		if t1.defeated:
+			game._next_question()
+			continue
+		if i % 20 == 19:
+			t1.position = center1 + Vector3(-2.5 + float(game.answer_index) * 1.7, 0.08, -3.2)
+		var from1: Vector3 = game.player.camera.global_position
+		var at1: Vector3 = t1.shield_area.global_position
+		var r1 := PhysicsRayQueryParameters3D.create(from1, at1, 7, [game.player.get_rid()])
+		r1.collide_with_areas = true
+		var hit1 = game.get_world_3d().direct_space_state.intersect_ray(r1)
+		if hit1 and (hit1.collider == t1 or hit1.collider == t1.shield_area):
+			game.player.ammo = game.rules.magazine()
+			shoot(from1, at1)
+	verify(game.rules.outposts_cleared >= 1, "Zone 1 clears cleanly via combat hits")
+
+	# Anti-Bypass Check: 260+ score + 1 outpost cleared WITHOUT Boss defeated MUST still block extraction!
+	game.rules.score = 270
+	verify(not game.rules.can_extract(), "260+ score + 1 outpost still blocks combat extraction while Zone-B Boss lives")
+
+	# Clear Zone 2 (B · 竹林重兵阵地) + Defeat Boss Warden「铁甲词尊」
+	game.rules.score = 220
 	var center2: Vector3 = game.combat.zone_center(2)
 	game.player.position = center2 + Vector3(0, 0.08, 1.5)
 	game.combat.health = 100
 	game.combat.shield = 30
 	await frames(5)
 	verify(game.combat.zone == 2, "bamboo stronghold activates Zone 2")
-	for i in 2400:
+	var boss = game.combat.boss_unit
+	var saw_core_crit := false
+	for i in 1200:
 		await physics_frame
-		if game.rules.can_extract() or game.rules.phase != "active":
+		if game.rules.boss_defeated or game.rules.phase != "active":
 			break
+		if is_instance_valid(boss) and not boss.defeated and boss.exposed_left > 0 and not saw_core_crit and is_instance_valid(boss.core_area):
+			boss.position = center2 + Vector3(0.0, 0.08, -3.2)
+			boss.look_at(Vector3(game.player.position.x, boss.position.y, game.player.position.z), Vector3.UP)
+			boss.rotate_y(PI)
+			await physics_frame
+			var hp_before: int = boss.hp
+			var c_from: Vector3 = game.player.camera.global_position
+			var c_at: Vector3 = boss.core_area.global_position
+			var r_core := PhysicsRayQueryParameters3D.create(c_from, c_at, 7, [game.player.get_rid()])
+			r_core.collide_with_areas = true
+			var hit_core = game.get_world_3d().direct_space_state.intersect_ray(r_core)
+			if hit_core and hit_core.collider == boss.core_area:
+				game.player.ammo = game.rules.magazine()
+				shoot(c_from, c_at)
+				saw_core_crit = boss.hp == hp_before - 42
 		if not game.rules.question_open:
 			continue
 		var target = game.combat.troops[2][game.answer_index]
-		var from: Vector3 = game.player.camera.global_position
-		var at: Vector3 = target.shield_area.global_position
-		var ray = PhysicsRayQueryParameters3D.create(from, at, 7, [game.player.get_rid()])
-		ray.collide_with_areas = true
-		var result = game.get_world_3d().direct_space_state.intersect_ray(ray)
-		if result and (result.collider == target or result.collider == target.shield_area):
-			shoot(from, at)
-	verify(game.rules.outposts_cleared >= 1 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(), "clearing live outpost waves + reaching 260 pts unlocks combat extraction")
+		if target.defeated:
+			game._next_question()
+			continue
+		if i % 20 == 19:
+			target.position = center2 + Vector3(-2.5 + float(game.answer_index) * 1.7, 0.08, -3.4)
+		var from2: Vector3 = game.player.camera.global_position
+		var at2: Vector3 = target.shield_area.global_position
+		var r2 := PhysicsRayQueryParameters3D.create(from2, at2, 7, [game.player.get_rid()])
+		r2.collide_with_areas = true
+		var hit2 = game.get_world_3d().direct_space_state.intersect_ray(r2)
+		if hit2 and (hit2.collider == target or hit2.collider == target.shield_area):
+			game.player.ammo = game.rules.magazine()
+			shoot(from2, at2)
+	verify(saw_core_crit, "shattering a shield in Zone 2 exposes Boss reactor core for 42 crit bullet damage")
+	verify(game.rules.boss_defeated and game.rules.outposts_cleared >= 2 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(), "clearing 2 outposts + defeating Zone-B Boss + 260 pts unlocks combat extraction")
+	await frames(100)
+	verify(is_instance_valid(game.combat.troops[2][0]) and game.combat.troops[2][0] != boss and not game.combat.troops[2][0].defeated and game.rules.boss_defeated, "defeated Boss does not respawn while remnant slot 0 continues")
 
 	game.rules.add_loot("前哨战利品", 82, 3)
 	game.player.position = game.exit_position

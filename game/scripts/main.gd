@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.2"
+const VERSION = "0.5.3"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -208,6 +208,7 @@ func _load_profile():
 					"rarity": clampi(int(item.get("rarity", 1)), 1, 5)
 				})
 		rules.profile.warehouse = normalized_wh
+	rules.ensure_equipped()
 
 func _save():
 	if qa_mode and profile_path_override == "":
@@ -455,26 +456,28 @@ func _build_ui():
 	ui.add_child(hud)
 
 	# ZONE 1: Top-Left Compact Mission & Telemetry Card
-	_panel(hud, Rect2(18, 16, 344, 146))
-	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 23), Vector2(230, 22), 14, MINT)
-	fps_label = _text(hud, "", Vector2(276, 23), Vector2(72, 22), 13, Color("9ecfc0"))
+	_panel(hud, Rect2(18, 16, 368, 154))
+	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 23), Vector2(240, 22), 14, MINT)
+	fps_label = _text(hud, "", Vector2(296, 23), Vector2(76, 22), 13, Color("9ecfc0"))
 	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	stat_label = _text(hud, "", Vector2(32, 47), Vector2(318, 24), 16, CREAM)
-	mission_label = _text(hud, "", Vector2(32, 74), Vector2(318, 44), 14, GOLD)
+	stat_label = _text(hud, "", Vector2(32, 47), Vector2(340, 24), 16, CREAM)
+	mission_label = _text(hud, "", Vector2(32, 74), Vector2(340, 44), 14, GOLD)
 	mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guide_label = _text(hud, "", Vector2(32, 126), Vector2(318, 24), 13, Color("a9c7ba"))
+	guide_label = _text(hud, "", Vector2(32, 124), Vector2(340, 38), 13, Color("a9c7ba"))
+	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# ZONE 2: Top-Center Sleek Word Prompt Card
-	_panel(hud, Rect2(384, 16, 512, 92), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
-	question_label = _text(hud, "", Vector2(398, 22), Vector2(484, 52), 28, CREAM)
+	_panel(hud, Rect2(398, 16, 514, 102), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
+	question_label = _text(hud, "", Vector2(412, 20), Vector2(486, 48), 25, CREAM)
 	question_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	question_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	question_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	unit_label = _text(hud, "", Vector2(398, 76), Vector2(484, 24), 13, MINT)
+	unit_label = _text(hud, "", Vector2(412, 72), Vector2(486, 38), 13, MINT)
 	unit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Threat Warning Banner (only shown when actively locked on)
-	threat_banner = _panel(hud, Rect2(445, 114, 390, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
+	threat_banner = _panel(hud, Rect2(455, 124, 400, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
 	threat_label = _text(threat_banner, "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！", Vector2(10, 4), Vector2(370, 22), 14, Color("ffd6d6"))
 	threat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	threat_banner.hide()
@@ -528,9 +531,9 @@ func _build_ui():
 	bag_slots_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(bag_slots_box)
 
-	# ZONE 4B: Bottom-Right Weapon, Ammo & Medkit Card
-	_panel(hud, Rect2(1018, 576, 244, 126))
-	ammo_label = _text(hud, "", Vector2(1034, 586), Vector2(214, 108), 16, CREAM)
+	# ZONE 4B: Bottom-Right Weapon, Reserve Ammo & Tactical Consumables Card
+	_panel(hud, Rect2(954, 566, 308, 136))
+	ammo_label = _text(hud, "", Vector2(968, 574), Vector2(282, 122), 14, CREAM)
 
 	# Center Prompts & Tactical Reticles
 	feedback_panel = _panel(hud, Rect2(370, 520, 540, 64), Color(0.04, 0.11, 0.12, 0.92), Color(0.55, 0.88, 0.72, 0.5))
@@ -540,8 +543,8 @@ func _build_ui():
 	feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	interaction_panel = _panel(hud, Rect2(390, 594, 500, 38), Color(0.04, 0.09, 0.11, 0.82))
-	interaction_label = _text(hud, "", Vector2(400, 596), Vector2(480, 34), 17, GOLD)
+	interaction_panel = _panel(hud, Rect2(384, 594, 524, 38), Color(0.04, 0.09, 0.11, 0.82))
+	interaction_label = _text(hud, "", Vector2(394, 596), Vector2(504, 34), 16, GOLD)
 	interaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	interaction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
@@ -552,7 +555,7 @@ func _build_ui():
 	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hitmarker_label.hide()
 
-	_text(hud, "[WASD]移动  [Shift]冲刺  [左键]射击  [右键]开镜  [R]换弹  [H]医疗包  [Q]读音  [E]交互", Vector2(370, 682), Vector2(540, 22), 12, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_text(hud, "[WASD]移动  [1/2/滚轮]切枪切刀  [V]快刀  [R]换弹  [H]医疗  [G]烟雾EMP  [T]能量  [E]交互", Vector2(368, 682), Vector2(578, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -599,29 +602,22 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5.2 战备简报】\n• Blender 写实人体雕刻战术双臂、半指手套与 39 骨骼动态换弹全面实装\n• 常规物资箱考「单词」；高级/传说大金密码箱考「词组+课本整句」连破！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
+	_text(menu, "【v0.5.3 改枪与硬核实战简报】\n• [1/2/V] 双武器切换：YS-04 卡宾枪 + 手持战术匕首（刀杀必回备弹）\n• 实战备弹有限 + [G]烟雾EMP + [T]能量饮；枪匠台 2倍镜/消音/制退/握把\n• 破除英文词盾可秒杀小兵或剥离B区【铁甲词尊】护甲露出核心，拿密钥撤离！", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
 
-	# Right Column: Progress, Warehouse & 2-Column 9-Item Tactical Shop
+	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
-	_text(menu, "军 需 仓 库 与 装 备 升 级", Vector2(616, 214), Vector2(360, 28), 20, MINT)
-	sell_button = _button(menu, "出售仓库物资", Rect2(616, 248, 548, 40), _sell, true)
+	_text(menu, "枪 匠 改 装 台 与 战 备 仓 库", Vector2(616, 214), Vector2(380, 28), 20, MINT)
+	sell_button = _button(menu, "出售仓库物资", Rect2(616, 248, 548, 38), _sell, true)
 
-	var shop_order = [
-		"red_dot", "magazine",
-		"magazine2", "shield_core",
-		"backpack", "medkit_pack",
-		"forest_skin", "scout",
-		"reward_point"
-	]
-	for idx in shop_order.size():
-		var id = shop_order[idx]
-		var col = idx % 2
-		var row = int(idx / 2)
-		var w = 548 if id == "reward_point" else 268
-		var rect = Rect2(616 + col * 280, 298 + row * 48, w, 40)
+	for idx in Rules.GUNSMITH_ORDER.size():
+		var id: String = Rules.GUNSMITH_ORDER[idx]
+		var col = idx % 3
+		var row = int(idx / 3)
+		var rect = Rect2(616 + col * 186, 294 + row * 50, 176, 42)
 		shop_buttons[id] = _button(menu, "", rect, _buy.bind(id))
+		shop_buttons[id].add_theme_font_size_override("font_size", 13)
 
-	menu_status = _text(menu, "五上词库 175 条 · 离线标准英文读音 · 自动保存进度", Vector2(616, 594), Vector2(548, 48), 14, Color("a9c4b6"))
+	menu_status = _text(menu, "五上词库 175 条 · 离线标准英文读音 · 点击已购配件可换装/卸下", Vector2(616, 594), Vector2(548, 48), 14, Color("a9c4b6"))
 	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Review Overlay
@@ -662,34 +658,59 @@ func _warehouse_total_value() -> int:
 func _refresh_menu(result = ""):
 	var mastered = rules.mastered_count()
 	var collected = rules.profile.collection.size()
-	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / 6 件" % [
+	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / 7 件" % [
 		rules.level(), rules.profile.xp % 120, rules.profile.coins, rules.profile.points,
 		mastered, words.size(), collected
 	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "山脚营地出发，突破林间前哨、山道拦截哨与竹林阵地。\n常规物资箱考单词，高阶/大金空投箱考词组与课本句子！\n满 260 分且攻克至少 1 处前哨，即可前往 B 信标撤离。"
+		menu_summary.text = "山脚营地出发：有限备弹+匕首近战，突破林间/山道前哨！\n常规箱单词解锁，高阶空投箱词组+整句破译。\n满 260 分 + 攻克至少 2 处前哨 + 击败 B 区首领夺密钥即可撤离！"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
 	sell_button.text = "一键出售仓库物资（%d 件 · 合计 %d 币）" % [wh_count, wh_val]
 	sell_button.disabled = wh_count == 0 or rules.phase in ["active", "extracting"]
 
+	var eq_optic: String = rules.active_optic()
+	var eq_muzzle: String = rules.active_muzzle()
+	var eq_grip: String = rules.active_grip()
+	var in_run: bool = rules.phase in ["active", "extracting"]
+
 	for id in shop_buttons:
 		var item = Rules.ITEMS[id]
+		var slot = str(item.get("slot", ""))
+		var is_mod: bool = slot in ["optic", "muzzle", "grip"]
 		var owned = id in rules.profile.owned
+		var equipped_now: bool = is_mod and ((slot == "optic" and eq_optic == id) or (slot == "muzzle" and eq_muzzle == id) or (slot == "grip" and eq_grip == id))
 		var prereq_missing = (id == "magazine2" and not ("magazine" in rules.profile.owned))
-		var suffix = "已装备" if owned else (("需先购扩容I · %d币" % item.cost) if prereq_missing else ("%d 币" % item.cost))
+		var suffix = ""
 		if id == "reward_point":
-			suffix = "%d 币（可重复兑换）" % item.cost
-		shop_buttons[id].text = item.title.split(" · ")[0] + "  ·  " + suffix
+			suffix = "%d币兑" % item.cost
+		elif equipped_now:
+			suffix = "已装配"
+		elif owned and is_mod:
+			suffix = "点换装"
+		elif owned:
+			suffix = "已装备"
+		elif prereq_missing:
+			suffix = "先扩容I"
+		else:
+			suffix = "%d币" % item.cost
+		shop_buttons[id].text = "%s\n%s" % [item.title.split(" · ")[0], suffix]
 		shop_buttons[id].tooltip_text = item.title
-		shop_buttons[id].disabled = (owned and id != "reward_point") or prereq_missing or rules.profile.coins < item.cost or rules.phase in ["active", "extracting"]
+		var can_click: bool = false
+		if id == "reward_point":
+			can_click = not in_run and rules.profile.coins >= item.cost
+		elif owned and is_mod:
+			can_click = not in_run
+		else:
+			can_click = not in_run and not owned and not prereq_missing and rules.profile.coins >= item.cost
+		shop_buttons[id].disabled = not can_click
 
-	start_button.text = "继续行动  →" if rules.phase in ["active", "extracting"] else "部署战术行动  →"
-	practice_button.visible = rules.phase not in ["active", "extracting"]
-	abandon_button.visible = rules.phase in ["active", "extracting"]
-	unit_picker.disabled = rules.phase in ["active", "extracting"]
+	start_button.text = "继续行动  →" if in_run else "部署战术行动  →"
+	practice_button.visible = not in_run
+	abandon_button.visible = in_run
+	unit_picker.disabled = in_run
 	include_extra.disabled = unit_picker.disabled
 
 func _sell():
@@ -701,11 +722,21 @@ func _sell():
 	menu_status.text = "物资已全部结算出售，获得 %d 枚游戏货币！" % value
 
 func _buy(id: String):
+	var item = Rules.ITEMS.get(id, {})
+	var slot = str(item.get("slot", ""))
+	if id != "reward_point" and id in rules.profile.owned and slot in ["optic", "muzzle", "grip"]:
+		if rules.equip_attachment(slot, id):
+			play_sfx("weapon_change", -12)
+			_save()
+			_refresh_menu()
+			var now_eq: bool = rules.profile["equipped"].get(slot, "") == id
+			menu_status.text = ("已装配配件：" if now_eq else "已卸下配件：") + item.title
+		return
 	if rules.purchase(id):
 		play_sfx("loot_epic" if id == "reward_point" else "cipher_unlock", -11)
 		_save()
 		_refresh_menu()
-		menu_status.text = "已解锁装备：" + Rules.ITEMS[id].title
+		menu_status.text = "已解锁装备：" + item.title
 		if id == "reward_point":
 			menu_status.text += "（线下奖励可与爸爸妈妈核对兑现！）"
 
@@ -729,6 +760,10 @@ func start_action(as_combat = false):
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
 		player.medkits = rules.starter_medkits()
+		player.grenades = rules.starter_grenades()
+		player.stims = rules.starter_stims()
+		player.stim_left = 0.0
+		player.weapon_slot = 0
 		time_left = 480.0
 		next_question_left = 0.0
 		wrong_words = []
@@ -747,8 +782,10 @@ func start_action(as_combat = false):
 		player.yaw = 0.0
 		player.pitch = 0.0
 		player.ammo = rules.magazine()
+		player.reserve_ammo = rules.starter_reserve_ammo()
 		player.reload_left = 0.0
 		player.cooldown = 0.0
+		player.knife_cooldown = 0.0
 		player.recoil = 0.0
 		for node in pickup_nodes:
 			Props.set_enabled(node, true)
@@ -902,6 +939,44 @@ func _can_interact(node: Node3D) -> bool:
 	var hit = get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty() or hit.collider == node or node.is_ancestor_of(hit.collider)
 
+func show_hitmarker(is_crit: bool = false):
+	hitmarker_left = 0.22
+	hitmarker_label.text = "✦" if is_crit else "×"
+	hitmarker_label.add_theme_color_override("font_color", GOLD if is_crit else MINT)
+	hitmarker_label.show()
+
+func melee_strike(camera: Camera3D):
+	if rules.phase != "active" or paused:
+		return
+	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
+	if shooting_field:
+		combat.melee_strike(camera)
+		return
+	if active_station >= 0 and player.position.distance_to(stations[active_station].position) <= 15:
+		var from = camera.global_position
+		var to = from - camera.global_basis.z * 4.2
+		var query = PhysicsRayQueryParameters3D.create(from, to, 3, [player.get_rid()])
+		var result = get_world_3d().direct_space_state.intersect_ray(query)
+		if result and result.collider.get_meta("station_id", "") == stations[active_station].station_id and result.collider.has_meta("answer_index"):
+			play_sfx("knife_hit", -10)
+			resolve_answer(int(result.collider.get_meta("answer_index")))
+
+func deploy_smoke_emp(camera: Camera3D):
+	if rules.phase != "active" or paused:
+		return
+	var from := camera.global_position
+	var dir := (-camera.global_basis.z).normalized()
+	var target := from + dir * 6.5
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * 14.0, 1, [player.get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		target = hit.position
+	if combat.in_field():
+		combat.deploy_smoke_emp(target)
+	else:
+		play_sfx("smoke_emp", -10)
+		_notice("已投掷训练烟雾/EMP 手雷（实战中可瘫痪敌方并遮蔽狙击激光）", Color("7ceeff"))
+
 func fire(camera: Camera3D):
 	if rules.phase != "active" or paused:
 		return
@@ -916,7 +991,7 @@ func fire(camera: Camera3D):
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
 	if shooting_field:
 		if result:
-			combat.hit(result.collider)
+			combat.hit_bullet(result.collider, rules.active_muzzle(), result.position)
 		return
 	if result and active_station >= 0 and result.collider.get_meta("station_id", "") == stations[active_station].station_id and result.collider.has_meta("answer_index"):
 		resolve_answer(int(result.collider.get_meta("answer_index")))
@@ -928,6 +1003,10 @@ func resolve_answer(index: int, mobile = false):
 	var prev_score = rules.score
 	if not rules.answer(correct, str(question.get("id", ""))):
 		return
+	# Block Camp Station 0 farming during real field combat runs!
+	var camp_warmup_in_combat: bool = (not mobile and combat.in_field())
+	if camp_warmup_in_combat:
+		rules.score = prev_score
 	var gained = rules.score - prev_score
 
 	hitmarker_left = 0.20
@@ -946,7 +1025,9 @@ func resolve_answer(index: int, mobile = false):
 		target_materials[index].albedo_color = Color("8d4b47")
 		target_materials[answer_index].albedo_color = Color("3b8a62")
 
-	if correct:
+	if camp_warmup_in_combat:
+		_notice("营地热身：%s（%s）· 实战撤离积分与清哨需击杀前哨敌军" % [question.english, question.chinese], GOLD)
+	elif correct:
 		var streak_tag = (" · 🔥%d连击!" % rules.streak) if rules.streak >= 3 else ""
 		if not (mobile and combat.zone >= 0 and combat.waves_done.get(combat.zone, 0) == combat.waves_target.get(combat.zone, -1)):
 			_notice("命中正确！ +%d 分%s · %s（%s）" % [gained, streak_tag, question.english, question.chinese], MINT)
@@ -1052,7 +1133,8 @@ func _process(delta):
 		if hitmarker_left <= 0:
 			hitmarker_label.hide()
 
-	crosshair_label.visible = not player.aiming
+	crosshair_label.text = "◆" if player.weapon_slot == 1 else "+"
+	crosshair_label.visible = not (player.aiming and player.weapon_slot == 0)
 
 	var streak_str = ("  🔥×%d" % rules.streak) if rules.streak >= 3 else ""
 	stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
@@ -1060,9 +1142,9 @@ func _process(delta):
 	]
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
 
-	var outpost_part = ("前哨 %d/1" % rules.outposts_cleared) if rules.combat_mode else "自由靶场"
-	var extract_part = "信标已就绪" if rules.can_extract() else ("差%d分" % maxi(0, Rules.EXTRACTION_SCORE - rules.score) if rules.score < Rules.EXTRACTION_SCORE else "需清1前哨")
-	mission_label.text = "%s  ·  密码箱 %d/%d  ·  %s\n撤离状态：%s" % [
+	var outpost_part = ("前哨 %d/2 · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
+	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
+	mission_label.text = "%s  ·  箱 %d/%d  ·  %s\n撤离状态：%s" % [
 		outpost_part, rules.crates.size(), crate_nodes.size(), exploration.status_text(), extract_part
 	]
 	_update_guide()
@@ -1071,13 +1153,39 @@ func _process(delta):
 	bag_label.text = "随身背包 %d / %d 格  ·  估值 %d 币" % [rules.bag.size(), rules.capacity(), rules.bag_value()]
 	_refresh_bag_pills()
 
-	var optic_tag = "全息稳瞄镜" if "red_dot" in rules.profile.owned else "机械反射镜"
-	ammo_label.text = "YS-04 战术卡宾枪\n%s\n[H] 医疗包 ×%d   |   %s" % [
-		("换弹装填中…" if player.reload_left > 0 else "弹药 %02d / %02d  [R]" % [player.ammo, rules.magazine()]),
-		player.medkits,
-		optic_tag
+	var mods := []
+	if rules.active_optic() == "scope_2x":
+		mods.append("2倍棱镜")
+	elif rules.active_optic() == "red_dot":
+		mods.append("全息瞄具")
+	else:
+		mods.append("反射机械")
+	if rules.active_muzzle() == "suppressor":
+		mods.append("消音器")
+	elif rules.active_muzzle() == "compensator":
+		mods.append("制退器")
+	if rules.active_grip() == "angled_grip":
+		mods.append("直角握把")
+	var optic_tag = " · ".join(mods)
+	var active_tag = "[2] 战术匕首 (高移速+近战必回弹)" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪  |  [2] 匕首"
+	var reserve_str = "∞" if player.has_infinite_ammo() else str(maxi(0, player.reserve_ammo))
+	var ammo_line = "近战状态  ·  [左键/V] 斩击（背后处决/回弹）" if player.weapon_slot == 1 else (
+		"换弹装填中…" if player.reload_left > 0 else "弹药 %02d / 备弹 %s   [R]换弹" % [player.ammo, reserve_str]
+	)
+	var stim_suffix = ("  ⚡%.0fs" % player.stim_left) if player.stim_left > 0 else ""
+	ammo_label.text = "%s\n%s\n%s\n[H]医疗×%d  [G]烟雾×%d  [T]能量×%d%s" % [
+		active_tag, ammo_line, optic_tag, player.medkits, player.grenades, player.stims, stim_suffix
 	]
 	_update_interaction()
+
+func _extraction_blocker_short() -> String:
+	if rules.score < Rules.EXTRACTION_SCORE:
+		return "差%d分" % (Rules.EXTRACTION_SCORE - rules.score)
+	if rules.combat_mode and not rules.boss_defeated:
+		return "需败B区首领"
+	if rules.combat_mode and rules.outposts_cleared < 2:
+		return "需攻克%d/2哨" % rules.outposts_cleared
+	return "待就绪"
 
 func _crate_progress(tier: int) -> String:
 	var req = rules.crate_requirements(tier)
@@ -1092,11 +1200,13 @@ func _update_guide():
 	if player.position.distance_to(Vector3(0, 0, 4.5)) > 1.2:
 		tutorial_moved = true
 	if rules.can_extract():
-		guide_label.text = "★ 撤离条件已满足！前往B点绿色信标按 [E] 坚守5秒"
+		guide_label.text = "★ 撤离条件已全达标！前往B点绿色信标按 [E] 坚守5秒"
+	elif combat.in_field() and combat.zone == 2 and is_instance_valid(combat.boss_unit) and not combat.boss_unit.defeated:
+		guide_label.text = "首领战：破词盾露核心，[G]烟雾可致盲躲红圈"
 	elif combat.in_field() and combat.zone >= 0:
-		guide_label.text = "射击正确英文护盾 · 冲刺跳跃可大幅闪避敌弹"
+		guide_label.text = "射对词盾破防 · 无弹按 [2/V] 匕首近战回弹"
 	elif combat.in_field():
-		guide_label.text = "沿山路推进至前哨阵地，清剿词兵并开启密码箱"
+		guide_label.text = "突破前哨并击败 B 区首领（营地靶场不计分）"
 	elif not tutorial_moved and active_station < 0:
 		guide_label.text = "按 [E] 开启身旁营地终端，或沿山路探索"
 	else:
@@ -1110,23 +1220,24 @@ func _update_combat_hud():
 		hp_bar_fill.color = Color("6ae3a8") if combat.health > 55 else (Color("f4ca64") if combat.health > 28 else Color("ff5c66"))
 		var threats = combat.active_threat_count()
 		threat_banner.visible = threats > 0
-		var state_tag = "闪避成功!" if combat.miss_left > 0 else ("狂暴 ×%.2f" % combat.damage_multiplier() if combat.rage_left > 0 else ("受瞄准 ×%d" % threats if threats > 0 else "护盾自动充能"))
+		var state_tag = "烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("狂暴 ×%.2f" % combat.damage_multiplier() if combat.rage_left > 0 else ("受瞄准 ×%d" % threats if threats > 0 else "护盾自动充能")))
 		combat_label.text = "生命 %d/100  ·  护盾 %d/%d  ·  %s" % [combat.health, roundi(combat.shield), rules.max_shield(), state_tag]
 	else:
 		threat_banner.hide()
 		shield_bar_fill.size.x = 316.0
 		hp_bar_fill.size.x = 316.0
 		hp_bar_fill.color = Color("6ae3a8")
-		combat_label.text = "自由靶场模式  ·  护盾与生命常驻满值"
+		combat_label.text = "自由靶场模式  ·  无限备弹 · 护盾生命满值"
 
 func _extraction_blocker_text() -> String:
-	if rules.score < Rules.EXTRACTION_SCORE and rules.combat_mode and rules.outposts_cleared < 1:
-		return "还差 %d 积分 且 需攻克至少 1 处前哨" % (Rules.EXTRACTION_SCORE - rules.score)
+	var missing := []
 	if rules.score < Rules.EXTRACTION_SCORE:
-		return "积分不足 · 还需 %d 分（当前 %d/%d）" % [Rules.EXTRACTION_SCORE - rules.score, rules.score, Rules.EXTRACTION_SCORE]
-	if rules.combat_mode and rules.outposts_cleared < 1:
-		return "尚未攻克任何词兵前哨（需至少占领 1 处）"
-	return ""
+		missing.append("还差 %d 积分（%d/%d）" % [Rules.EXTRACTION_SCORE - rules.score, rules.score, Rules.EXTRACTION_SCORE])
+	if rules.combat_mode and rules.outposts_cleared < 2:
+		missing.append("需攻克至少 2 处前哨（%d/2）" % rules.outposts_cleared)
+	if rules.combat_mode and not rules.boss_defeated:
+		missing.append("需击败 B 区首领夺取密钥")
+	return " · ".join(missing)
 
 func _update_interaction():
 	closest_interaction = null
@@ -1146,7 +1257,16 @@ func _update_interaction():
 	elif player.position.distance_to(exit_position) < 3.6:
 		interaction_label.text = "[E] 启动战术撤离（坚守 5 秒）" if rules.can_extract() else ("撤离锁定 · " + _extraction_blocker_text())
 	elif closest_interaction:
-		if closest_interaction.has_meta("explore_id"):
+		if closest_interaction.has_meta("tactical_item"):
+			var kind = str(closest_interaction.get_meta("tactical_item"))
+			var title = str(closest_interaction.get_meta("title", "战术补给"))
+			if kind == "ammo_crate":
+				interaction_label.text = "[E] 搜刮 %s（+%d 备弹）" % [title, rules.magazine()]
+			elif kind == "smoke_emp":
+				interaction_label.text = "[E] 拾取 %s（+1）" % title
+			else:
+				interaction_label.text = "[E] 拾取 %s（+1）" % title
+		elif closest_interaction.has_meta("explore_id"):
 			interaction_label.text = "[E] " + closest_interaction.get_meta("prompt")
 		elif closest_interaction.has_meta("station_id"):
 			interaction_label.text = "[E] 开启识词靶场 · " + closest_interaction.title
@@ -1171,7 +1291,7 @@ func _update_interaction():
 	else:
 		interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
 			roundi(player.position.distance_to(exit_position)),
-			"已解锁可撤离" if rules.can_extract() else ("%d分%s解锁" % [Rules.EXTRACTION_SCORE, "+清哨" if rules.combat_mode else ""])
+			"已解锁可撤离" if rules.can_extract() else _extraction_blocker_short()
 		]
 
 func interact():
@@ -1190,6 +1310,24 @@ func interact():
 	_update_interaction()
 	if not is_instance_valid(closest_interaction):
 		return
+	if closest_interaction.has_meta("tactical_item"):
+		var kind = str(closest_interaction.get_meta("tactical_item"))
+		var title = str(closest_interaction.get_meta("title", "战术补给"))
+		if kind == "ammo_crate":
+			if player.has_infinite_ammo():
+				_notice("当前自由靶场备弹无限 · " + title, MINT)
+			else:
+				player.add_reserve_ammo(rules.magazine())
+				_notice("已补给 %s · 备弹 +%d（当前 %d）" % [title, rules.magazine(), player.reserve_ammo], GOLD)
+		elif kind == "smoke_emp":
+			player.grenades += 1
+			_notice("拾取 %s · 按 [G] 投掷（当前 %d）" % [title, player.grenades], Color("7ceeff"))
+		else:
+			player.stims += 1
+			_notice("拾取 %s · 按 [T] 使用（当前 %d）" % [title, player.stims], MINT)
+		play_sfx("ammo_pickup", -10)
+		Props.set_enabled(closest_interaction, false)
+		return
 	if closest_interaction.has_meta("explore_id"):
 		exploration.open(closest_interaction)
 		return
@@ -1204,6 +1342,7 @@ func interact():
 func _end_run(success: bool, title = ""):
 	var pre_wh = rules.profile.warehouse.size()
 	var carried_value = rules.bag_value()
+	var defeated_boss: bool = rules.boss_defeated
 	if success:
 		if not rules.finish_extraction():
 			return
@@ -1223,12 +1362,12 @@ func _end_run(success: bool, title = ""):
 	hud.hide()
 	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
-	var header = ("成功带回 %d 件物资（含清哨奖励），随身估值 %d 币！\n" % [banked_count, carried_value]) if success else "本局未撤离物资遗留在烟山，调整装备再战！\n"
+	var header = ("成功带回 %d 件物资（含清哨%s奖励），随身估值 %d 币！\n" % [banked_count, "+首领" if defeated_boss else "", carried_value]) if success else "本局未撤离物资遗留在烟山，调整装备再战！\n"
 	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
-	menu_summary.text += "攻克前哨 %d 处 · 完美拼写破译 %d 箱 · 支线探索 %d/3\n" % [
-		rules.outposts_cleared, rules.perfect_ciphers, exploration.completed()
+	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3\n" % [
+		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed()
 	]
 	if wrong_words.size() > 0:
 		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()
