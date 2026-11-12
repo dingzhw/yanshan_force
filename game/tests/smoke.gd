@@ -74,18 +74,32 @@ func run():
 	game.fire(camera)
 	verify(game.rules.score == previous, "repeated target hit does not duplicate score")
 
+	# Regular supply box requires typing 1 core English word
+	var sup0 = game.pickup_nodes[0]
+	game.player.position = sup0.position + Vector3(0, 0, -1.2)
+	game._update_interaction()
+	game.interact()
+	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply" and game.cipher_terminal.stage_count() == 1, "E on regular supply box opens 1-word English unlock terminal")
+	var pre_sup_score = game.rules.score
+	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
+	game.cipher_terminal.close()
+	verify(not sup0.visible and game.rules.bag.size() == 1 and game.rules.score == pre_sup_score + Rules.SUPPLY_PERFECT_SCORE, "typing single English word unlocks supply box and awards +10 score")
+
 	while game.rules.score < Rules.EXTRACTION_SCORE or game.rules.answered < 6:
 		game._next_question()
 		game.resolve_answer(game.answer_index)
 	verify(game.rules.score >= Rules.EXTRACTION_SCORE, "question sequence reaches 260 extraction threshold")
 
-	game.player.position = game.crate_nodes[0].position + Vector3(0, 0, 1)
+	# Tier 1 crate requires 2 consecutive stages: Core Word -> Textbook Phrase
+	game.player.position = game.crate_nodes[0].position + Vector3(0, 0, 1.4)
 	game._update_interaction()
 	game.interact()
-	verify(game.cipher_terminal.busy, "E interaction on crate opens spelling cipher terminal")
+	verify(game.cipher_terminal.busy and game.cipher_terminal.stage_count() == 2, "E interaction on Tier-1 crate opens 2-stage word+phrase cipher terminal")
+	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
+	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.stage_index == 1, "passing stage 1 advances to textbook phrase stage 2")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
 	game.cipher_terminal.close()
-	verify(game.rules.crates.size() == 1, "exact word spelling unlocks crate")
+	verify(game.rules.crates.size() == 1, "completing word+phrase stages unlocks Tier-1 crate")
 
 	game.player.position = game.exit_position
 	game.interact()

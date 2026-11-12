@@ -1,5 +1,7 @@
 extends Node3D
-## A-to-B landscape with grounded hillside boulders, textured timber structures, grass skirts, and 3-tier crates.
+## A-to-B landscape with grounded hillside boulders, weathered military command tent, 3-tier vault/airdrop crates & keypad supply cases.
+
+const TacticalProps = preload("res://scripts/tactical_props.gd")
 
 var game
 var rng = RandomNumberGenerator.new()
@@ -356,12 +358,15 @@ func shelter(at: Vector3, title: String):
 	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 
 func _camp():
-	game._model(self, "res://assets/survival/tent-canvas.glb", Vector3(10, 0, 10), 3.5, PI * 0.75, "trimesh").set_meta("kind", "tent")
-	game._model(self, "res://assets/survival/barrel.glb", Vector3(7, 0, 10), 1.0, 0, "convex")
-	game._model(self, "res://assets/survival/box-large.glb", Vector3(7.8, 0, 11), 0.7, 0, "convex")
-	if ResourceLoader.exists("res://assets/survival/workbench.glb"):
-		game._model(self, "res://assets/survival/workbench.glb", Vector3(11.6, 0, 7.2), 1.05, -0.4, "convex")
-	game._model(self, "res://assets/nature/rock_largeA.glb", Vector3(-6, 0, 10), 0.55, 0, "convex").set_meta("kind", "low_rock")
+	TacticalProps.build_command_tent(self, game, Vector3(10.2, 0, 10.2), 1.02)
+	TacticalProps.build_fuel_drum(self, game, Vector3(7.6, 0, 12.6), true)
+	TacticalProps.build_fuel_drum(self, game, Vector3(6.9, 0, 13.1), false)
+	if ResourceLoader.exists("res://assets/slice/crate.glb"):
+		game._model(self, "res://assets/slice/crate.glb", Vector3(8.5, 0, 13.2), 0.56, 0.16, "convex")
+		game._model(self, "res://assets/slice/crate.glb", Vector3(8.5, 0.55, 13.2), 0.42, -0.12, "convex")
+	TacticalProps.build_armory_workbench(self, game, Vector3(11.6, 0, 6.4), 1.02)
+	var low_rock_path = "res://assets/slice/rock_2.glb" if ResourceLoader.exists("res://assets/slice/rock_2.glb") else "res://assets/nature/rock_largeA.glb"
+	game._model(self, low_rock_path, Vector3(-6, 0, 10), 0.55, 0, "convex").set_meta("kind", "low_rock")
 	game._build_tower(game.Layout.on_ground(Vector3(-34, 0, -102)))
 	shelter(Vector3(14, 0, -88), "竹林补给棚")
 	shelter(Vector3(1, 0, -58), "山路巡护站")
@@ -383,14 +388,8 @@ func _landmarks():
 	game._make_crate("前哨补给箱", 1, game.Layout.on_ground(Vector3(-6, 0, -39)))
 	game._make_crate("竹林精密箱", 2, game.Layout.on_ground(Vector3(13, 0, -88)))
 	game._make_crate("山道特级空投箱", 3, game.Layout.on_ground(Vector3(-8.2, 0, -66)))
-	if ResourceLoader.exists("res://assets/slice/crate.glb"):
-		for crate in game.crate_nodes:
-			game.Props.set_enabled(crate.get_child(0), false)
-			var label = crate.get_child(1)
-			var tier = int(crate.get_meta("tier"))
-			var scale_h = 0.72 if tier == 1 else (0.82 if tier == 2 else 0.92)
-			game._model(crate, "res://assets/slice/crate.glb", Vector3.ZERO, scale_h, 0, "convex")
-			crate.move_child(label, crate.get_child_count() - 1)
+	for crate in game.crate_nodes:
+		TacticalProps.build_tiered_vault_crate(game, crate, int(crate.get_meta("tier")))
 
 	var pad = MeshInstance3D.new()
 	var ring = TorusMesh.new()
@@ -417,20 +416,23 @@ func _landmarks():
 	game._label3d(self, "B · 战术撤离信标\n260分 · 攻克前哨 · 停留5秒", game.exit_position + Vector3.UP * 2.8, 40, game.MINT)
 
 	var pickup_spots = [
-		Vector3(4, 0, 7),
+		Vector3(5.2, 0, 7.2),
 		Vector3(-15, 0, -19),
 		Vector3(-23, 0, -29),
 		Vector3(-4, 0, -57),
 		Vector3(6, 0, -67),
 		Vector3(16, 0, -87)
 	]
-	for at in pickup_spots:
+	for idx in pickup_spots.size():
+		var at = pickup_spots[idx]
 		var pickup = Node3D.new()
 		pickup.position = game.Layout.on_ground(at)
 		pickup.set_meta("value", 30)
+		pickup.set_meta("supply_id", "supply_%d" % idx)
+		pickup.set_meta("title", "常规物资箱 #%d" % (idx + 1))
 		game.add_child(pickup)
-		game._model(pickup, "res://assets/survival/box.glb", Vector3.ZERO, 0.44, 0, "convex")
-		game._label3d(pickup, "野外物资 · [E]", Vector3(0, 0.88, 0), 26, game.GOLD)
+		TacticalProps.build_supply_box(game, pickup)
+		game._label3d(pickup, "常规物资箱 · 单词解锁 [E]", Vector3(0, 0.96, 0), 26, game.GOLD)
 		game.pickup_nodes.append(pickup)
 
 func _boundary():

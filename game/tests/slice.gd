@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.0" and game.words.size() == 175 and game.crate_nodes.size() == 3, "v0.5.0 slice uses 175-entry word pack and 3 tiered password crates")
+	verify(game.VERSION == "0.5.1" and game.words.size() == 175 and game.crate_nodes.size() == 3, "v0.5.1 slice uses 175-entry word pack and 3 tiered vault crates")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -84,24 +84,39 @@ func run():
 	game.exploration.close()
 	verify(game.exploration.completed() == 3, "all three optional discoveries complete independently")
 
-	# Test CipherTerminal spelling crate with guided fallback & unlock
+	# Test CipherTerminal multi-stage progression (Tier 1: word+phrase, Tier 3: word+phrase+sentence)
 	game.rules.bag.pop_back()
 	game.rules.bag.pop_back()
-	for i in 6:
+	for i in 12:
 		game.rules.open_question()
 		game.rules.answer(true)
 	game.player.position = game.crate_nodes[0].position + Vector3(0, 0.1, 1.4)
 	await frames(3)
 	game.interact()
-	verify(game.cipher_terminal.busy and game.paused, "interacting with eligible crate opens password spelling terminal")
+	verify(game.cipher_terminal.busy and game.paused and game.cipher_terminal.stage_count() == 2, "interacting with Tier-1 crate opens 2-stage word+phrase terminal")
 	game.cipher_terminal.submit_text("__wrong1__")
-	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.attempts == 1, "first typo keeps crate locked and prompts retry")
+	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.attempts == 1, "first typo keeps stage locked and prompts retry")
 	game.cipher_terminal.submit_text("__wrong2__")
 	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.mask_label.text.contains(game.cipher_terminal.target_word.english.replace("’", "'")), "second typo reveals guided spelling without soft-locking")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
-	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 1, "typing exact English word unlocks the password crate")
+	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.stage_index == 1 and str(game.cipher_terminal.target_word.get("kind", "")) == "phrase", "stage 1 word pass transitions to stage 2 textbook phrase")
+	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
+	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 1, "completing stage 2 phrase unlocks Tier-1 crate")
 	game.cipher_terminal.close()
 	verify(not game.cipher_terminal.busy and not game.paused, "closing cipher terminal resumes field play")
+
+	# Test Tier-3 Legendary Gold Airdrop Pod (3 stages: word -> phrase -> sentence + contraction equivalence + full-bag overflow swap)
+	verify(game.cipher_terminal._is_match("it is your turn", {"english": "It’s your turn."}) and game.cipher_terminal._is_match("it's your turn", {"english": "It’s your turn."}), "sentence matcher accepts contractions, expanded forms, and omitted punctuation")
+	game.player.position = game.crate_nodes[2].position + Vector3(0, 0.1, 1.6)
+	await frames(3)
+	game.interact()
+	verify(game.cipher_terminal.busy and game.cipher_terminal.stage_count() == 3, "Tier-3 gold airdrop pod requires 3-stage word+phrase+sentence unlock")
+	verify(str(game.cipher_terminal.stages[2].get("kind", "")) == "sentence", "Tier-3 final stage challenges a full Grade 5A sentence")
+	game.cipher_terminal.solve_all_for_qa()
+	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 2 and game.cipher_terminal.displayed_loot.size() == 3, "solving all 3 stages unlocks Tier-3 pod and rolls all 3 high-tier items even on full bag")
+	verify(game.cipher_terminal.swap_button.visible and game.crate_nodes[2].get_meta("lid_node").rotation.x < -0.4, "Tier-3 pod opens its armored lid and offers overflow swap for full bag")
+	game.cipher_terminal.swap_button.pressed.emit()
+	game.cipher_terminal.close()
 
 	game.player.ammo = 1
 	game.player.reload()
@@ -131,10 +146,12 @@ func run():
 	verify(game.exploration.completed() == 0 and not game.exploration.states.clue and node_for("english").visible, "a new run resets route discoveries and restores collectible collision")
 	verify(is_instance_valid(game.player.weapon_view) and game.player.weapon_view.get_parent() == game.player.weapon_root, "new deployment binds the new animated rifle instance")
 	verify(is_instance_valid(game.player.weapon_view.magazine) and is_instance_valid(game.player.weapon_view.optic_root), "rifle has animated magazine and reflex optic")
+	verify(is_instance_valid(game.player.weapon_view.right_arm_rig) and is_instance_valid(game.player.weapon_view.left_hand_pivot) and is_instance_valid(game.player.weapon_view.left_sleeve), "rifle view includes first-person tactical sleeves and gloved hands")
+	verify(is_equal_approx(game.crate_nodes[2].get_meta("lid_node").rotation.x, 0.0), "new deployment resets vault crate lids back to closed position")
 	game.player.ammo = 1
 	game.player.reload()
 	await frames(40)
-	verify(game.player.weapon_view.magazine.position.y < -0.06, "reload physically withdraws the magazine")
+	verify(game.player.weapon_view.magazine.position.y < -0.06 and game.player.weapon_view.left_hand_pivot.position.y < 0.08, "reload physically withdraws magazine with left support hand following")
 	game._end_run(false)
 	game.rules.profile.owned.append("magazine")
 	game.start_action(false)

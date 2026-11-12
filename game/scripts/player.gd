@@ -121,7 +121,8 @@ func _physics_process(delta):
 	var progress = clampf(reload_left / RELOAD_SECONDS, 0, 1)
 	# Align reflex reticle dot (y = 0.234) straight with camera optical axis when aiming
 	var target_pose = Vector3(0.0, -0.234, -0.46) if aiming else Vector3(0.21, -0.245, -0.58)
-	target_pose.y -= sin(progress * PI) * 0.17
+	target_pose.y -= sin(progress * PI) * 0.042
+	target_pose.x -= sin(progress * PI) * 0.035
 	target_pose.z += recoil * 0.055
 	weapon_root.position = weapon_root.position.lerp(target_pose, minf(delta * 15, 1))
 	if is_instance_valid(weapon_view):

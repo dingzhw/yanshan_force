@@ -86,6 +86,19 @@ func discovery(id: String) -> bool:
 	game.exploration.close()
 	return game.exploration.states[id]
 
+func supply_stop() -> bool:
+	var sup = game.pickup_nodes[0]
+	if not await travel(sup.position + Vector3(0.5, 0, 0.8)):
+		return false
+	await get_tree().physics_frame
+	game.interact()
+	if not game.cipher_terminal.busy:
+		return false
+	game.cipher_terminal.solve_all_for_qa()
+	await get_tree().process_frame
+	game.cipher_terminal.close()
+	return not sup.visible
+
 func crate_stop() -> bool:
 	var center: Vector3 = game.stations[1].position
 	if not await travel(center + Vector3(0, 0, 4)):
@@ -96,7 +109,7 @@ func crate_stop() -> bool:
 	game.interact()
 	if not game.cipher_terminal.busy:
 		return false
-	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
+	game.cipher_terminal.solve_all_for_qa()
 	await get_tree().process_frame
 	game.cipher_terminal.close()
 	if not (crate.get_meta("title") in game.rules.crates):
@@ -108,11 +121,15 @@ func crate_stop() -> bool:
 func run():
 	game.start_action(false)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	game._notice("正在自动巡检：走完山路、识词、拼写破译与撤离，不改动玩家存档。")
+	game._notice("正在自动巡检：走完山路、识词、常规单词箱、阶梯密码箱与撤离，不改动玩家存档。")
 	await get_tree().create_timer(1.5).timeout
 	sampling = true
 	var began = Time.get_ticks_msec()
-	await challenge(0, 6)
+	if not await supply_stop():
+		route_ok = false
+		blocked_at = "camp-supply-box"
+	if route_ok:
+		await challenge(0, 6)
 	for waypoint in game.Layout.ROUTE.slice(1):
 		if not route_ok:
 			break

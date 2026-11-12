@@ -49,21 +49,35 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 	node.set_meta("prompt", label)
 	add_child(node)
 	if id == "poem":
+		var stele_mat = StandardMaterial3D.new()
+		stele_mat.albedo_color = Color("868b7e")
+		stele_mat.albedo_texture = load("res://assets/slice/ground_color.jpg")
+		stele_mat.normal_enabled = true
+		stele_mat.normal_texture = load("res://assets/slice/ground_normal.jpg")
+		stele_mat.uv1_scale = Vector3(1.5, 2.5, 1.5)
+		stele_mat.roughness = 0.90
+		var stele_node: Node3D
 		if ResourceLoader.exists("res://assets/nature/statue_obelisk.glb"):
-			game._model(node, "res://assets/nature/statue_obelisk.glb", Vector3.ZERO, 2.2, 0, "convex")
+			stele_node = game._model(node, "res://assets/nature/statue_obelisk.glb", Vector3.ZERO, 2.2, 0, "convex")
 		else:
-			game._model(node, "res://assets/slice/rock_3.glb", Vector3.ZERO, 1.5, 0, "convex")
+			stele_node = game._model(node, "res://assets/slice/rock_3.glb", Vector3.ZERO, 1.5, 0, "convex")
+		for m in stele_node.find_children("*", "MeshInstance3D", true, false):
+			m.material_override = stele_mat
 		var carving = game._label3d(node, "古诗石刻\n按 E 研读", Vector3(0, 1.25, 0.55), 29, Color("f3eed2"))
 		carving.pixel_size = 0.0045
 		carving.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	elif id == "english":
 		game._model(node, "res://assets/slice/crate.glb", Vector3.ZERO, 0.52, 0, "convex")
 	else:
-		if ResourceLoader.exists("res://assets/survival/signpost.glb"):
-			game._model(node, "res://assets/survival/signpost.glb", Vector3.ZERO, 1.45, 0, "convex")
-		else:
-			game._mesh_box(node, Vector3(0, 0.52, 0), Vector3(0.12, 1.04, 0.13), Color("655940"), true)
-		game._mesh_box(node, Vector3(0, 1.05, 0.06), Vector3(1.05, 0.66, 0.08), color, true)
+		var timber_mat = StandardMaterial3D.new()
+		timber_mat.albedo_color = Color("7b684e")
+		timber_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
+		timber_mat.uv1_scale = Vector3(1, 2.5, 1)
+		timber_mat.roughness = 0.86
+		var post = game._mesh_box(node, Vector3(0, 0.62, 0), Vector3(0.13, 1.28, 0.13), Color.WHITE, true)
+		post.material_override = timber_mat
+		var board_back = game._mesh_box(node, Vector3(0, 1.05, 0.06), Vector3(1.05, 0.66, 0.08), color, true)
+		board_back.material_override = timber_mat
 		game._mesh_box(node, Vector3(0, 1.05, 0.11), Vector3(0.88, 0.50, 0.015), Color("dfd9b8"))
 		var text = game._label3d(node, "巡护记录\nnext to" if id == "clue" else "近道机关\nE 解锁木门", Vector3(0, 1.05, 0.13), 26, Color("223428"))
 		text.pixel_size = 0.0038

@@ -45,6 +45,10 @@ func _draw():
 		for station in game.Layout.STATIONS:
 			draw_circle(point(station.at), 3.8, Color("86c5eb"))
 
+	for sup in game.pickup_nodes:
+		if sup.visible:
+			draw_circle(point(sup.position), 2.1, Color("66d9ef"))
+
 	for chest in game.crate_nodes:
 		var opened = chest.get_meta("title") in game.rules.crates
 		var tier = int(chest.get_meta("tier"))

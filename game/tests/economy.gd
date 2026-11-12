@@ -28,15 +28,31 @@ func run():
 	for i in 8:
 		game.rules.add_loot("filled", 10, 1)
 	var pickup = game.pickup_nodes[0]
-	game.player.position = pickup.position + Vector3(0, 0.1, 1)
+	game.player.position = pickup.position + Vector3(0, 0.1, 1.2)
 	await physics_frame
 	game.interact()
-	verify(game.rules.bag.size() == 8 and pickup.visible, "full bag preserves uncollected pickup")
+	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply", "supply box opens word-unlock terminal even when bag is full")
+	game.cipher_terminal.solve_all_for_qa()
+	verify(game.cipher_terminal.unlocked and game.cipher_terminal.swap_button.visible and pickup.visible, "unlocked supply box preserves unclaimed loot and offers swap when bag is full")
+	game.cipher_terminal.close()
+	verify(game.rules.bag.size() == 8 and pickup.visible, "closing full-bag supply terminal keeps box on field until claimed")
 	game.rules.bag.pop_back()
 	game.interact()
-	verify(game.rules.bag.size() == 8 and not pickup.visible, "space permits exactly one pickup")
+	verify(game.rules.bag.size() == 8 and not pickup.visible, "reopening with free slot claims saved supply loot without re-spelling")
+	game.cipher_terminal.close()
 	game.interact()
-	verify(game.rules.bag.size() == 8, "repeated pickup cannot duplicate loot")
+	verify(game.rules.bag.size() == 8 and not game.cipher_terminal.busy, "collected supply box cannot be reopened or duplicated")
+
+	# Test swapping lowest-value item directly inside CipherTerminal
+	var pickup2 = game.pickup_nodes[1]
+	game.player.position = pickup2.position + Vector3(0, 0.1, 1.2)
+	await physics_frame
+	game.interact()
+	game.cipher_terminal.solve_all_for_qa()
+	verify(game.cipher_terminal.swap_button.visible, "second supply box on full bag exposes lowest-item swap button")
+	game.cipher_terminal.swap_button.pressed.emit()
+	verify(game.rules.bag.size() == 8 and not pickup2.visible, "swapping lowest item claims supply loot and removes supply box")
+	game.cipher_terminal.close()
 	game.rules.bag[0] = {"title": "量子词典原型机", "value": 320, "rarity": 5}
 
 	# 16 wrong + 15 right => accuracy 48% (< 70%), score = 2*15 + 13*20 = 290 >= 260

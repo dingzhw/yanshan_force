@@ -13,7 +13,7 @@ runtime = json.loads((ROOT / "docs/runtime-local.json").read_text(encoding="utf-
 p = argparse.ArgumentParser()
 p.add_argument("tests", nargs="+")
 p.add_argument("--stage", action="store_true")
-p.add_argument("--ver", default="0.5.0")
+p.add_argument("--ver", default="0.5.1")
 args = p.parse_args()
 
 ver_tag = "v" + args.ver.replace(".", "")
@@ -46,7 +46,7 @@ results = []
 for name in args.tests:
     command = (
         [runtime["console_executable"]]
-        + ([] if name in ["slice_visual", "terrain_render", "capture_v050"] else ["--headless"])
+        + ([] if (name.startswith("capture_") or name in ["slice_visual", "terrain_render"]) else ["--headless"])
         + ["--path", runtime["game_working_copy"], "--script", f"res://tests/{name}.gd", "--", "--qa"]
     )
     if name == "hardware-tour":

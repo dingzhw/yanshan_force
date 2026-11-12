@@ -5,6 +5,7 @@ const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
 const OUTPOST_CLEAR_SCORE = 30
+const SUPPLY_PERFECT_SCORE = 10
 const CIPHER_PERFECT_SCORE = 25
 
 const RARITY_NAMES = {
@@ -76,6 +77,7 @@ var perfect_ciphers = 0
 var question_open = false
 var bag = []
 var crates = []
+var supplies_opened = []
 var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
@@ -125,6 +127,7 @@ func start_run(as_combat = false):
 	perfect_ciphers = 0
 	bag = []
 	crates = []
+	supplies_opened = []
 	question_open = false
 
 func open_question():
@@ -208,9 +211,35 @@ func roll_item_by_rarity(rarity: int) -> Dictionary:
 	var list: Array = LOOT_TABLE[clamped]
 	return list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
 
-func roll_field_pickup() -> Dictionary:
-	var r = 2 if loot_rng.randf() < 0.28 else 1
+func roll_field_pickup(perfect_spell: bool = true) -> Dictionary:
+	var roll = loot_rng.randf()
+	var r = 1
+	if perfect_spell:
+		r = 3 if roll < 0.12 else (2 if roll < 0.50 else 1)
+	else:
+		r = 2 if roll < 0.28 else 1
 	return roll_item_by_rarity(r)
+
+func lowest_bag_index() -> int:
+	if bag.is_empty():
+		return -1
+	var idx := 0
+	for i in range(1, bag.size()):
+		if int(bag[i].value) < int(bag[idx].value):
+			idx = i
+	return idx
+
+func swap_lowest_loot(item: Dictionary) -> Dictionary:
+	if phase != "active" or bag.is_empty():
+		return {}
+	var idx := lowest_bag_index()
+	var removed: Dictionary = bag[idx]
+	bag[idx] = {
+		"title": str(item.get("title", "物资")),
+		"value": maxi(1, int(item.get("value", 20))),
+		"rarity": clampi(int(item.get("rarity", 1)), 1, 5)
+	}
+	return removed
 
 func roll_crate_rarity(tier: int, perfect_spell: bool) -> int:
 	var roll = loot_rng.randf()
@@ -257,9 +286,27 @@ func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Arr
 			awarded.append(item)
 	if perfect_spell:
 		perfect_ciphers += 1
-		score += CIPHER_PERFECT_SCORE
+		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 	crates.append(crate_id)
 	return awarded
+
+func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false) -> Dictionary:
+	var all_items := []
+	var overflow := []
+	if crate_id in crates or not crate_ready(tier):
+		return {"items": all_items, "overflow": overflow}
+	var req = crate_requirements(tier)
+	for i in int(req.slots):
+		var rarity = roll_crate_rarity(tier, perfect_spell and i == 0)
+		var item = roll_item_by_rarity(rarity)
+		all_items.append(item)
+		if not add_loot(item.title, item.value, item.rarity):
+			overflow.append(item)
+	if perfect_spell:
+		perfect_ciphers += 1
+		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
+	crates.append(crate_id)
+	return {"items": all_items, "overflow": overflow}
 
 func can_extract() -> bool:
 	if phase != "active" or score < EXTRACTION_SCORE:

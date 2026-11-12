@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.0"
+const VERSION = "0.5.1"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -332,10 +332,18 @@ func _make_crate(title: String, tier: int, at: Vector3):
 	crate.set_meta("title", title)
 	crate.set_meta("tier", tier)
 	add_child(crate)
-	_model(crate, "res://assets/survival/chest.glb", Vector3.ZERO, 0.85, 0, "convex")
 	var req = rules.crate_requirements(tier)
-	var tag = "%s\n%d题 · %d%%正确率 · 拼写解锁" % [title, req.minimum, roundi(req.accuracy * 100)]
-	_label3d(crate, tag, Vector3(0, 1.75, 0), 36, _crate_accent(tier))
+	var lock_desc = "单词+词组双关锁"
+	var header = title
+	if tier == 2:
+		header = "【史诗/大金】" + title
+		lock_desc = "词组+短句双关锁"
+	elif tier >= 3:
+		header = "【传说大金】" + title
+		lock_desc = "词汇+词组+整句三重破译"
+	var tag = "%s\n%d题 · %d%%正确率 · %s" % [header, req.minimum, roundi(req.accuracy * 100), lock_desc]
+	var lbl = _label3d(crate, tag, Vector3(0, 1.75, 0), 30, _crate_accent(tier))
+	lbl.pixel_size = 0.0056
 	crate_nodes.append(crate)
 
 func attach_weapon(parent: Node3D):
@@ -588,10 +596,10 @@ func _build_ui():
 	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
 
-	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(true), true)
+	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5 战备简报】\n• 三大兵种守卫3处前哨：突击机甲 / 浮空无人机 / 激光重狙卫兵\n• 高价值密码箱需「键盘拼写英文单词」破译，爆史诗与传说大金！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
+	_text(menu, "【v0.5.1 战备简报】\n• 拟真第一人称战术手套与护袖握持 + 军规帐篷、补给箱与空投舱全面升级\n• 常规物资箱考「单词」；高级/传说大金密码箱考「词组+课本整句」连破！\n• 撤离条件：累计 260 积分 + 至少攻克 1 处词兵前哨 · 信标坚守 5 秒", Vector2(122, 490), Vector2(465, 135), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 2-Column 9-Item Tactical Shop
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
@@ -631,7 +639,8 @@ func _build_ui():
 	review_text.position = Vector2(220, 170)
 	review_text.size = Vector2(830, 430)
 	review_text.add_theme_font_size_override("normal_font_size", 22)
-	review_text.bbcode_enabled = false
+	review_text.bbcode_enabled = true
+	review_text.meta_clicked.connect(func(meta): speak_english(str(meta)))
 	review_overlay.add_child(review_text)
 	review_overlay.hide()
 	hud.hide()
@@ -639,7 +648,7 @@ func _build_ui():
 func _show_review():
 	var lines = []
 	for word in wrong_words:
-		lines.append("%s  —  %s\nUnit %d · 课本第 %d 页\n" % [word.english, word.chinese, word.unit, word.textbook_page])
+		lines.append("[url=%s][color=#8de8c0]🔊 %s[/color][/url]  —  %s\n[color=#a9c4b6]Unit %d · 课本第 %d 页[/color]\n" % [word.english, word.english, word.chinese, word.unit, word.textbook_page])
 	review_text.text = "\n".join(lines) if not lines.is_empty() else "本局还没有错词，表现非常棒！"
 	review_text.scroll_to_line(0)
 	review_overlay.show()
@@ -659,7 +668,7 @@ func _refresh_menu(result = ""):
 	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "山脚营地出发，突破林间前哨、山道拦截哨与竹林阵地。\n识词击破敌方全息护盾，拼写单词解锁高价值密码箱！\n满 260 分且攻克至少 1 处前哨，即可前往 B 信标撤离。"
+		menu_summary.text = "山脚营地出发，突破林间前哨、山道拦截哨与竹林阵地。\n常规物资箱考单词，高阶/大金空投箱考词组与课本句子！\n满 260 分且攻克至少 1 处前哨，即可前往 B 信标撤离。"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -746,6 +755,8 @@ func start_action(as_combat = false):
 		for node in crate_nodes:
 			var tier = int(node.get_meta("tier"))
 			node.get_child(node.get_child_count() - 1).modulate = _crate_accent(tier)
+			if node.has_meta("lid_node") and is_instance_valid(node.get_meta("lid_node")):
+				node.get_meta("lid_node").rotation.x = 0.0
 		for child in player.weapon_root.get_children():
 			child.queue_free()
 		player.weapon_view = attach_weapon(player.weapon_root)
@@ -1142,14 +1153,21 @@ func _update_interaction():
 		elif closest_interaction.has_meta("tier"):
 			var title = closest_interaction.get_meta("title")
 			var tier = int(closest_interaction.get_meta("tier"))
-			if title in rules.crates:
+			if closest_interaction.has_meta("unclaimed_loot"):
+				interaction_label.text = "[E] 领取/替换战利品 · " + title
+			elif title in rules.crates:
 				interaction_label.text = title + " · 已破译搜刮"
 			elif rules.crate_ready(tier):
-				interaction_label.text = "[E] 拼写破译 · " + title
+				var mode_hint = "三重破译(词+词组+句)" if tier >= 3 else ("词组+短句破译" if tier == 2 else "单词+词组破译")
+				interaction_label.text = "[E] %s · %s" % [mode_hint, title]
 			else:
 				interaction_label.text = title + " · " + _crate_progress(tier)
 		else:
-			interaction_label.text = "[E] 搜刮野外物资箱"
+			var sup_title = str(closest_interaction.get_meta("title", "常规物资箱"))
+			if closest_interaction.has_meta("unclaimed_loot"):
+				interaction_label.text = "[E] 领取待替换物资 · " + sup_title
+			else:
+				interaction_label.text = "[E] 单词拼写开箱 · " + sup_title
 	else:
 		interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
 			roundi(player.position.distance_to(exit_position)),
@@ -1181,15 +1199,7 @@ func interact():
 	if closest_interaction.has_meta("tier"):
 		cipher_terminal.open_for_crate(closest_interaction)
 		return
-	var rolled = rules.roll_field_pickup()
-	if rules.add_loot(rolled.title, rolled.value, rolled.rarity):
-		Props.set_enabled(closest_interaction, false)
-		play_sfx("cipher_key", -12)
-		var r_name = Rules.RARITY_NAMES[rolled.rarity]
-		_notice("已搜刮【%s】%s · 估值 %d 币" % [r_name, rolled.title, rolled.value], Rules.RARITY_COLORS[rolled.rarity])
-	else:
-		play_sfx("hit_wrong", -14)
-		_notice("随身背包已满（%d/%d格），请先前往B点撤离！" % [rules.bag.size(), rules.capacity()])
+	cipher_terminal.open_for_supply(closest_interaction)
 
 func _end_run(success: bool, title = ""):
 	var pre_wh = rules.profile.warehouse.size()

@@ -172,22 +172,15 @@ func _build_model():
 
 func _build_drone_chassis(game):
 	legs.clear()
-	if ResourceLoader.exists("res://assets/fps/enemy-flying.glb"):
-		var body = game._model(visual_root, "res://assets/fps/enemy-flying.glb", Vector3(0, 1.48, 0), 0.72, 0)
-		body.rotation.y = PI
-	else:
-		var core = MeshInstance3D.new()
-		var sp = SphereMesh.new()
-		sp.radius = 0.36
-		sp.height = 0.56
-		core.mesh = sp
-		core.position = Vector3(0, 1.62, 0)
-		core.material_override = _metal_mat(Color("35424a"), 0.65, 0.35)
-		visual_root.add_child(core)
-	# Twin rotor rings & glowing sensor eye
-	var wing_mat = _metal_mat(Color("2b363d"), 0.6, 0.4)
+	var hull_mat = _metal_mat(Color("2d3840"), 0.68, 0.34)
+	var accent_mat = _metal_mat(Color("8a5d2e"), 0.72, 0.32)
+	var fuselage = game._mesh_box(visual_root, Vector3(0, 1.72, 0), Vector3(0.54, 0.28, 0.58), Color.WHITE)
+	fuselage.material_override = hull_mat
+	var canopy = game._mesh_box(visual_root, Vector3(0, 1.88, -0.02), Vector3(0.38, 0.12, 0.40), Color.WHITE)
+	canopy.material_override = accent_mat
+	var wing_mat = _metal_mat(Color("1e262c"), 0.65, 0.38)
 	for x in [-0.58, 0.58]:
-		var arm = game._mesh_box(visual_root, Vector3(x * 0.55, 1.78, 0), Vector3(0.45, 0.06, 0.12), Color("2b363d"))
+		var arm = game._mesh_box(visual_root, Vector3(x * 0.56, 1.78, 0), Vector3(0.46, 0.06, 0.12), Color.WHITE)
 		arm.material_override = wing_mat
 		var ring = MeshInstance3D.new()
 		var torus = TorusMesh.new()
@@ -197,7 +190,9 @@ func _build_drone_chassis(game):
 		ring.position = Vector3(x, 1.80, 0)
 		ring.material_override = wing_mat
 		visual_root.add_child(ring)
-	visor = game._mesh_box(visual_root, Vector3(0, 1.82, 0.30), Vector3(0.36, 0.11, 0.06), Color("6cf0d0")).material_override
+		var thruster = game._mesh_box(visual_root, Vector3(x, 1.77, 0), Vector3(0.18, 0.02, 0.18), Color("6cf0d0"))
+		thruster.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visor = game._mesh_box(visual_root, Vector3(0, 1.74, 0.30), Vector3(0.38, 0.10, 0.05), Color("ffb35c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 func _build_assault_chassis(game):

@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-12",
-  "stage": "v0.5.0 战术平衡、密码箱拼写摸金与画面学习全面升级版",
+  "stage": "v0.5.1 拟真战术手臂、写实营地箱体建模与阶梯式词句破译精修版",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
@@ -17,7 +17,7 @@
   ],
   "gameplay": {
     "prompt": "屏幕显示中文提示或播放离线英文语音，射击对应英文全息护盾得分（基础15分，3连击+5分）",
-    "supply_crates": "三级战术密码箱（5题/70%、9题/80%、12题/85%），键盘准确拼写英文单词破译开箱，产出五级稀有度战利品与传说大金",
+    "supply_crates": "常规物资箱单字拼写开箱；三级高价值密码箱（5题/70%、9题/80%、12题/85%）采用单词+词组+五上课本整句多关连破，产出五级稀有度战利品与传说大金（支持满包一键替换低值物资）",
     "extraction": "累计260积分且实战攻克至少1处前哨后解锁，信标圈内按E坚守5秒撤离",
     "loot": "五级稀有度物资体系，成功撤离入库并解锁大金图鉴，出售换币购买9项装备与家长奖励券",
     "word_combat": {
@@ -64,9 +64,9 @@
     "renderer": "Compatibility (gl_compatibility)",
     "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
     "initial_resolution": "1280x720",
-    "version_control": "Git (tags: v0.4.0, v0.5.0)"
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1)"
   },
-  "playtest": "playtest/windows-v0.5.0/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.5.1/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",
