@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--notes", default="")
     args = parser.parse_args()
-    if args.version in {"0.3.1", "0.4.0", "0.5.0", "0.5.1", "0.5.2", "0.5.3"}:
+    if args.version in {"0.3.1", "0.4.0", "0.5.0", "0.5.1", "0.5.2", "0.5.3", "0.5.4"}:
         raise RuntimeError(f"Protected historical release: {args.version}")
     result = {"version": args.version, "source_checkpoint": checkpoint(args.version)}
     if not args.checkpoint_only:

@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-13",
-  "stage": "v0.5.4 立体跳格子寻宝、幽谷石窟与双语情报网版",
+  "stage": "v0.5.5 烟山生境与全景视野（山溪鱼蟹 · 走兽奇植 · 围栏稻田远景）",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
@@ -9,7 +9,7 @@
     "extraction_status": "已提取175条，单元表与字母索引逐项交叉核对，包含13条专有名词，支持单字掌握度持久化追踪与智能干扰项"
   },
   "first_map": "烟山基地",
-  "map_description": "中国农村小山坡，树林、竹海与怪石密布，设三道前哨防线",
+  "map_description": "江南乡村山岭与梯田全景，山溪蜿蜒流淌、林间野花异草及游鱼蟹兔栖居其间，木栅栏外俯瞰乡野稻田村舍，设三道前哨防线",
   "planned_maps": [
     "烟山基地",
     "诚庄村河岗",
@@ -67,9 +67,9 @@
     "renderer": "Compatibility (gl_compatibility)",
     "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
     "initial_resolution": "1280x720",
-    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4)"
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4, v0.5.5)"
   },
-  "playtest": "playtest/windows-v0.5.4/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.5.5/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

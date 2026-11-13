@@ -9,10 +9,11 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.4"
+const VERSION = "0.5.5"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
+const Wildlife = preload("res://scripts/wildlife.gd")
 
 const INK = Color("101f29")
 const MINT = Color("8de8c0")
@@ -99,6 +100,7 @@ var combat: Node3D
 var combat_panel: Panel
 var combat_label: Label
 var exploration
+var wildlife
 var cipher_terminal
 var landscape
 var minimap
@@ -125,6 +127,9 @@ func _ready():
 	exploration = Exploration.new()
 	add_child(exploration)
 	exploration.setup(self)
+	wildlife = Wildlife.new()
+	add_child(wildlife)
+	wildlife.setup(self)
 	cipher_terminal = CipherTerminal.new()
 	add_child(cipher_terminal)
 	cipher_terminal.setup(self)
@@ -625,7 +630,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5.4 立体跳格子与战地寻宝简报】\n• 3大立体跳格子路线：西岭集装箱 / 竹林棚顶脚手架 / 观察哨螺旋塔\n• 幽谷石窟大金 + 4处深藏秘宝 + 4条介词线报 + 东岭电台全图扫描\n• [1/2/V] 卡宾枪与匕首 · [G]烟雾EMP · [T]能量饮 · 破盾击杀首领撤离", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
+	_text(menu, "【v0.5.5 烟山生境与全景视野简报】\n• 活水山溪自北向南蜿蜒 · 3座可通行山溪桥 · 溪鱼横行石蟹\n• 林间野兔/松鼠受惊奔逃，枪击/匕首命中可化光消失 · 8处奇花异草[E]学英文\n• 山腰木栅栏围合全域边界 · 栏外可俯瞰3D梯田稻田、乡野村舍与远山叠翠", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
@@ -780,6 +785,8 @@ func start_action(as_combat = false):
 		_leave_station()
 		rules.start_run(as_combat)
 		exploration.reset()
+		if is_instance_valid(wildlife):
+			wildlife.reset()
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
 		player.medkits = rules.starter_medkits()
@@ -974,6 +981,8 @@ func melee_strike(camera: Camera3D):
 	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
 	if shooting_field:
 		combat.melee_strike(camera)
+		if is_instance_valid(wildlife):
+			wildlife.melee_strike(camera)
 		return
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) <= 15:
 		var from = camera.global_position
@@ -983,6 +992,9 @@ func melee_strike(camera: Camera3D):
 		if result and result.collider.get_meta("station_id", "") == stations[active_station].station_id and result.collider.has_meta("answer_index"):
 			play_sfx("knife_hit", -10)
 			resolve_answer(int(result.collider.get_meta("answer_index")))
+			return
+	if is_instance_valid(wildlife):
+		wildlife.melee_strike(camera)
 
 func deploy_smoke_emp(camera: Camera3D):
 	if rules.phase != "active" or paused:
@@ -1005,13 +1017,22 @@ func fire(camera: Camera3D):
 		return
 	rules.shots += 1
 	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
-	if not shooting_field and (active_station < 0 or player.position.distance_to(stations[active_station].position) > 15):
-		return
 	var from = camera.global_position
 	var to = from - camera.global_basis.z * 85
 	var query = PhysicsRayQueryParameters3D.create(from, to, 7 if shooting_field else 3, [player.get_rid()])
 	query.collide_with_areas = shooting_field
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
+	if is_instance_valid(wildlife):
+		wildlife.on_gunshot_near(player.position, rules.active_muzzle() == "suppressor")
+		var wq = PhysicsRayQueryParameters3D.create(from, to, 1 | Wildlife.HIT_LAYER, [player.get_rid()])
+		wq.collide_with_areas = true
+		var whit = get_world_3d().direct_space_state.intersect_ray(wq)
+		if whit and whit.collider is Area3D:
+			if result.is_empty() or from.distance_to(whit.position) <= from.distance_to(result.position) + 0.05:
+				if wildlife.hit_bullet(whit.collider):
+					return
+	if not shooting_field and (active_station < 0 or player.position.distance_to(stations[active_station].position) > 15):
+		return
 	if shooting_field:
 		if result:
 			combat.hit_bullet(result.collider, rules.active_muzzle(), result.position)
@@ -1119,6 +1140,8 @@ func _process(delta):
 	if paused:
 		return
 	exploration.update(delta)
+	if is_instance_valid(wildlife):
+		wildlife.update(delta)
 	combat.update(delta)
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) > 15:
 		_leave_station()
@@ -1167,8 +1190,9 @@ func _process(delta):
 
 	var outpost_part = ("前哨 %d/2 · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
-	mission_label.text = "%s  ·  箱 %d/%d  ·  %s\n撤离状态：%s" % [
-		outpost_part, rules.crates.size(), crate_nodes.size(), exploration.status_text(), extract_part
+	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生态 0/12"
+	mission_label.text = "%s  ·  箱 %d/%d  ·  %s  ·  %s\n撤离状态：%s" % [
+		outpost_part, rules.crates.size(), crate_nodes.size(), exploration.status_text(), eco_part, extract_part
 	]
 	_update_guide()
 	_update_combat_hud()
@@ -1265,7 +1289,8 @@ func _extraction_blocker_text() -> String:
 func _update_interaction():
 	closest_interaction = null
 	var nearest = 3.2
-	for node in pickup_nodes + crate_nodes + stations + exploration.nodes:
+	var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
+	for node in pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes:
 		if combat.in_field() and node.has_meta("station_id") and (combat.zone >= 0 or node != stations[0]):
 			continue
 		if not node.visible:
@@ -1289,6 +1314,10 @@ func _update_interaction():
 				interaction_label.text = "[E] 拾取 %s（+1）" % title
 			else:
 				interaction_label.text = "[E] 拾取 %s（+1）" % title
+		elif closest_interaction.has_meta("flora_id"):
+			var fid := str(closest_interaction.get_meta("flora_id"))
+			var f_verb := "温习植物" if (is_instance_valid(wildlife) and wildlife.collected_flora.has(fid)) else "辨识奇植"
+			interaction_label.text = "[E] %s · %s (%s)" % [f_verb, closest_interaction.get_meta("en"), closest_interaction.get_meta("zh")]
 		elif closest_interaction.has_meta("explore_id"):
 			interaction_label.text = "[E] " + closest_interaction.get_meta("prompt")
 		elif closest_interaction.has_meta("station_id"):
@@ -1351,6 +1380,10 @@ func interact():
 		play_sfx("ammo_pickup", -10)
 		Props.set_enabled(closest_interaction, false)
 		return
+	if closest_interaction.has_meta("flora_id"):
+		if is_instance_valid(wildlife):
+			wildlife.interact_flora(closest_interaction)
+		return
 	if closest_interaction.has_meta("explore_id"):
 		exploration.open(closest_interaction)
 		return
@@ -1389,8 +1422,9 @@ func _end_run(success: bool, title = ""):
 	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
-	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6\n" % [
-		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed()
+	var eco_count: int = wildlife.eco_discoveries_total() if is_instance_valid(wildlife) else 0
+	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6 · 生态 %d/12\n" % [
+		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), eco_count
 	]
 	if wrong_words.size() > 0:
 		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()

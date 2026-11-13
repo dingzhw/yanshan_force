@@ -1,4 +1,4 @@
 @echo off
 setlocal
-set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.5.4\diagnostics"
-start "" "%~dp0playtest\windows-v0.5.4\YanshanBase.exe" -- --qa --hardware-check --low-quality
+set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.5.5\diagnostics"
+start "" "%~dp0playtest\windows-v0.5.5\YanshanBase.exe" -- --qa --hardware-check --low-quality

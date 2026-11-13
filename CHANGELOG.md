@@ -4,6 +4,20 @@
 
 ---
 
+## [v0.5.5] - 2026-11-13
+### 烟山生境与全景视野：山间溪流、动植物生态与围栏稻田远景
+- **贯穿全图的山间活水溪流与 3 座可通行木桥（`layout.gd` / `slice_world.gd` / `minimap.gd`）**：
+  - 沿 `STREAM_Z_MIN (-111)` 至 `STREAM_Z_MAX (26)` 开凿蜿蜒河床，生成水面高度自北向南严格稳降（`>= 0.018m/m`）的澄澈活水溪流（`MountainStreamWater`），并在 `z = 7.0, -24.0, -46.5` 架设 3 座带缓坡引桥与木护栏的实木山溪桥，小地图同步绘制蓝色溪道与桥面标记。
+- **4 类动态林栖与水生动物（`wildlife.gd` / `tools/build_v055_assets.py` / `main.gd`）**：
+  - 在 Blender 4.5 制作低模轻量化生态模型组 `v055_eco_assets.glb`，全图投放 24 只生灵：**小野兔（×6）**、**小松鼠（×5）**、**溪流小鱼（×8）** 与 **溪石螃蟹（×5）**；
+  - 采用独立碰撞层 `HIT_LAYER = 16` 实现零干扰判定：靠近平原/树旁小兔与松鼠或开火声波及均会惊动其受惊逃跑；卡宾枪射击（含自由靶场）或 `[2]/[V]` 匕首挥砍命中后化作林间微光约 `1.85s` 消散并定期在远处重生；首次近距离发现各物种播报英文语音与 `+5` 分。
+- **坡野奇花异草与 8 处英文 `[E]` 植物标本点（`wildlife.gd` / `slice_world.gd` / `tools/generate_sfx.py`）**：
+  - MultiMesh 合批生成 240+ 株野红花、金黄花、山紫花、红蘑菇与林间灌丛，并点缀自建**溪畔夜光幽兰（`flora_glow_orchid`）** 与 **朱果奇蕨（`flora_berry_fern`）**；新增 8 处 `[E]` 交互植物学单词/例句辨识点，首次辨识 `+5` 积分并在实战回复生命护盾，配套合成 `animal_flee.wav`、`animal_hit.wav`、`flora_collect.wav`。
+- **实木围栏边界取代空气墙 + 360° 立体梯田稻田、农舍与远山全景（`slice_world.gd` / `tools/generate_v055_textures.py`）**：
+  - 在 `x = ±52m`、`z = -112m / +26m` 沿起伏山坡铺设连续山腰木栅栏及隐形围界碰撞体（`FencePerimeterWall`），彻底消除早期透明空气墙与虚无边际；栏外铺开无缝程序贴图 `rural_paddies_albedo.png` 驱动的 **3D 江南梯田稻田（`OuterRiceValley`）**、24 栋白墙黑瓦农舍、山下林木、南侧水田支流及 360° **远山青岚环幕（`HorizonMountainsSkirt` / `horizon_mountains.png`）**。
+
+---
+
 ## [v0.5.4] - 2026-11-13
 ### 立体跳格子探索、幽谷石窟秘宝、双语战地线报与雷达空投支线
 - **3 条真实物理校验「立体跳格子（Parkour）」攀爬寻宝路线（`layout.gd` / `tactical_props.gd` / `slice_world.gd` / `main.gd`）**：

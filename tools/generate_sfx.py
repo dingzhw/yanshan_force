@@ -274,6 +274,54 @@ def gen_airdrop_call() -> None:
     _write_wav("airdrop_call.wav", out, 0.52)
 
 
+def gen_animal_flee() -> None:
+    """Quick gentle rustle + nimble hop pitch rise when startling forest critters."""
+    dur = 0.24
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 9182
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        env = _envelope(t, 0.005, dur, 2.2)
+        chirp = math.sin(2 * math.pi * (480.0 + 520.0 * (t / dur)) * t)
+        out.append((0.48 * noise * (1.0 - 0.5 * (t / dur)) + 0.38 * chirp) * env)
+    _write_wav("animal_flee.wav", out, 0.34)
+
+
+def gen_animal_hit() -> None:
+    """Soft puff + shimmer disappear chime when an animal is hit and vanishes."""
+    dur = 0.32
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.004, dur, 2.0)
+        f = 620.0 * math.exp(-t * 3.8) + 210.0
+        tone = math.sin(2 * math.pi * f * t) + 0.35 * math.sin(2 * math.pi * f * 1.5 * t)
+        out.append(tone * env)
+    _write_wav("animal_hit.wav", out, 0.42)
+
+
+def gen_flora_collect() -> None:
+    """Bright herbal chime (E5-G#5-B5-E6) when studying/gathering wild flora."""
+    notes = [659.25, 830.61, 987.77, 1318.51]
+    dur = 0.42
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    for idx, freq in enumerate(notes):
+        start = int(idx * 0.055 * SAMPLE_RATE)
+        ndur = 0.19
+        for j in range(int(ndur * SAMPLE_RATE)):
+            if start + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = _envelope(t, 0.004, ndur, 2.2)
+            out[start + j] += (math.sin(2 * math.pi * freq * t) + 0.25 * math.sin(4 * math.pi * freq * t)) * env
+    _write_wav("flora_collect.wav", out, 0.46)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -292,7 +340,10 @@ def main() -> None:
     gen_shot_suppressed()
     gen_radio_scan()
     gen_airdrop_call()
-    print("Generated 17 procedural SFX files in", OUT_DIR)
+    gen_animal_flee()
+    gen_animal_hit()
+    gen_flora_collect()
+    print("Generated 20 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

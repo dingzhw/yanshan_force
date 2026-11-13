@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.4" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.4 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.5.5" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.5 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -37,8 +37,8 @@ func run():
 			tac_counts[t_id] += 1
 		else:
 			supply_count += 1
-	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.4 places 10 supply caches plus parkour tactical ammo/smoke/stims")
-	verify(game.exploration.nodes.size() == 10, "v0.5.4 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
+	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.5 places 10 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(game.exploration.nodes.size() == 10, "v0.5.5 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -311,6 +311,94 @@ func run():
 	game.player.position = game.crate_nodes[2].position + Vector3(0, 0.02, 1.6)
 	await frames(10)
 	verify(game.player.is_on_floor() and game._can_interact(game.crate_nodes[2]), "Cave Grotto Tier-3 airdrop pod is accessible on flat cave floor")
+
+	# v0.5.5 Mountain Stream, Walkable Footbridges, Living Wildlife, Interactive Flora & Panorama Fence
+	var stream_node: Node3D = game.landscape.get_node_or_null("MountainStreamWater")
+	var valley_node: Node3D = game.landscape.get_node_or_null("OuterRiceValley")
+	var horizon_node: Node3D = game.landscape.get_node_or_null("HorizonMountainsSkirt")
+	verify(is_instance_valid(stream_node) and is_instance_valid(valley_node) and is_instance_valid(horizon_node) and stream_node.visible and valley_node.visible and horizon_node.visible, "v0.5.5 stream water, 3D outer rice terraces & horizon skirt exist and render")
+
+	var wy_prev: float = game.Layout.stream_water_y(-111.0)
+	var downhill_ok := true
+	for zi in range(-106, 27, 5):
+		var wy_cur: float = game.Layout.stream_water_y(float(zi))
+		if wy_cur >= wy_prev:
+			downhill_ok = false
+		wy_prev = wy_cur
+	verify(downhill_ok, "mountain stream elevation flows strictly downhill from North spring to South")
+
+	for bz in game.Layout.STREAM_BRIDGES:
+		var bcx: float = game.Layout.stream_center_x(float(bz))
+		game.player.clear_movement_input()
+		game.player.velocity = Vector3.ZERO
+		game.player.position = game.Layout.on_ground(Vector3(bcx - 5.2, 0.0, float(bz))) + Vector3(0, 0.12, 0)
+		await frames(6)
+		var walked := false
+		sim_key.call(KEY_SPACE, false)
+		for step in 240:
+			var p: Vector3 = game.player.position
+			var d := Vector2((bcx + 5.2) - p.x, float(bz) - p.z)
+			if d.length() <= 0.65 and game.player.is_on_floor():
+				walked = true
+				break
+			game.player.yaw = atan2(-d.x, -d.y)
+			sim_key.call(KEY_W, true)
+			await frames(1)
+		sim_key.call(KEY_W, false)
+		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream footbridge at z=" + str(bz) + " is smoothly walkable across water")
+
+	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() == 24 and game.wildlife.flora_nodes.size() == 8, "v0.5.5 spawns 24 animals (rabbit/squirrel/fish/crab) and 8 interactive flora nodes")
+	var kinds := {}
+	for a in game.wildlife.animals:
+		kinds[a.kind] = int(kinds.get(a.kind, 0)) + 1
+	verify(int(kinds.get("rabbit", 0)) >= 6 and int(kinds.get("squirrel", 0)) >= 5 and int(kinds.get("fish", 0)) >= 8 and int(kinds.get("crab", 0)) >= 5, "all four wildlife species meet target counts")
+
+	game.wildlife.reset()
+	var squirrel: Dictionary = game.wildlife.animals[6]
+	game.player.velocity = Vector3.ZERO
+	game.player.position = squirrel.pos + Vector3(0.0, 0.0, 2.8)
+	game.wildlife.update(0.05)
+	verify(squirrel.state == "flee", "approaching squirrel triggers skittish flee state")
+	for tick in 20:
+		game.wildlife.update(0.1)
+	verify(
+		squirrel.pos.x >= game.Layout.FENCE_MIN_X and squirrel.pos.x <= game.Layout.FENCE_MAX_X and squirrel.pos.z >= game.Layout.FENCE_MIN_Z and squirrel.pos.z <= game.Layout.FENCE_MAX_Z,
+		"fleeing animal stays bounded inside physical timber fence perimeter"
+	)
+
+	var rabbit0: Dictionary = game.wildlife.animals[0]
+	verify(game.wildlife.hit_bullet(rabbit0.area) and rabbit0.state == "downed", "bullet hit downs wildlife critter cleanly")
+	for wait_v in 22:
+		game.wildlife.update(0.1)
+	verify(rabbit0.state == "hidden" and not rabbit0.root.visible, "downed animal dissolves and vanishes after ~1.85s")
+
+	# Knife slash strike on river crab
+	var crab0: Dictionary = game.wildlife.animals[19]
+	var crab_cam := Camera3D.new()
+	game.add_child(crab_cam)
+	crab_cam.position = crab0.pos + Vector3(0.0, 0.55, 1.45)
+	crab_cam.look_at(crab0.pos + Vector3(0.0, 0.22, 0.0))
+	verify(game.wildlife.melee_strike(crab_cam) and crab0.state == "downed", "tactical knife melee strike downs nearby river crab")
+	crab_cam.queue_free()
+
+	var flora0: Node3D = game.wildlife.flora_nodes[0]
+	var pre_flora_score: int = game.rules.score
+	verify(game.wildlife.interact_flora(flora0) and game.rules.score == pre_flora_score + 5, "first [E] botanical flora study teaches English and awards +5 score")
+	game.wildlife.interact_flora(flora0)
+	verify(game.rules.score == pre_flora_score + 5, "re-inspecting flora reviews English without duplicating score")
+
+	# Perimeter fence physics wall & open panoramic vista check
+	game.player.clear_movement_input()
+	game.player.velocity = Vector3.ZERO
+	game.player.position = game.Layout.on_ground(Vector3(6.0, 0.0, game.Layout.FENCE_MAX_Z - 1.6)) + Vector3(0, 0.15, 0)
+	game.player.yaw = PI  # face straight South toward outer fence & valley
+	await frames(4)
+	for push_step in 45:
+		sim_key.call(KEY_W, true)
+		await frames(1)
+	sim_key.call(KEY_W, false)
+	var fence_wall_hit: Dictionary = ray(Vector3(6.0, game.terrain_height(6.0, game.Layout.FENCE_MAX_Z - 1.0) + 0.55, game.Layout.FENCE_MAX_Z - 2.0), Vector3(6.0, game.terrain_height(6.0, game.Layout.FENCE_MAX_Z - 1.0) + 0.55, game.Layout.FENCE_MAX_Z + 2.0))
+	verify(not fence_wall_hit.is_empty() and game.player.position.z < game.Layout.FENCE_MAX_Z - 0.1, "South mountain timber fence stops player physically at perimeter boundary")
 
 	game.queue_free()
 	await process_frame

@@ -61,4 +61,9 @@ Smoke Mountain / Yanshan v0.5.3 local procedural assets (2026-11-13, CC0 / Origi
 Smoke Mountain / Yanshan v0.5.4 local procedural assets (2026-11-13, CC0 / Original Project):
 - tools/build_v054_assets.py: built procedural Blender 4.5 GLB bundle parkour_intel_assets.glb (prop_cargo_container, prop_intel_board, prop_recon_radio, prop_airdrop_beacon, prop_cave_lantern).
 - tools/generate_sfx.py: synthesized radio_scan.wav and airdrop_call.wav into game/assets/sfx/.
+
+Smoke Mountain / Yanshan v0.5.5 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_v055_assets.py: built procedural Blender 4.5 GLB bundle v055_eco_assets.glb (animal_rabbit, animal_squirrel, animal_fish, animal_crab, flora_glow_orchid, flora_berry_fern, horizon_farmhouse, mountain_fence_bay).
+- tools/generate_v055_textures.py: generated seamless terraced rice paddy ground albedo (rural_paddies_albedo.png) and 360-degree mountain horizon silhouette ring (horizon_mountains.png).
+- tools/generate_sfx.py: synthesized animal_flee.wav, animal_hit.wav, and flora_collect.wav into game/assets/sfx/.
 No proprietary game assets are included.

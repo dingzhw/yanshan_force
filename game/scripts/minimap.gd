@@ -28,6 +28,22 @@ func _draw():
 	if not is_instance_valid(game.player):
 		return
 
+	for i in range(-110, 26, 4):
+		var z0 := float(i)
+		var z1 := minf(26.0, z0 + 4.0)
+		draw_line(
+			point(Vector3(game.Layout.stream_center_x(z0), 0, z0)),
+			point(Vector3(game.Layout.stream_center_x(z1), 0, z1)),
+			Color("4da8e2"), 2.2, true
+		)
+	for bz in game.Layout.STREAM_BRIDGES:
+		var cx: float = game.Layout.stream_center_x(float(bz))
+		draw_line(
+			point(Vector3(cx - 2.6, 0, float(bz))),
+			point(Vector3(cx + 2.6, 0, float(bz))),
+			Color("cba26c"), 3.2, true
+		)
+
 	for i in game.Layout.ROUTE.size() - 1:
 		draw_line(point(game.Layout.ROUTE[i]), point(game.Layout.ROUTE[i + 1]), Color("8e9869"), 2.8, true)
 	for branch in game.Layout.BRANCHES:
