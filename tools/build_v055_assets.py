@@ -324,30 +324,35 @@ def build_berry_fern() -> bpy.types.Object:
 
 
 def build_horizon_farmhouse() -> bpy.types.Object:
-    m_wall = make_mat("Mat_WhitePlaster", (0.90, 0.89, 0.84), roughness=0.88)
-    m_roof = make_mat("Mat_DarkTileRoof", (0.20, 0.23, 0.26), roughness=0.72)
-    m_timber = make_mat("Mat_CottageTimber", (0.36, 0.24, 0.16), roughness=0.80)
-    m_window = make_mat("Mat_WarmWindow", (0.95, 0.78, 0.42), roughness=0.35, emission_srgb=(0.95, 0.75, 0.35), emission_strength=0.42)
+    m_wall = make_mat("Mat_WhitePlaster", (0.55, 0.54, 0.49), roughness=0.92)
+    m_base = make_mat("Mat_StonePlinth", (0.28, 0.29, 0.26), roughness=0.95)
+    m_roof = make_mat("Mat_DarkTileRoof", (0.17, 0.20, 0.23), roughness=0.78)
+    m_timber = make_mat("Mat_CottageTimber", (0.30, 0.21, 0.14), roughness=0.84)
+    m_window = make_mat("Mat_ShadedWindow", (0.25, 0.28, 0.27), roughness=0.45)
 
     parts = []
     bm_w = bmesh.new()
-    add_box(bm_w, (0.0, 1.35, 0.0), (5.2, 2.7, 3.8))
+    add_box(bm_w, (0.0, 1.50, 0.0), (5.1, 2.30, 3.7))
     parts.append(create_part("HouseWalls", bm_w, m_wall, smooth=False))
 
+    bm_b = bmesh.new()
+    add_box(bm_b, (0.0, 0.18, 0.0), (5.35, 0.56, 3.95))
+    parts.append(create_part("HousePlinth", bm_b, m_base, smooth=False))
+
     bm_r = bmesh.new()
-    # Two-slope pitched Jiangnan dark roof + ridge beam
-    add_box(bm_r, (0.0, 3.15, 1.05), (5.9, 0.26, 2.55), (26, 0, 0))
-    add_box(bm_r, (0.0, 3.15, -1.05), (5.9, 0.26, 2.55), (-26, 0, 0))
-    add_box(bm_r, (0.0, 3.74, 0.0), (6.05, 0.24, 0.30))
+    # Two-slope pitched Jiangnan dark roof + ridge beam + deep overhanging eaves
+    add_box(bm_r, (0.0, 3.12, 1.05), (5.95, 0.26, 2.60), (26, 0, 0))
+    add_box(bm_r, (0.0, 3.12, -1.05), (5.95, 0.26, 2.60), (-26, 0, 0))
+    add_box(bm_r, (0.0, 3.72, 0.0), (6.10, 0.24, 0.30))
     parts.append(create_part("HouseRoof", bm_r, m_roof, smooth=False))
 
     bm_t = bmesh.new()
-    add_box(bm_t, (0.0, 0.92, 1.94), (1.05, 1.84, 0.14))  # front wooden door
+    add_box(bm_t, (0.0, 0.92, 1.90), (1.02, 1.78, 0.12))  # front wooden door
     parts.append(create_part("HouseDoor", bm_t, m_timber, smooth=False))
 
     bm_g = bmesh.new()
     for sx in (-1.45, 1.45):
-        add_box(bm_g, (sx, 1.50, 1.93), (0.76, 0.64, 0.10))
+        add_box(bm_g, (sx, 1.52, 1.88), (0.74, 0.60, 0.08))
     parts.append(create_part("HouseWindows", bm_g, m_window, smooth=False))
 
     return join_parts("horizon_farmhouse", parts)

@@ -54,33 +54,37 @@ func _lighting():
 	var e = Environment.new()
 	var sky = Sky.new()
 	var s = ProceduralSkyMaterial.new()
-	s.sky_top_color = Color("7996a1")
-	s.sky_horizon_color = Color("d8ded0")
-	s.ground_bottom_color = Color("455145")
-	s.ground_horizon_color = Color("c2cab9")
+	s.sky_top_color = Color("6b8ea0")
+	s.sky_horizon_color = Color("bdcbc0")
+	s.ground_bottom_color = Color("445140")
+	s.ground_horizon_color = Color("aabaae")
+	s.sun_angle_max = 32.0
+	s.sun_curve = 0.14
 	sky.sky_material = s
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("d8e2ce")
-	e.ambient_light_energy = 0.34
-	e.ambient_light_sky_contribution = 0.0
-	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_sky_contribution = 0.78
+	e.ambient_light_energy = 0.40
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.tonemap_exposure = 1.00
+	e.tonemap_white = 1.45
 	e.fog_enabled = true
-	e.fog_density = 0.0028
-	e.fog_light_color = Color("bfccb9")
+	e.fog_density = 0.0030
+	e.fog_light_color = Color("b1c3b7")
+	e.fog_sky_affect = 0.18
 	env.environment = e
 	add_child(env)
 
 	var sun = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-54, -38, 0)
-	sun.light_color = Color("f3eedc")
+	sun.rotation_degrees = Vector3(-47, -38, 0)
+	sun.light_color = Color("f6eedb")
 	sun.light_energy = 0.88
 	low_quality = "--low-quality" in OS.get_cmdline_user_args()
 	sun.shadow_enabled = not low_quality
-	sun.directional_shadow_max_distance = 44
+	sun.directional_shadow_max_distance = 56
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.shadow_bias = 0.06
+	sun.shadow_bias = 0.05
 	add_child(sun)
 
 func set_low_quality(value: bool):
@@ -280,6 +284,15 @@ func _batch_direct(mesh: Mesh, transforms: Array, shadows: bool = false):
 func _hill_height(x: float, z: float) -> float:
 	return 5.0 + 15.0 * exp(-pow((x + 65.0) / 43.0, 2.0) - pow((z + 175.0) / 45.0, 2.0)) + 22.0 * exp(-pow((x - 45.0) / 58.0, 2.0) - pow((z + 205.0) / 60.0, 2.0)) + 5.0 * sin(x * 0.025 + z * 0.018)
 
+func _outer_stream_x(z: float) -> float:
+	var dz := maxf(0.0, z - 26.0)
+	return float(game.Layout.stream_center_x(26.0)) + sin(dz * 0.056) * 8.0
+
+func _outer_foothill_weight(x: float, z: float) -> float:
+	var center_dist := Vector2(x, z + 44.0).length()
+	var south_plain := exp(-pow((x - 16.0) / 68.0, 2.0)) * smoothstep(70.0, 195.0, z)
+	return smoothstep(162.0, 265.0, center_dist) * (1.0 - 0.65 * south_plain)
+
 func _outer_valley_y(x: float, z: float) -> float:
 	var ix := clampf(x, -56.0, 56.0)
 	var iz := clampf(z, -116.0, 28.0)
@@ -292,21 +305,41 @@ func _outer_valley_y(x: float, z: float) -> float:
 	var north_w := smoothstep(-110.0, -142.0, z) * (1.0 - smoothstep(52.0, 96.0, absf(x)))
 	var north_h := _hill_height(x, z)
 	# Broad terraced lowland rice paddies surrounding East, West & South hillsides
-	var raw_terrace := -11.8 + 1.8 * sin(x * 0.024 + z * 0.016) + 1.1 * cos(z * 0.028)
+	var raw_terrace := -11.4 + 1.6 * sin(x * 0.024 + z * 0.016) + 0.9 * cos(z * 0.028)
 	var quantized := floorf((raw_terrace + 13.0) / 2.2) * 2.2 - 13.0
-	var valley_floor := lerpf(raw_terrace, quantized, 0.58)
-	var down_t := smoothstep(2.0, 30.0, d)
+	var valley_floor := lerpf(raw_terrace, quantized, 0.56)
+	var down_t := smoothstep(2.0, 28.0, d)
 	var rural_y := lerpf(edge_y, valley_floor, down_t)
-	return lerpf(rural_y, north_h, north_w * smoothstep(8.0, 38.0, d))
+	rural_y = lerpf(rural_y, north_h, north_w * smoothstep(8.0, 38.0, d))
+	var center_dist := Vector2(x, z + 44.0).length()
+	var foothill_w := _outer_foothill_weight(x, z)
+	var foothill_h := 6.0 + 18.0 * smoothstep(170.0, 280.0, center_dist) + 8.5 * sin(x * 0.027 - z * 0.021) + 5.5 * cos(x * 0.016 + z * 0.031)
+	var land_y := lerpf(rural_y, foothill_h, foothill_w)
+	# Subtle recessed riverbed channel along Southern irrigation creek (z = 26..165)
+	if z >= 25.0 and z <= 170.0:
+		var sx := _outer_stream_x(z)
+		var sd := absf(x - sx)
+		if sd < 6.5:
+			var bed_t := (1.0 - smoothstep(1.2, 6.5, sd)) * (1.0 - smoothstep(145.0, 170.0, z))
+			land_y -= 0.52 * bed_t
+	return land_y
+
+func _outer_valley_normal(x: float, z: float) -> Vector3:
+	var eps := 4.0
+	return Vector3(
+		_outer_valley_y(x - eps, z) - _outer_valley_y(x + eps, z),
+		2.0 * eps,
+		_outer_valley_y(x, z - eps) - _outer_valley_y(x, z + eps)
+	).normalized()
 
 func _backdrop():
-	# 1) 360-degree stepped terraced rural rice-paddy valley surrounding Yanshan crest
+	# 1) 360-degree stepped terraced rural rice-paddy valley seamlessly swelling into outer 3D foothills
 	var vertices = PackedVector3Array()
 	var normals = PackedVector3Array()
 	var uvs = PackedVector2Array()
 	var colors = PackedColorArray()
-	for z in range(-252, 188, 8):
-		for x in range(-248, 248, 8):
+	for z in range(-332, 244, 8):
+		for x in range(-288, 288, 8):
 			if x >= -56 and x < 56 and z >= -116 and z < 28:
 				continue
 			var pts = [
@@ -315,20 +348,25 @@ func _backdrop():
 				Vector3(x + 8, _outer_valley_y(x + 8, z), z),
 				Vector3(x + 8, _outer_valley_y(x + 8, z + 8), z + 8)
 			]
-			var flat_n = ((pts[2] - pts[0]).cross(pts[1] - pts[0])).normalized()
-			if flat_n.y < 0.0:
-				flat_n = -flat_n
+			var ns = [
+				_outer_valley_normal(x, z),
+				_outer_valley_normal(x, z + 8),
+				_outer_valley_normal(x + 8, z),
+				_outer_valley_normal(x + 8, z + 8)
+			]
 			for i in [0, 2, 1, 2, 3, 1]:
 				var p: Vector3 = pts[i]
+				var n: Vector3 = ns[i]
 				vertices.append(p)
-				normals.append(flat_n)
-				uvs.append(Vector2(p.x, p.z) * 0.017)
+				normals.append(n)
+				uvs.append(Vector2(p.x, p.z) * 0.015)
 				var dx := maxf(0.0, maxf(-56.0 - p.x, p.x - 56.0))
 				var dz := maxf(0.0, maxf(-116.0 - p.z, p.z - 28.0))
 				var d := sqrt(dx * dx + dz * dz)
-				var paddy_w := smoothstep(14.0, 34.0, d) * (1.0 - smoothstep(-1.5, 4.5, p.y))
-				var slope_flat := smoothstep(0.76, 0.94, flat_n.y)
-				colors.append(Color(paddy_w * slope_flat, smoothstep(0.0, 40.0, d), 0.0))
+				var fh := _outer_foothill_weight(p.x, p.z)
+				var paddy_w := smoothstep(20.0, 40.0, d) * (1.0 - smoothstep(-6.5, -2.0, p.y))
+				var slope_flat := smoothstep(0.86, 0.96, n.y)
+				colors.append(Color(paddy_w * slope_flat, clampf(d / 220.0, 0.0, 1.0), fh))
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -342,42 +380,67 @@ func _backdrop():
 	valley.mesh = mesh
 	var paddy_shader = Shader.new()
 	paddy_shader.code = """shader_type spatial;
+uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D paddy_tex : source_color, filter_linear_mipmap, repeat_enable;
 varying vec3 wpos;
-void vertex(){wpos=VERTEX;}
+varying float edge_d;
+varying float foothill_f;
+void vertex(){
+ wpos = VERTEX;
+ edge_d = COLOR.g * 220.0;
+ foothill_f = COLOR.b;
+}
 void fragment(){
- vec3 tex=texture(paddy_tex,UV).rgb;
- float grass_tone=0.5+0.5*sin(wpos.x*0.09+wpos.z*0.07);
- vec3 mountain_col=mix(vec3(0.28,0.38,0.25),vec3(0.38,0.46,0.31),grass_tone);
- float paddy_t=clamp(COLOR.r,0.0,1.0);
- ALBEDO=mix(mountain_col,tex,paddy_t);
- // Wet standing rice paddies catch crisp sunlit specular highlights across the valley
- float water_patch=smoothstep(0.42,0.52,tex.b-tex.r*0.45);
- ROUGHNESS=mix(0.88,mix(0.62,0.18,water_patch),paddy_t);
- SPECULAR=mix(0.25,0.72,paddy_t*water_patch);
+ vec2 soil_uv = wpos.xz * 0.28;
+ vec3 s_tex = texture(soil, soil_uv).rgb;
+ float patch_n = 0.5 + 0.5 * sin(wpos.x * 0.27 + sin(wpos.z * 0.21) * 2.0);
+ vec3 greenery = mix(vec3(0.28, 0.35, 0.19), vec3(0.42, 0.44, 0.27), patch_n);
+ vec3 near_grass = s_tex * greenery * 1.42;
+
+ // Natural textured foothill forest canopy matching foreground mountain green reflectance
+ vec3 canopy_tex = texture(soil, wpos.xz * 0.048).rgb;
+ float forest_n = 0.5 + 0.5 * sin(wpos.x * 0.065 + cos(wpos.z * 0.055) * 2.2);
+ float ridge_var = 0.5 + 0.5 * sin(wpos.x * 0.025 - wpos.z * 0.029);
+ vec3 lush_hill = mix(vec3(0.14, 0.22, 0.12), vec3(0.24, 0.31, 0.18), forest_n);
+ vec3 far_hill_col = mix(s_tex, canopy_tex, 0.62) * lush_hill * mix(1.00, 1.24, ridge_var);
+ vec3 slope_col = mix(near_grass, far_hill_col, smoothstep(8.0, 52.0, edge_d));
+
+ vec3 p_tex = texture(paddy_tex, UV).rgb;
+ float macro_dapple = 0.88 + 0.14 * sin(wpos.x * 0.022 + wpos.z * 0.018);
+ vec3 paddy_col = p_tex * macro_dapple * 0.62;
+
+ float paddy_t = clamp(COLOR.r, 0.0, 1.0) * (1.0 - foothill_f * 0.96);
+ ALBEDO = mix(slope_col, paddy_col, paddy_t);
+ NORMAL_MAP = texture(soil_normal, soil_uv).rgb;
+ NORMAL_MAP_DEPTH = mix(0.50, 0.12, smoothstep(10.0, 75.0, edge_d));
+ ROUGHNESS = mix(0.96, 0.90, paddy_t);
+ SPECULAR = 0.02;
 }
 """
 	var pmat = ShaderMaterial.new()
 	pmat.shader = paddy_shader
+	pmat.set_shader_parameter("soil", load("res://assets/slice/ground_color.jpg"))
+	pmat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
 	if ResourceLoader.exists("res://assets/slice/rural_paddies_albedo.png"):
 		pmat.set_shader_parameter("paddy_tex", load("res://assets/slice/rural_paddies_albedo.png"))
 	valley.material_override = pmat
 	valley.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(valley)
 
-	# 2) Distant Southern irrigation creek flowing out from beneath South Fence into the rice terraces
+	# 2) Distant Southern irrigation creek nestled inside its carved riverbed channel
 	var ov_verts = PackedVector3Array()
 	var ov_uvs = PackedVector2Array()
-	var segs := 18
+	var segs := 20
 	for i in segs:
-		var z0 := 26.0 + float(i) * 7.5
-		var z1 := z0 + 7.5
-		var cx0: float = float(game.Layout.stream_center_x(26.0)) + sin(float(i) * 0.42) * 8.0
-		var cx1: float = float(game.Layout.stream_center_x(26.0)) + sin(float(i + 1) * 0.42) * 8.0
-		var y0 := _outer_valley_y(cx0, z0) + 0.14
-		var y1 := _outer_valley_y(cx1, z1) + 0.14
-		var hw0 := 1.6 + float(i) * 0.12
-		var hw1 := 1.6 + float(i + 1) * 0.12
+		var z0 := 32.0 + float(i) * 6.8
+		var z1 := z0 + 6.8
+		var cx0 := _outer_stream_x(z0)
+		var cx1 := _outer_stream_x(z1)
+		var y0 := _outer_valley_y(cx0, z0) + 0.08
+		var y1 := _outer_valley_y(cx1, z1) + 0.08
+		var hw0 := 1.35 + float(i) * 0.08
+		var hw1 := 1.35 + float(i + 1) * 0.08
 		var q = [Vector3(cx0 - hw0, y0, z0), Vector3(cx0 + hw0, y0, z0), Vector3(cx1 - hw1, y1, z1), Vector3(cx1 + hw1, y1, z1)]
 		var quv = [Vector2(0, float(i)), Vector2(1, float(i)), Vector2(0, float(i + 1)), Vector2(1, float(i + 1))]
 		for k in [0, 1, 2, 1, 3, 2]:
@@ -391,76 +454,121 @@ void fragment(){
 	ov_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ov_arr)
 	var ov_inst = MeshInstance3D.new()
 	ov_inst.mesh = ov_mesh
-	var ov_mat = game._material(Color("4c949e"))
-	ov_mat.roughness = 0.22
-	ov_mat.metallic = 0.18
+	var ov_shader = Shader.new()
+	ov_shader.code = """shader_type spatial;
+render_mode blend_mix, cull_disabled;
+void fragment(){
+ float edge = abs(UV.x - 0.5) * 2.0;
+ float head = smoothstep(0.0, 2.2, UV.y);
+ float flow = 0.5 + 0.5 * sin(UV.y * 8.0 - TIME * 2.2);
+ ALBEDO = mix(vec3(0.06, 0.16, 0.18), vec3(0.10, 0.25, 0.27), flow);
+ ROUGHNESS = 0.88;
+ SPECULAR = 0.03;
+ ALPHA = head * mix(0.80, 0.0, smoothstep(0.45, 1.0, edge));
+}
+"""
+	var ov_mat = ShaderMaterial.new()
+	ov_mat.shader = ov_shader
 	ov_inst.material_override = ov_mat
 	ov_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ov_inst)
 
-	# 3) Rural white-walled farmhouse cottages & cypress groves across the paddy valley (2 draw calls!)
+	# 3) Rural Jiangnan cottages grouped in tree-sheltered valley hamlets + warm olive foothill pines (zero metallic foliage)
+	var village_spots := [
+		Vector3(-34, 0, 82), Vector3(-25, 0, 88), Vector3(-40, 0, 96), Vector3(-18, 0, 102),
+		Vector3(8, 0, 86), Vector3(22, 0, 94), Vector3(31, 0, 84), Vector3(39, 0, 99),
+		Vector3(48, 0, 114), Vector3(14, 0, 118), Vector3(-6, 0, 124), Vector3(-28, 0, 128),
+		Vector3(96, 0, -48), Vector3(106, 0, -38), Vector3(114, 0, -24), Vector3(102, 0, -10),
+		Vector3(122, 0, 4), Vector3(134, 0, 18), Vector3(92, 0, 22),
+		Vector3(-96, 0, -34), Vector3(-108, 0, -18), Vector3(-116, 0, 4), Vector3(-102, 0, 26), Vector3(-124, 0, 42)
+	]
 	var house_mesh := _extract_mesh("res://assets/slice/v055_eco_assets.glb", "horizon_farmhouse")
 	if house_mesh != null:
-		var village_spots := [
-			Vector3(-34, 0, 82), Vector3(-25, 0, 88), Vector3(-40, 0, 96), Vector3(-18, 0, 102),
-			Vector3(8, 0, 86), Vector3(22, 0, 94), Vector3(31, 0, 84), Vector3(39, 0, 99),
-			Vector3(48, 0, 114), Vector3(14, 0, 118), Vector3(-6, 0, 124), Vector3(-28, 0, 128),
-			Vector3(96, 0, -48), Vector3(106, 0, -38), Vector3(114, 0, -24), Vector3(102, 0, -10),
-			Vector3(122, 0, 4), Vector3(134, 0, 18), Vector3(92, 0, 22),
-			Vector3(-96, 0, -34), Vector3(-108, 0, -18), Vector3(-116, 0, 4), Vector3(-102, 0, 26), Vector3(-124, 0, 42)
-		]
 		var house_tx: Array = []
 		for j in village_spots.size():
 			var hp: Vector3 = village_spots[j]
-			hp.y = _outer_valley_y(hp.x, hp.z) - 0.12
+			hp.y = _outer_valley_y(hp.x, hp.z) - 0.14
 			var hyaw := float(j % 4) * (PI * 0.5) + 0.18
-			house_tx.append(Transform3D(Basis(Vector3.UP, hyaw).scaled(Vector3.ONE * 1.15), hp))
+			house_tx.append(Transform3D(Basis(Vector3.UP, hyaw).scaled(Vector3.ONE * 1.12), hp))
 		_batch_direct(house_mesh, house_tx, false)
 
 	var vtree_mesh := _extract_mesh("res://assets/nature/tree_pineRoundD.glb")
 	if vtree_mesh != null:
+		vtree_mesh = vtree_mesh.duplicate()
+		var vleaf_mat: StandardMaterial3D = game._material(Color("354f2d"))
+		vleaf_mat.roughness = 0.88
+		var vbark_mat: StandardMaterial3D = game._material(Color("4f3e2d"))
+		vbark_mat.roughness = 0.92
+		vtree_mesh.surface_set_material(0, vleaf_mat)
+		if vtree_mesh.get_surface_count() > 1:
+			vtree_mesh.surface_set_material(1, vbark_mat)
+
 		var tree_tx: Array = []
-		for k in 84:
+		# Anchor cohesive tree groves right beside village hamlets so cottages nestle into foliage
+		for j in village_spots.size():
+			var hp: Vector3 = village_spots[j]
+			for t_i in 2:
+				var ang := float(j * 3 + t_i) * 2.15
+				var rad := 7.2 + float(t_i) * 4.4
+				var tx_p := hp.x + cos(ang) * rad
+				var tz_p := hp.z + sin(ang) * rad
+				var ty_p := _outer_valley_y(tx_p, tz_p) - 0.15
+				var ts := 4.2 + float((j + t_i) % 3) * 0.95
+				tree_tx.append(Transform3D(Basis(Vector3.UP, ang).scaled(Vector3.ONE * ts), Vector3(tx_p, ty_p, tz_p)))
+		# Add hillside & outer foothill pine stands
+		for k in 56:
 			var angle := float(k) * 0.73
-			var rad := 78.0 + float(k % 7) * 14.0
+			var rad := 142.0 + float(k % 7) * 14.0
 			var vx := sin(angle) * rad
-			var vz := -44.0 + cos(angle) * (rad * 1.15)
-			if vx >= -62.0 and vx <= 62.0 and vz >= -124.0 and vz <= 34.0:
-				continue
+			var vz := -44.0 + cos(angle) * (rad * 1.12)
 			if vz < -118.0 and absf(vx) < 70.0:
 				continue
-			var vy := _outer_valley_y(vx, vz) - 0.15
-			var ts := 4.4 + float(k % 4) * 0.9
+			var vy := _outer_valley_y(vx, vz) - 0.18
+			var ts := 5.0 + float(k % 4) * 1.1
 			tree_tx.append(Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * ts), Vector3(vx, vy, vz)))
 		_batch_direct(vtree_mesh, tree_tx, false)
 
-	# 4) 360-degree distant misty mountain range panorama cylinder eliminating all empty horizon void
+	# 4) 360-degree distant misty mountain range panorama cylinder harmonizing with sun azimuth & valley mist
 	if ResourceLoader.exists("res://assets/slice/horizon_mountains.png"):
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 246.0
-		cyl.bottom_radius = 246.0
-		cyl.height = 96.0
-		cyl.radial_segments = 40
+		cyl.top_radius = 278.0
+		cyl.bottom_radius = 278.0
+		cyl.height = 112.0
+		cyl.radial_segments = 48
 		cyl.cap_top = false
 		cyl.cap_bottom = false
 		var sky_ring := MeshInstance3D.new()
 		sky_ring.name = "HorizonMountainsSkirt"
 		sky_ring.mesh = cyl
-		sky_ring.position = Vector3(0, 14.0, -44.0)
+		sky_ring.position = Vector3(0, 22.0, -44.0)
 		var ring_shader := Shader.new()
 		ring_shader.code = """shader_type spatial;
 render_mode unshaded, cull_disabled, blend_mix;
 uniform sampler2D pano : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec3 sun_dir = vec3(0.42, 0.73, -0.54);
+varying vec3 wpos;
+void vertex(){
+ wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
 void fragment(){
  vec2 uv = vec2(UV.x * 2.0, UV.y);
  vec4 t = texture(pano, uv);
- ALBEDO = t.rgb;
+ vec3 view_xz = normalize(vec3(wpos.x, 0.0, wpos.z + 44.0));
+ vec3 sun_xz = normalize(vec3(sun_dir.x, 0.0, sun_dir.z));
+ float sun_align = 0.5 + 0.5 * dot(view_xz, sun_xz);
+ vec3 ridge_col = t.rgb * mix(0.86, 1.04, sun_align);
+ float bottom_mist = smoothstep(0.66, 0.90, UV.y);
+ ridge_col = mix(ridge_col, vec3(0.44, 0.54, 0.47), bottom_mist * 0.55);
+ ALBEDO = ridge_col;
  ALPHA = t.a;
 }
 """
 		var rmat := ShaderMaterial.new()
 		rmat.shader = ring_shader
 		rmat.set_shader_parameter("pano", load("res://assets/slice/horizon_mountains.png"))
+		var sun_node := get_children().filter(func(n): return n is DirectionalLight3D)
+		if not sun_node.is_empty():
+			rmat.set_shader_parameter("sun_dir", sun_node[0].transform.basis.z.normalized())
 		sky_ring.material_override = rmat
 		sky_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(sky_ring)

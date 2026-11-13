@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.5" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.5 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.5.6" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.6 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -37,8 +37,8 @@ func run():
 			tac_counts[t_id] += 1
 		else:
 			supply_count += 1
-	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.5 places 10 supply caches plus parkour tactical ammo/smoke/stims")
-	verify(game.exploration.nodes.size() == 10, "v0.5.5 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
+	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.6 places 10 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(game.exploration.nodes.size() == 10, "v0.5.6 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -399,6 +399,16 @@ func run():
 	sim_key.call(KEY_W, false)
 	var fence_wall_hit: Dictionary = ray(Vector3(6.0, game.terrain_height(6.0, game.Layout.FENCE_MAX_Z - 1.0) + 0.55, game.Layout.FENCE_MAX_Z - 2.0), Vector3(6.0, game.terrain_height(6.0, game.Layout.FENCE_MAX_Z - 1.0) + 0.55, game.Layout.FENCE_MAX_Z + 2.0))
 	verify(not fence_wall_hit.is_empty() and game.player.position.z < game.Layout.FENCE_MAX_Z - 0.1, "South mountain timber fence stops player physically at perimeter boundary")
+
+	# v0.5.6 Atmospheric vista lighting cohesion checks
+	var world_envs: Array = game.landscape.find_children("*", "WorldEnvironment", true, false)
+	var env_ok := false
+	if not world_envs.is_empty() and (world_envs[0] as WorldEnvironment).environment != null:
+		var env_cfg: Environment = (world_envs[0] as WorldEnvironment).environment
+		env_ok = env_cfg.tonemap_mode == Environment.TONE_MAPPER_FILMIC and env_cfg.ambient_light_source == Environment.AMBIENT_SOURCE_SKY and env_cfg.fog_enabled
+	verify(env_ok, "v0.5.6 landscape configures Filmic tonemapping, sky ambient lighting, and atmospheric horizon fog")
+	var vmesh: MeshInstance3D = valley_node as MeshInstance3D
+	verify(vmesh != null and vmesh.mesh != null and vmesh.mesh.get_surface_count() > 0, "OuterRiceValley renders unified terraced paddies and 3D outer foothills")
 
 	game.queue_free()
 	await process_frame

@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-13",
-  "stage": "v0.5.5 烟山生境与全景视野（山溪鱼蟹 · 走兽奇植 · 围栏稻田远景）",
+  "stage": "v0.5.6 远景光影、山岚雾效与村落植被色调协同优化",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
@@ -67,9 +67,9 @@
     "renderer": "Compatibility (gl_compatibility)",
     "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
     "initial_resolution": "1280x720",
-    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4, v0.5.5)"
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4, v0.5.5, v0.5.6)"
   },
-  "playtest": "playtest/windows-v0.5.5/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.5.6/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",
