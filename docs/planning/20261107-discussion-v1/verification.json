@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-07",
+  "kind": "planning_only",
+  "documents": [
+    "01-画面参考与美术方向.html",
+    "02-烟山基地地图草图.html",
+    "03-武器与环境素材候选.html"
+  ],
+  "baseline_files": 29,
+  "changed_game_files": [],
+  "reference_images": 6,
+  "map_dimensions_m": [
+    300,
+    300
+  ],
+  "main_route_m": 407,
+  "first_slice_route_m": 99,
+  "source_count": 19,
+  "target_hardware_tested": false,
+  "asset_import_tested": false,
+  "local_links_checked": true,
+  "images_decoded": true,
+  "json_parsed": true,
+  "game_hashes_unchanged": true,
+  "errors": [],
+  "rendered_with": "Installed Chrome headless, isolated temporary profile",
+  "rendered_documents": 3,
+  "visual_review": [
+    "map main view: label overlap fixed and re-rendered",
+    "art references and palette",
+    "full asset candidate table"
+  ],
+  "rendering_exit_codes": [
+    0,
+    0,
+    0,
+    0
+  ]
+}

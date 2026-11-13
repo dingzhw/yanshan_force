@@ -1,0 +1,32 @@
+{
+  "version": "0.1.1",
+  "checked_at": "2026-11-03T20:39:53.650964+08:00",
+  "cause": "原三角网格地面未提供正常向上的接触面，胶囊卡在三角形边缘；直接施加移动速度仍无法移动",
+  "ground_fix": "101x101高度场碰撞，向下射线命中地面并返回(0,1,0)法线",
+  "input_fix": "移动不依赖鼠标捕获；在GUI处理前记录物理/逻辑键事件，支持方向键，暂停和失焦清除按键",
+  "movement_checks": 14,
+  "existing_gameplay_checks": 28,
+  "normal_walk_distance_in_one_second": 3.85,
+  "sprint_distance_in_one_second": 5.5,
+  "packaged_run_exit": 0,
+  "final_errors_and_warnings": 0,
+  "previous_version_preserved": true,
+  "save_path_unchanged": true,
+  "files": [
+    {
+      "file": "playtest\\windows-v0.1.1\\YanshanBase.exe",
+      "bytes": 109268480,
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+    },
+    {
+      "file": "playtest\\windows-v0.1.1\\YanshanBase.pck",
+      "bytes": 13640260,
+      "sha256": "36ca1234897a026131d0325ffb8dffe789a6d68247b5883d4c78a280eeca7ee0"
+    },
+    {
+      "file": "playtest\\烟山基地试玩_v0.1.1_Windows.zip",
+      "bytes": 52761119,
+      "sha256": "eaa8eb1913f9703dfda1d9edea0dce6603e08c2d8cc57919aeb6efe22141be9b"
+    }
+  ]
+}

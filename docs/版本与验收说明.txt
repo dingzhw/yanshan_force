@@ -1,0 +1,21 @@
+﻿烟山基地 v0.2.2 · 地面显示专项修复
+
+问题：地面三角形顶点顺序反向，默认背面剔除使玩家看不到地表；碰撞仍存在，所以看起来走在虚空中。
+修复：纠正地面可见面朝向，并保持向上的光照法线。高度场碰撞、地图高度、词库、玩法数值和正式存档路径未变。
+依据：Godot ArrayMesh使用顺时针正面，见 https://docs.godotengine.org/en/stable/classes/class_arraymesh.html 。
+
+实际渲染对照
+六处地面的GPU采样：修复前每处0/81，修复后每处81/81。
+营地、林间、怪石三个区域的第一人称地面采样：修复前均0/81，修复后均81/81。
+修复前检查失败10项；修复后地面可见性11项全部通过。
+移动14项、整图行走10项、场景碰撞18项全部通过，本轮合计53项。
+已检查正常第一人称画面的草地、土路、坡面；独立v0.2.2程序运行退出码0，无错误或警告。
+
+交付
+根目录“开始烟山试玩.cmd”已指向windows-v0.2.2。请先退出旧窗口，再重新启动；主菜单显示PLAYTEST 0.2.2。
+完整便携包：playtest/烟山基地试玩_v0.2.2_Windows.zip。
+实际独立包截图：docs/screenshots/v022-packaged/preview-v02.png。
+正常场景截图：docs/screenshots/v022；脚下地面对照：docs/screenshots/ground-before与ground-after。
+完整检查与哈希：docs/ground-fix-v022.json。
+备份：docs/backups/20261104-before-ground-fix；旧包和原进度保留。
+此前v0.2.1完整验收记录已保存在本次备份目录中。

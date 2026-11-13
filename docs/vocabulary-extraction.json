@@ -1,0 +1,19 @@
+{
+  "unit_index_rows": 162,
+  "proper_names": 13,
+  "total_entries": 175,
+  "core_rows": 119,
+  "unit_counts": {
+    "1": 21,
+    "2": 25,
+    "3": 12,
+    "4": 18,
+    "5": 16,
+    "6": 24,
+    "7": 21,
+    "8": 25
+  },
+  "cross_check": "all unit-index entries match the alphabetical index including Chinese gloss, page and star marker",
+  "missing": [],
+  "source_sha256": "2d58523f8f0d45700ac9367a8f470310748b89a2701194f58547a2d26e355dae"
+}

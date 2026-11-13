@@ -1,0 +1,31 @@
+This game uses Godot Engine (MIT) and Kenney game assets (CC0).
+Player movement/camera code is adapted from Kenney Starter Kit FPS (MIT).
+Original FPS revision: 185fd2326d74a5cf858cffc616f87cf9696f9cc0
+Nature Kit: https://kenney.nl/assets/nature-kit
+Survival Kit: https://kenney.nl/assets/survival-kit
+Noto Sans SC: SIL Open Font License 1.1, Google Fonts revision a85815a42757630ce188fdad368c2dfc444d4773.
+License texts are included in licenses/.
+Polished slice v0.4.0 additions (CC0):
+Tabasco, Various Small Arms (M4 geometry), https://opengameart.org/node/3609
+Author page public-domain update dated 2023-12-15. Converted axes/scale, materials and bevelled edges; view animation and hands are local additions.
+Kless Gyzen, Rock Moss Set 01, https://polyhaven.com/a/rock_moss_set_01
+Jack Mava, Old Military Crate, https://polyhaven.com/a/old_military_crate
+Poly Haven Pine Tree 01 bark/twig/alpha textures, https://polyhaven.com/a/pine_tree_01
+Tree geometry is lightweight locally assembled geometry; the 17M-triangle pine source model is not included.
+ambientCG / Lennart Demes, Ground 015, https://ambientcg.com/view?id=Ground015
+First-person tactical arms v0.5.2 additions (CC0):
+Blender Studio, Human Base Meshes Bundle v1.4.1 (GEO-body_male_realistic), https://www.blender.org/download/demo-files/
+ambientCG / Lennart Demes, Fabric 030 & Leather 026, https://ambientcg.com/view?id=Fabric030 , https://ambientcg.com/view?id=Leather026
+CC0 details and modification records: licenses/Slice-CC0-sources.txt
+Local procedural v0.5.3 additions (CC0 / Original Project):
+- Tactical combat knife (tactical_knife.glb), Gunsmith rifle attachments (rifle_attachments.glb), field tactical pickups (tactical_pickups.glb), and 3 knife grip/slash pose tracks in fp_arms.glb generated locally in Blender 4.5 (tools/build_v053_assets.py, tools/build_fp_arms.py).
+- Additional procedural tactical SFX WAVs (knife_slash, knife_hit, dry_fire, ammo_pickup, smoke_emp, boss_phase, shot_suppressed) synthesized via Python (tools/generate_sfx.py).
+Local procedural v0.5.4 additions (CC0 / Original Project):
+- Parkour ISO container, field intel tripod board, recon radio dish station, airdrop satellite beacon, and amber cave lantern (parkour_intel_assets.glb) generated locally in Blender 4.5 (tools/build_v054_assets.py).
+- Procedural telemetry SFX WAVs (radio_scan.wav, airdrop_call.wav) synthesized via Python (tools/generate_sfx.py).
+Local procedural v0.5.5 additions (CC0 / Original Project):
+- Wildlife critters (animal_rabbit, animal_squirrel, animal_fish, animal_crab), exotic botanical flora (flora_glow_orchid, flora_berry_fern), Jiangnan cottages (horizon_farmhouse), and timber guardrail bays (mountain_fence_bay) in v055_eco_assets.glb generated locally in Blender 4.5 (tools/build_v055_assets.py).
+- Procedural panoramic terraced rice paddy albedo texture (rural_paddies_albedo.png) and 360-degree mountain horizon ridge ring (horizon_mountains.png) generated via Python PIL/NumPy (tools/generate_v055_textures.py).
+- Additional nature models (bridges, lilies, flowers, mushrooms, shrubs) staged from Kenney Nature Kit (CC0, listed above).
+- Procedural ecology SFX WAVs (animal_flee.wav, animal_hit.wav, flora_collect.wav) synthesized via Python (tools/generate_sfx.py).
+Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

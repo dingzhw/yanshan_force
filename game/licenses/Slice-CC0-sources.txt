@@ -1,0 +1,69 @@
+Smoke Mountain / Yanshan v0.4.0 resource record
+Retrieved 2026-11-07. All assets below use CC0 1.0 Universal.
+License: https://creativecommons.org/publicdomain/zero/1.0/
+
+Tabasco, Various Small Arms (M4 geometry)
+https://opengameart.org/node/3609
+Author page lists CC0 and an older CC-BY 3.0 entry; the author explicitly placed
+the assets in the public domain in the 2023-12-15 update.
+Original public file: https://opengameart.org/sites/default/files/smallarms.zip
+Modification: selected m4.blend, normalized scale/axes, converted material slots
+to PBR, bevelled edges, exported static GLB. New view animation and hands are local.
+
+Kless Gyzen, Rock Moss Set 01
+https://polyhaven.com/a/rock_moss_set_01
+Modification: 1K diffuse/normal/roughness textures, six individual rocks exported
+as GLB, simplified to approximately 1800 polygons per rock before triangulation.
+
+Jack Mava, Old Military Crate
+https://polyhaven.com/a/old_military_crate
+Modification: selected variant A, rebuilt PBR material from 1K source channels,
+exported GLB. The local interaction supplies crate-opening and reward state.
+
+Poly Haven, Pine Tree 01
+https://polyhaven.com/a/pine_tree_01
+Only 1K bark diffuse, twig diffuse and twig alpha textures are used. Local
+lightweight trunks/foliage placement replace the heavy original tree geometry.
+License details for all Poly Haven assets: https://polyhaven.com/license
+
+ambientCG / Lennart Demes, Ground 015
+https://ambientcg.com/view?id=Ground015
+Modification: selected 1K color, OpenGL normal and roughness textures; the local
+terrain shader blends paths and forest floor. Other source maps are not shipped.
+License: https://docs.ambientcg.com/license/
+
+Smoke Mountain / Yanshan v0.5.2 first-person tactical arms additions (Retrieved 2026-11-12, CC0 1.0):
+
+Blender Studio, Human Base Meshes Bundle v1.4.1 (GEO-body_male_realistic)
+https://www.blender.org/download/demo-files/
+Original public file: https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip
+Modification: evaluated Multires Level 1 sculpted male arms and hands in Blender 4.5,
+trimmed outside shoulder armpits, tailored BDU ripstop sleeves, half-finger tactical
+gloves, carbon knuckle guards, and 3D left-wrist telemetry watch, rigged to a 39-bone
+armature with 5 weapon-grip / ADS / reload / trigger poses, exported as fp_arms.glb.
+
+ambientCG / Lennart Demes, Fabric 030 & Leather 026
+https://ambientcg.com/view?id=Fabric030
+https://ambientcg.com/view?id=Leather026
+Modification: resampled 1K cloth weave and leather grain maps into 512x512 olive-drab
+ripstop, woodland camouflage, matte tactical glove, and skin pore PBR channels.
+License: https://docs.ambientcg.com/license/
+
+Original download sizes and SHA-256 hashes are recorded in the project under
+downloads/slice-v040/*download-record.json and downloads/slice-v052/download-record.json.
+Conversion records are in docs/slice-v040-conversion.json and docs/slice-v052-arms-build.json.
+
+Smoke Mountain / Yanshan v0.5.3 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_fp_arms.py: extended 39-bone fp_arms.glb with pose_knife_idle, pose_knife_slash_a, and pose_knife_slash_b actions mapped to hand.R finger ring coordinates.
+- tools/build_v053_assets.py: built procedural Blender 4.5 GLB assets tactical_knife.glb, rifle_attachments.glb (att_scope_2x, att_suppressor, att_compensator, att_angled_grip), and tactical_pickups.glb (pickup_ammo_crate, pickup_smoke_emp, pickup_energy_drink).
+- tools/generate_sfx.py: synthesized 7 additional offline 16-bit PCM WAV files into game/assets/sfx/.
+
+Smoke Mountain / Yanshan v0.5.4 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_v054_assets.py: built procedural Blender 4.5 GLB bundle parkour_intel_assets.glb (prop_cargo_container, prop_intel_board, prop_recon_radio, prop_airdrop_beacon, prop_cave_lantern).
+- tools/generate_sfx.py: synthesized radio_scan.wav and airdrop_call.wav into game/assets/sfx/.
+
+Smoke Mountain / Yanshan v0.5.5 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_v055_assets.py: built procedural Blender 4.5 GLB bundle v055_eco_assets.glb (animal_rabbit, animal_squirrel, animal_fish, animal_crab, flora_glow_orchid, flora_berry_fern, horizon_farmhouse, mountain_fence_bay).
+- tools/generate_v055_textures.py: generated seamless terraced rice paddy ground albedo (rural_paddies_albedo.png) and 360-degree mountain horizon silhouette ring (horizon_mountains.png).
+- tools/generate_sfx.py: synthesized animal_flee.wav, animal_hit.wav, and flora_collect.wav into game/assets/sfx/.
+No proprietary game assets are included.

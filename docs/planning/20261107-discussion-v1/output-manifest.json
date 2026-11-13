@@ -1,0 +1,26 @@
+{
+  "01-画面参考与美术方向.html": {
+    "bytes": 12699,
+    "sha256": "28a39b71449ff84632af248f5516873f9aa174fdb21fb49d3dbcce2b35d1ca64"
+  },
+  "02-烟山基地地图草图.html": {
+    "bytes": 15447,
+    "sha256": "f3a9ca01c56ba168f7c01d734cf9581a559ee4551d4a5c01fa0c5d68a4b3d30d"
+  },
+  "03-武器与环境素材候选.html": {
+    "bytes": 17480,
+    "sha256": "f1d0d35bfeb0705764a0cc9f6ed9aec38128540753d12ccf103797e5bbc0add8"
+  },
+  "map.png": {
+    "bytes": 144239,
+    "sha256": "2c097d95fa58fc18f4177878122f023da047bdfe51e0466dac62a47d2f795b14"
+  },
+  "map.svg": {
+    "bytes": 6463,
+    "sha256": "abe36ce2aa4126bd73908669c1baa6907fd70c831cc0f7b2977afbeb3d5b8a3e"
+  },
+  "source-index.json": {
+    "bytes": 9363,
+    "sha256": "32a78b091d65a591713053281e8bfab4f480a27f50233e3d593b59c40a6eb380"
+  }
+}

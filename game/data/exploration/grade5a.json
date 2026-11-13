@@ -1,0 +1,291 @@
+{
+  "schema_version": 2,
+  "math": {
+    "title": "巡护站 · 平移机关",
+    "question": "运货小车从第2列平移到第7列，方向不变。\n应该向哪边移动几格？",
+    "options": ["向右 5 格", "向右 7 格", "向左 5 格"],
+    "answer": 0,
+    "explanation": "第7列 − 第2列 = 5格。向右平移时，图形每个点都向右移动同样的距离。近道木门已打开。",
+    "source": "苏教版五上数学（2026）· 图形的平移",
+    "reward_title": "光学测距模块",
+    "reward_value": 85,
+    "reward_rarity": 3
+  },
+  "poem": {
+    "title": "山路石刻 · 山居秋暝",
+    "question": "明月松间照，____________。\n选出石刻缺失的下一句。",
+    "options": ["清泉石上流", "江枫渔火对愁眠", "夜半钟声到客船"],
+    "answer": 0,
+    "explanation": "“明月松间照，清泉石上流。”出自王维《山居秋暝》，描写月光照松林、清泉流山石的幽静景色。",
+    "source": "统编版五上语文（2026）· 第21课《古诗三首》",
+    "reward_title": "竹海古玉残片",
+    "reward_value": 140,
+    "reward_rarity": 4
+  },
+  "math_pool": [
+    {
+      "title": "巡护站 · 平移机关",
+      "question": "运货小车从第2列平移到第7列，方向不变。\n应该向哪边移动几格？",
+      "options": ["向右 5 格", "向右 7 格", "向左 5 格"],
+      "answer": 0,
+      "explanation": "第7列 − 第2列 = 5格。平移格数看对应点之间的距离。近道木门已打开！",
+      "source": "苏教版五上数学 · 图形的平移",
+      "reward_title": "光学测距模块",
+      "reward_value": 85,
+      "reward_rarity": 3
+    },
+    {
+      "title": "巡护站 · 平行四边形测绘",
+      "question": "一块平行四边形太阳能板，底是 8 分米，高是 5 分米。\n它的面积是多少平方分米？",
+      "options": ["40 平方分米", "20 平方分米", "26 平方分米"],
+      "answer": 0,
+      "explanation": "平行四边形面积 = 底 × 高 = 8 × 5 = 40（平方分米）。近道木门已打开！",
+      "source": "苏教版五上数学 · 多边形的面积",
+      "reward_title": "光学测距模块",
+      "reward_value": 85,
+      "reward_rarity": 3
+    },
+    {
+      "title": "巡护站 · 三角形路标",
+      "question": "一块三角形警戒牌的底是 10 厘米，高是 6 厘米。\n它的面积是多少平方厘米？",
+      "options": ["30 平方厘米", "60 平方厘米", "16 平方厘米"],
+      "answer": 0,
+      "explanation": "三角形面积 = 底 × 高 ÷ 2 = 10 × 6 ÷ 2 = 30（平方厘米），别忘了除以2！近道木门已打开！",
+      "source": "苏教版五上数学 · 多边形的面积",
+      "reward_title": "光学测距模块",
+      "reward_value": 85,
+      "reward_rarity": 3
+    },
+    {
+      "title": "巡护站 · 能量电池配比",
+      "question": "每块巡护电池重 1.25 千克，4 块同样的电池一共重多少千克？",
+      "options": ["5 千克", "4.8 千克", "50 千克"],
+      "answer": 0,
+      "explanation": "1.25 × 4 = 5.00 = 5（千克），可利用 25 × 4 = 100 快速口算。近道木门已打开！",
+      "source": "苏教版五上数学 · 小数乘法和除法",
+      "reward_title": "加密无线电台",
+      "reward_value": 90,
+      "reward_rarity": 3
+    },
+    {
+      "title": "巡护站 · 山林温差记录",
+      "question": "山脚白天气温是 +6 ℃，山顶夜间气温是 −3 ℃。\n两地温差相差多少摄氏度？",
+      "options": ["9 ℃", "3 ℃", "−9 ℃"],
+      "answer": 0,
+      "explanation": "从 −3 ℃ 到 0 ℃ 相差 3 ℃，再到 +6 ℃ 相差 6 ℃，一共相差 3 + 6 = 9 ℃。近道木门已打开！",
+      "source": "苏教版五上数学 · 负数的初步认识",
+      "reward_title": "加密无线电台",
+      "reward_value": 90,
+      "reward_rarity": 3
+    },
+    {
+      "title": "巡护站 · 梯形加固板",
+      "question": "木门梯形铁片的上底是 3 厘米，下底是 7 厘米，高是 4 厘米。\n它的面积是多少平方厘米？",
+      "options": ["20 平方厘米", "40 平方厘米", "14 平方厘米"],
+      "answer": 0,
+      "explanation": "梯形面积 =（上底 + 下底）× 高 ÷ 2 = (3 + 7) × 4 ÷ 2 = 20（平方厘米）。近道木门已打开！",
+      "source": "苏教版五上数学 · 多边形的面积",
+      "reward_title": "光学测距模块",
+      "reward_value": 85,
+      "reward_rarity": 3
+    }
+  ],
+  "poem_pool": [
+    {
+      "title": "山路石刻 · 《山居秋暝》",
+      "question": "明月松间照，____________。\n选出石刻缺失的下一句。",
+      "options": ["清泉石上流", "江枫渔火对愁眠", "竹喧归浣女"],
+      "answer": 0,
+      "explanation": "“明月松间照，清泉石上流。”——唐·王维《山居秋暝》。石刻暗格已开启！",
+      "source": "五上语文 · 第21课《古诗三首》",
+      "reward_title": "竹海古玉残片",
+      "reward_value": 145,
+      "reward_rarity": 4
+    },
+    {
+      "title": "山路石刻 · 《枫桥夜泊》",
+      "question": "月落乌啼霜满天，____________。\n选出石刻缺失的下一句。",
+      "options": ["江枫渔火对愁眠", "夜半钟声到客船", "姑苏城外寒山寺"],
+      "answer": 0,
+      "explanation": "“月落乌啼霜满天，江枫渔火对愁眠。”——唐·张继《枫桥夜泊》。石刻暗格已开启！",
+      "source": "五上语文 · 第21课《古诗三首》",
+      "reward_title": "竹海古玉残片",
+      "reward_value": 145,
+      "reward_rarity": 4
+    },
+    {
+      "title": "山路石刻 · 《蝉》",
+      "question": "居高声自远，____________。\n选出石刻缺失的下一句。",
+      "options": ["非是藉秋风", "垂緌饮清露", "流响出疏桐"],
+      "answer": 0,
+      "explanation": "“居高声自远，非是藉秋风。”——唐·虞世南《蝉》，托物言志，品格高洁自能声名远播。",
+      "source": "五上语文 · 第1课前导古诗《蝉》",
+      "reward_title": "古树琥珀标本",
+      "reward_value": 95,
+      "reward_rarity": 3
+    },
+    {
+      "title": "山路石刻 · 《示儿》",
+      "question": "王师北定中原日，____________。\n选出石刻缺失的下一句。",
+      "options": ["家祭无忘告乃翁", "但悲不见九州同", "直把杭州作汴州"],
+      "answer": 0,
+      "explanation": "“王师北定中原日，家祭无忘告乃翁。”——宋·陆游《示儿》，表达深沉的爱国情怀。",
+      "source": "五上语文 · 第12课《古诗三首》",
+      "reward_title": "竹海古玉残片",
+      "reward_value": 145,
+      "reward_rarity": 4
+    },
+    {
+      "title": "山路石刻 · 《题临安邸》",
+      "question": "山外青山楼外楼，____________？\n选出石刻缺失的下一句。",
+      "options": ["西湖歌舞几时休", "暖风熏得游人醉", "九州生气恃风雷"],
+      "answer": 0,
+      "explanation": "“山外青山楼外楼，西湖歌舞几时休？”——宋·林升《题临安邸》。石刻暗格已开启！",
+      "source": "五上语文 · 第12课《古诗三首》",
+      "reward_title": "古树琥珀标本",
+      "reward_value": 95,
+      "reward_rarity": 3
+    },
+    {
+      "title": "山路石刻 · 《长相思》",
+      "question": "风一更，雪一更，聒碎乡心梦不成，____________。",
+      "options": ["故园无此声", "身向榆关那畔行", "夜深千帐灯"],
+      "answer": 0,
+      "explanation": "“风一更，雪一更，聒碎乡心梦不成，故园无此声。”——清·纳兰性德《长相思》。",
+      "source": "五上语文 · 第21课《古诗三首》",
+      "reward_title": "竹海古玉残片",
+      "reward_value": 145,
+      "reward_rarity": 4
+    }
+  ],
+  "intel_pools": {
+    "intel_container": {
+      "title": "战地线报 #1 · 西岭货柜高台",
+      "tts": "Look on top of the green containers to the west. Climb up step by step!",
+      "question": "电台截获西岭密藏情报：\n\"Look on top of the green containers to the west. Climb up step by step!\"\n读懂英文介词短语，这处隐藏高价值箱在哪里？",
+      "options": [
+        "在西侧军用集装箱群的最顶部（踩木箱岩石跳格子上去）",
+        "埋在山脚营地 0 号热身靶台的水泥底座下面",
+        "藏在 B 区撤离信标正中央的光圈地面上"
+      ],
+      "answer": 0,
+      "explanation": "on top of = 在……的顶部！西侧山岭集装箱上方藏有【西岭货柜暗箱】，已为你标亮雷达定位。",
+      "source": "五上英语空间方位 · on top of / climb / step by step",
+      "reward_score": 20,
+      "reveal_key": "parkour_containers"
+    },
+    "intel_cleft": {
+      "title": "战地线报 #2 · 双岩夹缝秘藏",
+      "tts": "Search between the two tall rocks behind the forest station for a secret cache.",
+      "question": "巡护手记夹着一张英文便条：\n\"Search between the two tall rocks behind the forest station for a secret cache.\"\n它指引你去哪里搜寻隐藏物资？",
+      "options": [
+        "林间前哨后方两座高大岩石之间的狭长裂谷内",
+        "吊在山路古诗石碑最顶端的风铃下面",
+        "营地指挥帐篷门前的木牌正前方"
+      ],
+      "answer": 0,
+      "explanation": "between = 在……（两者）之间；behind = 在……后面！雷达已为你标出双岩裂谷密藏箱坐标。",
+      "source": "江苏五上英语核心介词 · between / behind",
+      "reward_score": 20,
+      "reveal_key": "cleft_cache"
+    },
+    "intel_cave": {
+      "title": "战地线报 #3 · 幽谷石窟金箱密电",
+      "tts": "A golden airdrop is inside the stone cave beside the tall hill west of the pass.",
+      "question": "巡护站桌面上留有高阶密电：\n\"A golden airdrop is inside the stone cave beside the tall hill west of the pass.\"\n读懂这句线索，【传说级空投箱】被藏在了哪里？",
+      "options": [
+        "山道拦截哨西侧泛着暖光的幽深石窟洞穴里面",
+        "营地旁边的树桩最顶端",
+        "B 区竹林正面马路正中间"
+      ],
+      "answer": 0,
+      "explanation": "inside = 在……里面；beside = 在……旁边！顺着山道西侧岩石缺口找亮着提灯的石窟即可发现传说大金空投箱。",
+      "source": "江苏五上英语核心介词 · inside / beside / pass",
+      "reward_score": 25,
+      "reveal_key": "cave_grotto"
+    },
+    "intel_roof": {
+      "title": "战地线报 #4 · 棚顶与高塔登顶线索",
+      "tts": "Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!",
+      "question": "前线侦察兵留下的行动笔记：\n\"Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!\"\n以下哪种寻宝路线符合英文线索？",
+      "options": [
+        "沿竹林补给棚旁的脚手架阶梯跳上棚顶，或登顶西北方观察哨高塔",
+        "待在竹林棚子正下方原地等待系统自动发奖",
+        "退回 A 点营地重新开启自由靶场练习"
+      ],
+      "answer": 0,
+      "explanation": "beside the shelter = 在补给棚旁；on its roof = 在它的屋顶上！两大立体跳格子高台已为你标记在战术雷达。",
+      "source": "五上英语空间与动作搭配 · beside / on its roof / climb",
+      "reward_score": 25,
+      "reveal_key": "shelter_and_tower"
+    }
+  },
+  "recon_pool": [
+    {
+      "title": "东岭侦察电台抢修 · 频段校验",
+      "tts": "Our scouts are in front of the green bamboo forest right now.",
+      "question": "修复东岭侦察雷达需破译敌前哨密电：\n\"Our scouts are in front of the green bamboo forest right now.\"\n这句话汇报我方侦察员正在哪里？",
+      "options": [
+        "正位于绿色竹林的正前方",
+        "已经撤离到地图围栏外的水田里",
+        "正躲在补给棚地板下面睡觉"
+      ],
+      "answer": 0,
+      "explanation": "in front of = 在……前面！电台恢复在线，已执行【烟山全图雷达扫描】，所有高台暗箱与隐藏物资坐标均已高亮！",
+      "source": "江苏五上英语 · in front of / right now",
+      "reward_title": "侦察雷达核心",
+      "reward_value": 150,
+      "reward_rarity": 4
+    },
+    {
+      "title": "东岭侦察电台抢修 · 频段校验",
+      "tts": "Jump across the flat stones under the big tree to find rare supplies.",
+      "question": "修复东岭侦察雷达需破译线人密电：\n\"Jump across the flat stones under the big tree to find rare supplies.\"\n这句话指示如何取得稀有补给？",
+      "options": [
+        "跳过大树下方的扁平石块去寻找稀有物资",
+        "一直向前奔跑跳过竹林重兵阵地",
+        "把背包里的全部物品扔在树下"
+      ],
+      "answer": 0,
+      "explanation": "under = 在……下面；flat stones = 扁平石块！雷达全图扫描已激活，附赠烟雾弹与备弹补给！",
+      "source": "江苏五上英语 · under / jump / find",
+      "reward_title": "加密无线电台",
+      "reward_value": 135,
+      "reward_rarity": 4
+    }
+  ],
+  "beacon_pool": [
+    {
+      "title": "北脊紧急空投信标 · 卫星口令",
+      "tts": "Look at the golden box over there! Let's climb up and get it.",
+      "question": "激活空投补给舱需确认降落区卫星呼号：\n\"Look at the golden box over there! Let's climb up and get it.\"\n以下哪项与呼号英文句意一致？",
+      "options": [
+        "看那边的金色箱子！我们爬上去拿到它吧。",
+        "不要去看地面上的任何箱子，直接原地等待。",
+        "我们坐在篝火旁边吃水果吧。"
+      ],
+      "answer": 0,
+      "explanation": "over there = 在那边！卫星信标已锁定坐标，立即投放空投备弹与高价值战利品！",
+      "source": "江苏五上英语 Unit 3 · Look at ... over there!",
+      "reward_title": "量子词典原型机",
+      "reward_value": 320,
+      "reward_rarity": 5
+    },
+    {
+      "title": "北脊紧急空投信标 · 卫星口令",
+      "tts": "Never give up! Put your gear in order and keep moving.",
+      "question": "激活空投补给舱需确认卫星鼓舞口令：\n\"Never give up! Put your gear in order and keep moving.\"\n这句话的意思是？",
+      "options": [
+        "永不放弃！整理好装备继续前进。",
+        "马上放弃搜索，丢下所有物资逃跑。",
+        "停在原地把武器放回箱子里。"
+      ],
+      "answer": 0,
+      "explanation": "Never give up = 永不放弃；put ... in order = 把……整理好！空投舱已弹射解锁，备弹与大金奖励就位！",
+      "source": "江苏五上英语 Unit 1-2 · Never give up / put in order",
+      "reward_title": "特级金质勋章",
+      "reward_value": 290,
+      "reward_rarity": 5
+    }
+  ]
+}

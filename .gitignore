@@ -1,0 +1,22 @@
+# Godot cache & temporary files
+.godot/
+*.import
+*.tmp
+__pycache__/
+*.pyc
+
+# Standalone build outputs & immutable archives (preserved on disk per version)
+playtest/
+downloads/
+third_party/
+docs/backups/
+docs/checkpoints/
+docs/screenshots/
+docs/diagnostics/
+docs/source-pages/
+docs/vocabulary-source/
+docs/planning/*/references/
+docs/planning/*/qa/
+docs/v*-checks/
+docs/*.log
+docs/runtime-local.json

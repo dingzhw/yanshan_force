@@ -1,0 +1,15 @@
+{
+  "tactical_knife": {
+    "glb": "game\\assets\\slice\\tactical_knife.glb",
+    "bytes": 16604,
+    "polys": 228
+  },
+  "rifle_attachments": {
+    "glb": "game\\assets\\slice\\rifle_attachments.glb",
+    "bytes": 57740
+  },
+  "tactical_pickups": {
+    "glb": "game\\assets\\slice\\tactical_pickups.glb",
+    "bytes": 15076
+  }
+}

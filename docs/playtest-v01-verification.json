@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-11-03T20:01:13.012674+08:00",
+  "vocabulary_entries": 175,
+  "vocabulary_crosscheck": "passed",
+  "rules_and_scene_checks": 28,
+  "graphics_device_tested": "AMD Radeon RX 6600",
+  "packaged_graphics_exit": 0,
+  "errors_and_warnings_in_final_logs": 0,
+  "source_cache_directories": [],
+  "target_vega8_test": "not performed",
+  "files": [
+    {
+      "file": "playtest\\windows-v0.1\\YanshanBase.exe",
+      "bytes": 109268480,
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+    },
+    {
+      "file": "playtest\\windows-v0.1\\YanshanBase.pck",
+      "bytes": 13639252,
+      "sha256": "1087e740f915de0126f4078e0dff1f9b1294818fbdca6e7848f451fae158d4d3"
+    },
+    {
+      "file": "playtest\\烟山基地试玩_v0.1_Windows.zip",
+      "bytes": 52759883,
+      "sha256": "2d5634e1b2126d3849dbfdc0ac93e64ff8e126ff32eb2111470e6af3edf228b2"
+    },
+    {
+      "file": "game\\data\\wordpacks\\jiangsu-5a-2026.json",
+      "bytes": 48676,
+      "sha256": "a25ca1c4a6711772b6eb19340c8224e4ecba8798827e845c441c46b451696bbb"
+    }
+  ]
+}

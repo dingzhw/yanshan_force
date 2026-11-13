@@ -1,0 +1,38 @@
+{
+  "glb": "game\\assets\\slice\\v055_eco_assets.glb",
+  "bytes": 88092,
+  "meshes": {
+    "animal_rabbit": {
+      "verts": 366,
+      "polys": 660
+    },
+    "animal_squirrel": {
+      "verts": 396,
+      "polys": 720
+    },
+    "animal_fish": {
+      "verts": 106,
+      "polys": 150
+    },
+    "animal_crab": {
+      "verts": 282,
+      "polys": 288
+    },
+    "flora_glow_orchid": {
+      "verts": 324,
+      "polys": 504
+    },
+    "flora_berry_fern": {
+      "verts": 156,
+      "polys": 248
+    },
+    "horizon_farmhouse": {
+      "verts": 64,
+      "polys": 48
+    },
+    "mountain_fence_bay": {
+      "verts": 80,
+      "polys": 60
+    }
+  }
+}

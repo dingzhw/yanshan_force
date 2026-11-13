@@ -1,0 +1,42 @@
+[
+  {
+    "file": "rock_0.glb",
+    "source_polygons": 11000,
+    "decimate_ratio": 0.16363635659217834
+  },
+  {
+    "file": "rock_1.glb",
+    "source_polygons": 10996,
+    "decimate_ratio": 0.16369588673114777
+  },
+  {
+    "file": "rock_2.glb",
+    "source_polygons": 5000,
+    "decimate_ratio": 0.36000001430511475
+  },
+  {
+    "file": "rock_3.glb",
+    "source_polygons": 10589,
+    "decimate_ratio": 0.1699877232313156
+  },
+  {
+    "file": "rock_4.glb",
+    "source_polygons": 16548,
+    "decimate_ratio": 0.10877447575330734
+  },
+  {
+    "file": "rock_5.glb",
+    "source_polygons": 8994,
+    "decimate_ratio": 0.20013342797756195
+  },
+  {
+    "file": "rifle.glb",
+    "author": "Tabasco",
+    "source": "https://opengameart.org/node/3609",
+    "source_polygons": 766,
+    "barrel_positive_x": false,
+    "modified": "Normalized axes and scale; modern PBR materials; bevelled edges; separate magazine for local reload animation; no original animations exported",
+    "receiver_polygons": 752,
+    "magazine_polygons": 14
+  }
+]

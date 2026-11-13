@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-04",
+  "baseline": "v0.1.1",
+  "backup": "docs/backups/20261104-before-next-stage",
+  "stages": [
+    {
+      "id": 1,
+      "title": "场景物理",
+      "status": "complete"
+    },
+    {
+      "id": 2,
+      "title": "探索路线",
+      "status": "complete"
+    },
+    {
+      "id": 3,
+      "title": "分区挑战",
+      "status": "complete"
+    },
+    {
+      "id": 4,
+      "title": "学习反馈",
+      "status": "complete"
+    },
+    {
+      "id": 5,
+      "title": "物资升级",
+      "status": "complete"
+    },
+    {
+      "id": 6,
+      "title": "打包与目标机验收",
+      "status": "software_packaged; target_machine_pending"
+    }
+  ],
+  "target_gpu": "Vega 8; pending target-machine test",
+  "final_version": "0.2.2",
+  "checks": {
+    "physics": 18,
+    "navigation": 10,
+    "challenges": 11,
+    "movement": 14,
+    "learning": 8,
+    "economy": 14,
+    "smoke": 28
+  },
+  "checkpoints": [
+    "docs\\checkpoints\\source-0.1.2.zip",
+    "docs\\checkpoints\\source-0.2-route.zip",
+    "docs\\checkpoints\\source-0.2.1.zip",
+    "docs\\checkpoints\\source-0.2.zip",
+    "docs\\checkpoints\\source-0.3-challenges.zip",
+    "docs\\checkpoints\\source-0.4-learning.zip",
+    "docs\\checkpoints\\source-0.5-economy.zip",
+    "docs/checkpoints/source-0.2.2.zip"
+  ],
+  "verification": "docs/final-verification.json",
+  "ground_render_fix": "docs/ground-fix-v022.json",
+  "latest_targeted_checks": {
+    "terrain_render": 11,
+    "movement": 14,
+    "navigation": 10,
+    "physics": 18
+  }
+}

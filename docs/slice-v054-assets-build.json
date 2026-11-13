@@ -1,0 +1,26 @@
+{
+  "glb": "game\\assets\\slice\\parkour_intel_assets.glb",
+  "bytes": 79888,
+  "meshes": {
+    "prop_cargo_container": {
+      "verts": 496,
+      "polys": 368
+    },
+    "prop_intel_board": {
+      "verts": 144,
+      "polys": 94
+    },
+    "prop_recon_radio": {
+      "verts": 200,
+      "polys": 126
+    },
+    "prop_airdrop_beacon": {
+      "verts": 124,
+      "polys": 80
+    },
+    "prop_cave_lantern": {
+      "verts": 112,
+      "polys": 72
+    }
+  }
+}

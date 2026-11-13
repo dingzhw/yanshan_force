@@ -1,0 +1,69 @@
+资源与环境准备记录（2026-11-03，Asia/Shanghai）
+
+工作目录
+<PROJECT_ROOT>
+本机临时环境
+<LOCALAPPDATA>\Temp\drz-english-shooter-20261103
+
+范围
+下载并保留开源射击模板、烟山地图素材、Godot 便携版与中文字体，准备本机工作副本。
+已将用户确认的教材书后单词表范围、后续单词包更新、游戏内成长及现实奖励方向、首图烟山基地记入 project-scope.json。
+本轮未开始制作英语出题、仓库、商城或烟山地图。
+
+环境检查
+项目原有教材与学习资料保留；父目录不是 Git 仓库，本轮未初始化仓库或创建提交。
+复用 Git 和 Python 3.14.3，未安装依赖、.NET 或修改 PATH。
+项目目录与其相关祖先未发现额外 AGENTS.md。
+项目云同步状态未确认；源码和资源可保留在此，Godot 程序、编辑器设置和导入缓存全部放到专用 Local\Temp 目录。
+Godot 使用 _sc_ 自包含模式，编辑器设置与缓存放在该临时环境内。
+
+下载来源与结果
+Godot 4.7.2 Standard Windows x86_64：官方对象存储下载，86,013,866 字节，SHA-256 与官方 Release digest 一致。
+FPS 模板：GitHub 固定提交 185fd2326d74a5cf858cffc616f87cf9696f9cc0 的源码 ZIP，4,583,556 字节。
+Nature Kit：Kenney 官方公开下载流程，10,537,521 字节；包内版本 2.1。
+Survival Kit：Kenney 官方公开下载流程，1,948,174 字节；包内版本 2.0。
+Noto Sans SC：Google Fonts 固定提交 a85815a42757630ce188fdad368c2dfc444d4773，17,772,300 字节。
+来源、哈希与许可详见 resources.json；四份 ZIP 均保留在 downloads/，原始许可证保留。
+Godot 许可证及第三方版权文件来自 Godot 4.7.2-stable 官方源码标签。
+
+下载恢复经过
+默认执行沙箱 DNS 无法解析外网域名；通过平台审批的网络权限完成下载。
+旧 Kenney 静态 ZIP 地址返回跳转，改从实时官方页面读取公开 download-link 下载流程，下载成功。
+许可证输出遇到控制台 GBK 无法表示的符号，改用选定 Python 的 -X utf8，未改全局编码。
+
+准备与验证命令
+python -X utf8 tools\prepare_local.py --runtime-root %LOCALAPPDATA%\Temp\drz-english-shooter-20261103
+Godot_v4.7.2-stable_win64_console.exe --version
+Godot_v4.7.2-stable_win64_console.exe --headless --editor --path <临时 fps-template> --import --rendering-method gl_compatibility
+Godot_v4.7.2-stable_win64_console.exe --headless --path <临时 fps-template> --rendering-method gl_compatibility --quit-after 180
+Godot_v4.7.2-stable_win64_console.exe --headless --verbose --path <临时 fps-template> --rendering-method gl_compatibility --quit-after 10
+上述进程退出码均为 0。Godot 版本：4.7.2.stable.official.ed1daf0bf。
+
+临时副本适配与备份
+原始 third_party/kenney-fps 完整保留；只在 Local\Temp 工作副本调整兼容渲染。
+切换为 GL Compatibility 并关闭其不支持的屏幕空间抗锯齿。
+最初导入日志出现抗锯齿提示，修正后场景运行中不再出现该提示。
+上游原始 project.godot 保存在临时副本的 project.godot.upstream。
+修正抗锯齿前另存 project.godot.before-aa-fix。
+修正前 SHA-256：2b4c248dd3ae7a476d1a046f485e6c98ca7d216a73f3ca70e2fc2d45946dc7da
+修正后 SHA-256：9c287a9a3838d9918cfa189d4997ee43b193808a317ed94fa59d39a4072099ac
+
+仍需处理的验证事项
+无窗口场景加载与脚本启动完成，退出时报告 4 个音频对象和 2 个资源仍在使用。
+verbose 日志定位到模板 walking.ogg 脚步音效的播放/资源引用；本轮未改写上游游戏代码。
+Godot 原生日志文件未包含最后的退出清理输出，因此核查同时读取控制台完整日志，不能只看退出码或 Godot 自带日志。
+此问题保留于 godot-scene-diagnostic.log 和 verification.json，后续制作原型时处理。
+图形渲染、鼠标操作、音效听感和目标电脑帧率尚未实测。
+词库尚未提取，教材版本与文件路径已核对存在。
+
+暂缓
+全平台导出模板约1.28 GB；当前编辑器内运行无需该包，待导出独立游戏时补齐。
+官方链接和 SHA-256 已记录到 resources.json。
+
+下一步
+在目标电脑实际打开 FPS 模板，核对兼容渲染表现和操作手感；提取并核对教材书后单词表。
+在保留来源与许可证的基础上建立正式游戏源码，再制作中文提示和单词靶最小玩法。
+
+2026-11-04：完成场景物理→探索路线→三处挑战→学习提示→经济验收→v0.2.1打包。103项检查通过；独立包图形巡检成功，RX6600约100FPS。Vega8待目标机巡检。记录：final-verification.json、版本与验收说明.txt。旧包与阶段源码快照保留，根启动入口已更新。
+
+2026-11-04：修复地面可见面绕序错误，发布v0.2.2。修复前GPU检查10项失败，修复后11项渲染检查通过，另42项移动、通行、碰撞回归通过；独立包截图已查看。入口已更新，旧包及存档保留。详见ground-fix-v022.json。

@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-03",
+  "fps_commit": "185fd2326d74a5cf858cffc616f87cf9696f9cc0",
+  "packages": [
+    {
+      "id": "godot",
+      "name": "Godot 4.7.2 Standard Windows x86_64",
+      "archive": "downloads/Godot_v4.7.2-stable_win64.exe.zip",
+      "page": "https://godotengine.org/download/windows/",
+      "download": "https://godot-releases.nbg1.your-objectstorage.com/4.7.2-stable/Godot_v4.7.2-stable_win64.exe.zip",
+      "release": "https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable",
+      "bytes": 86013866,
+      "sha256": "731980f9608d61333e5baf54a2ef17210acc7a538446c0cb9969f002aca1e953",
+      "hash_evidence": "与官方 GitHub Release asset digest 一致",
+      "license": "MIT；Godot 内含第三方组件，见 GODOT_COPYRIGHT.txt"
+    },
+    {
+      "id": "fps",
+      "name": "Kenney Starter Kit FPS",
+      "archive": "downloads/Kenney_Starter-Kit-FPS_185fd2326d74a5cf858cffc616f87cf9696f9cc0.zip",
+      "page": "https://github.com/KenneyNL/Starter-Kit-FPS",
+      "download": "https://codeload.github.com/KenneyNL/Starter-Kit-FPS/zip/185fd2326d74a5cf858cffc616f87cf9696f9cc0",
+      "bytes": 4583556,
+      "sha256": "6f2a8cb34261a07a922de665bb86a750cc6c6191f9c37ebf4fda98b93252aa89",
+      "hash_evidence": "从固定提交官方源码包下载后计算，供本地完整性与恢复核对",
+      "license": "代码 MIT；图像、模型、音效 CC0；字体 SIL OFL 1.1",
+      "destination": "third_party/kenney-fps"
+    },
+    {
+      "id": "nature",
+      "name": "Kenney Nature Kit",
+      "version_in_archive": "2.1",
+      "archive": "downloads/kenney_nature-kit.zip",
+      "page": "https://kenney.nl/assets/nature-kit",
+      "download_endpoint": "https://kenney.nl/download-link/6173736574732f6e61747572652d6b6974",
+      "bytes": 10537521,
+      "sha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+      "hash_evidence": "从官方公开下载流程下载后计算，供本地完整性与恢复核对",
+      "license": "CC0",
+      "destination": "third_party/kenney-nature-kit"
+    },
+    {
+      "id": "survival",
+      "name": "Kenney Survival Kit",
+      "version_in_archive": "2.0",
+      "archive": "downloads/kenney_survival-kit.zip",
+      "page": "https://kenney.nl/assets/survival-kit",
+      "download_endpoint": "https://kenney.nl/download-link/6173736574732f737572766976616c2d6b6974",
+      "bytes": 1948174,
+      "sha256": "c3586341b5932c87eb43d75d915434f47daed168b17ed36a03e8ca9977c7443e",
+      "hash_evidence": "从官方公开下载流程下载后计算，供本地完整性与恢复核对",
+      "license": "CC0",
+      "destination": "third_party/kenney-survival-kit"
+    }
+  ],
+  "extra_files": [
+    {
+      "name": "Noto Sans SC variable font",
+      "file": "third_party/noto-sans-sc/NotoSansSC[wght].ttf",
+      "page": "https://github.com/google/fonts/tree/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc",
+      "download": "https://raw.githubusercontent.com/google/fonts/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
+      "bytes": 17772300,
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+      "license": "SIL Open Font License 1.1",
+      "license_file": "third_party/noto-sans-sc/OFL.txt",
+      "purpose": "后续中文提示与界面文字"
+    }
+  ],
+  "deferred": [
+    {
+      "name": "Godot 4.7.2 export templates",
+      "purpose": "生成独立游戏程序时需要，当前编辑器运行模板不需要",
+      "bytes": 1281349702,
+      "page": "https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable",
+      "download": "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz",
+      "sha256": "f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011",
+      "status": "已按需获取Windows x86_64的release/debug模板并核对条目CRC，其余平台未下载"
+    }
+  ],
+  "windows_template_record": "docs/windows-export-templates.json"
+}

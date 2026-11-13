@@ -1,0 +1,65 @@
+{
+  "checked_at": "2026-11-03T18:24:48.494196+08:00",
+  "packages": [
+    {
+      "id": "godot",
+      "sha256": "731980f9608d61333e5baf54a2ef17210acc7a538446c0cb9969f002aca1e953",
+      "archive_integrity": "passed",
+      "extracted_files_compared": 2,
+      "extracted_copy": "passed"
+    },
+    {
+      "id": "fps",
+      "sha256": "6f2a8cb34261a07a922de665bb86a750cc6c6191f9c37ebf4fda98b93252aa89",
+      "archive_integrity": "passed",
+      "extracted_files_compared": 102,
+      "extracted_copy": "passed"
+    },
+    {
+      "id": "nature",
+      "sha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+      "archive_integrity": "passed",
+      "extracted_files_compared": 3618,
+      "extracted_copy": "passed"
+    },
+    {
+      "id": "survival",
+      "sha256": "c3586341b5932c87eb43d75d915434f47daed168b17ed36a03e8ca9977c7443e",
+      "archive_integrity": "passed",
+      "extracted_files_compared": 412,
+      "extracted_copy": "passed"
+    }
+  ],
+  "font": {
+    "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+    "git_blob_sha1": "fb0637bafbcd804fe32152370a1225990745b4bc",
+    "git_blob_matches_upstream": true,
+    "ttf_header": "passed"
+  },
+  "license_files": "present",
+  "source_template_unchanged": true,
+  "project_generated_cache_directories": [],
+  "json_and_python_syntax": "passed",
+  "godot_version": "4.7.2.stable.official.ed1daf0bf",
+  "godot_import": {
+    "exit_code": 0,
+    "result": "completed",
+    "initial_warning": "screen-space AA unsupported in compatibility mode; disabled in working copy"
+  },
+  "headless_scene": {
+    "exit_code": 0,
+    "loaded": true,
+    "script_parse_errors": 0,
+    "shutdown_diagnostics": {
+      "objectdb_instances": 4,
+      "resources_in_use": 2,
+      "resource": "res://sounds/walking.ogg",
+      "status": "recorded; unresolved"
+    }
+  },
+  "gpu_and_interactive_test": "not performed",
+  "target_machine_fps_test": "not performed",
+  "export_templates": "deferred; official links and digest recorded",
+  "project_sync_status": "not verified; runtime and cache placed under local temporary directory",
+  "existing_user_materials": "unchanged"
+}

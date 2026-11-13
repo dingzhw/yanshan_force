@@ -1,0 +1,33 @@
+{
+  "source": "https://godot-releases.nbg1.your-objectstorage.com/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz",
+  "method": "HTTP range extraction of official ZIP entries",
+  "full_archive_downloaded": false,
+  "full_archive_sha256_verified": false,
+  "entry_crc_verified": true,
+  "entries": [
+    {
+      "entry": "templates/version.txt",
+      "compressed_bytes": 13,
+      "bytes": 13,
+      "crc32": "44969cbd",
+      "sha256": "38885c88f75abbc797a1db7559719800279a00cfb9fa8b2e2868a7f6f84bad2e",
+      "destination": "<LOCALAPPDATA>\\Temp\\drz-english-shooter-20261103\\godot-4.7.2\\editor_data\\export_templates\\4.7.2.stable\\version.txt"
+    },
+    {
+      "entry": "templates/windows_debug_x86_64.exe",
+      "compressed_bytes": 34252108,
+      "bytes": 103176704,
+      "crc32": "aa0a0164",
+      "sha256": "51498b72b3a237f882ebd7d1787f06a4bc1eaf0572daab93837adcfd3cfdc107",
+      "destination": "<LOCALAPPDATA>\\Temp\\drz-english-shooter-20261103\\godot-4.7.2\\editor_data\\export_templates\\4.7.2.stable\\windows_debug_x86_64.exe"
+    },
+    {
+      "entry": "templates/windows_release_x86_64.exe",
+      "compressed_bytes": 37890306,
+      "bytes": 109268480,
+      "crc32": "1ee85628",
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562",
+      "destination": "<LOCALAPPDATA>\\Temp\\drz-english-shooter-20261103\\godot-4.7.2\\editor_data\\export_templates\\4.7.2.stable\\windows_release_x86_64.exe"
+    }
+  ]
+}

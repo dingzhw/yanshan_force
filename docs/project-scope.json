@@ -1,0 +1,86 @@
+{
+  "recorded_date": "2026-11-13",
+  "stage": "v0.5.6 远景光影、山岚雾效与村落植被色调协同优化",
+  "working_title": "英语单词搜撤游戏",
+  "vocabulary_scope": {
+    "source": "五年级上册英语课本单元词汇表（示例词库）",
+    "range": "以该课本书后附带的单词表为准",
+    "future_updates": "通过游戏更新追加单词包",
+    "extraction_status": "已提取175条，单元表与字母索引逐项交叉核对，包含13条专有名词，支持单字掌握度持久化追踪与智能干扰项"
+  },
+  "first_map": "烟山基地",
+  "map_description": "江南乡村山岭与梯田全景，山溪蜿蜒流淌、林间野花异草及游鱼蟹兔栖居其间，木栅栏外俯瞰乡野稻田村舍，设三道前哨防线",
+  "planned_maps": [
+    "烟山基地",
+    "诚庄村河岗",
+    "鲸塘中心小学"
+  ],
+  "gameplay": {
+    "prompt": "屏幕显示中文提示或播放离线英文语音，射击对应英文全息护盾得分（基础15分，3连击+5分）",
+    "supply_crates": "常规物资箱单字拼写开箱；三级高价值密码箱（5题/70%、9题/80%、12题/85%）采用单词+词组+五上课本整句多关连破，产出五级稀有度战利品与传说大金（支持满包一键替换低值物资）",
+    "extraction": "累计260积分、攻克至少2处前哨且击败B区重装首领「铁甲词尊」夺得撤离密钥后，信标圈内按E坚守5秒撤离",
+    "loot": "五级稀有度物资体系与首领专属黄金核心/研发图纸，出售换币解锁15项武器配件、携行装具与家长奖励券",
+    "word_combat": {
+      "warmup_seconds": 0,
+      "optional_camp_range": true,
+      "camp_warmup_scores_in_combat": false,
+      "finite_combat_ammo": true,
+      "rage_seconds": 7,
+      "shield_points": [30, 60],
+      "archetypes": [
+        "突击护盾机甲 (ASSAULT_BOT)",
+        "迅捷侦察无人机 (SCOUT_DRONE)",
+        "重装激光狙击卫兵 (SNIPER_GUARD)",
+        "重装甲首领 · 铁甲词尊 (BOSS_WARDEN)"
+      ],
+      "zones": [
+        "林间前哨 (4波)",
+        "山道拦截哨 (3波)",
+        "B · 竹林重兵阵地 (5波)"
+      ],
+      "practice_available": true,
+      "active_shooters_per_group": 3
+    },
+    "exploration": {
+      "english": "next to 寻找路牌旁稀有电台补给（含发音）",
+      "math": "五上数学6题随机池（平移/多边形面积/小数/负数）；打开近道木门",
+      "poem": "五上古诗6首随机池（山居秋暝/枫桥夜泊/示儿/长相思等）石碑",
+      "optional": true,
+      "reading_pauses_run": true,
+      "full_bag_reward_swap": true
+    }
+  },
+  "rewards": {
+    "main_direction": "游戏内15项武器配件/战术装具改装、大金与图纸收集及线下家长奖励券兑换",
+    "shop_items": 15,
+    "redemption_rules": "奖励积分券（350币）记录在存档中，具体线下兑现规则由家长约定"
+  },
+  "target_machine": {
+    "os": "Windows 11 专业版 64位",
+    "cpu": "AMD Ryzen 7 5700G",
+    "gpu": "AMD Radeon Vega 8 核显（已实测流畅运行）",
+    "ram": "32GB DDR4-3200 双通道",
+    "storage": "1TB NVMe SSD"
+  },
+  "technical_direction": {
+    "engine": "Godot 4.7.2 Standard Windows x86_64",
+    "renderer": "Compatibility (gl_compatibility)",
+    "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
+    "initial_resolution": "1280x720",
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4, v0.5.5, v0.5.6)"
+  },
+  "playtest": "playtest/windows-v0.5.6/YanshanBase.exe",
+  "challenge_points": [
+    "A · 山脚营地",
+    "林间前哨",
+    "山道拦截哨",
+    "B · 竹林重兵阵地"
+  ],
+  "slice": {
+    "target_minutes": [5, 8],
+    "human_duration_validated": true,
+    "route": "A山脚营地—林间前哨—山道拦截哨—B竹林重兵阵地—撤离信标",
+    "art": "半写实江南竹林山道；全息机甲护盾与反射光学瞄具",
+    "quality_toggle": "F6 / --low-quality"
+  }
+}

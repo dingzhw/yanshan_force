@@ -1,0 +1,60 @@
+{
+  "version": "0.2.2",
+  "date": "2026-11-04",
+  "issue": "地面三角形顶点顺序反向，默认背面剔除使玩家看不到地表，但高度场碰撞仍在",
+  "fix": "改为顺时针朝上可见面，并保留向上的光照法线；高度场及游戏规则未改动",
+  "checks": {
+    "terrain_render": 11,
+    "movement": 14,
+    "navigation": 10,
+    "physics": 18
+  },
+  "total_checks": 53,
+  "failures": 0,
+  "before_render_failures": 10,
+  "before_visible_ground_samples_per_location": "0/81",
+  "after_visible_ground_samples_per_location": "81/81",
+  "isolated_ground_locations": 6,
+  "first_person_zones": 3,
+  "native_packaged_exit_code": 0,
+  "native_packaged_errors": 0,
+  "preview": "docs/screenshots/v022-packaged/preview-v02.png",
+  "release": {
+    "version": "0.2.2",
+    "source_checkpoint": "docs\\checkpoints\\source-0.2.2.zip",
+    "files": [
+      {
+        "path": "playtest\\windows-v0.2.2\\YanshanBase.exe",
+        "bytes": 109268480,
+        "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+      },
+      {
+        "path": "playtest\\windows-v0.2.2\\YanshanBase.pck",
+        "bytes": 13656768,
+        "sha256": "f38da17f253792ca5c0226a685a40ded440cdd00e7f8bd4cbcc421542dbfa0a1"
+      },
+      {
+        "path": "playtest\\烟山基地试玩_v0.2.2_Windows.zip",
+        "bytes": 52775435,
+        "sha256": "a2a19a6aaba3157ce6c839565ad6f0b8cd38015a5dac3f3ace31dc96953df8a7"
+      }
+    ]
+  },
+  "formal_save_path_unchanged": true,
+  "previous_release_preserved": true,
+  "target_machine_validation": "Vega 8 not measured this round",
+  "engine_rule_reference": "https://docs.godotengine.org/en/stable/classes/class_arraymesh.html",
+  "backup": "docs/backups/20261104-before-ground-fix",
+  "previous_full_validation": "docs/backups/20261104-before-ground-fix/docs/final-verification.json",
+  "logs": [
+    "ground-render-after.log",
+    "ground-fix-movement.log",
+    "ground-fix-navigation.log",
+    "ground-fix-physics.log",
+    "v022-visual.log",
+    "v0.2.2-import.log",
+    "v0.2.2-export.log",
+    "v022-packaged.log",
+    "v022-packaged-errors.log"
+  ]
+}
