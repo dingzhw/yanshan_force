@@ -157,5 +157,135 @@
       "reward_value": 145,
       "reward_rarity": 4
     }
+  ],
+  "intel_pools": {
+    "intel_container": {
+      "title": "战地线报 #1 · 西岭货柜高台",
+      "tts": "Look on top of the green containers to the west. Climb up step by step!",
+      "question": "电台截获西岭密藏情报：\n\"Look on top of the green containers to the west. Climb up step by step!\"\n读懂英文介词短语，这处隐藏高价值箱在哪里？",
+      "options": [
+        "在西侧军用集装箱群的最顶部（踩木箱岩石跳格子上去）",
+        "埋在山脚营地 0 号热身靶台的水泥底座下面",
+        "藏在 B 区撤离信标正中央的光圈地面上"
+      ],
+      "answer": 0,
+      "explanation": "on top of = 在……的顶部！西侧山岭集装箱上方藏有【西岭货柜暗箱】，已为你标亮雷达定位。",
+      "source": "五上英语空间方位 · on top of / climb / step by step",
+      "reward_score": 20,
+      "reveal_key": "parkour_containers"
+    },
+    "intel_cleft": {
+      "title": "战地线报 #2 · 双岩夹缝秘藏",
+      "tts": "Search between the two tall rocks behind the forest station for a secret cache.",
+      "question": "巡护手记夹着一张英文便条：\n\"Search between the two tall rocks behind the forest station for a secret cache.\"\n它指引你去哪里搜寻隐藏物资？",
+      "options": [
+        "林间前哨后方两座高大岩石之间的狭长裂谷内",
+        "吊在山路古诗石碑最顶端的风铃下面",
+        "营地指挥帐篷门前的木牌正前方"
+      ],
+      "answer": 0,
+      "explanation": "between = 在……（两者）之间；behind = 在……后面！雷达已为你标出双岩裂谷密藏箱坐标。",
+      "source": "江苏五上英语核心介词 · between / behind",
+      "reward_score": 20,
+      "reveal_key": "cleft_cache"
+    },
+    "intel_cave": {
+      "title": "战地线报 #3 · 幽谷石窟金箱密电",
+      "tts": "A golden airdrop is inside the stone cave beside the tall hill west of the pass.",
+      "question": "巡护站桌面上留有高阶密电：\n\"A golden airdrop is inside the stone cave beside the tall hill west of the pass.\"\n读懂这句线索，【传说级空投箱】被藏在了哪里？",
+      "options": [
+        "山道拦截哨西侧泛着暖光的幽深石窟洞穴里面",
+        "营地旁边的树桩最顶端",
+        "B 区竹林正面马路正中间"
+      ],
+      "answer": 0,
+      "explanation": "inside = 在……里面；beside = 在……旁边！顺着山道西侧岩石缺口找亮着提灯的石窟即可发现传说大金空投箱。",
+      "source": "江苏五上英语核心介词 · inside / beside / pass",
+      "reward_score": 25,
+      "reveal_key": "cave_grotto"
+    },
+    "intel_roof": {
+      "title": "战地线报 #4 · 棚顶与高塔登顶线索",
+      "tts": "Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!",
+      "question": "前线侦察兵留下的行动笔记：\n\"Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!\"\n以下哪种寻宝路线符合英文线索？",
+      "options": [
+        "沿竹林补给棚旁的脚手架阶梯跳上棚顶，或登顶西北方观察哨高塔",
+        "待在竹林棚子正下方原地等待系统自动发奖",
+        "退回 A 点营地重新开启自由靶场练习"
+      ],
+      "answer": 0,
+      "explanation": "beside the shelter = 在补给棚旁；on its roof = 在它的屋顶上！两大立体跳格子高台已为你标记在战术雷达。",
+      "source": "五上英语空间与动作搭配 · beside / on its roof / climb",
+      "reward_score": 25,
+      "reveal_key": "shelter_and_tower"
+    }
+  },
+  "recon_pool": [
+    {
+      "title": "东岭侦察电台抢修 · 频段校验",
+      "tts": "Our scouts are in front of the green bamboo forest right now.",
+      "question": "修复东岭侦察雷达需破译敌前哨密电：\n\"Our scouts are in front of the green bamboo forest right now.\"\n这句话汇报我方侦察员正在哪里？",
+      "options": [
+        "正位于绿色竹林的正前方",
+        "已经撤离到地图围栏外的水田里",
+        "正躲在补给棚地板下面睡觉"
+      ],
+      "answer": 0,
+      "explanation": "in front of = 在……前面！电台恢复在线，已执行【烟山全图雷达扫描】，所有高台暗箱与隐藏物资坐标均已高亮！",
+      "source": "江苏五上英语 · in front of / right now",
+      "reward_title": "侦察雷达核心",
+      "reward_value": 150,
+      "reward_rarity": 4
+    },
+    {
+      "title": "东岭侦察电台抢修 · 频段校验",
+      "tts": "Jump across the flat stones under the big tree to find rare supplies.",
+      "question": "修复东岭侦察雷达需破译线人密电：\n\"Jump across the flat stones under the big tree to find rare supplies.\"\n这句话指示如何取得稀有补给？",
+      "options": [
+        "跳过大树下方的扁平石块去寻找稀有物资",
+        "一直向前奔跑跳过竹林重兵阵地",
+        "把背包里的全部物品扔在树下"
+      ],
+      "answer": 0,
+      "explanation": "under = 在……下面；flat stones = 扁平石块！雷达全图扫描已激活，附赠烟雾弹与备弹补给！",
+      "source": "江苏五上英语 · under / jump / find",
+      "reward_title": "加密无线电台",
+      "reward_value": 135,
+      "reward_rarity": 4
+    }
+  ],
+  "beacon_pool": [
+    {
+      "title": "北脊紧急空投信标 · 卫星口令",
+      "tts": "Look at the golden box over there! Let's climb up and get it.",
+      "question": "激活空投补给舱需确认降落区卫星呼号：\n\"Look at the golden box over there! Let's climb up and get it.\"\n以下哪项与呼号英文句意一致？",
+      "options": [
+        "看那边的金色箱子！我们爬上去拿到它吧。",
+        "不要去看地面上的任何箱子，直接原地等待。",
+        "我们坐在篝火旁边吃水果吧。"
+      ],
+      "answer": 0,
+      "explanation": "over there = 在那边！卫星信标已锁定坐标，立即投放空投备弹与高价值战利品！",
+      "source": "江苏五上英语 Unit 3 · Look at ... over there!",
+      "reward_title": "量子词典原型机",
+      "reward_value": 320,
+      "reward_rarity": 5
+    },
+    {
+      "title": "北脊紧急空投信标 · 卫星口令",
+      "tts": "Never give up! Put your gear in order and keep moving.",
+      "question": "激活空投补给舱需确认卫星鼓舞口令：\n\"Never give up! Put your gear in order and keep moving.\"\n这句话的意思是？",
+      "options": [
+        "永不放弃！整理好装备继续前进。",
+        "马上放弃搜索，丢下所有物资逃跑。",
+        "停在原地把武器放回箱子里。"
+      ],
+      "answer": 0,
+      "explanation": "Never give up = 永不放弃；put ... in order = 把……整理好！空投舱已弹射解锁，备弹与大金奖励就位！",
+      "source": "江苏五上英语 Unit 1-2 · Never give up / put in order",
+      "reward_title": "特级金质勋章",
+      "reward_value": 290,
+      "reward_rarity": 5
+    }
   ]
 }

@@ -243,6 +243,37 @@ def gen_shot_suppressed() -> None:
     _write_wav("shot_suppressed.wav", out, 0.48)
 
 
+def gen_radio_scan() -> None:
+    notes = [698.46, 880.0, 1174.66, 1396.91]
+    dur = 0.52
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    for idx, freq in enumerate(notes):
+        start = int(idx * 0.09 * SAMPLE_RATE)
+        note_dur = 0.16
+        for j in range(int(note_dur * SAMPLE_RATE)):
+            if start + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = _envelope(t, 0.004, note_dur, 2.0)
+            out[start + j] += (math.sin(2 * math.pi * freq * t) + 0.3 * math.sin(4 * math.pi * freq * t)) * env
+    _write_wav("radio_scan.wav", out, 0.50)
+
+
+def gen_airdrop_call() -> None:
+    dur = 0.65
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.008, dur, 1.5)
+        f = 440.0 + 360.0 * min(1.0, t / 0.35)
+        ping = math.sin(2 * math.pi * f * t) + 0.4 * math.sin(2 * math.pi * f * 1.5 * t)
+        beeps = 1.0 if (t < 0.14 or t > 0.22) else 0.25
+        out.append(ping * env * beeps)
+    _write_wav("airdrop_call.wav", out, 0.52)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -259,7 +290,9 @@ def main() -> None:
     gen_smoke_emp()
     gen_boss_phase()
     gen_shot_suppressed()
-    print("Generated 15 procedural SFX files in", OUT_DIR)
+    gen_radio_scan()
+    gen_airdrop_call()
+    print("Generated 17 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

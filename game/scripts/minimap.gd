@@ -9,6 +9,16 @@ func _process(_delta):
 func point(v: Vector3) -> Vector2:
 	return Vector2(83, 83) + Vector2(v.x, v.z + 44) * 0.88
 
+func _is_discovered(node: Node3D) -> bool:
+	if not node.has_meta("secret_key"):
+		return true
+	var sk := str(node.get_meta("secret_key"))
+	if sk == "":
+		return true
+	if is_instance_valid(game.exploration) and game.exploration.is_secret_revealed(sk):
+		return true
+	return game.player.position.distance_to(node.position) < 14.0
+
 func _draw():
 	draw_circle(Vector2(83, 83), 78, Color(0.05, 0.14, 0.13, 0.94))
 	for r in [28, 54, 78]:
@@ -51,8 +61,20 @@ func _draw():
 		for station in game.Layout.STATIONS:
 			draw_circle(point(station.at), 3.8, Color("86c5eb"))
 
+	if is_instance_valid(game.exploration):
+		for enode in game.exploration.nodes:
+			var eid := str(enode.get_meta("explore_id", ""))
+			var done := bool(game.exploration.states.get(eid, false))
+			var ep := point(enode.position)
+			if eid == "recon_radio":
+				draw_circle(ep, 3.2, Color("5f7d73") if done else Color("56e8ff"))
+			elif eid == "airdrop_beacon":
+				draw_circle(ep, 3.4, Color("5f7d73") if done else Color("ffd15c"))
+			elif eid.begins_with("intel_"):
+				draw_rect(Rect2(ep - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), Color("5f7d73") if done else Color("8ef0c8"))
+
 	for sup in game.pickup_nodes:
-		if sup.visible:
+		if sup.visible and _is_discovered(sup):
 			if sup.has_meta("tactical_item"):
 				var tk = str(sup.get_meta("tactical_item"))
 				var tc = Color("f5c542") if tk == "ammo_crate" else (Color("56e8ff") if tk == "smoke_emp" else Color("6ae3a8"))
@@ -62,9 +84,14 @@ func _draw():
 
 	for chest in game.crate_nodes:
 		var opened = chest.get_meta("title") in game.rules.crates
+		if not opened and not _is_discovered(chest):
+			continue
 		var tier = int(chest.get_meta("tier"))
 		var c = Color("5f7d73") if opened else (Color("ffd15c") if tier == 3 else (Color("cf8aff") if tier == 2 else Color("74e3a3")))
-		draw_rect(Rect2(point(chest.position) - Vector2(3, 3), Vector2(6, 6)), c)
+		var cp = point(chest.position)
+		draw_rect(Rect2(cp - Vector2(3, 3), Vector2(6, 6)), c)
+		if not opened and chest.has_meta("secret_key"):
+			draw_rect(Rect2(cp - Vector2(4.5, 4.5), Vector2(9, 9)), c, false, 1.0)
 
 	var exit_point = point(game.exit_position)
 	var ready = game.rules.can_extract()

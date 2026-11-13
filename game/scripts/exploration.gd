@@ -1,6 +1,10 @@
 extends Node3D
-## Optional cross-subject discoveries (English spatial clue, Grade 5A Math & Classical Poetry).
+## Optional cross-subject & v0.5.4 field intel / radio / airdrop discoveries.
 ## Reading freezes timer & combat, randomizes questions per run, and shuffles option buttons.
+
+const TacticalProps = preload("res://scripts/tactical_props.gd")
+const INTEL_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof"]
+const SECRET_EVENT_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof", "recon_radio", "airdrop_beacon"]
 
 var game
 var nodes = []
@@ -9,6 +13,8 @@ var data = {}
 var current_items = {}
 var current_options = {}
 var current_answer_index = {}
+var revealed_secrets = {}
+var radar_scan_active = false
 var busy = false
 var active_id = ""
 var overlay: Control
@@ -31,6 +37,12 @@ func setup(g):
 	_mark("english", game.Layout.CLUE_LOOT, "路牌旁的封存补给", Color("7c8b5b"))
 	_mark("poem", game.Layout.POEM, "山路古诗石碑", Color("777b68"))
 	_mark("math", game.Layout.MATH, "巡护站 · 近道机关", Color("5d6a50"))
+	_mark("intel_container", game.Layout.PARKOUR_CONTAINERS + Vector3(5.6, 0, 2.5), "战地线报 #1 · 西岭货柜", Color("6ce3b8"))
+	_mark("intel_cleft", Vector3(-19.5, 0, -50.2), "战地线报 #2 · 双岩秘藏", Color("6ce3b8"))
+	_mark("intel_cave", game.Layout.MATH + Vector3(-2.6, 0, -1.8), "战地线报 #3 · 石窟密电", Color("ffd15c"))
+	_mark("intel_roof", game.Layout.SHELTER_BAMBOO + Vector3(1.6, 0, 3.8), "战地线报 #4 · 棚顶与高塔", Color("cf8aff"))
+	_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
+	_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
 	var center = game.Layout.on_ground(Vector3(10, 0, -62))
 	gate = Node3D.new()
 	gate.position = center + Vector3(-1.4, 0, 0)
@@ -68,6 +80,39 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		carving.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	elif id == "english":
 		game._model(node, "res://assets/slice/crate.glb", Vector3.ZERO, 0.52, 0, "convex")
+	elif id in INTEL_IDS:
+		var board = TacticalProps.attach_parkour_asset(node, game, "prop_intel_board", Vector3.ZERO, 0.25, Vector3.ONE * 1.1)
+		if board == null:
+			game._mesh_box(node, Vector3(0, 0.72, 0), Vector3(0.9, 1.3, 0.14), color, true)
+		var col_shape := BoxShape3D.new()
+		col_shape.size = Vector3(0.95, 1.35, 0.30)
+		game.Props.shape_body(node, col_shape, Vector3(0, 0.68, 0))
+	elif id == "recon_radio":
+		var radio = TacticalProps.attach_parkour_asset(node, game, "prop_recon_radio", Vector3.ZERO, -0.35, Vector3.ONE * 1.15)
+		if radio == null:
+			game._mesh_box(node, Vector3(0, 0.65, 0), Vector3(0.9, 1.2, 0.7), Color("3c545b"), true)
+		var col_shape := BoxShape3D.new()
+		col_shape.size = Vector3(0.95, 1.30, 0.75)
+		game.Props.shape_body(node, col_shape, Vector3(0, 0.65, 0))
+		var pulse := OmniLight3D.new()
+		pulse.position = Vector3(0, 1.45, 0)
+		pulse.light_color = Color("56e8ff")
+		pulse.light_energy = 1.0
+		pulse.omni_range = 4.6
+		node.add_child(pulse)
+	elif id == "airdrop_beacon":
+		var beacon = TacticalProps.attach_parkour_asset(node, game, "prop_airdrop_beacon", Vector3.ZERO, 0.2, Vector3.ONE * 1.15)
+		if beacon == null:
+			game._mesh_box(node, Vector3(0, 0.85, 0), Vector3(1.1, 1.6, 1.1), Color("ffd15c"), true)
+		var col_shape := BoxShape3D.new()
+		col_shape.size = Vector3(1.15, 1.55, 1.15)
+		game.Props.shape_body(node, col_shape, Vector3(0, 0.78, 0))
+		var glow := OmniLight3D.new()
+		glow.position = Vector3(0, 1.75, 0)
+		glow.light_color = Color("ffd15c")
+		glow.light_energy = 1.25
+		glow.omni_range = 5.4
+		node.add_child(glow)
 	else:
 		var timber_mat = StandardMaterial3D.new()
 		timber_mat.albedo_color = Color("7b684e")
@@ -95,25 +140,28 @@ func _ui():
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.color = Color(0.03, 0.055, 0.035, 0.91)
 	overlay.add_child(veil)
-	game._panel(overlay, Rect2(240, 86, 800, 550), Color("162822"), Color(0.48, 0.78, 0.62, 0.45))
-	title = game._text(overlay, "", Vector2(275, 110), Vector2(690, 42), 29, game.MINT)
-	body = game._text(overlay, "", Vector2(275, 172), Vector2(730, 145), 24)
+	game._panel(overlay, Rect2(240, 68, 800, 586), Color("162822"), Color(0.48, 0.78, 0.62, 0.45))
+	title = game._text(overlay, "", Vector2(275, 88), Vector2(730, 42), 28, game.MINT)
+	body = game._text(overlay, "", Vector2(275, 142), Vector2(730, 128), 22)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for i in 3:
-		buttons.append(game._button(overlay, "", Rect2(275 + i * 244, 337, 230, 54), choose.bind(i)))
-	explanation = game._text(overlay, "", Vector2(275, 414), Vector2(730, 100), 19, game.GOLD)
+		buttons.append(game._button(overlay, "", Rect2(275, 286 + i * 48, 730, 42), choose.bind(i)))
+	explanation = game._text(overlay, "", Vector2(275, 434), Vector2(730, 96), 18, game.GOLD)
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	source = game._text(overlay, "", Vector2(275, 521), Vector2(710, 51), 13, Color("a7b8a2"))
+	source = game._text(overlay, "", Vector2(275, 536), Vector2(730, 44), 13, Color("a7b8a2"))
 	source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	game._button(overlay, "返回山路  [Esc]", Rect2(790, 578, 215, 37), close)
-	swap_button = game._button(overlay, "替换最低值物资", Rect2(550, 578, 220, 37), replace_reward)
+	game._button(overlay, "返回山路  [Esc]", Rect2(790, 594, 215, 37), close)
+	swap_button = game._button(overlay, "替换最低值物资", Rect2(550, 594, 220, 37), replace_reward)
 	swap_button.hide()
-	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(275, 582), Vector2(300, 30), 14, game.MINT)
+	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(275, 598), Vector2(300, 30), 14, game.MINT)
 	overlay.hide()
 
 func _prepare_puzzle(id: String, pool_key: String):
 	var pool: Array = data.get(pool_key, [])
 	var picked: Dictionary = data[id] if pool.is_empty() else pool[rng.randi_range(0, pool.size() - 1)]
+	_prepare_item(id, picked)
+
+func _prepare_item(id: String, picked: Dictionary):
 	current_items[id] = picked
 	var indexed = []
 	for i in picked.options.size():
@@ -133,12 +181,23 @@ func answer_button_index(id: String) -> int:
 
 func reset():
 	states = {"clue": false, "english": false, "math": false, "poem": false, "math_claimed": false, "poem_claimed": false}
+	for sid in SECRET_EVENT_IDS:
+		states[sid] = false
+		states[sid + "_claimed"] = false
+	revealed_secrets = {}
+	radar_scan_active = false
 	busy = false
 	active_id = ""
 	grace = 0.0
 	began = 0.0
 	_prepare_puzzle("math", "math_pool")
 	_prepare_puzzle("poem", "poem_pool")
+	_prepare_puzzle("recon_radio", "recon_pool")
+	_prepare_puzzle("airdrop_beacon", "beacon_pool")
+	var ipools: Dictionary = data.get("intel_pools", {})
+	for iid in INTEL_IDS:
+		if ipools.has(iid):
+			_prepare_item(iid, ipools[iid])
 	if is_instance_valid(overlay):
 		overlay.hide()
 	game.Props.set_enabled(gate, true)
@@ -203,7 +262,9 @@ func open(node: Node3D):
 			buttons[i].text = opts[i]
 			buttons[i].disabled = false
 		buttons[0].grab_focus()
-		if states[id]:
+		if item.has("tts"):
+			game.speak_english(str(item.tts))
+		if states.get(id, false):
 			_reward(id)
 
 func choose(index: int):
@@ -213,21 +274,59 @@ func choose(index: int):
 	var expected_idx = answer_button_index(active_id)
 	if index != expected_idx:
 		game.play_sfx("hit_wrong", -13)
-		explanation.text = "再想一想！" + ("注意看清题目里的图形公式或起点与终点距离。" if active_id == "math" else "回想一下课本古诗的意境与上下句对仗。")
+		if item.has("tts"):
+			game.speak_english(str(item.tts))
+		if active_id == "math":
+			explanation.text = "再想一想！注意看清题目里的图形公式或起点与终点距离。"
+		elif active_id == "poem":
+			explanation.text = "再想一想！回想一下课本古诗的意境与上下句对仗。"
+		else:
+			explanation.text = "再读再听一遍英文句！注意空间介词（on top of / between / inside / beside / under / in front of）。"
 		return
+	var first_solve := not bool(states.get(active_id, false))
 	states[active_id] = true
-	game.play_sfx("cipher_unlock", -11)
 	if active_id == "math":
 		gate.rotation.y = -PI / 2
+		game.play_sfx("cipher_unlock", -11)
+	elif first_solve and active_id in INTEL_IDS:
+		game.rules.score += int(item.get("reward_score", 20))
+		var rk := str(item.get("reveal_key", ""))
+		if rk != "":
+			revealed_secrets[rk] = true
+		game.play_sfx("cipher_unlock", -11)
+		game._notice("破译战地英文线报！雷达已标记秘宝定位（+%d 分）" % int(item.get("reward_score", 20)), game.MINT)
+	elif first_solve and active_id == "recon_radio":
+		radar_scan_active = true
+		game.rules.score += 45
+		game.player.grenades += 1
+		if not game.player.has_infinite_ammo():
+			game.player.add_reserve_ammo(game.rules.magazine())
+		game.play_sfx("radio_scan", -10)
+		game._notice("东岭雷达全图扫描已激活！+45分 +1烟雾EMP +1备弹匣", Color("7ceeff"))
+	elif first_solve and active_id == "airdrop_beacon":
+		game.rules.score += 40
+		if not game.player.has_infinite_ammo():
+			game.player.add_reserve_ammo(game.rules.magazine() * 2)
+		game.play_sfx("airdrop_call", -10)
+		game._notice("北脊卫星空投已解锁！+40分 +2备弹匣", game.GOLD)
+	else:
+		game.play_sfx("cipher_unlock", -11)
 	_reward(active_id)
 
 func _reward(id: String):
-	var key = id + "_claimed"
 	var item = current_items[id]
+	if not item.has("reward_title"):
+		swap_button.hide()
+		var pts := int(item.get("reward_score", 20))
+		explanation.text = "%s\n已解锁雷达定位并获得 +%d 撤离积分！" % [item.explanation, pts]
+		for b in buttons:
+			b.disabled = true
+		return
+	var key = id + "_claimed"
 	var rarity = int(item.get("reward_rarity", 3))
 	swap_button.hide()
 	var suffix = "这处探索奖励已领取。"
-	if not states[key]:
+	if not states.get(key, false):
 		if game.rules.add_loot(item.reward_title, int(item.reward_value), rarity):
 			states[key] = true
 			suffix = "已获得【%s】%s（估值 %d 币）！" % [game.Rules.RARITY_NAMES[rarity], item.reward_title, int(item.reward_value)]
@@ -273,5 +372,17 @@ func close():
 func completed() -> int:
 	return int(states.get("english", false)) + int(states.get("math", false)) + int(states.get("poem", false))
 
+func secrets_completed() -> int:
+	var n := 0
+	for sid in SECRET_EVENT_IDS:
+		if bool(states.get(sid, false)):
+			n += 1
+	return n
+
+func is_secret_revealed(secret_key: String) -> bool:
+	if secret_key == "":
+		return true
+	return radar_scan_active or bool(revealed_secrets.get(secret_key, false))
+
 func status_text() -> String:
-	return "探索 %d/3" % completed()
+	return "探 %d/3 · 秘 %d/6" % [completed(), secrets_completed()]

@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-13",
-  "stage": "v0.5.3 双武器近战、枪匠配件与B区首领战版",
+  "stage": "v0.5.4 立体跳格子寻宝、幽谷石窟与双语情报网版",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
@@ -67,9 +67,9 @@
     "renderer": "Compatibility (gl_compatibility)",
     "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
     "initial_resolution": "1280x720",
-    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3)"
+    "version_control": "Git (tags: v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.5.3, v0.5.4)"
   },
-  "playtest": "playtest/windows-v0.5.3/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.5.4/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

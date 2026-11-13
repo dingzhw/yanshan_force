@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.3"
+const VERSION = "0.5.4"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -101,6 +101,7 @@ var combat_label: Label
 var exploration
 var cipher_terminal
 var landscape
+var minimap
 
 func _ready():
 	qa_mode = "--qa" in OS.get_cmdline_user_args() or "--hardware-check" in OS.get_cmdline_user_args()
@@ -300,7 +301,7 @@ func _build_world():
 	add_child(landscape)
 	landscape.setup(self)
 
-func _build_tower(at: Vector3):
+func _build_tower(at: Vector3) -> Node3D:
 	var tower = Node3D.new()
 	tower.position = at
 	add_child(tower)
@@ -311,14 +312,34 @@ func _build_tower(at: Vector3):
 	steel_mat.roughness = 0.62
 	for x in [-0.9, 0.9]:
 		for z in [-0.9, 0.9]:
-			var leg = _mesh_box(tower, Vector3(x, 3.4, z), Vector3(0.16, 6.8, 0.16), Color("636d61"), true)
+			var leg = _mesh_box(tower, Vector3(x, 3.5, z), Vector3(0.16, 7.0, 0.16), Color("636d61"), true)
 			leg.material_override = steel_mat
-	for y in [1.0, 3.3, 5.8]:
+	for y in [1.0, 3.44, 5.86]:
 		var deck = _mesh_box(tower, Vector3(0, y, 0), Vector3(2.1, 0.12, 2.1), Color("4a5a4e"), true)
 		deck.material_override = steel_mat
-	_mesh_box(tower, Vector3(0, 7.7, 0), Vector3(0.13, 2.6, 0.13), Color("d0c6a5"))
-	_mesh_box(tower, Vector3(0, 7.9, 0), Vector3(2.4, 0.08, 0.08), Color("d0c6a5"))
-	_label3d(tower, "烟山观察哨", Vector3(0, 6.5, 0), 43, GOLD)
+	# Exterior spiraling parkour jump catwalk up to Deck 1 (1.06), Deck 2 (3.50) & Summit (5.92), all dy <= 0.63m with ample headroom
+	var steps := [
+		[Vector3(0.0, 0.56, 2.05), Vector2(1.60, 1.45)],
+		[Vector3(2.05, 1.62, 0.25), Vector2(1.45, 1.55)],
+		[Vector3(2.05, 2.24, -1.45), Vector2(1.45, 1.45)],
+		[Vector3(0.35, 2.87, -2.05), Vector2(1.55, 1.45)],
+		[Vector3(-2.05, 4.08, -0.25), Vector2(1.45, 1.55)],
+		[Vector3(-2.05, 4.70, 1.45), Vector2(1.45, 1.45)],
+		[Vector3(-0.35, 5.32, 2.05), Vector2(1.60, 1.45)]
+	]
+	for st_info in steps:
+		var top: Vector3 = st_info[0]
+		var sz: Vector2 = st_info[1]
+		var plat = _mesh_box(tower, Vector3(top.x, top.y - 0.07, top.z), Vector3(sz.x, 0.14, sz.y), Color("806c50"), true)
+		plat.material_override = steel_mat
+		var trim = _mesh_box(tower, Vector3(top.x, top.y - 0.04, top.z), Vector3(sz.x * 0.94, 0.03, sz.y * 0.94), Color("8de8c0"))
+		trim.material_override.roughness = 0.55
+		var bracket = _mesh_box(tower, Vector3(top.x * 0.52, top.y - 0.34, top.z * 0.52), Vector3(0.14, 0.56, 0.14), Color("3c4740"))
+		bracket.material_override = steel_mat
+	_mesh_box(tower, Vector3(-0.78, 7.7, -0.78), Vector3(0.13, 2.6, 0.13), Color("d0c6a5"))
+	_mesh_box(tower, Vector3(-0.78, 7.9, -0.78), Vector3(1.4, 0.08, 0.08), Color("d0c6a5"))
+	_label3d(tower, "烟山观察哨 · 登顶寻宝", Vector3(0, 7.2, 0), 43, GOLD)
+	return tower
 
 func _crate_accent(tier: int) -> Color:
 	if tier >= 3:
@@ -327,7 +348,7 @@ func _crate_accent(tier: int) -> Color:
 		return Color("cf8aff")
 	return GOLD
 
-func _make_crate(title: String, tier: int, at: Vector3):
+func _make_crate(title: String, tier: int, at: Vector3) -> Node3D:
 	var crate = Node3D.new()
 	crate.position = at
 	crate.set_meta("title", title)
@@ -346,6 +367,7 @@ func _make_crate(title: String, tier: int, at: Vector3):
 	var lbl = _label3d(crate, tag, Vector3(0, 1.75, 0), 30, _crate_accent(tier))
 	lbl.pixel_size = 0.0056
 	crate_nodes.append(crate)
+	return crate
 
 func attach_weapon(parent: Node3D):
 	var view = WeaponView.new()
@@ -491,6 +513,7 @@ func _build_ui():
 	map.size = Vector2(166, 166)
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(map)
+	minimap = map
 
 	# ZONE 4A: Bottom-Left Vitals (Shield/HP Bars) + Rarity Loot Slots
 	combat_panel = _panel(hud, Rect2(18, 542, 344, 160))
@@ -602,7 +625,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5.3 改枪与硬核实战简报】\n• [1/2/V] 双武器切换：YS-04 卡宾枪 + 手持战术匕首（刀杀必回备弹）\n• 实战备弹有限 + [G]烟雾EMP + [T]能量饮；枪匠台 2倍镜/消音/制退/握把\n• 破除英文词盾可秒杀小兵或剥离B区【铁甲词尊】护甲露出核心，拿密钥撤离！", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
+	_text(menu, "【v0.5.4 立体跳格子与战地寻宝简报】\n• 3大立体跳格子路线：西岭集装箱 / 竹林棚顶脚手架 / 观察哨螺旋塔\n• 幽谷石窟大金 + 4处深藏秘宝 + 4条介词线报 + 东岭电台全图扫描\n• [1/2/V] 卡宾枪与匕首 · [G]烟雾EMP · [T]能量饮 · 破盾击杀首领撤离", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
@@ -1366,8 +1389,8 @@ func _end_run(success: bool, title = ""):
 	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
-	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3\n" % [
-		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed()
+	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6\n" % [
+		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed()
 	]
 	if wrong_words.size() > 0:
 		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()

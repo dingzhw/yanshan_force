@@ -22,6 +22,15 @@ const POEM = Vector3(-28, 0, -29)
 const MATH = Vector3(1, 0, -58)
 const CLUE = Vector3(3.5, 0, -18)
 const CLUE_LOOT = Vector3(8, 0, -23)
+const PARKOUR_CONTAINERS = Vector3(-21.5, 0, -11.5)
+const CLEFT_CACHE = Vector3(-29.5, 0, -51.5)
+const CAVE_GROTTO = Vector3(-25.5, 0, -68.5)
+const EAST_OVERLOOK = Vector3(26.5, 0, -24.0)
+const SE_BAMBOO_CACHE = Vector3(29.5, 0, -86.5)
+const RECON_RADIO = Vector3(27.5, 0, -46.5)
+const AIRDROP_BEACON = Vector3(23.5, 0, -101.0)
+const WATCHTOWER = Vector3(-34.0, 0, -102.0)
+const SHELTER_BAMBOO = Vector3(14.0, 0, -88.0)
 const BRANCHES = [[Vector3(-18, 0, -27), POEM], [Vector3(-7, 0, -54), MATH, Vector3(12, 0, -62), EXIT], [Vector3(-7, 0, -15), CLUE, CLUE_LOOT]]
 static var grid_height_cache = {}
 
@@ -42,7 +51,7 @@ static func height(x: float, z: float) -> float:
 		var at = station.at
 		var blend = 1.0 - smoothstep(10.0, 15.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, base_height(at.x, at.z), blend)
-	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST]:
+	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, RECON_RADIO, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO]:
 		var blend = 1.0 - smoothstep(4.0, 9.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, anchor_height(at), blend)
 	var nearest = INF
@@ -101,5 +110,11 @@ static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 		return true
 	for at in [POEM, MATH, CLUE, CLUE_LOOT]:
 		if Vector2(x - at.x, z - at.z).length() < 5 + padding:
+			return true
+	for at in [PARKOUR_CONTAINERS, CAVE_GROTTO, WATCHTOWER, SHELTER_BAMBOO]:
+		if Vector2(x - at.x, z - at.z).length() < 7.5 + padding:
+			return true
+	for at in [CLEFT_CACHE, EAST_OVERLOOK, SE_BAMBOO_CACHE, RECON_RADIO, AIRDROP_BEACON]:
+		if Vector2(x - at.x, z - at.z).length() < 5.0 + padding:
 			return true
 	return false

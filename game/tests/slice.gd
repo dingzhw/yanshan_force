@@ -28,13 +28,17 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.3" and game.words.size() == 175 and game.crate_nodes.size() == 3, "v0.5.3 slice uses 175-entry word pack and 3 tiered vault crates")
+	verify(game.VERSION == "0.5.4" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.4 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
+	var supply_count := 0
 	for p in game.pickup_nodes:
 		var t_id := str(p.get_meta("tactical_item", ""))
 		if tac_counts.has(t_id):
 			tac_counts[t_id] += 1
-	verify(tac_counts["ammo_crate"] >= 5 and tac_counts["smoke_emp"] >= 2 and tac_counts["energy_drink"] >= 2, "v0.5.3 field map places tactical ammo crates, smoke/EMP grenades, and adrenaline stims")
+		else:
+			supply_count += 1
+	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.4 places 10 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(game.exploration.nodes.size() == 10, "v0.5.4 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -170,6 +174,144 @@ func run():
 	game.rules.profile.owned.append("magazine")
 	game.start_action(false)
 	verify(game.player.ammo == 14 and game.player.weapon_view.magazine.scale.y > 1.2, "magazine upgrade changes both capacity and visible magazine size")
+	verify(game.exploration.secrets_completed() == 0 and not game.exploration.radar_scan_active, "new deployment resets v0.5.4 field intel & radar scan state")
+
+	# v0.5.4 Field Intel, Minimap Radar Reveal, Recon Radio & Airdrop Beacon checks
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN)
+	await frames(4)
+	verify(not game.minimap._is_discovered(game.crate_nodes[4]) and not game.minimap._is_discovered(game.crate_nodes[2]), "hidden parkour & cave vaults start masked on minimap beyond 14m")
+	var pre_score := int(game.rules.score)
+	var ic_node: Node3D = node_for.call("intel_container")
+	game.exploration.open(ic_node)
+	game.exploration.choose(game.exploration.answer_button_index("intel_container"))
+	game.exploration.close()
+	await frames(2)
+	verify(game.exploration.is_secret_revealed("parkour_containers") and game.minimap._is_discovered(game.crate_nodes[4]), "intel_container English clue reveals West Cargo Vault on minimap")
+	verify(game.rules.score >= pre_score + 20 and not game.minimap._is_discovered(game.crate_nodes[2]), "single intel note only reveals its own secret and awards +20 score")
+
+	game.rules.combat_mode = true
+	game.player.reserve_ammo = 15
+	var pre_gren := int(game.player.grenades)
+	var pre_bag: int = game.rules.bag.size()
+	var radio_node: Node3D = node_for.call("recon_radio")
+	game.exploration.open(radio_node)
+	game.exploration.choose(game.exploration.answer_button_index("recon_radio"))
+	game.exploration.close()
+	verify(game.exploration.radar_scan_active and game.minimap._is_discovered(game.crate_nodes[2]) and game.minimap._is_discovered(game.crate_nodes[1]), "East Recon Radio triggers global minimap radar reveal")
+	verify(game.player.grenades == pre_gren + 1 and game.player.reserve_ammo >= 15 + game.rules.magazine(), "Recon Radio grants +1 smoke/EMP and reserve ammo")
+	var pre_ammo2 := int(game.player.reserve_ammo)
+	var ab_node: Node3D = node_for.call("airdrop_beacon")
+	game.exploration.open(ab_node)
+	game.exploration.choose(game.exploration.answer_button_index("airdrop_beacon"))
+	game.exploration.close()
+	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2, "North Airdrop Beacon delivers double mags and Gold/Epic loot")
+	for iid in ["intel_cleft", "intel_cave", "intel_roof"]:
+		var inod: Node3D = node_for.call(iid)
+		game.exploration.open(inod)
+		game.exploration.choose(game.exploration.answer_button_index(iid))
+		game.exploration.close()
+	verify(game.exploration.secrets_completed() == 6 and game.exploration.completed() == 0, "6 intel/radio/beacon secrets track independently from 3 classic explorations")
+	game.rules.combat_mode = false
+
+	# Real CharacterBody3D physics walk+jump verification across all 3 v0.5.4 parkour routes + Cave Grotto
+	var sim_key := func(code: Key, pressed: bool):
+		var ev := InputEventKey.new()
+		ev.physical_keycode = code
+		ev.keycode = code
+		ev.pressed = pressed
+		Input.parse_input_event(ev)
+	var hop_step := func(target: Vector3, jump_needed: bool, step_name: String) -> bool:
+		sim_key.call(KEY_W, false)
+		sim_key.call(KEY_SPACE, false)
+		var jumped := false
+		for f in range(130):
+			var p: Vector3 = game.player.position
+			var d := Vector2(target.x - p.x, target.z - p.z)
+			var horiz := d.length()
+			if horiz > 0.05:
+				game.player.yaw = atan2(-d.x, -d.y)
+			if horiz <= 0.34:
+				sim_key.call(KEY_W, false)
+				sim_key.call(KEY_SPACE, false)
+				if game.player.is_on_floor():
+					return absf(game.player.position.y - target.y) <= 0.42
+			else:
+				sim_key.call(KEY_W, true)
+				if jump_needed and not jumped and game.player.is_on_floor() and f >= 2:
+					sim_key.call(KEY_SPACE, true)
+					jumped = true
+				elif f >= 10:
+					sim_key.call(KEY_SPACE, false)
+			await physics_frame
+		sim_key.call(KEY_W, false)
+		sim_key.call(KEY_SPACE, false)
+		print("PARKOUR_STEP_TIMEOUT ", step_name, " at ", game.player.position, " expected ", target)
+		return false
+
+	# Route A: West Cargo Containers
+	var cy: Vector3 = game.Layout.on_ground(game.Layout.PARKOUR_CONTAINERS)
+	game.player.clear_movement_input()
+	game.player.velocity = Vector3.ZERO
+	game.player.position = cy + Vector3(3.6, 0.05, 4.7)
+	await frames(6)
+	for st in [
+		[cy + Vector3(3.6, 0.56, 3.0), true, "A1"],
+		[cy + Vector3(1.85, 1.14, 3.0), true, "A2"],
+		[cy + Vector3(1.65, 1.70, 1.35), true, "A3_lower_container"],
+		[cy + Vector3(-1.45, 1.70, 1.05), false, "A3_walk_west"],
+		[cy + Vector3(-2.55, 2.28, -0.35), true, "A4_catwalk"],
+		[cy + Vector3(-1.55, 2.86, -1.35), true, "A5_upper_container"],
+		[cy + Vector3(-0.75, 2.86, -1.35), false, "A5_crate_reach"]
+	]:
+		verify(await hop_step.call(st[0], st[1], st[2]), "Route A parkour step reachable by real jump/walk: " + st[2])
+	verify(game.player.position.distance_to(game.crate_nodes[4].position) < 3.0 and game._can_interact(game.crate_nodes[4]), "Route A summit crate_nodes[4] is reachable and interactable")
+
+	# Route B: Bamboo Shelter Scaffolding Stairs -> Roof Vault
+	var bs_base: float = game.Layout.min_ground_height(game.Layout.SHELTER_BAMBOO.x, game.Layout.SHELTER_BAMBOO.z, 2.4) - 0.08
+	var bs_orig := Vector3(game.Layout.SHELTER_BAMBOO.x, bs_base, game.Layout.SHELTER_BAMBOO.z)
+	game.player.clear_movement_input()
+	game.player.velocity = Vector3.ZERO
+	game.player.position = game.Layout.on_ground(Vector3(bs_orig.x + 3.85, 0.0, bs_orig.z + 3.2)) + Vector3(0, 0.05, 0)
+	await frames(6)
+	for st in [
+		[bs_orig + Vector3(3.85, 0.62, 1.55), true, "B1"],
+		[bs_orig + Vector3(3.85, 1.20, -0.10), true, "B2"],
+		[bs_orig + Vector3(3.85, 1.78, -1.75), true, "B3_balcony"],
+		[bs_orig + Vector3(2.45, 2.36, -2.75), true, "B4"],
+		[bs_orig + Vector3(0.65, 2.94, -2.75), true, "B5"],
+		[bs_orig + Vector3(0.35, 3.485, -1.10), true, "B6_roof"],
+		[bs_orig + Vector3(-0.35, 3.485, 0.05), false, "B6_crate_reach"]
+	]:
+		verify(await hop_step.call(st[0], st[1], st[2]), "Route B shelter roof parkour reachable: " + st[2])
+	verify(game.player.position.distance_to(game.crate_nodes[1].position) < 3.0 and game._can_interact(game.crate_nodes[1]), "Route B roof crate_nodes[1] is reachable and interactable")
+
+	# Route C: Watchtower Spiral Climb -> Summit Vault
+	var wt: Vector3 = game.landscape.watchtower_pos
+	game.player.clear_movement_input()
+	game.player.velocity = Vector3.ZERO
+	game.player.position = wt + Vector3(0.0, 0.05, 3.5)
+	await frames(6)
+	for st in [
+		[wt + Vector3(0.0, 0.56, 2.05), true, "C0"],
+		[wt + Vector3(0.45, 1.06, 0.25), true, "C_deck1"],
+		[wt + Vector3(2.05, 1.62, 0.25), true, "C1"],
+		[wt + Vector3(2.05, 2.24, -1.45), true, "C2"],
+		[wt + Vector3(0.35, 2.87, -2.05), true, "C3"],
+		[wt + Vector3(-0.45, 3.50, -0.25), true, "C_deck2"],
+		[wt + Vector3(-2.05, 4.08, -0.25), true, "C4"],
+		[wt + Vector3(-2.05, 4.70, 1.45), true, "C5"],
+		[wt + Vector3(-0.35, 5.32, 2.05), true, "C6"],
+		[wt + Vector3(-0.15, 5.92, 0.55), true, "C_summit"]
+	]:
+		verify(await hop_step.call(st[0], st[1], st[2]), "Route C watchtower spiral parkour reachable: " + st[2])
+	verify(game.player.position.distance_to(game.crate_nodes[3].position) < 3.0 and game._can_interact(game.crate_nodes[3]), "Route C summit crate_nodes[3] is reachable and interactable")
+
+	# Cave Grotto accessibility & interaction check
+	game.player.velocity = Vector3.ZERO
+	game.player.position = game.crate_nodes[2].position + Vector3(0, 0.02, 1.6)
+	await frames(10)
+	verify(game.player.is_on_floor() and game._can_interact(game.crate_nodes[2]), "Cave Grotto Tier-3 airdrop pod is accessible on flat cave floor")
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.2).timeout

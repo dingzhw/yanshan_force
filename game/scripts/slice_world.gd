@@ -334,7 +334,11 @@ func signpost(at: Vector3, text: String):
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	label.pixel_size = 0.0066
 
-func shelter(at: Vector3, title: String):
+var container_yard: Dictionary = {}
+var bamboo_shelter: Dictionary = {}
+var watchtower_pos: Vector3 = Vector3.ZERO
+
+func shelter(at: Vector3, title: String, with_parkour := false) -> Dictionary:
 	var base_y = game.Layout.min_ground_height(at.x, at.z, 2.4) - 0.08
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
@@ -347,7 +351,7 @@ func shelter(at: Vector3, title: String):
 		var beam = game._mesh_box(root, Vector3(x, 3.30, 0), Vector3(0.18, 0.16, 3.85), Color.WHITE)
 		beam.material_override = wood_plank_mat
 	for z in [-1.5, -0.6, 0.3, 1.2]:
-		var plank = game._mesh_box(root, Vector3(0, 3.42, z), Vector3(5.8, 0.13, 0.86), Color.WHITE, true)
+		var plank = game._mesh_box(root, Vector3(0, 3.42, z), Vector3(5.8, 0.13, 0.94), Color.WHITE, true)
 		plank.material_override = roof_slate_mat
 	var table = game._mesh_box(root, Vector3(0, 1.02, -1.35), Vector3(3.5, 0.12, 0.82), Color.WHITE, true)
 	table.material_override = wood_plank_mat
@@ -356,6 +360,22 @@ func shelter(at: Vector3, title: String):
 		leg.material_override = wood_post_mat
 	var l = game._label3d(root, title, Vector3(0, 2.68, 1.92), 32, Color("f0e8c4"))
 	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	if with_parkour:
+		# Route B: 5-step timber scaffolding climbing up the East/NE flank onto the solid roof deck (all dy <= 0.58m)
+		var stairs := [
+			[Vector3(3.85, 0.62, 1.55), Vector2(1.55, 1.55), 0.72],
+			[Vector3(3.85, 1.20, -0.10), Vector2(1.55, 1.55), 1.30],
+			[Vector3(3.85, 1.78, -1.75), Vector2(1.65, 1.65), 1.88],
+			[Vector3(2.45, 2.36, -2.75), Vector2(1.60, 1.55), 2.46],
+			[Vector3(0.65, 2.94, -2.75), Vector2(1.65, 1.55), 3.04]
+		]
+		for st in stairs:
+			TacticalProps.build_parkour_step(root, game, st[0], st[1], 0.14, st[2], true, true)
+	return {
+		"root": root,
+		"roof_spot": root.position + Vector3(-1.15, 3.485, 0.05),
+		"balcony_spot": root.position + Vector3(3.85, 1.78, -1.75)
+	}
 
 func _camp():
 	TacticalProps.build_command_tent(self, game, Vector3(10.2, 0, 10.2), 1.02)
@@ -367,9 +387,19 @@ func _camp():
 	TacticalProps.build_armory_workbench(self, game, Vector3(11.6, 0, 6.4), 1.02)
 	var low_rock_path = "res://assets/slice/rock_2.glb" if ResourceLoader.exists("res://assets/slice/rock_2.glb") else "res://assets/nature/rock_largeA.glb"
 	game._model(self, low_rock_path, Vector3(-6, 0, 10), 0.55, 0, "convex").set_meta("kind", "low_rock")
-	game._build_tower(game.Layout.on_ground(Vector3(-34, 0, -102)))
-	shelter(Vector3(14, 0, -88), "竹林补给棚")
-	shelter(Vector3(1, 0, -58), "山路巡护站")
+	watchtower_pos = game.Layout.on_ground(game.Layout.WATCHTOWER)
+	game._build_tower(watchtower_pos)
+	bamboo_shelter = shelter(game.Layout.SHELTER_BAMBOO, "竹林补给棚", true)
+	shelter(Vector3(1, 0, -58), "山路巡护站", false)
+	# Route A: West Ridge ISO Cargo Container Parkour Yard
+	container_yard = TacticalProps.build_cargo_container_yard(self, game, game.Layout.on_ground(game.Layout.PARKOUR_CONTAINERS))
+	# Cave Grotto housing Tier-3 Airdrop Vault
+	TacticalProps.build_cave_grotto(self, game, game.Layout.on_ground(game.Layout.CAVE_GROTTO))
+	# Deep Cache landmarks: Twin-Rock Cleft, East Overlook Boulder Alcove, SE Bamboo Crag
+	rock(game.Layout.CLEFT_CACHE + Vector3(-2.6, 0, -0.4), 2.8, 1)
+	rock(game.Layout.CLEFT_CACHE + Vector3(2.6, 0, -0.2), 2.6, 2)
+	rock(game.Layout.EAST_OVERLOOK + Vector3(2.5, 0, -1.6), 2.5, 0)
+	rock(game.Layout.SE_BAMBOO_CACHE + Vector3(2.6, 0, -1.4), 2.6, 3)
 	for data in game.Layout.STATIONS:
 		var station = game.Challenge.new()
 		game.add_child(station)
@@ -386,8 +416,14 @@ func _camp():
 
 func _landmarks():
 	game._make_crate("前哨补给箱", 1, game.Layout.on_ground(Vector3(-6, 0, -39)))
-	game._make_crate("竹林精密箱", 2, game.Layout.on_ground(Vector3(13, 0, -88)))
-	game._make_crate("山道特级空投箱", 3, game.Layout.on_ground(Vector3(-8.2, 0, -66)))
+	var crate_roof = game._make_crate("竹林棚顶精密箱", 2, bamboo_shelter.roof_spot)
+	crate_roof.set_meta("secret_key", "shelter_and_tower")
+	var crate_cave = game._make_crate("山崖秘窟空投箱", 3, game.Layout.on_ground(game.Layout.CAVE_GROTTO))
+	crate_cave.set_meta("secret_key", "cave_grotto")
+	var crate_tower = game._make_crate("观察哨顶层秘宝", 2, watchtower_pos + Vector3(0.18, 5.92, -0.20))
+	crate_tower.set_meta("secret_key", "shelter_and_tower")
+	var crate_container = game._make_crate("西岭货柜暗箱", 2, container_yard.top_deck + Vector3(0.45, 0.0, 0.0))
+	crate_container.set_meta("secret_key", "parkour_containers")
 	for crate in game.crate_nodes:
 		TacticalProps.build_tiered_vault_crate(game, crate, int(crate.get_meta("tier")))
 
@@ -416,48 +452,60 @@ func _landmarks():
 	game._label3d(self, "B · 战术撤离信标\n260分 · 攻2哨 · 败统领", game.exit_position + Vector3.UP * 2.8, 40, game.MINT)
 
 	var pickup_spots = [
-		Vector3(5.2, 0, 7.2),
-		Vector3(-15, 0, -19),
-		Vector3(-23, 0, -29),
-		Vector3(-4, 0, -57),
-		Vector3(6, 0, -67),
-		Vector3(16, 0, -87)
+		{"at": Vector3(5.2, 0, 7.2), "ground": true, "secret_key": ""},
+		{"at": Vector3(-15, 0, -19), "ground": true, "secret_key": ""},
+		{"at": Vector3(-23, 0, -29), "ground": true, "secret_key": ""},
+		{"at": Vector3(-4, 0, -57), "ground": true, "secret_key": ""},
+		{"at": Vector3(6, 0, -67), "ground": true, "secret_key": ""},
+		{"at": Vector3(14.8, 0, -85.0), "ground": true, "secret_key": ""},
+		{"at": game.Layout.CLEFT_CACHE, "ground": true, "secret_key": "cleft_cache"},
+		{"at": container_yard.mid_deck, "ground": false, "secret_key": "parkour_containers"},
+		{"at": game.Layout.EAST_OVERLOOK, "ground": true, "secret_key": "east_overlook"},
+		{"at": game.Layout.SE_BAMBOO_CACHE, "ground": true, "secret_key": "se_bamboo_cache"}
 	]
 	for idx in pickup_spots.size():
-		var at = pickup_spots[idx]
+		var spot: Dictionary = pickup_spots[idx]
 		var pickup = Node3D.new()
-		pickup.position = game.Layout.on_ground(at)
-		pickup.set_meta("value", 30)
+		pickup.position = game.Layout.on_ground(spot.at) if spot.ground else spot.at
+		pickup.set_meta("value", 45 if spot.secret_key != "" else 30)
 		pickup.set_meta("supply_id", "supply_%d" % idx)
-		pickup.set_meta("title", "常规物资箱 #%d" % (idx + 1))
+		pickup.set_meta("title", "隐秘物资箱 #%d" % (idx + 1) if spot.secret_key != "" else "常规物资箱 #%d" % (idx + 1))
+		if spot.secret_key != "":
+			pickup.set_meta("secret_key", spot.secret_key)
 		game.add_child(pickup)
 		TacticalProps.build_supply_box(game, pickup)
-		game._label3d(pickup, "常规物资箱 · 单词解锁 [E]", Vector3(0, 0.96, 0), 26, game.GOLD)
+		var sup_hint := "深藏物资箱 · 单词解锁 [E]" if spot.secret_key != "" else "常规物资箱 · 单词解锁 [E]"
+		game._label3d(pickup, sup_hint, Vector3(0, 0.96, 0), 26, Color("8ef0c8") if spot.secret_key != "" else game.GOLD)
 		game.pickup_nodes.append(pickup)
 
 	# Tactical Field Ammo Crates & Consumable Pouches (tactical_pickups.glb)
 	var field_tactical = [
-		{"at": Vector3(8.8, 0, 8.2), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(-5.5, 0, -21.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(2.2, 0, -58.4), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "巡护站备弹箱", "col": Color("ffd15c")},
-		{"at": Vector3(-9.5, 0, -76.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "前哨弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(13.2, 0, -89.4), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "竹林弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(-2.0, 0, -104.5), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "B区突击弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(-17.8, 0, -34.2), "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "石刻旁弹药箱", "col": Color("ffd15c")},
-		{"at": Vector3(7.4, 0, 10.6), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
-		{"at": Vector3(0.4, 0, -58.5), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
-		{"at": Vector3(15.2, 0, -88.2), "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff")},
-		{"at": Vector3(-6.2, 0, -105.0), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")},
-		{"at": Vector3(-1.4, 0, -57.2), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")},
-		{"at": Vector3(11.5, 0, -87.4), "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8")}
+		{"at": Vector3(8.8, 0, 8.2), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-5.5, 0, -21.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(2.2, 0, -58.4), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "巡护站备弹箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-9.5, 0, -76.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "前哨弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(13.2, 0, -89.4), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "竹林弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-2.0, 0, -104.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "B区突击弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-17.8, 0, -34.2), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "石刻旁弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(7.4, 0, 10.6), "ground": true, "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff"), "secret_key": ""},
+		{"at": Vector3(0.4, 0, -58.5), "ground": true, "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff"), "secret_key": ""},
+		{"at": Vector3(15.2, 0, -88.2), "ground": true, "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "烟雾/EMP 手雷", "col": Color("56e8ff"), "secret_key": ""},
+		{"at": Vector3(-6.2, 0, -105.0), "ground": true, "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8"), "secret_key": ""},
+		{"at": Vector3(-1.4, 0, -57.2), "ground": true, "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8"), "secret_key": ""},
+		{"at": Vector3(11.5, 0, -87.4), "ground": true, "kind": "energy_drink", "mesh": "pickup_energy_drink", "title": "肾上腺素能量饮", "col": Color("6ae3a8"), "secret_key": ""},
+		{"at": watchtower_pos + Vector3(0.45, 3.50, 0.45), "ground": false, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "观察哨备弹箱", "col": Color("ffd15c"), "secret_key": "shelter_and_tower"},
+		{"at": container_yard.top_deck + Vector3(1.55, 0.0, 0.0), "ground": false, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "货柜高台备弹箱", "col": Color("ffd15c"), "secret_key": "parkour_containers"},
+		{"at": bamboo_shelter.balcony_spot, "ground": false, "kind": "smoke_emp", "mesh": "pickup_smoke_emp", "title": "棚侧烟雾EMP", "col": Color("56e8ff"), "secret_key": "shelter_and_tower"}
 	]
 	for idx in field_tactical.size():
 		var td = field_tactical[idx]
 		var node = Node3D.new()
-		node.position = game.Layout.on_ground(td.at)
+		node.position = game.Layout.on_ground(td.at) if td.ground else td.at
 		node.set_meta("tactical_item", td.kind)
 		node.set_meta("tactical_id", "tac_%d" % idx)
 		node.set_meta("title", td.title)
+		if td.secret_key != "":
+			node.set_meta("secret_key", td.secret_key)
 		game.add_child(node)
 		_attach_tactical_mesh(node, td.mesh, td.col)
 		game.pickup_nodes.append(node)

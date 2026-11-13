@@ -416,3 +416,130 @@ static func build_tiered_vault_crate(game, crate: Node3D, tier: int):
 			child.position.y = 1.98 if tier >= 3 else (1.76 if tier == 2 else 1.66)
 			crate.move_child(child, crate.get_child_count() - 1)
 			break
+
+static func attach_parkour_asset(parent: Node3D, game, mesh_name: String, at: Vector3, yaw := 0.0, scale_vec := Vector3.ONE) -> Node3D:
+	var path := "res://assets/slice/parkour_intel_assets.glb"
+	if not ResourceLoader.exists(path):
+		return null
+	if not game.scene_cache.has(path):
+		game.scene_cache[path] = load(path)
+	var inst: Node3D = game.scene_cache[path].instantiate()
+	var sub = inst.find_child(mesh_name, true, false)
+	if not is_instance_valid(sub):
+		inst.queue_free()
+		return null
+	inst.remove_child(sub)
+	sub.owner = null
+	sub.position = at
+	sub.rotation.y = yaw
+	sub.scale = scale_vec
+	parent.add_child(sub)
+	inst.queue_free()
+	return sub
+
+static func build_parkour_step(parent: Node3D, game, center_top: Vector3, size_xz: Vector2, deck_h := 0.14, support_drop := 0.6, use_wood := true, accent_stripe := true):
+	var bark_tex = load("res://assets/slice/tree_bark.jpg")
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("867052") if use_wood else Color("54635c")
+	mat.albedo_texture = bark_tex
+	mat.uv1_scale = Vector3(2, 1, 1)
+	mat.roughness = 0.85 if use_wood else 0.58
+	mat.metallic = 0.04 if use_wood else 0.42
+
+	var deck = game._mesh_box(parent, Vector3(center_top.x, center_top.y - deck_h * 0.5, center_top.z), Vector3(size_xz.x, deck_h, size_xz.y), Color.WHITE, true)
+	deck.material_override = mat
+	if accent_stripe:
+		var edge = game._mesh_box(parent, Vector3(center_top.x, center_top.y - deck_h * 0.45, center_top.z + size_xz.y * 0.47), Vector3(size_xz.x * 0.94, 0.04, 0.05), Color("e5c158"))
+		edge.material_override.roughness = 0.45
+	if support_drop > 0.18:
+		var leg_h := support_drop
+		for sx in [-size_xz.x * 0.36, size_xz.x * 0.36]:
+			for sz in [-size_xz.y * 0.36, size_xz.y * 0.36]:
+				var post = game._mesh_box(parent, Vector3(center_top.x + sx, center_top.y - deck_h - leg_h * 0.5, center_top.z + sz), Vector3(0.11, leg_h, 0.11), Color.WHITE, false)
+				post.material_override = dark_steel_material() if not use_wood else brushed_metal_material("4b4032", 0.15, 0.85)
+
+static func build_cargo_container_yard(parent: Node3D, game, center_ground: Vector3) -> Dictionary:
+	## Route A: Military ISO cargo container stack parkour (max step dy = 0.58m -> top at y = +2.86m).
+	var root := Node3D.new()
+	root.position = center_ground
+	parent.add_child(root)
+
+	# Step 1: Stepping Stone (top = 0.56m)
+	build_parkour_step(root, game, Vector3(3.6, 0.56, 3.0), Vector2(1.65, 1.65), 0.22, 0.65, false, true)
+	# Step 2: Wooden Supply Stack (top = 1.14m)
+	var plinth = game._mesh_box(root, Vector3(1.85, 0.55, 3.0), Vector3(1.55, 1.14, 1.55), Color("6e5b42"), true)
+	plinth.material_override = brushed_metal_material("6e5b42", 0.08, 0.86)
+	build_parkour_step(root, game, Vector3(1.85, 1.14, 3.0), Vector2(1.62, 1.62), 0.10, 0.0, true, true)
+
+	# Step 3: Lower Olive Cargo Container (0..1.14m tall at (0, 0, 1.45), size 4.2 x 2.0) -> wait jump from 1.14 to 1.72!
+	# Put Lower Container on sturdy concrete/timber cribbing pads (y = 0.56..1.70 -> deck top = 1.70m!)
+	var crib_mat := dark_steel_material()
+	for cx in [-1.65, 1.65]:
+		var crib = game._mesh_box(root, Vector3(cx, 0.26, 1.55), Vector3(0.65, 0.60, 1.85), Color.WHITE, true)
+		crib.material_override = crib_mat
+	var c1 = attach_parkour_asset(root, game, "prop_cargo_container", Vector3(0.0, 0.56, 1.55), 0.0, Vector3.ONE)
+	if c1 == null:
+		game._mesh_box(root, Vector3(0.0, 1.13, 1.55), Vector3(4.20, 1.14, 2.00), Color("3c4f3d"), true)
+	var col1 := BoxShape3D.new()
+	col1.size = Vector3(4.20, 1.14, 2.00)
+	game.Props.shape_body(root, col1, Vector3(0.0, 1.13, 1.55))
+
+	# Step 4: Mid Catwalk Platform (top = 2.28m, bridging left end of lower container to upper deck)
+	build_parkour_step(root, game, Vector3(-2.55, 2.28, -0.35), Vector2(1.60, 1.70), 0.14, 2.35, true, true)
+
+	# Step 5: Upper Stacked Container on timber/steel trestle (y = 1.72..2.86 -> top deck = 2.86m!)
+	for cx in [-1.65, 1.65]:
+		var legs = game._mesh_box(root, Vector3(-0.30 + cx, 0.86, -1.35), Vector3(0.62, 1.76, 1.85), Color.WHITE, true)
+		legs.material_override = crib_mat
+	var c2 = attach_parkour_asset(root, game, "prop_cargo_container", Vector3(-0.30, 1.72, -1.35), 0.0, Vector3.ONE)
+	if c2 == null:
+		game._mesh_box(root, Vector3(-0.30, 2.29, -1.35), Vector3(4.20, 1.14, 2.00), Color("3c4f3d"), true)
+	var col2 := BoxShape3D.new()
+	col2.size = Vector3(4.20, 1.14, 2.00)
+	game.Props.shape_body(root, col2, Vector3(-0.30, 2.29, -1.35))
+
+	return {
+		"mid_deck": center_ground + Vector3(0.35, 1.70, 2.15),
+		"top_deck": center_ground + Vector3(-0.20, 2.86, -1.35),
+		"ammo_spot": center_ground + Vector3(-1.45, 2.86, -1.35)
+	}
+
+static func build_cave_grotto(parent: Node3D, game, center_ground: Vector3):
+	## Deep mossy cliff grotto housing the Tier-3 Legendary Airdrop Vault (open along +Z for clean entry).
+	var root := Node3D.new()
+	root.position = center_ground
+	parent.add_child(root)
+
+	var west_path := "res://assets/slice/rock_3.glb"
+	var cliff_path := "res://assets/slice/rock_4.glb"
+	var step_path := "res://assets/nature/rock_smallFlatA.glb" if ResourceLoader.exists("res://assets/nature/rock_smallFlatA.glb") else "res://assets/slice/rock_1.glb"
+
+	# Left, Right & Back cliff walls framing a spacious mossy cavern (inner chamber >= 4.0m wide, mouth open toward +Z)
+	game._model(root, west_path, Vector3(-4.1, -0.35, -0.4), 3.2, 0.4, "convex")
+	game._model(root, cliff_path, Vector3(4.1, -0.35, -0.4), 2.4, -0.3, "convex")
+	game._model(root, west_path, Vector3(-1.8, -0.35, -3.6), 3.4, 1.1, "convex")
+	game._model(root, west_path, Vector3(1.8, -0.35, -3.6), 3.4, -1.0, "convex")
+	# Upper overhang stone lintel slab (high above player eye level y >= 2.8m) with mossy rock cap texture
+	var lintel_mat := StandardMaterial3D.new()
+	lintel_mat.albedo_color = Color("767a68")
+	lintel_mat.albedo_texture = load("res://assets/slice/ground_color.jpg")
+	lintel_mat.normal_enabled = true
+	lintel_mat.normal_texture = load("res://assets/slice/ground_normal.jpg")
+	lintel_mat.uv1_scale = Vector3(2.4, 1.8, 2.0)
+	lintel_mat.roughness = 0.92
+	var cap = game._mesh_box(root, Vector3(0.0, 3.30, -1.65), Vector3(6.8, 0.85, 3.4), Color.WHITE, true)
+	cap.rotation.x = 0.08
+	cap.material_override = lintel_mat
+	game._model(root, cliff_path, Vector3(0.0, 3.05, -1.75), 1.9, 0.15, "none")
+	# Side stepping flat trail stones outside the mouth
+	game._model(root, step_path, Vector3(3.4, -0.02, 2.2), 0.16, 0.2, "convex")
+	game._model(root, step_path, Vector3(2.4, -0.01, 3.4), 0.15, -0.4, "convex")
+
+	# Cave lantern + warm amber point light inside cavern mouth
+	attach_parkour_asset(root, game, "prop_cave_lantern", Vector3(-1.75, 0.0, 0.55), 0.3, Vector3.ONE * 1.15)
+	var cave_light := OmniLight3D.new()
+	cave_light.position = Vector3(-0.6, 1.65, -0.25)
+	cave_light.light_color = Color("ffc26e")
+	cave_light.light_energy = 1.25
+	cave_light.omni_range = 6.8
+	root.add_child(cave_light)

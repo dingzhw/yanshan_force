@@ -22,7 +22,7 @@ def main():
     assets = ROOT / "game/assets"
     nature = ROOT / "third_party/kenney-nature-kit/Models/GLTF format"
     survival = ROOT / "third_party/kenney-survival-kit/Models/GLB format"
-    for name in ("tree_pineTallA", "tree_pineRoundD", "tree_oak", "tree_default_dark", "rock_largeA", "rock_largeC", "rock_tallC", "statue_obelisk"):
+    for name in ("tree_pineTallA", "tree_pineRoundD", "tree_oak", "tree_default_dark", "rock_largeA", "rock_largeC", "rock_tallC", "statue_obelisk", "cliff_steps_rock", "cliff_rock", "rock_smallFlatA", "rock_smallFlatB"):
         copy_asset(nature / f"{name}.glb", assets / "nature" / f"{name}.glb")
     for name in ("tent-canvas", "barrel", "box-large", "box-large-open", "box", "chest", "patch-grass-large", "grass-large", "structure-roof", "structure-metal-wall", "signpost", "fence-fortified", "workbench"):
         copy_asset(survival / f"{name}.glb", assets / "survival" / f"{name}.glb")
