@@ -61,23 +61,43 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 	node.set_meta("prompt", label)
 	add_child(node)
 	if id == "poem":
-		var stele_mat = StandardMaterial3D.new()
-		stele_mat.albedo_color = Color("868b7e")
-		stele_mat.albedo_texture = load("res://assets/slice/ground_color.jpg")
-		stele_mat.normal_enabled = true
-		stele_mat.normal_texture = load("res://assets/slice/ground_normal.jpg")
-		stele_mat.uv1_scale = Vector3(1.5, 2.5, 1.5)
-		stele_mat.roughness = 0.90
-		var stele_node: Node3D
-		if ResourceLoader.exists("res://assets/nature/statue_obelisk.glb"):
-			stele_node = game._model(node, "res://assets/nature/statue_obelisk.glb", Vector3.ZERO, 2.2, 0, "convex")
-		else:
-			stele_node = game._model(node, "res://assets/slice/rock_3.glb", Vector3.ZERO, 1.5, 0, "convex")
-		for m in stele_node.find_children("*", "MeshInstance3D", true, false):
-			m.material_override = stele_mat
-		var carving = game._label3d(node, "古诗石刻\n按 E 研读", Vector3(0, 1.25, 0.55), 29, Color("f3eed2"))
-		carving.pixel_size = 0.0045
-		carving.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		var loaded_pavilion := false
+		var jn_path := "res://assets/slice/v060_jiangnan_assets.glb"
+		if ResourceLoader.exists(jn_path):
+			if not game.scene_cache.has(jn_path):
+				game.scene_cache[jn_path] = load(jn_path)
+			var inst: Node3D = game.scene_cache[jn_path].instantiate()
+			var sub := inst.find_child("poem_stele_pavilion", true, false)
+			if is_instance_valid(sub):
+				if sub.get_parent():
+					sub.get_parent().remove_child(sub)
+				sub.owner = null
+				sub.position = Vector3.ZERO
+				node.add_child(sub)
+				inst.queue_free()
+				loaded_pavilion = true
+			else:
+				inst.queue_free()
+		if not loaded_pavilion:
+			var fallback_mat = StandardMaterial3D.new()
+			fallback_mat.albedo_color = Color("868b7e")
+			fallback_mat.roughness = 0.90
+			var stele_fb = game._model(node, "res://assets/slice/rock_3.glb", Vector3.ZERO, 1.5, 0, "convex")
+			for m in stele_fb.find_children("*", "MeshInstance3D", true, false):
+				m.material_override = fallback_mat
+		# Solid colliders for pavilion stone base (step-clear of z=+2.0 interact spot), stele tablet & 4 pillars
+		var base_shp := BoxShape3D.new()
+		base_shp.size = Vector3(3.00, 0.28, 2.70)
+		game.Props.shape_body(node, base_shp, Vector3(0, 0.14, 0))
+		var tablet_shp := BoxShape3D.new()
+		tablet_shp.size = Vector3(1.18, 2.25, 0.72)
+		game.Props.shape_body(node, tablet_shp, Vector3(0, 1.12, 0))
+		for sx in [-1.08, 1.08]:
+			for sz in [-0.96, 0.96]:
+				var col_shp := CylinderShape3D.new()
+				col_shp.radius = 0.11
+				col_shp.height = 2.30
+				game.Props.shape_body(node, col_shp, Vector3(sx, 1.15, sz))
 	elif id == "english":
 		game._model(node, "res://assets/slice/crate.glb", Vector3.ZERO, 0.52, 0, "convex")
 	elif id in INTEL_IDS:
@@ -129,6 +149,11 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		text.outline_size = 0
 		text.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	var prompt = game._label3d(node, label + " · [E]", Vector3(0, 2.15, 0), 28, game.GOLD)
+	if id == "poem":
+		prompt.position = Vector3(0, 2.66, 1.56)
+		prompt.pixel_size = 0.0040
+		prompt.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		prompt.text = "烟山诗碑亭 · 按 [E] 研读"
 	prompt.visibility_range_end = 15
 	nodes.append(node)
 

@@ -1,0 +1,125 @@
+{
+  "output": "game/assets/slice/v060_jiangnan_assets.glb",
+  "total_triangles": 16376,
+  "assets": {
+    "wangdao_pavilion": {
+      "triangles": 7160,
+      "godot_bounds_m": {
+        "x": [
+          -2.699,
+          2.699
+        ],
+        "y": [
+          -0.52,
+          4.72
+        ],
+        "z": [
+          -2.697,
+          2.697
+        ]
+      }
+    },
+    "stone_arch_bridge": {
+      "triangles": 1544,
+      "godot_bounds_m": {
+        "x": [
+          -5.575,
+          5.575
+        ],
+        "y": [
+          -2.06,
+          1.39
+        ],
+        "z": [
+          -1.3,
+          1.3
+        ]
+      }
+    },
+    "boundary_stele": {
+      "triangles": 84,
+      "godot_bounds_m": {
+        "x": [
+          -0.49,
+          0.49
+        ],
+        "y": [
+          -0.52,
+          2.0
+        ],
+        "z": [
+          -0.29,
+          0.29
+        ]
+      }
+    },
+    "poem_stele_pavilion": {
+      "triangles": 3308,
+      "godot_bounds_m": {
+        "x": [
+          -1.805,
+          1.805
+        ],
+        "y": [
+          -0.44,
+          3.44
+        ],
+        "z": [
+          -1.803,
+          1.803
+        ]
+      }
+    },
+    "ancient_camphor": {
+      "triangles": 1204,
+      "godot_bounds_m": {
+        "x": [
+          -3.998,
+          4.085
+        ],
+        "y": [
+          -0.444,
+          7.691
+        ],
+        "z": [
+          -3.56,
+          2.78
+        ]
+      }
+    },
+    "wayside_shrine": {
+      "triangles": 3052,
+      "godot_bounds_m": {
+        "x": [
+          -0.912,
+          0.912
+        ],
+        "y": [
+          -0.28,
+          2.01
+        ],
+        "z": [
+          -0.911,
+          0.911
+        ]
+      }
+    },
+    "bluestone_flagstone": {
+      "triangles": 24,
+      "godot_bounds_m": {
+        "x": [
+          -0.52,
+          0.52
+        ],
+        "y": [
+          -0.09,
+          0.08
+        ],
+        "z": [
+          -0.35,
+          0.35
+        ]
+      }
+    }
+  }
+}

@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.5.6" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.5.6 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.6.0" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.0 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -37,8 +37,8 @@ func run():
 			tac_counts[t_id] += 1
 		else:
 			supply_count += 1
-	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.5.6 places 10 supply caches plus parkour tactical ammo/smoke/stims")
-	verify(game.exploration.nodes.size() == 10, "v0.5.6 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
+	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.6.0 places 10 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(game.exploration.nodes.size() == 10, "v0.6.0 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -409,6 +409,39 @@ func run():
 	verify(env_ok, "v0.5.6 landscape configures Filmic tonemapping, sky ambient lighting, and atmospheric horizon fog")
 	var vmesh: MeshInstance3D = valley_node as MeshInstance3D
 	verify(vmesh != null and vmesh.mesh != null and vmesh.mesh.get_surface_count() > 0, "OuterRiceValley renders unified terraced paddies and 3D outer foothills")
+
+	# v0.6.0 Jiangnan Rural Hill Heritage landmark & traversability verification
+	var arch_bridge: Node = game.landscape.find_child("StoneArchBridge", true, false)
+	var boundary_stele: Node = game.landscape.find_child("BoundaryStele", true, false)
+	var wangdao_pav: Node = game.landscape.find_child("WangdaoPavilion", true, false)
+	var camphor_shrine: Node = game.landscape.find_child("CamphorShrine", true, false)
+	var wayside_shrine: Node = game.landscape.find_child("WaysideShrine", true, false)
+	var flagstones: MultiMeshInstance3D = game.landscape.find_child("BluestoneFlagstones", true, false) as MultiMeshInstance3D
+	verify(arch_bridge != null and boundary_stele != null and wangdao_pav != null and camphor_shrine != null and wayside_shrine != null, "v0.6.0 spawns StoneArchBridge, BoundaryStele, WangdaoPavilion, CamphorShrine, and WaysideShrine")
+	verify(flagstones != null and flagstones.multimesh != null and flagstones.multimesh.instance_count >= 25, "v0.6.0 batches historic bluestone flagstones in a single MultiMesh")
+	var poem_node = node_for("poem")
+	var poem_pav = poem_node.find_child("poem_stele_pavilion", true, false) if poem_node != null else null
+	var obelisk = poem_node.find_child("statue_obelisk", true, false) if poem_node != null else null
+	verify(poem_pav != null and obelisk == null, "v0.6.0 replaces Western obelisk with Jiangnan poem_stele_pavilion")
+	# Walk onto WangdaoPavilion west stairs & inside floor purely with KEY_W (no jumping)
+	var pav_at: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
+	var pav_basis: Basis = (wangdao_pav as Node3D).transform.basis
+	var start_xz := pav_at + pav_basis * Vector3(-4.0, 0.05, 0.0)
+	var target_xz := pav_at + pav_basis * Vector3(-1.10, 0.28, 0.0)
+	var walk_dir := Vector2(target_xz.x - start_xz.x, target_xz.z - start_xz.z)
+	game.player.clear_movement_input()
+	game.player.position = start_xz
+	game.player.velocity = Vector3.ZERO
+	game.player.yaw = atan2(-walk_dir.x, -walk_dir.y)
+	await frames(8)
+	game.player.held_keys[KEY_W] = true
+	for _f in 120:
+		if Vector2(game.player.position.x - pav_at.x, game.player.position.z - pav_at.z).length() <= 1.25:
+			break
+		await physics_frame
+	game.player.clear_movement_input()
+	await frames(6)
+	verify(Vector2(game.player.position.x - target_xz.x, game.player.position.z - target_xz.z).length() < 0.75 and game.player.is_on_floor() and game.player.position.y > pav_at.y + 0.14, "player walks cleanly onto WangdaoPavilion terrace without jumping")
 
 	game.queue_free()
 	await process_frame

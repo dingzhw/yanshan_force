@@ -44,12 +44,18 @@ const PARKOUR_CONTAINERS = Vector3(-21.5, 0, -11.5)
 const CLEFT_CACHE = Vector3(-29.5, 0, -51.5)
 const CAVE_GROTTO = Vector3(-25.5, 0, -68.5)
 const EAST_OVERLOOK = Vector3(26.5, 0, -24.0)
+const WANGDAO_PAVILION = Vector3(33.5, 0, 20.8)
+const CAMPHOR_SHRINE = Vector3(10.6, 0, -16.8)
 const SE_BAMBOO_CACHE = Vector3(29.5, 0, -86.5)
 const RECON_RADIO = Vector3(27.5, 0, -46.5)
 const AIRDROP_BEACON = Vector3(23.5, 0, -101.0)
 const WATCHTOWER = Vector3(-34.0, 0, -102.0)
 const SHELTER_BAMBOO = Vector3(14.0, 0, -88.0)
-const BRANCHES = [[Vector3(-18, 0, -27), POEM], [Vector3(-7, 0, -54), MATH, Vector3(12, 0, -62), EXIT], [Vector3(-7, 0, -15), CLUE, CLUE_LOOT]]
+const BRANCHES = [
+	[Vector3(-18, 0, -27), POEM],
+	[Vector3(-7, 0, -54), MATH, Vector3(12, 0, -62), EXIT],
+	[Vector3(-7, 0, -15), CLUE, CLUE_LOOT, Vector3(11.5, 0, -24.0), Vector3(21.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(32.5, 0, 8.0), WANGDAO_PAVILION]
+]
 static var grid_height_cache = {}
 static var stream_water_heights: Array = []
 
@@ -86,7 +92,7 @@ static func _land_height(x: float, z: float) -> float:
 		var at = station.at
 		var blend = 1.0 - smoothstep(10.0, 15.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, base_height(at.x, at.z), blend)
-	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, RECON_RADIO, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO]:
+	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, RECON_RADIO, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
 		var blend = 1.0 - smoothstep(4.0, 9.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, anchor_height(at), blend)
 	var nearest = INF
@@ -197,7 +203,7 @@ static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 	for at in [PARKOUR_CONTAINERS, CAVE_GROTTO, WATCHTOWER, SHELTER_BAMBOO]:
 		if Vector2(x - at.x, z - at.z).length() < 7.5 + padding:
 			return true
-	for at in [CLEFT_CACHE, EAST_OVERLOOK, SE_BAMBOO_CACHE, RECON_RADIO, AIRDROP_BEACON]:
+	for at in [CLEFT_CACHE, EAST_OVERLOOK, SE_BAMBOO_CACHE, RECON_RADIO, AIRDROP_BEACON, WANGDAO_PAVILION, CAMPHOR_SHRINE]:
 		if Vector2(x - at.x, z - at.z).length() < 5.0 + padding:
 			return true
 	return false

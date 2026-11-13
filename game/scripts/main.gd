@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.5.6"
+const VERSION = "0.6.0"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -630,7 +630,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.5.6 烟山生境与远景光影简报】\n• 活水山溪自北向南蜿蜒 · 3座可通行山溪桥 · 溪鱼横行石蟹\n• 林间野兔/松鼠受惊奔逃，枪击/匕首命中可化光消失 · 8处奇花异草[E]学英文\n• 山腰木栅栏围合全域 · Filmic色调与立体浅山远景统一大气雾效", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
+	_text(menu, "【v0.6.0 江南烟山古今地标简报】\n• 青石板古道贯通山野 · 西登烟山诗碑亭研读古诗，东跨青石单孔拱桥\n• 桥畔百年古樟庇荫土地石龛 · 界碑遥指诚庄阡陌稻田\n• 东岭飞檐重檐望稻亭凭栏观田 · 活水山溪、林间鸟兽与战术阵地共生", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)

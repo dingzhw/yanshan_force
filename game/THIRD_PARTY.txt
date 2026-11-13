@@ -28,4 +28,7 @@ Local procedural v0.5.5 additions (CC0 / Original Project):
 - Procedural panoramic terraced rice paddy albedo texture (rural_paddies_albedo.png) and 360-degree mountain horizon ridge ring (horizon_mountains.png) generated via Python PIL/NumPy (tools/generate_v055_textures.py).
 - Additional nature models (bridges, lilies, flowers, mushrooms, shrubs) staged from Kenney Nature Kit (CC0, listed above).
 - Procedural ecology SFX WAVs (animal_flee.wav, animal_hit.wav, flora_collect.wav) synthesized via Python (tools/generate_sfx.py).
+Local procedural v0.6.0 additions (CC0 / Original Project):
+- Jiangnan heritage landmark meshes (wangdao_pavilion, stone_arch_bridge, boundary_stele, poem_stele_pavilion, ancient_camphor, wayside_shrine, bluestone_flagstone) in v060_jiangnan_assets.glb generated locally in Blender 4.5 (tools/build_v060_assets.py).
+- Engraved plaque and stele textures (plaque_wangdao.png, stele_poem.png, stele_boundary.png) rendered locally via Python PIL (tools/generate_v060_textures.py; baked into GLB without redistributing system fonts).
 Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

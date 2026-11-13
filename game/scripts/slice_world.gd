@@ -235,7 +235,7 @@ void fragment(){ALBEDO=vec3(0.24,0.34,0.16)*(0.8+UV.y*0.3);ROUGHNESS=0.9;}
 		var z = rng.randf_range(-104, 18)
 		if not game.Layout.clear_for_route(x, z, 1.5):
 			rock(Vector3(x, 0, z), rng.randf_range(1.0, 3.5), i)
-	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-28.5, 0, -34.5), 3.2], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
+	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-36.5, 0, -36.5), 3.0], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
 		rock(info[0], info[1], int(absf(info[0].z)))
 	_backdrop()
 
@@ -598,7 +598,7 @@ void fragment(){ALBEDO=texture(needles,UV).rgb*0.8; ALPHA=texture(mask,UV).r;ALP
 	st.generate_normals()
 	var crowns = []
 	var trunks = []
-	for raw in [Vector3(-17, 0, -4), Vector3(24, 0, -8), Vector3(-29, 0, -19), Vector3(24, 0, -18), Vector3(-37, 0, -30), Vector3(24, 0, -42), Vector3(-32, 0, -53), Vector3(28, 0, -63), Vector3(-25, 0, -76), Vector3(33, 0, -91), Vector3(-7, 0, -107), Vector3(40, 0, -12)]:
+	for raw in [Vector3(-17, 0, -4), Vector3(24, 0, -8), Vector3(-29, 0, -19), Vector3(24, 0, -18), Vector3(-37, 0, -30), Vector3(24, 0, -42), Vector3(-32, 0, -53), Vector3(28, 0, -63), Vector3(-25, 0, -76), Vector3(33, 0, -91), Vector3(-7, 0, -107), Vector3(32, 0, -3)]:
 		var at = game.Layout.on_ground(raw)
 		var h = rng.randf_range(9, 13)
 		trunks.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1, h, 1)), at + Vector3.UP * h / 2))
@@ -701,6 +701,8 @@ func _camp():
 	container_yard = TacticalProps.build_cargo_container_yard(self, game, game.Layout.on_ground(game.Layout.PARKOUR_CONTAINERS))
 	# Cave Grotto housing Tier-3 Airdrop Vault
 	TacticalProps.build_cave_grotto(self, game, game.Layout.on_ground(game.Layout.CAVE_GROTTO))
+	# v0.6.0 Jiangnan Rural Hill Heritage Landmarks & Ancient Bluestone Footpaths
+	_build_jiangnan_heritage()
 	# Deep Cache landmarks: Twin-Rock Cleft, East Overlook Boulder Alcove, SE Bamboo Crag
 	rock(game.Layout.CLEFT_CACHE + Vector3(-2.6, 0, -0.4), 2.8, 1)
 	rock(game.Layout.CLEFT_CACHE + Vector3(2.6, 0, -0.2), 2.6, 2)
@@ -714,7 +716,8 @@ func _camp():
 	for info in [
 		[Vector3(-9, 0, 7), "烟山基地\nA · 山脚营地"],
 		[Vector3(-12, 0, -17), "林间前哨  ↑\n石刻支路  ←"],
-		[Vector3(-20, 0, -28), "← 古诗石刻\n主路前哨  →"],
+		[Vector3(-20, 0, -28), "← 烟山诗碑亭\n主路前哨  →"],
+		[Vector3(22.4, 0, -21.5), "东上望稻亭 ↗\n北探石崖奇岩 ↑"],
 		[Vector3(-14, 0, -53), "巡护站近道 →\n山道拦截哨 ↑"],
 		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2哨·首领"]
 	]:
@@ -924,9 +927,12 @@ void fragment(){
 	rock(Vector3(game.Layout.stream_center_x(-110.5) - 2.1, 0, -110.5), 1.8, 0)
 	rock(Vector3(game.Layout.stream_center_x(-110.5) + 2.1, 0, -110.5), 1.9, 1)
 
-	# Three walkable wooden mountain footbridges spanning East-West across the creek
+	# 3 walkable creek crossings: South & North mountain wooden footbridges + Central v0.6.0 Stone Arch Bridge
 	for bz in game.Layout.STREAM_BRIDGES:
-		_build_footbridge(float(bz))
+		if is_equal_approx(float(bz), -24.0):
+			_build_stone_arch_bridge(float(bz))
+		else:
+			_build_footbridge(float(bz))
 
 	# Natural mossy river stones & stepping boulders (using textured Poly Haven mossy rocks so scale stays spherical/natural)
 	var cx_step := float(game.Layout.stream_center_x(-73.5))
@@ -1005,6 +1011,249 @@ func _build_footbridge(z_center: float):
 		root.add_child(ramp_pivot)
 		var ramp: Node3D = game._mesh_box(ramp_pivot, Vector3(0, -0.07, 0), Vector3(ramp_len, 0.14, 2.15), Color.WHITE, true)
 		ramp.material_override = wood_plank_mat
+
+func _instantiate_v060_mesh(mesh_name: String) -> Node3D:
+	var path := "res://assets/slice/v060_jiangnan_assets.glb"
+	if ResourceLoader.exists(path):
+		if not game.scene_cache.has(path):
+			game.scene_cache[path] = load(path)
+		var inst: Node3D = game.scene_cache[path].instantiate()
+		var sub = inst.find_child(mesh_name, true, false)
+		if is_instance_valid(sub):
+			if sub.get_parent():
+				sub.get_parent().remove_child(sub)
+			sub.owner = null
+			sub.position = Vector3.ZERO
+			inst.queue_free()
+			return sub
+		inst.queue_free()
+	return null
+
+static func _arch_deck_y(x: float) -> float:
+	var ax := absf(x)
+	if ax <= 5.0:
+		return 0.24 * (1.0 + cos(PI * ax / 5.0))
+	return -0.22 * minf(1.0, (ax - 5.0) / 0.35)
+
+func _build_stone_arch_bridge(z_center: float):
+	var cx := float(game.Layout.stream_center_x(z_center))
+	var wy := float(game.Layout.stream_water_y(z_center))
+	var bank_w := float(game.terrain_height(cx - 5.0, z_center))
+	var bank_e := float(game.terrain_height(cx + 5.0, z_center))
+	var base_y := maxf(wy + 0.58, maxf(bank_w, bank_e) - 0.02)
+	var root := Node3D.new()
+	root.name = "StoneArchBridge"
+	root.position = Vector3(cx, base_y, z_center)
+	add_child(root)
+
+	var visual := _instantiate_v060_mesh("stone_arch_bridge")
+	if visual:
+		root.add_child(visual)
+
+	# 10 contiguous angled BoxShape3D deck slabs matching the gentle cosine stone arch (max ~8.6 deg)
+	var steps := 10
+	var span_dx := 10.0 / float(steps)
+	for i in steps:
+		var x0 := -5.0 + float(i) * span_dx
+		var x1 := x0 + span_dx
+		var y0 := _arch_deck_y(x0)
+		var y1 := _arch_deck_y(x1)
+		var xm := 0.5 * (x0 + x1)
+		var ym := 0.5 * (y0 + y1)
+		var seg_len := sqrt(span_dx * span_dx + (y1 - y0) * (y1 - y0)) + 0.14
+		var shp := BoxShape3D.new()
+		shp.size = Vector3(seg_len, 0.24, 2.24)
+		var body: StaticBody3D = game.Props.shape_body(root, shp, Vector3(xm, ym - 0.12, 0.0))
+		body.rotation.z = atan2(y1 - y0, span_dx)
+
+	# Flush stone apron ramps linking both banks up to x=+-4.90 so walking +X needs no jump
+	var apron_mat := StandardMaterial3D.new()
+	apron_mat.albedo_color = Color("5c625e")
+	apron_mat.albedo_texture = load("res://assets/slice/ground_color.jpg")
+	apron_mat.roughness = 0.88
+	for side in [-1.0, 1.0]:
+		var side_f := float(side)
+		var outer_x := cx + side_f * 6.05
+		var outer_local_y := float(game.terrain_height(outer_x, z_center)) - base_y - 0.05
+		var drop := maxf(0.05, _arch_deck_y(side_f * 4.90) - outer_local_y)
+		var run := 1.25
+		var ramp_len := sqrt(run * run + drop * drop) + 0.16
+		var pivot := Node3D.new()
+		pivot.position = Vector3(side_f * (4.90 + run * 0.5), _arch_deck_y(side_f * 4.90) - drop * 0.5, 0.0)
+		pivot.rotation.z = -side_f * atan2(drop, run)
+		root.add_child(pivot)
+		var slab: Node3D = game._mesh_box(pivot, Vector3(0, -0.07, 0), Vector3(ramp_len, 0.14, 2.26), Color.WHITE, true)
+		slab.material_override = apron_mat
+
+	# Carved stone balustrade side colliders keeping bridge width wide (2.1m clear)
+	for sz in [-1.18, 1.18]:
+		for sx in [-1.0, 1.0]:
+			var rail_shp := BoxShape3D.new()
+			rail_shp.size = Vector3(4.95, 0.86, 0.24)
+			var rail_body: StaticBody3D = game.Props.shape_body(root, rail_shp, Vector3(sx * 2.45, 0.48, sz))
+			rail_body.rotation.z = -sx * 0.09
+
+	# West bridgehead engraved Boundary Stele ("烟山古道 / 东望诚庄稻田 / 西入竹石深林")
+	var stele_at: Vector3 = game.Layout.on_ground(Vector3(cx - 5.75, 0.0, z_center + 2.45))
+	var stele_root := Node3D.new()
+	stele_root.name = "BoundaryStele"
+	stele_root.position = stele_at
+	stele_root.rotation.y = deg_to_rad(-28.0)
+	add_child(stele_root)
+	var stele_vis := _instantiate_v060_mesh("boundary_stele")
+	if stele_vis:
+		stele_root.add_child(stele_vis)
+	var stele_shp := BoxShape3D.new()
+	stele_shp.size = Vector3(0.84, 1.95, 0.42)
+	game.Props.shape_body(stele_root, stele_shp, Vector3(0, 0.96, 0))
+
+func _build_jiangnan_heritage():
+	# 1) Wangdao Pavilion ("望稻亭") perched on the SE bluff overlooking Southern OuterRiceValley paddies & hamlets
+	var pav_at: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
+	var pav := Node3D.new()
+	pav.name = "WangdaoPavilion"
+	pav.position = pav_at
+	pav.rotation.y = deg_to_rad(-102.0)
+	add_child(pav)
+	var pav_vis := _instantiate_v060_mesh("wangdao_pavilion")
+	if pav_vis:
+		pav.add_child(pav_vis)
+
+	# Walkable plinth deck + flush entry step ramps on West (-X) and South (+Z) rising cleanly above y=0.28 before plinth edge
+	var floor_shp := BoxShape3D.new()
+	floor_shp.size = Vector3(4.45, 0.28, 4.45)
+	game.Props.shape_body(pav, floor_shp, Vector3(0, 0.14, 0))
+	var step_tilt := 0.245
+	var step_w := BoxShape3D.new()
+	step_w.size = Vector3(1.56, 0.18, 1.95)
+	var sw_body: StaticBody3D = game.Props.shape_body(pav, step_w, Vector3(-2.78, 0.053, 0.0))
+	sw_body.rotation.z = step_tilt
+	var step_s := BoxShape3D.new()
+	step_s.size = Vector3(1.95, 0.18, 1.56)
+	var ss_body: StaticBody3D = game.Props.shape_body(pav, step_s, Vector3(0.0, 0.053, 2.78))
+	ss_body.rotation.x = step_tilt
+
+	# Columns, table & waist-high overlook balustrade colliders (wide West & South walk-in doorways)
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var col_shp := BoxShape3D.new()
+			col_shp.size = Vector3(0.28, 2.6, 0.28)
+			game.Props.shape_body(pav, col_shp, Vector3(sx * 1.60, 1.50, sz * 1.60))
+	var north_bench := BoxShape3D.new()
+	north_bench.size = Vector3(3.05, 0.92, 0.44)
+	game.Props.shape_body(pav, north_bench, Vector3(0.0, 0.68, -1.58))
+	var east_rail := BoxShape3D.new()
+	east_rail.size = Vector3(0.20, 0.86, 3.05)
+	game.Props.shape_body(pav, east_rail, Vector3(1.58, 0.68, 0.0))
+	var table_shp := CylinderShape3D.new()
+	table_shp.radius = 0.52
+	table_shp.height = 0.88
+	game.Props.shape_body(pav, table_shp, Vector3(0.0, 0.66, 0.0))
+
+	# 2) Ancient Camphor Tree + Mossy Earth-God Wayside Shrine ("百年古樟 & 土地石龛") beside trail bend
+	var camphor_at: Vector3 = game.Layout.on_ground(game.Layout.CAMPHOR_SHRINE)
+	var cs_root := Node3D.new()
+	cs_root.name = "CamphorShrine"
+	cs_root.position = camphor_at
+	add_child(cs_root)
+
+	var camphor_vis := _instantiate_v060_mesh("ancient_camphor")
+	if camphor_vis:
+		cs_root.add_child(camphor_vis)
+	var trunk_shp := CylinderShape3D.new()
+	trunk_shp.radius = 0.56
+	trunk_shp.height = 3.2
+	game.Props.shape_body(cs_root, trunk_shp, Vector3(0.0, 1.6, 0.0))
+
+	var shrine_off := Vector3(2.15, 0.0, 1.55)
+	var shrine_ground: float = float(game.terrain_height(camphor_at.x + shrine_off.x, camphor_at.z + shrine_off.z)) - camphor_at.y
+	var shrine_node := Node3D.new()
+	shrine_node.name = "WaysideShrine"
+	shrine_node.position = Vector3(shrine_off.x, shrine_ground, shrine_off.z)
+	shrine_node.rotation.y = deg_to_rad(-28.0)
+	cs_root.add_child(shrine_node)
+	var shrine_vis := _instantiate_v060_mesh("wayside_shrine")
+	if shrine_vis:
+		shrine_node.add_child(shrine_vis)
+	var shrine_shp := BoxShape3D.new()
+	shrine_shp.size = Vector3(1.52, 1.92, 1.28)
+	game.Props.shape_body(shrine_node, shrine_shp, Vector3(0.0, 0.96, 0.0))
+	if not low_quality:
+		var candle_glow := OmniLight3D.new()
+		candle_glow.position = Vector3(0.0, 0.66, 0.62)
+		candle_glow.light_color = Color("ffb862")
+		candle_glow.light_energy = 0.95
+		candle_glow.omni_range = 3.2
+		candle_glow.shadow_enabled = false
+		shrine_node.add_child(candle_glow)
+	var shrine_lbl: Label3D = game._label3d(shrine_node, "土地石龛 · 百年古樟", Vector3(0.0, 2.18, 0.22), 20, Color("f3ead0"))
+	shrine_lbl.pixel_size = 0.0028
+	shrine_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	shrine_lbl.visibility_range_end = 10.5
+
+	# 3) MultiMesh Bluestone Ancient Footpath Slabs tilted flush to hillside slopes in 1 draw call
+	var flag_vis := _instantiate_v060_mesh("bluestone_flagstone")
+	var flag_mesh: Mesh = null
+	if flag_vis is MeshInstance3D:
+		flag_mesh = flag_vis.mesh
+	elif flag_vis:
+		for child in flag_vis.find_children("*", "MeshInstance3D", true, false):
+			var mi := child as MeshInstance3D
+			if mi and mi.mesh:
+				flag_mesh = mi.mesh
+				break
+	if flag_vis:
+		flag_vis.queue_free()
+	if flag_mesh != null:
+		var trail_polylines := [
+			[Vector3(3.5, 0, -18.0), Vector3(7.4, 0, -21.2), Vector3(11.3, 0, -24.0)],
+			[Vector3(21.7, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(32.5, 0, 8.0), Vector3(34.1, 0, 17.6)],
+			[Vector3(22.4, 0, 7.0), Vector3(27.5, 0, 12.8), Vector3(30.4, 0, 19.8)],
+			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)]
+		]
+		var xfs: Array[Transform3D] = []
+		var rng_t := RandomNumberGenerator.new()
+		rng_t.seed = 2026060
+		for poly in trail_polylines:
+			for i in poly.size() - 1:
+				var a: Vector3 = poly[i]
+				var b: Vector3 = poly[i + 1]
+				var delta := Vector2(b.x - a.x, b.z - a.z)
+				var dist := delta.length()
+				var steps_f := maxi(1, int(dist / 0.96))
+				var base_yaw := atan2(delta.y, delta.x)
+				for k in steps_f:
+					var t := (float(k) + 0.5) / float(steps_f)
+					var zig := rng_t.randf_range(-0.14, 0.14) + (0.09 if k % 2 == 0 else -0.09)
+					var px := lerpf(a.x, b.x, t) + zig * sin(base_yaw)
+					var pz := lerpf(a.z, b.z, t) - zig * cos(base_yaw)
+					var py := float(game.terrain_height(px, pz)) - 0.015
+					var hx0 := float(game.terrain_height(px - 0.45, pz))
+					var hx1 := float(game.terrain_height(px + 0.45, pz))
+					var hz0 := float(game.terrain_height(px, pz - 0.45))
+					var hz1 := float(game.terrain_height(px, pz + 0.45))
+					var surf_up := Vector3(hx0 - hx1, 0.90, hz0 - hz1).normalized()
+					var yaw := -base_yaw + rng_t.randf_range(-0.10, 0.10)
+					var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+					var fwd := surf_up.cross(right).normalized()
+					right = fwd.cross(surf_up).normalized()
+					var basis := Basis(right, surf_up, fwd).scaled(Vector3(
+						rng_t.randf_range(0.88, 1.08),
+						1.0,
+						rng_t.randf_range(0.88, 1.06)
+					))
+					xfs.append(Transform3D(basis, Vector3(px, py, pz)))
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = flag_mesh
+		mm.instance_count = xfs.size()
+		for idx in xfs.size():
+			mm.set_instance_transform(idx, xfs[idx])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "BluestoneFlagstones"
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
 
 func _flora_meadows():
 	# 1) MultiMesh wildflower carpets, woodland mushrooms & dense hillside shrubs (7 batched draw calls!)

@@ -66,4 +66,8 @@ Smoke Mountain / Yanshan v0.5.5 local procedural assets (2026-11-13, CC0 / Origi
 - tools/build_v055_assets.py: built procedural Blender 4.5 GLB bundle v055_eco_assets.glb (animal_rabbit, animal_squirrel, animal_fish, animal_crab, flora_glow_orchid, flora_berry_fern, horizon_farmhouse, mountain_fence_bay).
 - tools/generate_v055_textures.py: generated seamless terraced rice paddy ground albedo (rural_paddies_albedo.png) and 360-degree mountain horizon silhouette ring (horizon_mountains.png).
 - tools/generate_sfx.py: synthesized animal_flee.wav, animal_hit.wav, and flora_collect.wav into game/assets/sfx/.
+
+Smoke Mountain / Yanshan v0.6.0 local procedural assets (2026-11-13, CC0 / Original Project):
+- tools/build_v060_assets.py: built procedural Blender 4.5 GLB bundle game/assets/slice/v060_jiangnan_assets.glb (wangdao_pavilion, stone_arch_bridge, boundary_stele, poem_stele_pavilion, ancient_camphor, wayside_shrine, bluestone_flagstone; 16,376 triangles total).
+- tools/generate_v060_textures.py: rendered engraved stone/wood calligraphy PNG textures (plaque_wangdao.png, stele_poem.png, stele_boundary.png) baked as GLB image textures (no font files bundled).
 No proprietary game assets are included.
