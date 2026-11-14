@@ -1,5 +1,5 @@
 extends CharacterBody3D
-## Tactical Word Bot / Heavy Boss with 4 archetypes, holographic word shields, physical HP/weakpoints, stun states, and shatter FX.
+## Tactical Word Bot / Heavy Boss with 4 archetypes, 1-shot Headshot weakpoint, 2-shot Word Shield, zero-damage wrong-shot deflection, and true camp-standby -> pursuit AI.
 
 enum Action { PATROL, ADVANCE, AIM, COVER }
 enum Archetype { ASSAULT_BOT, SCOUT_DRONE, SNIPER_GUARD, BOSS_WARDEN }
@@ -10,6 +10,7 @@ var combat
 var zone: int
 var option: int
 var archetype: int = Archetype.ASSAULT_BOT
+var assigned_word: Dictionary = {}
 var home: Vector3
 var cover: Vector3
 var side: float
@@ -20,8 +21,11 @@ var defeated = false
 
 var max_hp: int = 90
 var hp: int = 90
+var max_shield_layers: int = 2
+var shield_layers: int = 2
 var stun_left: float = 0.0
 var exposed_left: float = 0.0
+var wrong_flash_left: float = 0.0
 var boss_phase: int = 3
 var boss_ring_cd: float = 4.2
 var shield_intact: bool = true
@@ -36,6 +40,8 @@ var hp_fill: MeshInstance3D
 var hp_fill_mat: StandardMaterial3D
 var word_label: Label3D
 var tag_label: Label3D
+var base_tag_text: String = ""
+var base_border_col: Color = Color("5ce0b8")
 var shield_material: StandardMaterial3D
 var frame_material: StandardMaterial3D
 var visor: StandardMaterial3D
@@ -61,47 +67,47 @@ func attack_range() -> float:
 
 func move_speed() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 2.55
+		return 2.75
 	if archetype == Archetype.SCOUT_DRONE:
-		return 4.1
+		return 4.25
 	if archetype == Archetype.SNIPER_GUARD:
-		return 2.15
-	return 2.95
+		return 2.45
+	return 3.20
 
 func base_shot_damage() -> int:
 	if archetype == Archetype.BOSS_WARDEN:
 		return 20
 	if archetype == Archetype.SNIPER_GUARD:
-		return 17
+		return 16
 	if archetype == Archetype.SCOUT_DRONE:
 		return 8
-	return 11
+	return 10
 
 func fire_interval() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 2.35
+		return 2.45
 	if archetype == Archetype.SCOUT_DRONE:
-		return 2.35
+		return 2.55
 	if archetype == Archetype.SNIPER_GUARD:
-		return 3.75
-	return 2.95
+		return 3.80
+	return 3.05
 
 func aim_windup() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 0.78
+		return 0.80
 	if archetype == Archetype.SNIPER_GUARD:
 		return 1.08
 	if archetype == Archetype.SCOUT_DRONE:
-		return 0.68
-	return 0.80
+		return 0.72
+	return 0.82
 
 func _base_max_hp() -> int:
 	if archetype == Archetype.BOSS_WARDEN:
 		return 450
 	if archetype == Archetype.SCOUT_DRONE:
-		return 65
+		return 70
 	if archetype == Archetype.SNIPER_GUARD:
-		return 85
+		return 90
 	return 90
 
 func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: int = Archetype.ASSAULT_BOT):
@@ -111,31 +117,37 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	archetype = bot_type
 	max_hp = _base_max_hp()
 	hp = max_hp
+	max_shield_layers = 2
+	shield_layers = max_shield_layers
 	boss_phase = 3
 	stun_left = 0.0
 	exposed_left = 0.0
+	wrong_flash_left = 0.0
 	shield_intact = true
+	defeated = false
+	action = Action.PATROL
 	cover = barrier
 	side = -1.0 if index % 2 == 0 else 1.0
-	home = combat.game.Layout.on_ground(cover + Vector3(side * 1.45, 0, -1.65))
+	home = combat.game.Layout.on_ground(cover + Vector3(side * 1.35, 0, -1.65))
 	position = home + Vector3.UP * 0.06
 	patrol = [
 		home,
-		combat.game.Layout.on_ground(cover + Vector3(side * 1.90, 0, 0.55)),
-		combat.game.Layout.on_ground(cover + Vector3(side * 1.65, 0, -2.65))
+		combat.game.Layout.on_ground(cover + Vector3(side * 1.85, 0, 0.55)),
+		combat.game.Layout.on_ground(cover + Vector3(side * 1.55, 0, -2.55))
 	]
 	patrol_index = 1
 	hover_clock = index * 1.3
-	cooldown = 0.55 + index * 0.32
+	cooldown = 0.65 + index * 0.30
 	collision_layer = HIT_LAYER
 	collision_mask = 1 | HIT_LAYER | 8
 	floor_snap_length = 0.38
 	var is_boss := archetype == Archetype.BOSS_WARDEN
 	var capsule = CapsuleShape3D.new()
-	capsule.radius = 0.46 if is_boss else 0.36
-	capsule.height = 2.05 if is_boss else 1.52
+	capsule.radius = 0.46 if is_boss else 0.35
+	# Keep body capsule strictly below the head weakpoint sphere so headshots never hit torso first!
+	capsule.height = 1.86 if is_boss else 1.42
 	var hitbox = CollisionShape3D.new()
-	hitbox.position.y = 1.04 if is_boss else 0.78
+	hitbox.position.y = 0.94 if is_boss else 0.72
 	hitbox.shape = capsule
 	add_child(hitbox)
 	_build_model()
@@ -161,25 +173,26 @@ func _build_model():
 	else:
 		_build_assault_chassis(game)
 
-	# Head / Optical Sensor Weakpoint Area (2.2x bullet crit)
+	# 1. Head / Optical Core Weakpoint Area (1-Shot Instant Kill on Correct Soldier!)
+	# Positioned cleanly ABOVE the chest word shield so players can reliably aim for headshots!
 	head_area = Area3D.new()
 	head_area.set_meta("hit_zone", "head")
 	head_area.collision_layer = HIT_LAYER
 	head_area.collision_mask = 0
 	head_area.monitoring = false
 	head_area.monitorable = false
-	var head_y := 2.24 if archetype == Archetype.BOSS_WARDEN else (1.80 if archetype == Archetype.SNIPER_GUARD else (1.76 if archetype == Archetype.SCOUT_DRONE else 1.68))
-	head_area.position = Vector3(0, head_y, 0.08)
+	var head_y := 2.30 if archetype == Archetype.BOSS_WARDEN else (1.84 if archetype == Archetype.SNIPER_GUARD else (1.84 if archetype == Archetype.SCOUT_DRONE else 1.74))
+	head_area.position = Vector3(0, head_y, 0.14)
 	add_child(head_area)
 	var hshape = SphereShape3D.new()
-	hshape.radius = 0.36 if archetype == Archetype.BOSS_WARDEN else 0.30
+	hshape.radius = 0.40 if archetype == Archetype.BOSS_WARDEN else 0.34
 	var hcol = CollisionShape3D.new()
 	hcol.shape = hshape
 	head_area.add_child(hcol)
 
-	# Overhead Compact 3D Health Bar
+	# 2. Overhead Compact 3D Health / Shield-Layer Bar
 	hp_bar_root = Node3D.new()
-	hp_bar_root.position = Vector3(0, 2.78 if archetype == Archetype.BOSS_WARDEN else 2.24, 0)
+	hp_bar_root.position = Vector3(0, 2.82 if archetype == Archetype.BOSS_WARDEN else 2.26, 0)
 	add_child(hp_bar_root)
 	var bg = MeshInstance3D.new()
 	var bg_quad = QuadMesh.new()
@@ -191,6 +204,7 @@ func _build_model():
 	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	bg.material_override = bg_mat
+	bg.visibility_range_end = 42.0
 	hp_bar_root.add_child(bg)
 
 	hp_fill = MeshInstance3D.new()
@@ -203,48 +217,53 @@ func _build_model():
 	hp_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	hp_fill_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	hp_fill.material_override = hp_fill_mat
+	hp_fill.visibility_range_end = 42.0
 	hp_bar_root.add_child(hp_fill)
 
-	# Holographic Framed Electronic Word Shield
+	# 3. Chest-Mounted Holographic Electronic Word Shield (2 Shots to Break & Kill on Correct Soldier)
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
-	var shield_y = 1.92 if archetype == Archetype.BOSS_WARDEN else (1.44 if archetype == Archetype.SNIPER_GUARD else (1.38 if archetype == Archetype.SCOUT_DRONE else 1.32))
-	shield_area.position = Vector3(0, shield_y, 0.68 if archetype == Archetype.BOSS_WARDEN else 0.48)
-	shield_area.collision_layer = HIT_LAYER
+	var shield_y := 1.56 if archetype == Archetype.BOSS_WARDEN else (1.16 if archetype == Archetype.SNIPER_GUARD else (1.14 if archetype == Archetype.SCOUT_DRONE else 1.08))
+	shield_area.position = Vector3(0, shield_y, 0.66 if archetype == Archetype.BOSS_WARDEN else 0.46)
+	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
 	shield_area.monitoring = false
 	shield_area.monitorable = false
+	shield_area.hide()
 	add_child(shield_area)
 
+	var bw := 2.24 if archetype == Archetype.BOSS_WARDEN else 2.00
+	var bh := 0.78 if archetype == Archetype.BOSS_WARDEN else 0.70
 	var badge_shape = BoxShape3D.new()
-	badge_shape.size = Vector3(2.26 if archetype == Archetype.BOSS_WARDEN else 2.04, 0.84 if archetype == Archetype.BOSS_WARDEN else 0.76, 0.16)
+	badge_shape.size = Vector3(bw, bh, 0.16)
 	var badge_hitbox = CollisionShape3D.new()
 	badge_hitbox.shape = badge_shape
 	shield_area.add_child(badge_hitbox)
 
-	var border_col = Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else (Color("ff9b54") if archetype == Archetype.SCOUT_DRONE else (Color("ff5d6c") if archetype == Archetype.SNIPER_GUARD else Color("5ce0b8")))
-	var bw := 2.26 if archetype == Archetype.BOSS_WARDEN else 2.04
-	var bh := 0.84 if archetype == Archetype.BOSS_WARDEN else 0.76
-	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.015), Vector3(bw, bh, 0.06), border_col)
+	base_border_col = Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else (Color("ff9b54") if archetype == Archetype.SCOUT_DRONE else (Color("ff5d6c") if archetype == Archetype.SNIPER_GUARD else Color("5ce0b8")))
+	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.015), Vector3(bw, bh, 0.06), base_border_col)
 	frame_material = outer_bezel.material_override
 	frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	var screen_box = game._mesh_box(shield_area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.12, bh - 0.14, 0.05), Color("edf2e6"))
+	var screen_box = game._mesh_box(shield_area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.12, bh - 0.12, 0.05), Color("edf2e6"))
 	shield_material = screen_box.material_override
 	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	var role_text = ["突击护盾兵", "迅捷侦察机", "重装狙击卫", "★ 烟山统领"][archetype]
-	tag_label = game._label3d(shield_area, "%s · %s" % [char(65 + option), role_text], Vector3(0, 0.24 if archetype == Archetype.BOSS_WARDEN else 0.22, 0.055), 19, Color("143832"))
+	base_tag_text = "%s · %s" % [char(65 + (option % 8)), role_text]
+	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.22 if archetype == Archetype.BOSS_WARDEN else 0.20, 0.055), 18, Color("143832"))
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	tag_label.pixel_size = 0.0044
 	tag_label.outline_size = 0
+	tag_label.visibility_range_end = 45.0
 
-	word_label = game._label3d(shield_area, "", Vector3(0, -0.05, 0.058), 60, Color("102620"))
+	word_label = game._label3d(shield_area, "", Vector3(0, -0.05, 0.058), 58, Color("102620"))
 	word_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	word_label.pixel_size = 0.0052
+	word_label.pixel_size = 0.0050
 	word_label.width = 345
 	word_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	word_label.outline_size = 0
+	word_label.visibility_range_end = 48.0
 
 	# Sniper / Aim Laser Sight Beam
 	laser_beam = MeshInstance3D.new()
@@ -264,37 +283,38 @@ func _build_drone_chassis(game):
 	legs.clear()
 	var hull_mat = _metal_mat(Color("2d3840"), 0.68, 0.34)
 	var accent_mat = _metal_mat(Color("8a5d2e"), 0.72, 0.32)
-	var fuselage = game._mesh_box(visual_root, Vector3(0, 1.72, 0), Vector3(0.54, 0.28, 0.58), Color.WHITE)
+	var fuselage = game._mesh_box(visual_root, Vector3(0, 1.66, 0), Vector3(0.54, 0.26, 0.56), Color.WHITE)
 	fuselage.material_override = hull_mat
-	var canopy = game._mesh_box(visual_root, Vector3(0, 1.88, -0.02), Vector3(0.38, 0.12, 0.40), Color.WHITE)
-	canopy.material_override = accent_mat
+	# Prominent top optical sensor head dome for clean 1-shot headshot targeting
+	var sensor_head = game._mesh_box(visual_root, Vector3(0, 1.88, 0.06), Vector3(0.38, 0.24, 0.38), Color.WHITE)
+	sensor_head.material_override = accent_mat
 	var wing_mat = _metal_mat(Color("1e262c"), 0.65, 0.38)
 	for x in [-0.58, 0.58]:
-		var arm = game._mesh_box(visual_root, Vector3(x * 0.56, 1.78, 0), Vector3(0.46, 0.06, 0.12), Color.WHITE)
+		var arm = game._mesh_box(visual_root, Vector3(x * 0.56, 1.72, 0), Vector3(0.46, 0.06, 0.12), Color.WHITE)
 		arm.material_override = wing_mat
 		var ring = MeshInstance3D.new()
 		var torus = TorusMesh.new()
 		torus.inner_radius = 0.18
 		torus.outer_radius = 0.24
 		ring.mesh = torus
-		ring.position = Vector3(x, 1.80, 0)
+		ring.position = Vector3(x, 1.74, 0)
 		ring.material_override = wing_mat
 		visual_root.add_child(ring)
-		var thruster = game._mesh_box(visual_root, Vector3(x, 1.77, 0), Vector3(0.18, 0.02, 0.18), Color("6cf0d0"))
+		var thruster = game._mesh_box(visual_root, Vector3(x, 1.71, 0), Vector3(0.18, 0.02, 0.18), Color("6cf0d0"))
 		thruster.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visor = game._mesh_box(visual_root, Vector3(0, 1.74, 0.30), Vector3(0.38, 0.10, 0.05), Color("ffb35c")).material_override
+	visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.32, 0.11, 0.05), Color("ffb35c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 func _build_assault_chassis(game):
-	var armor_mat = _metal_mat(Color("455954") if zone == 0 else Color("3f5261"), 0.48, 0.46)
+	var armor_mat = _metal_mat(Color("455954") if zone % 2 == 0 else Color("3f5261"), 0.48, 0.46)
 	var dark_mat = _metal_mat(Color("222b2e"), 0.60, 0.40)
 	var chest = game._mesh_box(visual_root, Vector3(0, 1.15, 0), Vector3(0.68, 0.68, 0.42), Color.WHITE)
 	chest.material_override = armor_mat
-	var head = game._mesh_box(visual_root, Vector3(0, 1.66, 0.02), Vector3(0.46, 0.32, 0.42), Color.WHITE)
+	var head = game._mesh_box(visual_root, Vector3(0, 1.72, 0.04), Vector3(0.48, 0.34, 0.44), Color.WHITE)
 	head.material_override = dark_mat
-	var crest = game._mesh_box(visual_root, Vector3(0, 1.85, 0), Vector3(0.54, 0.12, 0.48), Color.WHITE)
+	var crest = game._mesh_box(visual_root, Vector3(0, 1.92, 0.02), Vector3(0.54, 0.12, 0.48), Color.WHITE)
 	crest.material_override = armor_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 1.67, 0.24), Vector3(0.38, 0.10, 0.04), Color("7ef0c8")).material_override
+	visor = game._mesh_box(visual_root, Vector3(0, 1.73, 0.27), Vector3(0.38, 0.11, 0.04), Color("7ef0c8")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for x in [-0.46, 0.46]:
 		var pauldron = game._mesh_box(visual_root, Vector3(x, 1.34, 0.02), Vector3(0.24, 0.26, 0.36), Color.WHITE)
@@ -317,15 +337,14 @@ func _build_sniper_chassis(game):
 	var dark_mat = _metal_mat(Color("1d2126"), 0.62, 0.42)
 	var torso = game._mesh_box(visual_root, Vector3(0, 1.24, 0), Vector3(0.82, 0.78, 0.50), Color.WHITE)
 	torso.material_override = heavy_mat
-	var helm = game._mesh_box(visual_root, Vector3(0, 1.80, 0.02), Vector3(0.52, 0.36, 0.46), Color.WHITE)
+	var helm = game._mesh_box(visual_root, Vector3(0, 1.84, 0.04), Vector3(0.52, 0.36, 0.46), Color.WHITE)
 	helm.material_override = dark_mat
-	# Twin shoulder rail pylons
 	for x in [-0.54, 0.54]:
 		var pad = game._mesh_box(visual_root, Vector3(x, 1.48, 0), Vector3(0.28, 0.34, 0.44), Color.WHITE)
 		pad.material_override = trim_mat
-		var rail = game._mesh_box(visual_root, Vector3(x * 0.85, 1.92, 0.14), Vector3(0.10, 0.14, 0.62), Color.WHITE)
+		var rail = game._mesh_box(visual_root, Vector3(x * 0.85, 1.94, 0.14), Vector3(0.10, 0.14, 0.62), Color.WHITE)
 		rail.material_override = dark_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 1.80, 0.26), Vector3(0.42, 0.11, 0.05), Color("ff5c6c")).material_override
+	visor = game._mesh_box(visual_root, Vector3(0, 1.84, 0.28), Vector3(0.42, 0.12, 0.05), Color("ff5c6c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for x in [-0.25, 0.25]:
 		var leg = Node3D.new()
@@ -365,11 +384,11 @@ func _build_boss_chassis(game):
 	ccol.shape = cshape
 	core_area.add_child(ccol)
 
-	var helm = game._mesh_box(visual_root, Vector3(0, 2.22, 0.04), Vector3(0.62, 0.44, 0.56), Color.WHITE)
+	var helm = game._mesh_box(visual_root, Vector3(0, 2.26, 0.06), Vector3(0.62, 0.44, 0.56), Color.WHITE)
 	helm.material_override = obsidian_mat
-	var crest = game._mesh_box(visual_root, Vector3(0, 2.50, 0), Vector3(0.84, 0.16, 0.58), Color.WHITE)
+	var crest = game._mesh_box(visual_root, Vector3(0, 2.54, 0.02), Vector3(0.84, 0.16, 0.58), Color.WHITE)
 	crest.material_override = gold_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 2.22, 0.34), Vector3(0.50, 0.12, 0.06), Color("ff4f4f")).material_override
+	visor = game._mesh_box(visual_root, Vector3(0, 2.26, 0.36), Vector3(0.50, 0.12, 0.06), Color("ff4f4f")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	for x in [-0.76, 0.76]:
@@ -393,7 +412,11 @@ func _build_boss_chassis(game):
 func _refresh_hp_bar():
 	if not is_instance_valid(hp_fill):
 		return
-	var ratio := clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
+	var ratio := 1.0
+	if archetype == Archetype.BOSS_WARDEN:
+		ratio = clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
+	else:
+		ratio = clampf(float(shield_layers) / float(maxi(1, max_shield_layers)), 0.0, 1.0)
 	hp_fill.scale.x = maxf(0.02, ratio)
 	var full_w := 1.37 if archetype == Archetype.BOSS_WARDEN else 0.86
 	hp_fill.position.x = -full_w * 0.5 * (1.0 - ratio)
@@ -403,7 +426,7 @@ func _refresh_hp_bar():
 		elif archetype == Archetype.BOSS_WARDEN:
 			hp_fill_mat.albedo_color = Color("ff5c5c") if exposed_left > 0 else Color("ffb84d")
 		else:
-			hp_fill_mat.albedo_color = Color("5fe3a8") if ratio > 0.45 else Color("ff7a59")
+			hp_fill_mat.albedo_color = Color("5fe3a8") if shield_layers >= 2 else Color("ff9f4a")
 
 func stun(seconds: float):
 	if defeated:
@@ -425,16 +448,47 @@ func expose_boss_core(seconds: float):
 		core_material.albedo_color = Color("ff3b3b")
 	_refresh_hp_bar()
 
+func crack_shield_once():
+	if defeated:
+		return
+	shield_layers = maxi(1, shield_layers - 1)
+	if is_instance_valid(shield_material):
+		shield_material.albedo_color = Color("fff0b3")
+	if is_instance_valid(frame_material):
+		frame_material.albedo_color = Color("ff8c3b")
+	if is_instance_valid(tag_label):
+		tag_label.text = "⚡ 护盾破损 (1/2) · 再补1枪!"
+		tag_label.modulate = Color("8a2d0a")
+	stun_left = maxf(stun_left, 0.22)
+	_refresh_hp_bar()
+
+func on_wrong_hit_flash():
+	if defeated:
+		return
+	# Wrong target takes ZERO HP / shield damage! Flash deflection warning briefly.
+	wrong_flash_left = 0.42
+	if is_instance_valid(shield_material):
+		shield_material.albedo_color = Color("f4a69e")
+	if is_instance_valid(frame_material):
+		frame_material.albedo_color = Color("ff3b30")
+
 func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool = false) -> bool:
 	if defeated:
 		return false
 	if amount <= 0:
-		shield_material.albedo_color = Color("a63e36")
-		take_cover()
+		on_wrong_hit_flash()
 		return false
 	hp = maxi(0, hp - amount)
+	if archetype != Archetype.BOSS_WARDEN and hp <= 0:
+		shield_layers = 0
 	if from_english_shield and archetype == Archetype.BOSS_WARDEN:
-		expose_boss_core(4.2)
+		shield_layers = max_shield_layers
+		if is_instance_valid(tag_label):
+			tag_label.text = base_tag_text
+			tag_label.modulate = Color("143832")
+		if is_instance_valid(frame_material):
+			frame_material.albedo_color = base_border_col
+		expose_boss_core(4.5)
 		stun(1.25)
 		var next_phase := 3 if hp > 300 else (2 if hp > 150 else 1)
 		if next_phase < boss_phase and hp > 0:
@@ -442,7 +496,6 @@ func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool 
 			if combat.has_method("on_boss_phase_shift"):
 				combat.on_boss_phase_shift(self, boss_phase)
 	else:
-		# Flash core or shield briefly on physical impact
 		if is_instance_valid(hp_fill_mat):
 			hp_fill_mat.albedo_color = Color("ffd86b") if is_crit else Color("ff6b6b")
 	_refresh_hp_bar()
@@ -451,53 +504,31 @@ func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool 
 		return true
 	return false
 
-func show_word(word: String, new_question: bool):
-	if defeat_tween and defeat_tween.is_valid():
-		defeat_tween.kill()
-	visual_root.rotation = Vector3.ZERO
-	visual_root.position = Vector3.ZERO
-	visual_root.scale = Vector3.ONE
+func show_word(word: String, _new_question: bool):
+	# NEVER revive a defeated soldier mid-wave! Dead units stay eliminated until the whole wave is cleared.
+	if defeated:
+		return
 	var has_word := word != ""
-	if has_word:
+	if has_word and (archetype != Archetype.BOSS_WARDEN or exposed_left <= 0):
 		shield_area.show()
 		shield_area.collision_layer = HIT_LAYER
 		shield_intact = true
+		combat.game._fit_word(word_label, word, 110)
+		if shield_layers >= max_shield_layers and wrong_flash_left <= 0:
+			shield_material.albedo_color = Color("edf2e6")
+			frame_material.albedo_color = base_border_col
+			tag_label.text = base_tag_text
+			tag_label.modulate = Color("143832")
 	else:
 		shield_area.hide()
 		shield_area.collision_layer = 0
-	laser_beam.hide()
-	if defeated and new_question and archetype != Archetype.BOSS_WARDEN:
-		var player_at: Vector3 = combat.game.player.position
-		var spawn := home
-		if player_at.distance_to(home) < 2.6:
-			for point in patrol:
-				if point.distance_to(player_at) > spawn.distance_to(player_at):
-					spawn = point
-		if player_at.distance_to(spawn) < 1.5:
-			spawn = combat.game.Layout.on_ground(cover + Vector3(-side * 1.5, 0, -2.4))
-		position = spawn + Vector3.UP * 0.06
-		velocity = Vector3.ZERO
-		max_hp = _base_max_hp()
-		hp = max_hp
-		stun_left = 0.0
-		exposed_left = 0.0
-		defeated = false
-		show()
-		collision_layer = HIT_LAYER
-		if is_instance_valid(head_area):
-			head_area.collision_layer = HIT_LAYER
-		if is_instance_valid(core_area):
-			core_area.collision_layer = HIT_LAYER
-		shield_area.collision_layer = HIT_LAYER if has_word else 0
-		action = Action.ADVANCE
-		cooldown = 1.05
-	if new_question:
-		shield_material.albedo_color = Color("edf2e6")
 	_refresh_hp_bar()
-	combat.game._fit_word(word_label, word, 114)
 
 func neutralize():
+	if defeated:
+		return
 	defeated = true
+	shield_layers = 0
 	collision_layer = 0
 	shield_area.collision_layer = 0
 	if is_instance_valid(head_area):
@@ -508,14 +539,15 @@ func neutralize():
 	action = Action.PATROL
 	laser_beam.hide()
 	shield_area.hide()
+	hp_bar_root.hide()
 	_spawn_shatter_fx()
 	if defeat_tween and defeat_tween.is_valid():
 		defeat_tween.kill()
 	defeat_tween = create_tween()
 	defeat_tween.set_parallel(true)
-	defeat_tween.tween_property(visual_root, "rotation:x", -0.95, 0.28)
-	defeat_tween.tween_property(visual_root, "position:y", -0.45, 0.28)
-	defeat_tween.tween_property(visual_root, "scale", Vector3(0.82, 0.82, 0.82), 0.28)
+	defeat_tween.tween_property(visual_root, "rotation:x", -0.95, 0.26)
+	defeat_tween.tween_property(visual_root, "position:y", -0.45, 0.26)
+	defeat_tween.tween_property(visual_root, "scale", Vector3(0.82, 0.82, 0.82), 0.26)
 	defeat_tween.chain().tween_callback(func():
 		if defeated:
 			hide()
@@ -527,7 +559,7 @@ func _spawn_shatter_fx():
 	var game = combat.game
 	var origin = shield_area.global_position
 	var fx_col := Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else Color("7af5cc")
-	var count := 12 if archetype == Archetype.BOSS_WARDEN else 6
+	var count := 10 if archetype == Archetype.BOSS_WARDEN else 5
 	for i in count:
 		var shard = game._mesh_box(combat.arena, origin, Vector3(0.24, 0.16, 0.05), fx_col)
 		shard.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -535,15 +567,10 @@ func _spawn_shatter_fx():
 		var target_pos = origin + Vector3(cos(angle) * 1.45, 0.55 + sin(angle) * 0.65, sin(angle) * 0.85)
 		var tw = shard.create_tween()
 		tw.set_parallel(true)
-		tw.tween_property(shard, "global_position", target_pos, 0.38)
-		tw.tween_property(shard, "rotation", Vector3(angle * 2.0, angle, angle * 1.5), 0.38)
-		tw.tween_property(shard, "scale", Vector3(0.05, 0.05, 0.05), 0.38)
+		tw.tween_property(shard, "global_position", target_pos, 0.35)
+		tw.tween_property(shard, "rotation", Vector3(angle * 2.0, angle, angle * 1.5), 0.35)
+		tw.tween_property(shard, "scale", Vector3(0.05, 0.05, 0.05), 0.35)
 		tw.chain().tween_callback(shard.queue_free)
-	var pts: int = game.Rules.BOSS_DEFEAT_SCORE if archetype == Archetype.BOSS_WARDEN else game.Rules.BASE_ANSWER_SCORE
-	var pop = game._label3d(combat.arena, "+%d" % pts, origin + Vector3(0, 0.45, 0), 46, fx_col)
-	var ptw = pop.create_tween()
-	ptw.tween_property(pop, "position:y", origin.y + 1.55, 0.60)
-	ptw.tween_callback(pop.queue_free)
 
 func take_cover():
 	laser_beam.hide()
@@ -552,15 +579,21 @@ func take_cover():
 	toward_player.y = 0
 	if toward_player.length_squared() < 0.1:
 		toward_player = Vector3.BACK
-	cover_goal = combat.game.Layout.on_ground(cover - toward_player.normalized() * 1.55)
+	var dist_to_cover := Vector2(position.x - cover.x, position.z - cover.z).length()
+	if dist_to_cover < 9.5:
+		cover_goal = combat.game.Layout.on_ground(cover - toward_player.normalized() * 1.55)
+	else:
+		# When pursuing far from home camp, sidestep tactically instead of running all the way back to camp cover!
+		var strafe := toward_player.normalized().cross(Vector3.UP) * side * 2.4
+		cover_goal = position + strafe
 	action = Action.COVER
-	cover_left = 0.72 if archetype == Archetype.SCOUT_DRONE else 0.95
+	cover_left = 0.82 if archetype == Archetype.SCOUT_DRONE else 1.05
 
 func _update_laser(player_eye: Vector3):
 	if action != Action.AIM or defeated or stun_left > 0:
 		laser_beam.hide()
 		return
-	var from = global_position + Vector3(0, 2.22 if archetype == Archetype.BOSS_WARDEN else (1.72 if archetype != Archetype.ASSAULT_BOT else 1.62), 0)
+	var from = global_position + Vector3(0, 2.24 if archetype == Archetype.BOSS_WARDEN else (1.80 if archetype != Archetype.ASSAULT_BOT else 1.70), 0)
 	var dist = from.distance_to(player_eye)
 	if dist < 0.5:
 		laser_beam.hide()
@@ -581,9 +614,29 @@ func _physics_process(delta: float):
 		laser_beam.hide()
 		return
 
+	if wrong_flash_left > 0.0:
+		wrong_flash_left = maxf(0.0, wrong_flash_left - delta)
+		if wrong_flash_left <= 0.0 and not defeated:
+			if is_instance_valid(shield_material):
+				shield_material.albedo_color = Color("edf2e6") if shield_layers >= max_shield_layers else Color("fff0b3")
+			if is_instance_valid(frame_material):
+				frame_material.albedo_color = base_border_col if shield_layers >= max_shield_layers else Color("ff8c3b")
+
+	var player_at: Vector3 = game.player.position
+	var toward_player := player_at - position
+	toward_player.y = 0
+	var distance := toward_player.length()
+	var engaged: bool = (combat.zone == zone and combat.is_zone_engaged(zone))
+
+	# Performance optimization: Distant un-aggroed camp garrisons sleep peacefully at their posts!
+	if not engaged and distance > 36.0:
+		laser_beam.hide()
+		velocity = Vector3.ZERO
+		return
+
 	hover_clock += delta
 	if archetype == Archetype.SCOUT_DRONE:
-		visual_root.position.y = sin(hover_clock * 4.4) * 0.11
+		visual_root.position.y = sin(hover_clock * 4.4) * 0.10
 
 	if exposed_left > 0:
 		exposed_left = maxf(0, exposed_left - delta)
@@ -591,6 +644,8 @@ func _physics_process(delta: float):
 			shield_intact = true
 			if is_instance_valid(core_material):
 				core_material.albedo_color = Color("ff9d3b")
+			if engaged and not assigned_word.is_empty():
+				show_word(str(assigned_word.get("english", "")), false)
 			_refresh_hp_bar()
 
 	if stun_left > 0:
@@ -607,31 +662,27 @@ func _physics_process(delta: float):
 	else:
 		visual_root.rotation.z = 0.0
 
-	var player_at: Vector3 = game.player.position
-	var toward_player := player_at - position
-	toward_player.y = 0
-	var distance := toward_player.length()
 	cooldown = maxf(0, cooldown - delta)
 	var goal := position
 	var speed := move_speed()
 
-	if archetype == Archetype.BOSS_WARDEN and combat.zone == zone:
+	if archetype == Archetype.BOSS_WARDEN and engaged:
 		boss_ring_cd = maxf(0, boss_ring_cd - delta)
 		if boss_ring_cd <= 0 and distance < attack_range() and not combat.player_in_smoke():
 			boss_ring_cd = 6.2 if boss_phase >= 2 else 4.6
 			combat.spawn_danger_ring(player_at, 3.4, 24)
 
-	# All 4 squad soldiers in the active zone engage & pursue across slopes!
-	if combat.zone != zone:
+	if not engaged:
+		# Standby Garrison at Camp Origin: patrol quietly around camp, DO NOT chase player until aggroed!
 		action = Action.PATROL
-		speed *= 0.62
+		speed *= 0.58
 		if position.distance_to(patrol[patrol_index]) < 0.55:
 			patrol_index = (patrol_index + 1) % patrol.size()
 		goal = patrol[patrol_index]
 	elif action == Action.COVER:
 		goal = cover_goal
 		speed *= 1.18
-		cover_left -= delta if position.distance_to(cover_goal) < 0.65 else delta * 0.40
+		cover_left -= delta if position.distance_to(cover_goal) < 0.65 else delta * 0.25
 		if cover_left <= 0:
 			action = Action.ADVANCE
 	elif action == Action.AIM:
@@ -644,7 +695,7 @@ func _physics_process(delta: float):
 			if aim_left <= 0:
 				laser_beam.hide()
 				take_cover()
-				cooldown = fire_interval() * (0.72 if combat.rage_left > 0 else 1.0)
+				cooldown = fire_interval() * (0.82 if combat.wave_wrong_stacks > 0 else 1.0)
 				combat.strike(self)
 	else:
 		action = Action.ADVANCE
@@ -654,19 +705,14 @@ func _physics_process(delta: float):
 			aim_left = aim_windup()
 			if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]:
 				game.play_sfx("warning_lock", -13)
-		elif archetype == Archetype.SNIPER_GUARD and distance < 13.0 and distance > 6.5 and combat.clear_shot(position):
-			# Sniper holds medium-long vantage only when line-of-sight is already clear
+		elif archetype == Archetype.SNIPER_GUARD and distance < 14.0 and distance > 7.0 and combat.clear_shot(position):
 			goal = position + toward_player.normalized().cross(Vector3.UP) * side * 1.4
-		elif distance > (3.8 if archetype == Archetype.SCOUT_DRONE else 5.0):
-			goal = player_at + Vector3(-3.8 + option * 2.5, 0, 0)
+		elif distance > (4.0 if archetype == Archetype.SCOUT_DRONE else 5.4):
+			var spread_ang := float(option - 2) * 0.42
+			var approach_off := (-toward_player.normalized()).rotated(Vector3.UP, spread_ang) * 4.6
+			goal = player_at + approach_off
 		else:
 			goal = position + toward_player.normalized().cross(Vector3.UP) * side * 1.6
-		var zone_center: Vector3 = combat.zone_center(zone)
-		var offset: Vector3 = goal - zone_center
-		offset.y = 0
-		var max_leash: float = combat.zone_pursuit(zone) + 4.5
-		if offset.length() > max_leash:
-			goal = zone_center + offset.limit_length(max_leash)
 
 	if not combat.in_field():
 		return
@@ -675,9 +721,15 @@ func _physics_process(delta: float):
 	else:
 		visor.albedo_color = Color("ff4f4f") if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN] else Color("7ef0c8")
 
-	if distance > 0.05:
+	if engaged and distance > 0.05:
 		rotation.y = atan2(toward_player.x, toward_player.z)
-	if action == Action.ADVANCE or action == Action.COVER:
+	elif not engaged:
+		var pd := goal - position
+		pd.y = 0.0
+		if pd.length() > 0.08:
+			rotation.y = atan2(pd.x, pd.z)
+
+	if (action == Action.ADVANCE or action == Action.COVER) and Vector2(position.x - cover.x, position.z - cover.z).length() < 5.0:
 		goal = _around_barrier(goal)
 	_walk(goal, speed, delta)
 

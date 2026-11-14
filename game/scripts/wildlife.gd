@@ -141,7 +141,7 @@ func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 					mi.set_surface_override_material(s, bmat)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.extra_cull_margin = 1.2
-			mi.visibility_range_end = 78.0
+			mi.visibility_range_end = 54.0
 
 func _configure_anim_loops(anim: AnimationPlayer):
 	if anim == null:
@@ -259,7 +259,7 @@ func _spawn_wildlife():
 		area.set_meta("critter_index", idx)
 		var shp := CollisionShape3D.new()
 		var sph := SphereShape3D.new()
-		sph.radius = 0.62 if kind in ["boar", "fox"] else 0.48
+		sph.radius = 0.78 if kind == "bird" else (0.62 if kind in ["boar", "fox"] else 0.48)
 		shp.shape = sph
 		shp.position.y = 0.0 if kind in ["fish", "shrimp"] else 0.28
 		area.add_child(shp)
@@ -329,21 +329,49 @@ func _spawn_sky_egrets():
 		if vis != null:
 			vis.scale = Vector3.ONE * 1.48
 			if vis is MeshInstance3D:
-				(vis as MeshInstance3D).visibility_range_end = 0.0
+				(vis as MeshInstance3D).visibility_range_end = 145.0
 			for ch in vis.find_children("*", "MeshInstance3D", true, false):
-				(ch as MeshInstance3D).visibility_range_end = 0.0
+				(ch as MeshInstance3D).visibility_range_end = 145.0
 			anim = vis.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			_play_critter_anim(anim, ["Fly"], 1.32, float(i) * 0.19)
 			holder.add_child(vis)
+
+		var area := Area3D.new()
+		area.collision_layer = HIT_LAYER
+		area.collision_mask = 0
+		area.monitoring = false
+		area.monitorable = true
+		area.set_meta("sky_egret_index", i)
+		var shp := CollisionShape3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = 1.45
+		shp.shape = sph
+		shp.position.y = 0.15
+		area.add_child(shp)
+		holder.add_child(area)
+
+		var lbl: Label3D = game._label3d(holder, "White Egret · 高空白鹭", Vector3(0, 0.98, 0), 26, Color("ffe8a3"))
+		lbl.visibility_range_end = 68.0
+		lbl.visible = false
+
+		var init_ang := float(sp.phase)
+		var c0: Vector3 = sp.center
+		holder.position = Vector3(c0.x + cos(init_ang) * float(sp.rx), c0.y + sin(init_ang * 2.0) * 1.15, c0.z + sin(init_ang) * float(sp.rz))
 		sky_egrets.append({
+			"idx": i,
 			"node": holder,
 			"vis": vis,
 			"anim": anim,
+			"area": area,
+			"label": lbl,
+			"base_scale": 1.48,
+			"state": "fly",
+			"timer": 0.0,
 			"center": sp.center,
 			"rx": float(sp.rx),
 			"rz": float(sp.rz),
 			"spd": float(sp.spd),
-			"angle": float(sp.phase),
+			"angle": init_ang,
 			"cycle_t": float(i) * 0.95,
 			"gliding": false
 		})
@@ -475,7 +503,18 @@ func reset():
 		a.label.modulate = Color("f2f7d4")
 		a.label.visible = (a.state != "ambush")
 		a.area.collision_layer = HIT_LAYER
+		a.area.scale = Vector3.ONE
 		_play_critter_anim(a.anim, ["Swim"] if a.kind in ["fish", "shrimp"] else ["Idle"], 1.0, float(a.idx) * 0.13)
+	for eg in sky_egrets:
+		eg.state = "fly"
+		eg.timer = 0.0
+		eg.node.visible = true
+		eg.area.collision_layer = HIT_LAYER
+		eg.label.visible = false
+		if eg.vis != null:
+			(eg.vis as Node3D).scale = Vector3.ONE * float(eg.base_scale)
+			(eg.vis as Node3D).rotation = Vector3(0.0, 0.0, 0.20)
+		_play_critter_anim(eg.anim, ["Fly"], 1.32)
 	for f in flora_nodes:
 		var lbl: Label3D = f.get_meta("label_node")
 		lbl.text = "%s · %s [F]" % [f.get_meta("en"), f.get_meta("zh")]
@@ -527,6 +566,34 @@ func update(delta: float):
 
 func _update_sky_egrets(delta: float):
 	for eg in sky_egrets:
+		var st := str(eg.get("state", "fly"))
+		if st == "hidden":
+			eg.timer = float(eg.timer) - delta
+			if float(eg.timer) <= 0.0:
+				eg.state = "fly"
+				eg.node.visible = true
+				eg.area.collision_layer = HIT_LAYER
+				eg.label.visible = false
+				if eg.vis != null:
+					(eg.vis as Node3D).scale = Vector3.ONE * float(eg.base_scale)
+					(eg.vis as Node3D).rotation = Vector3(0.0, 0.0, 0.20)
+				_play_critter_anim(eg.anim, ["Fly"], 1.32)
+			continue
+		if st == "downed":
+			eg.timer = float(eg.timer) - delta
+			var n_down: Node3D = eg.node
+			n_down.position.y -= 3.6 * delta
+			if eg.vis != null:
+				var fade := clampf(float(eg.timer) / 1.15, 0.04, 1.0)
+				(eg.vis as Node3D).scale = Vector3.ONE * float(eg.base_scale) * fade
+				(eg.vis as Node3D).rotation.z += 5.4 * delta
+			if float(eg.timer) <= 0.0:
+				eg.state = "hidden"
+				eg.timer = 15.0
+				n_down.visible = false
+				eg.area.collision_layer = 0
+			continue
+
 		eg.angle += float(eg.spd) * delta
 		eg.cycle_t = fmod(float(eg.cycle_t) + delta, 5.8)
 		var want_glide := float(eg.cycle_t) > 3.5
@@ -544,7 +611,6 @@ func _update_sky_egrets(delta: float):
 		n.position = Vector3(nx, ny, nz)
 		n.rotation.y = atan2(-tx, -tz)
 		if eg.vis != null:
-			# Smooth banked turn roll + subtle wingbeat lift
 			var flap_lift := 0.0 if want_glide else sin(float(eg.cycle_t) * 11.0) * 0.06
 			(eg.vis as Node3D).rotation.z = 0.20 + sin(ang) * 0.08
 			(eg.vis as Node3D).position.y = flap_lift
@@ -553,7 +619,7 @@ func _step_creature(a: Dictionary, delta: float, ppos: Vector3):
 	var kind: String = a.kind
 	var pos: Vector3 = a.pos
 	var dist := Vector2(pos.x - ppos.x, pos.z - ppos.z).length()
-	if dist > 60.0 and a.state in ["idle", "ambush"]:
+	if dist > 42.0 and a.state in ["idle", "ambush"]:
 		if a.anim != null:
 			(a.anim as AnimationPlayer).speed_scale = 0.0
 		return
@@ -668,7 +734,7 @@ func _move_climbing_squirrel(a: Dictionary, delta: float, ppos: Vector3, dist_pl
 		var step := minf(rem, 7.6 * delta)
 		var nx: float = apos.x + dir.x * step
 		var nz: float = apos.z + dir.z * step
-		a.pos = Vector3(nx, float(game.terrain_height(nx, nz)), nz)
+		a.pos = Vector3(nx, float(game.Layout.fast_height(nx, nz)), nz)
 		a.root.position = a.pos
 		a.root.rotation = Vector3(0.0, atan2(-dir.x, -dir.z), 0.0)
 		a.visual.position = Vector3.ZERO
@@ -712,7 +778,7 @@ func _move_climbing_squirrel(a: Dictionary, delta: float, ppos: Vector3, dist_pl
 		if a.timer <= 0.0 and dist_player > 15.5:
 			var gx := tp.x + out_x * (tr + 0.45)
 			var gz := tp.z + out_z * (tr + 0.45)
-			a.pos = Vector3(gx, float(game.terrain_height(gx, gz)), gz)
+			a.pos = Vector3(gx, float(game.Layout.fast_height(gx, gz)), gz)
 			a.root.position = a.pos
 			a.visual.rotation = Vector3.ZERO
 			a.state = "idle"
@@ -748,7 +814,7 @@ func _move_charging_boar(a: Dictionary, delta: float, ppos: Vector3, _dist_xz: f
 	var nxt: Vector3 = a.pos + a.dir * charge_spd * delta
 	nxt.x = clampf(nxt.x, float(game.Layout.FENCE_MIN_X) + 1.6, float(game.Layout.FENCE_MAX_X) - 1.6)
 	nxt.z = clampf(nxt.z, float(game.Layout.FENCE_MIN_Z) + 1.6, float(game.Layout.FENCE_MAX_Z) - 1.6)
-	nxt.y = float(game.terrain_height(nxt.x, nxt.z))
+	nxt.y = float(game.Layout.fast_height(nxt.x, nxt.z))
 	a.pos = nxt
 	a.root.position = nxt
 	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
@@ -886,9 +952,9 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 		a.dir.x = push_x * 0.85
 		nxt.x = float(game.Layout.stream_center_x(nxt.z)) + push_x * 2.40
 
-	nxt.y = float(game.terrain_height(nxt.x, nxt.z))
+	nxt.y = float(game.Layout.fast_height(nxt.x, nxt.z))
 	# Align body pitch naturally with mountain slope gradient!
-	var ahead_y := float(game.terrain_height(nxt.x + a.dir.x * 0.45, nxt.z + a.dir.z * 0.45))
+	var ahead_y := float(game.Layout.fast_height(nxt.x + a.dir.x * 0.45, nxt.z + a.dir.z * 0.45))
 	var slope_pitch := clampf(atan2(ahead_y - nxt.y, 0.45), -0.42, 0.42)
 	a.pos = nxt
 	a.root.position = nxt
@@ -903,6 +969,7 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 
 func _move_bird(a: Dictionary, delta: float, ppos: Vector3):
 	if a.state != "fly":
+		a.area.scale = Vector3.ONE
 		var home_p: Vector3 = a.home
 		a.pos = a.pos.lerp(home_p, minf(delta * 2.4, 1.0))
 		a.root.position = a.pos
@@ -912,7 +979,8 @@ func _move_bird(a: Dictionary, delta: float, ppos: Vector3):
 		_play_critter_anim(a.anim, ["Idle"], 1.0)
 		return
 
-	# Active 3D banked climb & flapping flight escape!
+	# Active 3D banked climb & flapping flight escape (expanded hitbox while airborne)!
+	a.area.scale = Vector3.ONE * 1.55
 	var away := Vector3(a.pos.x - ppos.x, 0.0, a.pos.z - ppos.z)
 	if away.length() > 0.3 and a.timer > 2.4:
 		a.dir = a.dir.lerp(away.normalized(), minf(delta * 2.8, 1.0)).normalized()
@@ -927,7 +995,7 @@ func _move_bird(a: Dictionary, delta: float, ppos: Vector3):
 	nxt_xz.y = clampf(nxt_xz.y, float(game.Layout.FENCE_MIN_Z) + 2.5, float(game.Layout.FENCE_MAX_Z) - 2.5)
 	var target_alt := 6.2 + sin(a.phase * 0.3) * 1.2 if a.timer > 1.4 else float(a.perch_h) + 0.8
 	a.fly_alt = lerpf(float(a.fly_alt), target_alt, minf(delta * 2.8, 1.0))
-	var gy := float(game.terrain_height(nxt_xz.x, nxt_xz.y))
+	var gy := float(game.Layout.fast_height(nxt_xz.x, nxt_xz.y))
 	a.pos = Vector3(nxt_xz.x, maxf(gy + float(a.perch_h), gy + float(a.fly_alt)), nxt_xz.y)
 	a.root.position = a.pos
 	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
@@ -1001,7 +1069,7 @@ func _move_crab(a: Dictionary, delta: float, ppos: Vector3):
 	a.stream_z = clampf(a.stream_z + z_step * crab_speed * delta, z_min, z_max)
 	var cx := float(game.Layout.stream_center_x(a.stream_z))
 	var px := cx + float(a.bank_side) + sin(a.phase * 0.4) * 0.22
-	var nxt := Vector3(px, float(game.terrain_height(px, a.stream_z)) + 0.03, a.stream_z)
+	var nxt := Vector3(px, float(game.Layout.fast_height(px, a.stream_z)) + 0.03, a.stream_z)
 	a.pos = nxt
 	a.root.position = nxt
 	a.root.rotation.y = (PI * 0.5 if float(a.bank_side) > 0.0 else -PI * 0.5) + sin(a.phase) * 0.12
@@ -1015,13 +1083,51 @@ func on_gunshot_near(origin: Vector3, suppressed: bool):
 			_start_flee(a, origin)
 
 func hit_bullet(collider) -> bool:
-	if not (collider is Object) or not collider.has_meta("critter_index"):
+	if not (collider is Object):
+		return false
+	if collider.has_meta("sky_egret_index"):
+		var s_idx := int(collider.get_meta("sky_egret_index"))
+		if s_idx < 0 or s_idx >= sky_egrets.size():
+			return false
+		_down_sky_egret(sky_egrets[s_idx])
+		return true
+	if not collider.has_meta("critter_index"):
 		return false
 	var idx := int(collider.get_meta("critter_index"))
 	if idx < 0 or idx >= animals.size():
 		return false
 	_down_animal(animals[idx])
 	return true
+
+func _down_sky_egret(eg: Dictionary):
+	if str(eg.get("state", "fly")) in ["downed", "hidden"]:
+		return
+	eg.state = "downed"
+	eg.timer = 1.35
+	eg.area.collision_layer = 0
+	eg.label.visible = true
+	discovered_species["bird"] = true
+	game.speak_english("white bird")
+	game.show_hitmarker(true)
+	game.play_sfx("animal_hit", -8)
+	game.play_sfx("bird_flap", -10)
+	var hit_at: Vector3 = (eg.node as Node3D).global_position
+	for i in 7:
+		var m := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.16
+		sm.height = 0.28
+		m.mesh = sm
+		m.position = hit_at + Vector3(cos(i * TAU / 7.0) * 0.45, 0.15, sin(i * TAU / 7.0) * 0.45)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color("fffdf0")
+		mat.emission_enabled = true
+		mat.emission = Color("ffe699")
+		mat.emission_energy_multiplier = 1.6
+		m.material_override = mat
+		add_child(m)
+		hit_fx.append({"node": m, "vel": Vector3(cos(i * 1.1) * 1.6, 1.3 + float(i % 3) * 0.4, sin(i * 1.1) * 1.6), "left": 1.15})
+	game._notice("✦ 精准击中高空【白鹭 · White Egret】！漫天白羽化光消散…", Color("ffe8a3"))
 
 func melee_strike(camera: Camera3D) -> bool:
 	var cam_pos := camera.global_position

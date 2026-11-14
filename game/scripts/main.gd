@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.6.1.1"
+const VERSION = "0.6.1.2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -35,6 +35,7 @@ var targets = []
 var target_materials = []
 var crate_nodes = []
 var pickup_nodes = []
+var cached_interactables = []
 var exit_position = Layout.on_ground(Layout.EXIT)
 var time_left = 480.0
 var extraction_left = 0.0
@@ -343,7 +344,8 @@ func _build_tower(at: Vector3) -> Node3D:
 		bracket.material_override = steel_mat
 	_mesh_box(tower, Vector3(-0.78, 7.7, -0.78), Vector3(0.13, 2.6, 0.13), Color("d0c6a5"))
 	_mesh_box(tower, Vector3(-0.78, 7.9, -0.78), Vector3(1.4, 0.08, 0.08), Color("d0c6a5"))
-	_label3d(tower, "烟山观察哨 · 登顶寻宝", Vector3(0, 7.2, 0), 43, GOLD)
+	var tw_lbl = _label3d(tower, "烟山观察哨 · 登顶寻宝", Vector3(0, 7.2, 0), 43, GOLD)
+	tw_lbl.visibility_range_end = 44.0
 	return tower
 
 func _crate_accent(tier: int) -> Color:
@@ -371,6 +373,7 @@ func _make_crate(title: String, tier: int, at: Vector3) -> Node3D:
 	var tag = "%s\n%d题 · %d%%正确率 · %s" % [header, req.minimum, roundi(req.accuracy * 100), lock_desc]
 	var lbl = _label3d(crate, tag, Vector3(0, 1.75, 0), 30, _crate_accent(tier))
 	lbl.pixel_size = 0.0056
+	lbl.visibility_range_end = 28.0
 	crate_nodes.append(crate)
 	return crate
 
@@ -632,7 +635,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	var brief_lbl = _text(menu, "【v0.6.1.1 战术身法、桥梁缓坡与生灵骨骼动作精修】\n• 战术身法：[C]蹲伏、[Z]卧倒、[Q/E]掩体探头，[F]交互、[X]重听读音\n• 缓坡桥道与硬核状态：4座溪桥顺畅登山，脱离交战不再自动回血回盾\n• 全骨骼生灵动作：白鹭展翅飞翔、松鼠敏捷爬树、小野猪反身冲撞伤人！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.1.2 全山6营3波5兵战术重做、飞鸟受击与高帧率优化】\n• 6营×3波×5兵：死兵不中途刷新；清完追兵后下波回营地待命，需赴营地再引仇恨\n• 部位判定与惩戒：正确词兵【爆头1枪秒杀 / 词盾2枪击毙】；打错无伤且敌攻+25%\n• 高空飞鸟与性能：高空白鹭可射击羽化；剔除37万透明阴影面+分区裁剪大幅提帧！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
@@ -695,7 +698,7 @@ func _refresh_menu(result = ""):
 	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "山脚营地出发：有限备弹+匕首近战，突破林间/山道前哨！\n常规箱单词解锁，高阶空投箱词组+整句破译。\n满 260 分 + 攻克至少 2 处前哨 + 击败 B 区首领夺密钥即可撤离！"
+		menu_summary.text = "全山 6 处敌营（每营 3 波×5 名词兵）：清完追兵后下波回出生地待命！\n打对词兵：爆头 1 枪秒杀 / 词盾 2 枪击毙；打错无伤且敌攻+25%。\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离！"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -799,6 +802,10 @@ func start_action(as_combat = false):
 		player.weapon_slot = 0
 		time_left = 480.0
 		next_question_left = 0.0
+		feedback_left = 0.0
+		feedback_panel.hide()
+		hitmarker_left = 0.0
+		hitmarker_label.hide()
 		wrong_words = []
 		bag_signature = "__dirty__"
 		pool = []
@@ -846,7 +853,7 @@ func start_action(as_combat = false):
 	combat_panel.show()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-func _pick_smart_distractors(target: Dictionary) -> Array:
+func _pick_smart_distractors(target: Dictionary, desired_count: int = 4) -> Array:
 	var target_en: String = target.english.strip_edges()
 	var target_is_phrase: bool = target.get("kind", "word") == "phrase" or (" " in target_en)
 	var target_proper: bool = bool(target.get("proper_name", false))
@@ -855,7 +862,7 @@ func _pick_smart_distractors(target: Dictionary) -> Array:
 	var target_unit: int = int(target.get("unit", 0))
 
 	var scored = []
-	var source = pool if pool.size() >= 4 else words
+	var source = pool if pool.size() >= desired_count else words
 	for candidate in source:
 		if candidate.english.to_lower() == target_en.to_lower() or candidate.chinese == target.chinese:
 			continue
@@ -884,7 +891,7 @@ func _pick_smart_distractors(target: Dictionary) -> Array:
 				break
 		if not dup:
 			picked.append(cand)
-		if picked.size() == 4:
+		if picked.size() == desired_count:
 			break
 	return picked
 
@@ -1022,7 +1029,7 @@ func fire(camera: Camera3D):
 	rules.shots += 1
 	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
 	var from = camera.global_position
-	var to = from - camera.global_basis.z * 85
+	var to = from - camera.global_basis.z * 155.0
 	var query = PhysicsRayQueryParameters3D.create(from, to, 7 if shooting_field else 3, [player.get_rid()])
 	query.collide_with_areas = shooting_field
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
@@ -1157,7 +1164,7 @@ func _process(delta):
 		if time_left <= 0:
 			_end_run(false)
 			return
-	if rules.phase == "active" and next_question_left > 0:
+	if rules.phase == "active" and next_question_left > 0 and not (combat.in_field() and combat.zone >= 0):
 		next_question_left -= delta
 		if next_question_left <= 0:
 			_next_question()
@@ -1195,7 +1202,7 @@ func _process(delta):
 	]
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
 
-	var outpost_part = ("前哨 %d/2 · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
+	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
 	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
 	mission_label.text = "%s  ·  箱 %d/%d  ·  撤离：%s\n%s  ·  %s" % [
@@ -1258,9 +1265,9 @@ func _update_guide():
 	elif combat.in_field() and combat.zone == 2 and is_instance_valid(combat.boss_unit) and not combat.boss_unit.defeated:
 		guide_label.text = "首领战：破词盾露核心，[G]烟雾可致盲躲红圈"
 	elif combat.in_field() and combat.zone >= 0:
-		guide_label.text = "射对词盾破防 · [C/Z]蹲趴 · [Q/E]掩体探头"
+		guide_label.text = "正确词兵：爆头1枪秒 / 词盾2枪灭 · 打错敌攻+25%"
 	elif combat.in_field():
-		guide_label.text = "突破前哨并击败 B 区首领 · 护盾生命需靠[H/T]与奇植恢复"
+		guide_label.text = "靠近6处敌营触发波次仇恨 · 护盾生命靠[H/T]与奇植恢复"
 	elif not tutorial_moved and active_station < 0:
 		guide_label.text = "按 [F] 开启身旁营地终端，或沿山路探索"
 	else:
@@ -1275,7 +1282,7 @@ func _update_combat_hud():
 		var threats = combat.active_threat_count()
 		threat_banner.visible = threats > 0
 		var stance_txt: String = player.stance_label() if is_instance_valid(player) else "站立"
-		var alert_tag = "烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("狂暴×%.1f" % combat.damage_multiplier() if combat.rage_left > 0 else ("受瞄×%d" % threats if threats > 0 else "警戒中")))
+		var alert_tag = "烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("敌攻×%.2f" % combat.damage_multiplier() if combat.wave_wrong_stacks > 0 else ("受瞄×%d" % threats if threats > 0 else "警戒中")))
 		combat_label.text = "HP %d · 盾 %d/%d · %s · %s" % [combat.health, roundi(combat.shield), rules.max_shield(), stance_txt, alert_tag]
 	else:
 		threat_banner.hide()
@@ -1298,8 +1305,12 @@ func _extraction_blocker_text() -> String:
 func _update_interaction():
 	closest_interaction = null
 	var nearest = 3.2
-	var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
-	for node in pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes:
+	if cached_interactables.is_empty():
+		var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
+		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes
+	for node in cached_interactables:
+		if not is_instance_valid(node):
+			continue
 		if combat.in_field() and node.has_meta("station_id") and (combat.zone >= 0 or node != stations[0]):
 			continue
 		if not node.visible:

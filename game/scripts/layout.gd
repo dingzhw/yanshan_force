@@ -31,10 +31,16 @@ const STATIONS = [
 	{"id": "rocks", "title": "B · 竹林补给点", "at": Vector3(8, 0, -86)}
 ]
 const PASS_OUTPOST = Vector3(-1, 0, -65)
+const WEST_CAMP = Vector3(-34.0, 0, -18.0)
+const EAST_CAMP = Vector3(37.5, 0, -34.0)
+const NW_CAMP = Vector3(-31.0, 0, -85.0)
 const COMBAT_ZONES = [
-	{"id": "forest", "title": "林间前哨", "at": Vector3(-12, 0, -42), "waves": 4, "aggro": 23.0, "pursuit": 28.0},
-	{"id": "pass", "title": "山道拦截哨", "at": PASS_OUTPOST, "waves": 3, "aggro": 19.0, "pursuit": 24.0},
-	{"id": "bamboo", "title": "B · 竹林重兵阵地", "at": Vector3(8, 0, -86), "waves": 5, "aggro": 24.0, "pursuit": 30.0}
+	{"id": "forest", "title": "林间古道营地", "at": Vector3(-12.0, 0, -42.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": false},
+	{"id": "pass", "title": "山道拦截营地", "at": PASS_OUTPOST, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "bamboo", "title": "B区竹林统领营", "at": Vector3(6.5, 0, -90.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": true},
+	{"id": "west_ridge", "title": "西岭山坡营地", "at": WEST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "east_ridge", "title": "东坡茶岭营地", "at": EAST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "nw_plateau", "title": "西北高地营地", "at": NW_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false}
 ]
 const EXIT = Vector3(18, 0, -76)
 const ROUTE = [SPAWN, Vector3(-7, 0, -15), Vector3(-18, 0, -27), Vector3(-12, 0, -42), Vector3(-7, 0, -54), PASS_OUTPOST, Vector3(8, 0, -86), EXIT]
@@ -69,6 +75,7 @@ const BRANCHES = [
 ]
 static var grid_height_cache = {}
 static var stream_water_heights: Array = []
+static var fast_height_grid: PackedFloat32Array = PackedFloat32Array()
 
 static func base_height(x: float, z: float) -> float:
 	if z > 0.0 and z <= 28.0 and absf(x) < 18.0:
@@ -105,7 +112,7 @@ static func _land_height(x: float, z: float) -> float:
 		var at = station.at
 		var blend = 1.0 - smoothstep(10.0, 15.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, base_height(at.x, at.z), blend)
-	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, EAST_OVERLOOK, RECON_RADIO, SE_BAMBOO_CACHE, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
+	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, WEST_CAMP, EAST_CAMP, NW_CAMP, PARKOUR_CONTAINERS, CAVE_GROTTO, EAST_OVERLOOK, RECON_RADIO, SE_BAMBOO_CACHE, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
 		var blend = 1.0 - smoothstep(4.5, 11.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, anchor_height(at), blend)
 	var nearest = INF
@@ -209,6 +216,32 @@ static func anchor_height(at: Vector3) -> float:
 		return 6.35
 	return base_height(at.x, at.z)
 
+static func _ensure_fast_grid():
+	if not fast_height_grid.is_empty():
+		return
+	# 121 (x: -60..60) x 157 (z: -120..36) = 18997 pre-baked floats matching HeightMapShape3D!
+	fast_height_grid.resize(121 * 157)
+	var idx := 0
+	for zi in range(-120, 37):
+		var zf := float(zi)
+		for xi in range(-60, 61):
+			fast_height_grid[idx] = height(float(xi), zf)
+			idx += 1
+
+static func fast_height(x: float, z: float) -> float:
+	_ensure_fast_grid()
+	var fx := clampf(x + 60.0, 0.0, 119.999)
+	var fz := clampf(z + 120.0, 0.0, 155.999)
+	var ix := int(floorf(fx))
+	var iz := int(floorf(fz))
+	var tx := fx - float(ix)
+	var tz := fz - float(iz)
+	var row0 := iz * 121 + ix
+	var row1 := row0 + 121
+	var h0 := lerpf(fast_height_grid[row0], fast_height_grid[row0 + 1], tx)
+	var h1 := lerpf(fast_height_grid[row1], fast_height_grid[row1 + 1], tx)
+	return lerpf(h0, h1, tz)
+
 static func on_ground(at: Vector3) -> Vector3:
 	return Vector3(at.x, height(at.x, at.z), at.z)
 
@@ -244,8 +277,9 @@ static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 	for station in STATIONS:
 		if Vector2(x - station.at.x, z - station.at.z).length() < 14 + padding:
 			return true
-	if Vector2(x - PASS_OUTPOST.x, z - PASS_OUTPOST.z).length() < 11 + padding:
-		return true
+	for camp_at in [PASS_OUTPOST, WEST_CAMP, EAST_CAMP, NW_CAMP, Vector3(6.5, 0, -90.0)]:
+		if Vector2(x - camp_at.x, z - camp_at.z).length() < 10.5 + padding:
+			return true
 	for at in [POEM, MATH, CLUE, CLUE_LOOT]:
 		if Vector2(x - at.x, z - at.z).length() < 5 + padding:
 			return true

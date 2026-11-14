@@ -84,7 +84,7 @@ func _lighting():
 	sun.light_energy = 0.88
 	low_quality = "--low-quality" in OS.get_cmdline_user_args()
 	sun.shadow_enabled = not low_quality
-	sun.directional_shadow_max_distance = 56
+	sun.directional_shadow_max_distance = 42
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.shadow_bias = 0.05
 	add_child(sun)
@@ -252,20 +252,65 @@ func _batch(mesh: Mesh, mat: Material, transforms: Array, shadows: bool):
 func _batch_direct(mesh: Mesh, transforms: Array, shadows: bool = false, batch_name: String = "", vis_end: float = 0.0):
 	if mesh == null or transforms.is_empty():
 		return
-	var node := MultiMeshInstance3D.new()
-	if batch_name != "":
-		node.name = batch_name
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = transforms.size()
-	for i in transforms.size():
-		mm.set_instance_transform(i, transforms[i])
-	node.multimesh = mm
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if vis_end > 0.0:
-		node.visibility_range_end = vis_end
-	add_child(node)
+	var chunk_size := 36.0
+	var use_chunks: bool = transforms.size() > 24 and batch_name != "BluestoneFlagstones"
+	if not use_chunks:
+		var node := MultiMeshInstance3D.new()
+		if batch_name != "":
+			node.name = batch_name
+		var avg := Vector3.ZERO
+		for xf in transforms:
+			avg += (xf as Transform3D).origin
+		avg /= float(transforms.size())
+		node.position = avg
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = transforms.size()
+		for i in transforms.size():
+			var xf_i := transforms[i] as Transform3D
+			mm.set_instance_transform(i, Transform3D(xf_i.basis, xf_i.origin - avg))
+		node.multimesh = mm
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if vis_end > 0.0:
+			node.visibility_range_end = vis_end + 14.0
+		add_child(node)
+		return
+
+	# Spatial sector chunking (36m x 36m) unlocks real GPU frustum culling + accurate per-sector visibility_range_end!
+	var buckets: Dictionary = {}
+	for xf in transforms:
+		var t := xf as Transform3D
+		var key := Vector2i(int(floorf(t.origin.x / chunk_size)), int(floorf(t.origin.z / chunk_size)))
+		if not buckets.has(key):
+			buckets[key] = []
+		buckets[key].append(t)
+
+	var chunk_idx := 0
+	for key in buckets:
+		var list: Array = buckets[key]
+		var center := Vector3.ZERO
+		for t in list:
+			center += (t as Transform3D).origin
+		center /= float(list.size())
+
+		var cnode := MultiMeshInstance3D.new()
+		if batch_name != "":
+			cnode.name = batch_name if chunk_idx == 0 else ("%s_Chunk%d" % [batch_name, chunk_idx])
+		cnode.position = center
+		var cmm := MultiMesh.new()
+		cmm.transform_format = MultiMesh.TRANSFORM_3D
+		cmm.mesh = mesh
+		cmm.instance_count = list.size()
+		for i in list.size():
+			var lt := list[i] as Transform3D
+			cmm.set_instance_transform(i, Transform3D(lt.basis, lt.origin - center))
+		cnode.multimesh = cmm
+		cnode.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if vis_end > 0.0:
+			cnode.visibility_range_end = vis_end + 18.0
+		add_child(cnode)
+		chunk_idx += 1
 
 func _is_vista_corridor(x: float, z: float) -> bool:
 	# Keep scenic sightlines unobstructed at South Camp Fence Overlook, Creek Outflow, Wangdao Pavilion & East Terrace
@@ -336,8 +381,9 @@ func _vegetation():
 					var body = game.Props.shape_body(self, shape, Vector3(bx, by + 3.4 * bsc, bz))
 					body.add_to_group("solid_props")
 
-	_batch_direct(culm_mesh, culm_tx, not low_quality, "MosoBambooCulms")
-	_batch_direct(clump_mesh, clump_tx, not low_quality, "MosoBambooClumps")
+	# Disable directional shadow-map rasterization on alpha-scissored bamboo foliage (~290k tris saved per shadow split!)
+	_batch_direct(culm_mesh, culm_tx, false, "MosoBambooCulms", 112.0)
+	_batch_direct(clump_mesh, clump_tx, false, "MosoBambooClumps", 105.0)
 	_trees()
 
 	for i in 34:
@@ -370,7 +416,7 @@ func _trees():
 		var wz: float = creek_willow_specs[idx][0]
 		var woff: float = creek_willow_specs[idx][1]
 		var wx := _outer_stream_x(wz) + woff
-		if game.Layout.clear_for_route(wx, wz, 1.4) and wz <= 25.0:
+		if (game.Layout.road_distance(wx, wz) < 4.2 or _is_near_bridge(wz, 3.8)) and wz <= 25.0:
 			continue
 		var wy := _surface_height_any(wx, wz) - 0.08
 		var wsc := 0.96 + float(idx % 4) * 0.10
@@ -394,7 +440,11 @@ func _trees():
 		Vector3(-45, 0, 4), Vector3(-46, 0, -16), Vector3(-46, 0, -44), Vector3(-45, 0, -68),
 		Vector3(-44, 0, -88), Vector3(-42, 0, -106), Vector3(-19, 0, -108), Vector3(11, 0, -108),
 		Vector3(-21.5, 0, -2.5), Vector3(-34.8, 0, -18.5), Vector3(35.0, 0, -41.0), Vector3(36.8, 0, -62.5),
-		Vector3(-32.5, 0, -76.5), Vector3(38.5, 0, -14.0), Vector3(-38.0, 0, -60.0), Vector3(39.0, 0, -96.0)
+		Vector3(-32.5, 0, -76.5), Vector3(38.5, 0, -14.0), Vector3(-38.0, 0, -60.0), Vector3(39.0, 0, -96.0),
+		Vector3(-42.0, 0, -2.0), Vector3(-48.0, 0, -32.0), Vector3(-47.0, 0, -56.0), Vector3(-47.5, 0, -96.0),
+		Vector3(-17.5, 0, -99.5), Vector3(-20.5, 0, -72.0), Vector3(47.5, 0, -48.5), Vector3(48.0, 0, -68.0),
+		Vector3(47.5, 0, -90.0), Vector3(38.0, 0, -4.0), Vector3(-26.0, 0, 14.0), Vector3(-39.5, 0, 12.0), Vector3(39.5, 0, 4.0),
+		Vector3(34.5, 0, -49.0), Vector3(35.5, 0, -56.0)
 	]
 	# Also scatter natural fence-side & outer-collar woodland trees so hills have zero empty dead zones
 	for k in 34:
@@ -432,9 +482,46 @@ func _trees():
 	tree_trunks.append(shrine_p)
 	tree_trunk_radii.append(0.58)
 
-	_batch_direct(camphor_mesh, camphor_tx, not low_quality, "MountainCamphorTrees")
-	_batch_direct(willow_mesh, willow_tx, not low_quality, "MountainWillowTrees")
-	_batch_direct(maple_mesh, maple_tx, not low_quality, "MountainMapleTrees")
+	# Disable alpha-scissored leaf shadow thrashing and ground trees with a single 1-draw-call soft canopy shade disc MultiMesh!
+	_batch_direct(camphor_mesh, camphor_tx, false, "MountainCamphorTrees", 145.0)
+	_batch_direct(willow_mesh, willow_tx, false, "MountainWillowTrees", 145.0)
+	_batch_direct(maple_mesh, maple_tx, false, "MountainMapleTrees", 145.0)
+	_build_canopy_shade_discs()
+
+func _build_canopy_shade_discs():
+	if tree_trunks.is_empty():
+		return
+	var quad := QuadMesh.new()
+	quad.size = Vector2(4.8, 4.8)
+	quad.orientation = PlaneMesh.FACE_Y
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode blend_mix, unshaded, depth_draw_never, cull_disabled;
+void fragment(){
+ vec2 d = UV * 2.0 - 1.0;
+ float r = length(d);
+ float soft = 1.0 - smoothstep(0.22, 0.96, r);
+ ALBEDO = vec3(0.05, 0.08, 0.05);
+ ALPHA = soft * 0.30;
+}
+"""
+	var smat := ShaderMaterial.new()
+	smat.shader = sh
+	var shade_tx: Array = []
+	for i in tree_trunks.size():
+		var tp: Vector3 = tree_trunks[i]
+		var tr := float(tree_trunk_radii[i]) if i < tree_trunk_radii.size() else 0.30
+		var sc := clampf(tr * 3.4, 0.85, 1.55)
+		var gy := _surface_height_any(tp.x, tp.z) + 0.045
+		var hx0 := _surface_height_any(tp.x - 0.8, tp.z)
+		var hx1 := _surface_height_any(tp.x + 0.8, tp.z)
+		var hz0 := _surface_height_any(tp.x, tp.z - 0.8)
+		var hz1 := _surface_height_any(tp.x, tp.z + 0.8)
+		var up_n := Vector3(hx0 - hx1, 1.6, hz0 - hz1).normalized()
+		var right_v := Vector3.RIGHT.slide(up_n).normalized()
+		var fwd_v := right_v.cross(up_n).normalized()
+		shade_tx.append(Transform3D(Basis(right_v * sc, up_n, fwd_v * sc), Vector3(tp.x + 0.35, gy, tp.z + 0.35)))
+	_batch(quad, smat, shade_tx, false)
 
 func _hill_height(x: float, z: float) -> float:
 	return 5.0 + 15.0 * exp(-pow((x + 65.0) / 43.0, 2.0) - pow((z + 175.0) / 45.0, 2.0)) + 22.0 * exp(-pow((x - 45.0) / 58.0, 2.0) - pow((z + 205.0) / 60.0, 2.0)) + 5.0 * sin(x * 0.025 + z * 0.018)
@@ -656,7 +743,7 @@ void fragment(){
 			hp.y = _outer_valley_y(hp.x, hp.z) - 0.14
 			var hyaw := float(j % 4) * (PI * 0.5) + 0.18
 			house_tx.append(Transform3D(Basis(Vector3.UP, hyaw).scaled(Vector3.ONE * 1.12), hp))
-		_batch_direct(house_mesh, house_tx, false, "VillageFarmhouses")
+		_batch_direct(house_mesh, house_tx, false, "VillageFarmhouses", 220.0)
 
 	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
 	var v_willow := _extract_mesh(v061_path, "tree_willow")
@@ -701,28 +788,26 @@ void fragment(){
 			else:
 				v_bamboo_tx.append(xform)
 
-	# Outer foothill & hillside broadleaf / bamboo stands
-	for k in 58:
-		var angle := float(k) * 0.73
-		var rad := 142.0 + float(k % 7) * 14.0
+	# Outer foothill broadleaf stands (lightweight silhouettes at 140m+ horizon)
+	for k in 28:
+		var angle := float(k) * 0.89
+		var rad := 142.0 + float(k % 6) * 14.0
 		var vx := sin(angle) * rad
 		var vz := -44.0 + cos(angle) * (rad * 1.12)
 		if vz < -118.0 and absf(vx) < 70.0:
 			continue
 		var vy := _outer_valley_y(vx, vz) - 0.16
-		var ts := 1.15 + float(k % 4) * 0.16
+		var ts := 1.18 + float(k % 4) * 0.16
 		var xform := Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * ts), Vector3(vx, vy, vz))
-		if k % 4 == 0:
+		if k % 3 == 0:
 			v_maple_tx.append(xform)
-		elif k % 4 == 1:
-			v_bamboo_tx.append(xform)
 		else:
 			v_camphor_tx.append(xform)
 
-	_batch_direct(v_willow, v_willow_tx, false, "VillageWillows")
-	_batch_direct(v_camphor, v_camphor_tx, false, "VillageCamphors")
-	_batch_direct(v_maple, v_maple_tx, false, "VillageMaples")
-	_batch_direct(v_bamboo, v_bamboo_tx, false, "VillageBamboo")
+	_batch_direct(v_willow, v_willow_tx, false, "VillageWillows", 215.0)
+	_batch_direct(v_camphor, v_camphor_tx, false, "VillageCamphors", 215.0)
+	_batch_direct(v_maple, v_maple_tx, false, "VillageMaples", 215.0)
+	_batch_direct(v_bamboo, v_bamboo_tx, false, "VillageBamboo", 185.0)
 
 	# 3) 360-degree distant misty mountain range panorama cylinder harmonizing with sun azimuth & valley mist
 	if ResourceLoader.exists("res://assets/slice/horizon_mountains.png"):
@@ -788,6 +873,7 @@ func signpost(at: Vector3, text: String):
 	var label = game._label3d(root, text, Vector3(0, 1.86, 0.09), 30, Color("f0edd2"))
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	label.pixel_size = 0.0066
+	label.visibility_range_end = 34.0
 
 var container_yard: Dictionary = {}
 var bamboo_shelter: Dictionary = {}
@@ -815,6 +901,7 @@ func shelter(at: Vector3, title: String, with_parkour := false) -> Dictionary:
 		leg.material_override = wood_post_mat
 	var l = game._label3d(root, title, Vector3(0, 2.68, 1.92), 32, Color("f0e8c4"))
 	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	l.visibility_range_end = 38.0
 	if with_parkour:
 		# Route B: 5-step timber scaffolding climbing up the East/NE flank onto the solid roof deck (all dy <= 0.58m)
 		var stairs := [
@@ -864,11 +951,11 @@ func _camp():
 		game.stations.append(station)
 	for info in [
 		[Vector3(-9, 0, 7), "烟山基地\nA · 山脚营地"],
-		[Vector3(-12, 0, -17), "林间前哨  ↑\n石刻支路  ←"],
-		[Vector3(-20, 0, -28), "← 烟山诗碑亭\n主路前哨  →"],
-		[Vector3(22.4, 0, -21.5), "东上望稻亭 ↗\n北探石崖奇岩 ↑"],
-		[Vector3(-14, 0, -53), "巡护站近道 →\n山道拦截哨 ↑"],
-		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2哨·首领"]
+		[Vector3(-12, 0, -17), "林间古道营地 ↑\n西岭山坡营地 ←"],
+		[Vector3(-20, 0, -28), "← 烟山诗碑亭\n林间营地 →"],
+		[Vector3(22.4, 0, -21.5), "东坡茶岭营地 ↗\n东上望稻亭 ↘"],
+		[Vector3(-14, 0, -53), "西北高地营 ↖\n山道拦截营 ↑"],
+		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2营·统领"]
 	]:
 		signpost(info[0], info[1])
 
@@ -933,13 +1020,17 @@ func _landmarks():
 		game.add_child(pickup)
 		TacticalProps.build_supply_box(game, pickup)
 		var sup_hint := "深藏物资箱 · 单词解锁 [F]" if spot.secret_key != "" else "常规物资箱 · 单词解锁 [F]"
-		game._label3d(pickup, sup_hint, Vector3(0, 0.96, 0), 26, Color("8ef0c8") if spot.secret_key != "" else game.GOLD)
+		var sup_lbl = game._label3d(pickup, sup_hint, Vector3(0, 0.96, 0), 26, Color("8ef0c8") if spot.secret_key != "" else game.GOLD)
+		sup_lbl.visibility_range_end = 22.0
 		game.pickup_nodes.append(pickup)
 
 	# Tactical Field Ammo Crates & Consumable Pouches (tactical_pickups.glb)
 	var field_tactical = [
 		{"at": Vector3(8.8, 0, 8.2), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c"), "secret_key": ""},
 		{"at": Vector3(-5.5, 0, -21.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "5.56 军用弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-28.5, 0, -11.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "西岭营旁弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(31.8, 0, -28.0), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "东坡营旁弹药箱", "col": Color("ffd15c"), "secret_key": ""},
+		{"at": Vector3(-24.8, 0, -78.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "西北高地弹药箱", "col": Color("ffd15c"), "secret_key": ""},
 		{"at": Vector3(2.2, 0, -58.4), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "巡护站备弹箱", "col": Color("ffd15c"), "secret_key": ""},
 		{"at": Vector3(-9.5, 0, -76.5), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "前哨弹药箱", "col": Color("ffd15c"), "secret_key": ""},
 		{"at": Vector3(13.2, 0, -89.4), "ground": true, "kind": "ammo_crate", "mesh": "pickup_ammo_crate", "title": "竹林弹药箱", "col": Color("ffd15c"), "secret_key": ""},
@@ -993,7 +1084,8 @@ func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
 	ring.material_override = game._material(glow_col, true)
 	parent.add_child(ring)
 	var tag = "[F] %s" % parent.get_meta("title", "战术补给")
-	game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
+	var tac_lbl = game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
+	tac_lbl.visibility_range_end = 20.0
 
 func _is_near_bridge(z: float, margin: float = 3.4) -> bool:
 	for bz in game.Layout.STREAM_BRIDGES:
@@ -1809,9 +1901,9 @@ func _boundary():
 	var rail_box := BoxMesh.new()
 	rail_box.size = Vector3(1.0, 1.0, 1.0)
 
-	_batch(post_cyl, wood_post_mat, post_tx, not low_quality)
+	_batch(post_cyl, wood_post_mat, post_tx, false)
 	_batch(cap_box, roof_slate_mat, cap_tx, false)
-	_batch(rail_box, wood_plank_mat, rail_tx, not low_quality)
+	_batch(rail_box, wood_plank_mat, rail_tx, false)
 
 	# Solid tall perimeter colliders (player cannot climb over, bullets respect border, yet view above 1.24m rails stays wide open!)
 	var walls := [

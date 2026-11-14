@@ -1,10 +1,16 @@
 extends Control
-## Tactical radar minimap showing route, 3 outposts, 3 enemy archetypes, password crates, and extraction beacon.
+## Tactical radar minimap showing route, 6 tactical camps (standby/engaged/cleared), 4 enemy archetypes, password crates, and extraction beacon.
 
 var game
+var redraw_accum := 0.0
 
-func _process(_delta):
-	queue_redraw()
+func _process(delta):
+	if is_instance_valid(game) and game.paused:
+		return
+	redraw_accum += delta
+	if redraw_accum >= 0.05:
+		redraw_accum = 0.0
+		queue_redraw()
 
 func point(v: Vector3) -> Vector2:
 	return Vector2(83, 83) + Vector2(v.x, v.z + 44) * 0.88
@@ -22,30 +28,30 @@ func _is_discovered(node: Node3D) -> bool:
 func _draw():
 	draw_circle(Vector2(83, 83), 78, Color(0.05, 0.14, 0.13, 0.94))
 	for r in [28, 54, 78]:
-		draw_arc(Vector2(83, 83), r, 0, TAU, 64, Color(0.38, 0.72, 0.60, 0.22), 1.0, true)
+		draw_arc(Vector2(83, 83), r, 0, TAU, 48, Color(0.38, 0.72, 0.60, 0.22), 1.0, true)
 	draw_line(Vector2(5, 83), Vector2(161, 83), Color(0.4, 0.7, 0.6, 0.14))
 	draw_line(Vector2(83, 5), Vector2(83, 161), Color(0.4, 0.7, 0.6, 0.14))
 	if not is_instance_valid(game.player):
 		return
 
-	for i in range(-110, 26, 4):
+	for i in range(-110, 26, 6):
 		var z0 := float(i)
-		var z1 := minf(26.0, z0 + 4.0)
+		var z1 := minf(26.0, z0 + 6.0)
 		draw_line(
 			point(Vector3(game.Layout.stream_center_x(z0), 0, z0)),
 			point(Vector3(game.Layout.stream_center_x(z1), 0, z1)),
-			Color("4da8e2"), 2.2, true
+			Color("4da8e2"), 2.0, true
 		)
 	for bz in game.Layout.STREAM_BRIDGES:
 		var cx: float = game.Layout.stream_center_x(float(bz))
 		draw_line(
 			point(Vector3(cx - 2.6, 0, float(bz))),
 			point(Vector3(cx + 2.6, 0, float(bz))),
-			Color("cba26c"), 3.2, true
+			Color("cba26c"), 3.0, true
 		)
 
 	for i in game.Layout.ROUTE.size() - 1:
-		draw_line(point(game.Layout.ROUTE[i]), point(game.Layout.ROUTE[i + 1]), Color("8e9869"), 2.8, true)
+		draw_line(point(game.Layout.ROUTE[i]), point(game.Layout.ROUTE[i + 1]), Color("8e9869"), 2.6, true)
 	for branch in game.Layout.BRANCHES:
 		for i in branch.size() - 1:
 			draw_line(point(branch[i]), point(branch[i + 1]), Color("6c8061"), 1.2, true)
@@ -56,23 +62,25 @@ func _draw():
 	if is_instance_valid(game.combat) and game.combat.in_field():
 		for z_idx in game.Layout.COMBAT_ZONES.size():
 			var z_pos = point(game.Layout.COMBAT_ZONES[z_idx].at)
-			var cleared = game.combat.zone_cleared.get(z_idx, false)
-			draw_arc(z_pos, 11.0, 0, TAU, 32, Color("6ae3a8") if cleared else Color(0.95, 0.45, 0.32, 0.42), 1.3, true)
+			var cleared: bool = game.combat.zone_cleared.get(z_idx, false)
+			var engaged: bool = game.combat.is_zone_engaged(z_idx)
+			var ring_col := Color("6ae3a8") if cleared else (Color("ff6347") if engaged else Color(0.95, 0.72, 0.36, 0.52))
+			draw_arc(z_pos, 8.2, 0, TAU, 24, ring_col, 1.8 if engaged else 1.2, true)
 			if game.combat.troops.has(z_idx):
 				for soldier in game.combat.troops[z_idx]:
-					if not soldier.defeated:
+					if is_instance_valid(soldier) and not soldier.defeated:
 						var dot_col = Color("f59b56")
-						var r = 2.4
+						var r = 2.2
 						if soldier.archetype == 1:
 							dot_col = Color("ffd166") # Scout Drone
 						elif soldier.archetype == 2:
 							dot_col = Color("ff4d6d") # Sniper Guard
 						elif soldier.archetype == 3:
 							dot_col = Color("ffda44") # Boss Warden
-							r = 4.2
+							r = 4.0
 						draw_circle(point(soldier.position), r, dot_col)
 						if soldier.archetype == 3:
-							draw_arc(point(soldier.position), 6.0, 0, TAU, 16, Color("ff5c5c"), 1.3)
+							draw_arc(point(soldier.position), 5.8, 0, TAU, 16, Color("ff5c5c"), 1.3)
 	else:
 		for station in game.Layout.STATIONS:
 			draw_circle(point(station.at), 3.8, Color("86c5eb"))
@@ -94,9 +102,9 @@ func _draw():
 			if sup.has_meta("tactical_item"):
 				var tk = str(sup.get_meta("tactical_item"))
 				var tc = Color("f5c542") if tk == "ammo_crate" else (Color("56e8ff") if tk == "smoke_emp" else Color("6ae3a8"))
-				draw_circle(point(sup.position), 1.9, tc)
+				draw_circle(point(sup.position), 1.8, tc)
 			else:
-				draw_circle(point(sup.position), 2.1, Color("66d9ef"))
+				draw_circle(point(sup.position), 2.0, Color("66d9ef"))
 
 	for chest in game.crate_nodes:
 		var opened = chest.get_meta("title") in game.rules.crates

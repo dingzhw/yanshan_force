@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.1.1" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1.1 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.6.1.2" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1.2 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -422,6 +422,29 @@ func run():
 	for tick in 12:
 		game.wildlife.update(0.1)
 	verify(bird0.state == "fly" and bird0.pos.y > perch_y + 1.2, "startled mountain bird flaps and climbs dynamically into the sky")
+
+	# v0.6.1.2 Real bullet raycast hit tests on both airborne flying birds AND high-altitude sky egrets!
+	var sky_cam := Camera3D.new()
+	game.add_child(sky_cam)
+	bird0.pos = Vector3(0.0, 18.0, 0.0)
+	bird0.root.position = bird0.pos
+	sky_cam.global_position = Vector3(0.0, 14.0, 14.0)
+	await frames(2)
+	sky_cam.look_at((bird0.area as Area3D).global_position)
+	game.fire(sky_cam)
+	verify(bird0.state == "downed" and bird0.area.collision_layer == 0, "real bullet raycast hits and downs airborne flying mountain bird")
+
+	var sky_egret0: Dictionary = game.wildlife.sky_egrets[0]
+	(sky_egret0.node as Node3D).global_position = Vector3(0.0, 32.0, -18.0)
+	sky_cam.global_position = Vector3(0.0, 12.0, 18.0)
+	await frames(2)
+	sky_cam.look_at((sky_egret0.area as Area3D).global_position)
+	game.fire(sky_cam)
+	verify(sky_egret0.state == "downed" and sky_egret0.area.collision_layer == 0, "real long-range bullet raycast hits and downs high-altitude sky egret")
+	for eg_tick in 16:
+		game.wildlife.update(0.1)
+	verify(sky_egret0.state == "hidden" and not (sky_egret0.node as Node3D).visible, "downed sky egret spirals and dissolves cleanly before 15s respawn")
+	sky_cam.queue_free()
 
 	var rabbit0: Dictionary = first_by_kind["rabbit"]
 	verify(game.wildlife.hit_bullet(rabbit0.area) and rabbit0.state == "downed", "bullet hit downs wildlife critter cleanly")
