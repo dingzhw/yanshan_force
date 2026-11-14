@@ -1,0 +1,25 @@
+Creative Commons Attribution 4.0 International Public License (CC BY 4.0)
+Canonical license URI: https://creativecommons.org/licenses/by/4.0/legalcode
+
+Attribution Notice for Polyfork 3D Models included in game/assets/slice/v061_nature_wildlife.glb:
+- Author / Creator: Lucas Martinic / Polyfork (https://polyfork.dev, https://github.com/lucas-martinic/polyfork-catalog)
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- Models used & adapted:
+  forest-rabbit-ea2da0, red-fox-5c3bc0, pig-base, pigeon-base, herring-gull-base,
+  koi-base, shore-crab-base, cleaner-shrimp-base, azalea-bush-7bb14d,
+  moat-reed-clump-dd6b60, cattail-reed-6abbb3, fern-plant-1559b8,
+  grass-tuft-a40a08, fallen-log-1685fb.
+- Summary of Modifications:
+  Removed bounding helper icospheres, aligned forward axes to Godot -Z, grounded pivots,
+  applied polygon decimation for integrated-GPU frame budget, sculpted wild boar tusks &
+  dark pelage on pig-base, and recolored cleaner-shrimp-base to freshwater jade river shrimp.
+
+Summary of CC BY 4.0 Rights & Conditions:
+You are free to:
+- Share — copy and redistribute the material in any medium or format for any purpose, even commercially.
+- Adapt — remix, transform, and build upon the material for any purpose, even commercially.
+Under the following terms:
+- Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+- No additional restrictions — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
+
+Full legal code is available at https://creativecommons.org/licenses/by/4.0/legalcode.txt

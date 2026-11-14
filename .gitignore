@@ -20,3 +20,4 @@ docs/planning/*/qa/
 docs/v*-checks/
 docs/*.log
 docs/runtime-local.json
+tools/generated_v*/

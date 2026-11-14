@@ -322,6 +322,46 @@ def gen_flora_collect() -> None:
     _write_wav("flora_collect.wav", out, 0.46)
 
 
+def gen_boar_charge() -> None:
+    """Brush rustle + double low guttural boar snort when a wild boar darts from bushes."""
+    dur = 0.42
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 5150
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        rustle = 0.35 * noise * _envelope(t, 0.008, 0.24, 1.6)
+        # Two short low-frequency nasal grunts (0.02..0.17s and 0.19..0.38s)
+        g1 = _envelope(t - 0.01, 0.015, 0.16, 1.8) if t >= 0.01 else 0.0
+        g2 = _envelope(t - 0.18, 0.018, 0.21, 1.7) if t >= 0.18 else 0.0
+        f = 112.0 - 24.0 * (t / dur) + 14.0 * math.sin(2 * math.pi * 26.0 * t)
+        grunt = math.tanh((math.sin(2 * math.pi * f * t) + 0.65 * math.sin(2 * math.pi * f * 2.02 * t) + 0.35 * noise) * 1.9)
+        out.append(rustle + 0.72 * grunt * (g1 + 0.9 * g2))
+    _write_wav("boar_charge.wav", out, 0.50)
+
+
+def gen_bird_flap() -> None:
+    """Crisp woodland songbird two-note chirp + rapid feather wingbeat burst."""
+    dur = 0.40
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    state = 7331
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        noise = ((state / 0x3FFFFFFF) - 1.0)
+        # Melodic high chirp (0..0.13s)
+        c1 = _envelope(t, 0.004, 0.065, 2.0) * math.sin(2 * math.pi * (2150.0 + 650.0 * (t / 0.07)) * t)
+        c2 = (_envelope(t - 0.065, 0.004, 0.075, 2.1) if t > 0.065 else 0.0) * math.sin(2 * math.pi * (2680.0 - 420.0 * ((t - 0.065) / 0.08)) * t)
+        # 4 rapid wingbeats (14 Hz)
+        beat = max(0.0, math.sin(2 * math.pi * 14.5 * t)) ** 2.2
+        flap = 0.52 * noise * beat * _envelope(t - 0.03, 0.01, 0.35, 1.4) if t > 0.03 else 0.0
+        out.append(0.46 * (c1 + c2) + flap)
+    _write_wav("bird_flap.wav", out, 0.42)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -343,7 +383,9 @@ def main() -> None:
     gen_animal_flee()
     gen_animal_hit()
     gen_flora_collect()
-    print("Generated 20 procedural SFX files in", OUT_DIR)
+    gen_boar_charge()
+    gen_bird_flap()
+    print("Generated 22 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

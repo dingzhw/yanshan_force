@@ -93,18 +93,25 @@ func set_low_quality(value: bool):
 		if child is DirectionalLight3D:
 			child.shadow_enabled = not low_quality
 
+func _ground_vis_y(x: float, z: float) -> float:
+	var h := float(game.terrain_height(x, z))
+	var sd := float(game.Layout.stream_distance(x, z))
+	if sd < 2.22 and z >= game.Layout.STREAM_Z_MIN - 1.2:
+		h -= 0.055 * (1.0 - smoothstep(1.48, 2.22, sd))
+	return h
+
 func _ground():
 	var verts = PackedVector3Array()
 	var normals = PackedVector3Array()
 	var uvs = PackedVector2Array()
 	var colors = PackedColorArray()
-	for z in range(-116, 28):
-		for x in range(-56, 56):
+	for z in range(-120, 36):
+		for x in range(-60, 60):
 			var p = [
-				Vector3(x, game.terrain_height(x, z), z),
-				Vector3(x, game.terrain_height(x, z + 1), z + 1),
-				Vector3(x + 1, game.terrain_height(x + 1, z), z),
-				Vector3(x + 1, game.terrain_height(x + 1, z + 1), z + 1)
+				Vector3(x, _ground_vis_y(x, z), z),
+				Vector3(x, _ground_vis_y(x, z + 1), z + 1),
+				Vector3(x + 1, _ground_vis_y(x + 1, z), z),
+				Vector3(x + 1, _ground_vis_y(x + 1, z + 1), z + 1)
 			]
 			for tri in [[0, 2, 1], [2, 3, 1]]:
 				var normal = (p[tri[2]] - p[tri[0]]).cross(p[tri[1]] - p[tri[0]]).normalized()
@@ -113,7 +120,7 @@ func _ground():
 					normals.append(normal)
 					uvs.append(Vector2(p[i].x, p[i].z) * 0.28)
 					var r_t := clampf(game.Layout.road_distance(p[i].x, p[i].z) / 4.5, 0, 1)
-					var s_t := clampf(game.Layout.stream_distance(p[i].x, p[i].z) / 3.2, 0, 1)
+					var s_t := clampf(game.Layout.stream_distance(p[i].x, p[i].z) / 3.6, 0, 1)
 					colors.append(Color(r_t, s_t, 0))
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -135,13 +142,13 @@ void vertex(){pos=VERTEX;}
 void fragment(){
  vec3 tex=texture(soil,UV).rgb;
  float edge=smoothstep(0.36,0.94,COLOR.r);
- float stream_bank=1.0-smoothstep(0.38,0.98,COLOR.g);
+ float stream_bank=1.0-smoothstep(0.45,0.98,COLOR.g);
  float patch=0.5+0.5*sin(pos.x*0.27+sin(pos.z*0.21)*2.0);
  vec3 greenery=mix(vec3(0.28,0.35,0.19),vec3(0.42,0.44,0.27),patch);
  vec3 bed=mix(tex*vec3(0.56,0.50,0.37),tex*greenery*1.42,edge);
- vec3 wet_stone=tex*vec3(0.34,0.38,0.34);
- ALBEDO=mix(bed,wet_stone,stream_bank*0.82);
- NORMAL_MAP=texture(soil_normal,UV).rgb; NORMAL_MAP_DEPTH=0.52; ROUGHNESS=mix(0.94,0.52,stream_bank);
+ vec3 wet_stone=tex*vec3(0.32,0.36,0.30);
+ ALBEDO=mix(bed,wet_stone,stream_bank*0.78);
+ NORMAL_MAP=texture(soil_normal,UV).rgb; NORMAL_MAP_DEPTH=0.52; ROUGHNESS=mix(0.94,0.62,stream_bank);
 }
 """
 	var mat = ShaderMaterial.new()
@@ -152,43 +159,82 @@ void fragment(){
 	add_child(ground)
 
 	var shape = HeightMapShape3D.new()
-	shape.map_width = 113
-	shape.map_depth = 145
+	shape.map_width = 121
+	shape.map_depth = 157
 	var heights = PackedFloat32Array()
-	for z in range(-116, 29):
-		for x in range(-56, 57):
+	for z in range(-120, 37):
+		for x in range(-60, 61):
 			heights.append(game.terrain_height(x, z))
 	shape.map_data = heights
-	game.Props.shape_body(self, shape, Vector3(0, 0, -44)).name = "GroundCollision"
+	game.Props.shape_body(self, shape, Vector3(0, 0, -42)).name = "GroundCollision"
 
-func bamboo(at: Vector3, height: float):
-	var pos = game.Layout.on_ground(at)
-	stalk_transforms.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1, height, 1)), pos + Vector3.UP * height / 2))
-	# Only allocate capsule/bullet colliders near walkable paths to keep physics lean
-	if game.Layout.road_distance(pos.x, pos.z) < 16.0:
-		var shape = CylinderShape3D.new()
-		shape.radius = 0.13
-		shape.height = height
-		var body = game.Props.shape_body(self, shape, pos + Vector3.UP * height / 2)
-		body.add_to_group("solid_props")
-	for y in [height * 0.48, height * 0.67, height * 0.86]:
-		leaf_transforms.append(Transform3D(Basis(Vector3.UP, rng.randf_range(0, TAU)), pos + Vector3.UP * y))
+var extracted_mesh_cache: Dictionary = {}
 
-func _spray_mesh() -> ArrayMesh:
-	var st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for n in 24:
-		var angle = rng.randf_range(0, TAU)
-		var start = Vector3(sin(angle), 0, cos(angle)) * rng.randf_range(0.1, 0.9)
-		var tip = start + Vector3(sin(angle) * 0.85, rng.randf_range(-0.3, 0.35), cos(angle) * 0.85)
-		var width = Vector3(cos(angle), 0, -sin(angle)) * 0.09
-		for i in [0, 1, 2, 0, 2, 3]:
-			st.set_uv([Vector2(0.5, 0), Vector2(0, 0.45), Vector2(0.5, 1), Vector2(1, 0.45)][i])
-			st.add_vertex([start, (start + tip) / 2 - width, tip, (start + tip) / 2 + width][i])
-	st.generate_normals()
-	return st.commit()
+func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
+	if src_mesh == null:
+		return null
+	var mesh: Mesh = src_mesh.duplicate()
+	for s in mesh.get_surface_count():
+		var fmt: int = int(mesh.surface_get_format(s))
+		var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
+		var mat: Material = mesh.surface_get_material(s)
+		var bmat: BaseMaterial3D = null
+		if mat is BaseMaterial3D:
+			bmat = mat.duplicate() as BaseMaterial3D
+		elif has_vcol:
+			bmat = StandardMaterial3D.new()
+			bmat.roughness = 0.88
+		if bmat != null:
+			if has_vcol:
+				bmat.vertex_color_use_as_albedo = true
+			bmat.metallic = 0.0
+			bmat.metallic_specular = 0.08
+			if bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+				bmat.alpha_scissor_threshold = 0.40
+				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				bmat.roughness = 0.90
+				bmat.backlight_enabled = true
+				bmat.backlight = Color(0.06, 0.08, 0.04)
+			mesh.surface_set_material(s, bmat)
+	return mesh
+
+func _polish_node_materials(node: Node3D):
+	if node == null:
+		return
+	var targets: Array = []
+	if node is MeshInstance3D:
+		targets.append(node)
+	targets.append_array(node.find_children("*", "MeshInstance3D", true, false))
+	for t in targets:
+		var mi := t as MeshInstance3D
+		if mi and mi.mesh:
+			mi.mesh = _polish_mesh_materials(mi.mesh)
+
+func _extract_mesh(glb_path: String, sub_name: String = "") -> Mesh:
+	var cache_key := glb_path + "::" + sub_name
+	if extracted_mesh_cache.has(cache_key):
+		return extracted_mesh_cache[cache_key]
+	if not ResourceLoader.exists(glb_path):
+		return null
+	if not game.scene_cache.has(glb_path):
+		game.scene_cache[glb_path] = load(glb_path)
+	var inst: Node3D = game.scene_cache[glb_path].instantiate()
+	var target: Node = inst.find_child(sub_name, true, false) if sub_name != "" else null
+	if target != null and not (target is MeshInstance3D):
+		var sub_meshes := target.find_children("*", "MeshInstance3D", true, false)
+		target = sub_meshes[0] if not sub_meshes.is_empty() else null
+	if not (target is MeshInstance3D):
+		var meshes := inst.find_children("*", "MeshInstance3D", true, false)
+		target = meshes[0] if not meshes.is_empty() else null
+	var extracted: Mesh = _polish_mesh_materials(target.mesh) if (target is MeshInstance3D) else null
+	inst.queue_free()
+	extracted_mesh_cache[cache_key] = extracted
+	return extracted
 
 func _batch(mesh: Mesh, mat: Material, transforms: Array, shadows: bool):
+	if mesh == null or transforms.is_empty():
+		return
 	var node = MultiMeshInstance3D.new()
 	var instances = MultiMesh.new()
 	instances.transform_format = MultiMesh.TRANSFORM_3D
@@ -201,76 +247,12 @@ func _batch(mesh: Mesh, mat: Material, transforms: Array, shadows: bool):
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
 
-func _vegetation():
-	bark = game._material(Color("5c6842"))
-	var shader = Shader.new()
-	shader.code = """shader_type spatial; render_mode cull_disabled;
-void vertex(){VERTEX.x+=sin(TIME*1.3+NODE_POSITION_WORLD.x*0.7+VERTEX.y)*0.028*UV.y;}
-void fragment(){ALBEDO=vec3(0.24,0.34,0.16)*(0.8+UV.y*0.3);ROUGHNESS=0.9;}
-"""
-	leaf = ShaderMaterial.new()
-	leaf.shader = shader
-	for i in 6:
-		var path = "res://assets/slice/rock_%d.glb" % i
-		if ResourceLoader.exists(path):
-			rock_paths.append(path)
-	for i in 200:
-		var x = rng.randf_range(-49, 49)
-		var z = rng.randf_range(-106, 17)
-		if game.Layout.clear_for_route(x, z, 0.4):
-			continue
-		for j in 3:
-			bamboo(Vector3(x + j * 0.6, 0, z + j * 0.43), rng.randf_range(6, 10))
-	var stem = CylinderMesh.new()
-	stem.height = 1
-	stem.top_radius = 0.10
-	stem.bottom_radius = 0.12
-	stem.radial_segments = 7
-	_grass_skirts()
-	_batch(stem, bark, stalk_transforms, true)
-	_batch(_spray_mesh(), leaf, leaf_transforms, false)
-	_trees()
-	for i in 30:
-		var x = rng.randf_range(-44, 44)
-		var z = rng.randf_range(-104, 18)
-		if not game.Layout.clear_for_route(x, z, 1.5):
-			rock(Vector3(x, 0, z), rng.randf_range(1.0, 3.5), i)
-	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-36.5, 0, -36.5), 3.0], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
-		rock(info[0], info[1], int(absf(info[0].z)))
-	_backdrop()
-
-func _grass_skirts():
-	var spots = [
-		Vector3(9, 0, 8), Vector3(-8, 0, 9), Vector3(-13, 0, -12), Vector3(6, 0, -16),
-		Vector3(-23, 0, -20), Vector3(-24, 0, -33), Vector3(4, 0, -33), Vector3(-18, 0, -45),
-		Vector3(-11, 0, -56), Vector3(4, 0, -60), Vector3(-9, 0, -68), Vector3(15, 0, -84),
-		Vector3(22, 0, -89), Vector3(13, 0, -75)
-	]
-	for i in spots.size():
-		var raw = spots[i]
-		if game.Layout.clear_for_route(raw.x, raw.z, 0.8):
-			continue
-		var y = game.Layout.height(raw.x, raw.z) + 0.18
-		leaf_transforms.append(Transform3D(Basis(Vector3.UP, float(i) * 1.1).scaled(Vector3(0.75, 0.65, 0.75)), Vector3(raw.x, y, raw.z)))
-
-func _extract_mesh(glb_path: String, sub_name: String = "") -> Mesh:
-	if not ResourceLoader.exists(glb_path):
-		return null
-	if not game.scene_cache.has(glb_path):
-		game.scene_cache[glb_path] = load(glb_path)
-	var inst: Node3D = game.scene_cache[glb_path].instantiate()
-	var target: Node = inst.find_child(sub_name, true, false) if sub_name != "" else null
-	if not (target is MeshInstance3D):
-		var meshes := inst.find_children("*", "MeshInstance3D", true, false)
-		target = meshes[0] if not meshes.is_empty() else null
-	var extracted: Mesh = target.mesh if (target is MeshInstance3D) else null
-	inst.queue_free()
-	return extracted
-
-func _batch_direct(mesh: Mesh, transforms: Array, shadows: bool = false):
+func _batch_direct(mesh: Mesh, transforms: Array, shadows: bool = false, batch_name: String = "", vis_end: float = 0.0):
 	if mesh == null or transforms.is_empty():
 		return
 	var node := MultiMeshInstance3D.new()
+	if batch_name != "":
+		node.name = batch_name
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -279,14 +261,183 @@ func _batch_direct(mesh: Mesh, transforms: Array, shadows: bool = false):
 		mm.set_instance_transform(i, transforms[i])
 	node.multimesh = mm
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if vis_end > 0.0:
+		node.visibility_range_end = vis_end
 	add_child(node)
+
+func _is_vista_corridor(x: float, z: float) -> bool:
+	# Keep scenic sightlines unobstructed at South Camp Fence Overlook, Creek Outflow, Wangdao Pavilion & East Terrace
+	if x > -10.5 and x < 5.0 and z > 18.0 and z < 35.0:
+		return true
+	if x > 14.2 and x < 21.8 and z > 19.0 and z < 42.0:
+		return true
+	if x > 27.0 and x < 42.5 and z > 17.5 and z < 36.0:
+		return true
+	if x > 42.5 and x < 60.0 and z > -27.5 and z < -15.5:
+		return true
+	return false
+
+func _surface_height_any(x: float, z: float) -> float:
+	if x >= -60.0 and x <= 60.0 and z >= -120.0 and z <= 36.0:
+		return float(game.terrain_height(x, z))
+	return _outer_valley_y(x, z)
+
+func _min_surface_height_any(x: float, z: float, radius: float) -> float:
+	var low := _surface_height_any(x, z)
+	for d in [Vector2(radius, 0), Vector2(-radius, 0), Vector2(0, radius), Vector2(0, -radius), Vector2(radius * 0.7, radius * 0.7), Vector2(-radius * 0.7, -radius * 0.7)]:
+		low = minf(low, _surface_height_any(x + d.x, z + d.y))
+	return low
+
+func _vegetation():
+	for i in 6:
+		var path = "res://assets/slice/rock_%d.glb" % i
+		if ResourceLoader.exists(path):
+			rock_paths.append(path)
+
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var culm_mesh := _extract_mesh(v061_path, "bamboo_culm_single")
+	var clump_mesh := _extract_mesh(v061_path, "bamboo_clump")
+	var culm_tx: Array = []
+	var clump_tx: Array = []
+
+	# Authentic segmented Moso bamboo groves & fence-side bamboo pockets
+	for i in 155:
+		var x := rng.randf_range(-50.5, 50.5)
+		var z := rng.randf_range(-109.0, 21.5)
+		if game.Layout.clear_for_route(x, z, 0.65) or _is_vista_corridor(x, z):
+			continue
+		if i % 5 == 0 and not game.Layout.clear_for_route(x, z, 2.2):
+			var cy := _surface_height_any(x, z) - 0.04
+			var csc := rng.randf_range(0.84, 1.16)
+			clump_tx.append(Transform3D(Basis(Vector3.UP, rng.randf_range(0, TAU)).scaled(Vector3.ONE * csc), Vector3(x, cy, z)))
+			if game.Layout.road_distance(x, z) < 18.0:
+				var cshape := CylinderShape3D.new()
+				cshape.radius = 0.58 * csc
+				cshape.height = 6.2 * csc
+				var cbody = game.Props.shape_body(self, cshape, Vector3(x, cy + 3.1 * csc, z))
+				cbody.add_to_group("solid_props")
+		else:
+			for j in 2:
+				var bx := x + float(j) * 0.75 + rng.randf_range(-0.22, 0.22)
+				var bz := z + float(j) * 0.52 + rng.randf_range(-0.22, 0.22)
+				if game.Layout.clear_for_route(bx, bz, 0.45) or _is_vista_corridor(bx, bz):
+					continue
+				var by := _surface_height_any(bx, bz) - 0.03
+				var bsc := rng.randf_range(0.82, 1.24)
+				var basis := Basis(Vector3.UP, rng.randf_range(0, TAU))
+				basis = basis.rotated(Vector3.RIGHT, rng.randf_range(-0.045, 0.045)).scaled(Vector3(bsc * 0.96, bsc, bsc * 0.96))
+				culm_tx.append(Transform3D(basis, Vector3(bx, by, bz)))
+				if game.Layout.road_distance(bx, bz) < 15.0:
+					var shape := CylinderShape3D.new()
+					shape.radius = 0.13
+					shape.height = 6.8 * bsc
+					var body = game.Props.shape_body(self, shape, Vector3(bx, by + 3.4 * bsc, bz))
+					body.add_to_group("solid_props")
+
+	_batch_direct(culm_mesh, culm_tx, not low_quality, "MosoBambooCulms")
+	_batch_direct(clump_mesh, clump_tx, not low_quality, "MosoBambooClumps")
+	_trees()
+
+	for i in 34:
+		var x := rng.randf_range(-48.5, 48.5)
+		var z := rng.randf_range(-107.0, 21.5)
+		if not game.Layout.clear_for_route(x, z, 1.6) and not _is_vista_corridor(x, z):
+			rock(Vector3(x, 0, z), rng.randf_range(1.0, 3.3), i)
+	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-36.5, 0, -36.5), 3.0], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
+		rock(info[0], info[1], int(absf(info[0].z)))
+	_backdrop()
+
+func _trees():
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var camphor_mesh := _extract_mesh(v061_path, "tree_camphor")
+	var willow_mesh := _extract_mesh(v061_path, "tree_willow")
+	var maple_mesh := _extract_mesh(v061_path, "tree_maple_tallow")
+
+	var camphor_tx: Array = []
+	var willow_tx: Array = []
+	var maple_tx: Array = []
+
+	# 1) Graceful Weeping Willows ("垂柳") lining the mountain creek & framing the South fence creek outflow
+	var creek_willow_specs := [
+		[-99.0, -4.1], [-85.0, 4.3], [-70.5, -4.0], [-56.0, 4.2],
+		[-38.0, -4.2], [-30.0, 4.5], [-17.5, -4.3], [-8.5, 4.2],
+		[1.5, -4.0], [13.2, 4.3], [19.8, -4.3], [24.2, 4.8],
+		[29.5, -5.0], [33.5, 5.2]
+	]
+	for idx in creek_willow_specs.size():
+		var wz: float = creek_willow_specs[idx][0]
+		var woff: float = creek_willow_specs[idx][1]
+		var wx := _outer_stream_x(wz) + woff
+		if game.Layout.clear_for_route(wx, wz, 1.4) and wz <= 25.0:
+			continue
+		var wy := _surface_height_any(wx, wz) - 0.08
+		var wsc := 0.96 + float(idx % 4) * 0.10
+		var wyaw := float(idx) * 1.85
+		willow_tx.append(Transform3D(Basis(Vector3.UP, wyaw).scaled(Vector3.ONE * wsc), Vector3(wx, wy, wz)))
+		if wz >= game.Layout.FENCE_MIN_Z and wz <= game.Layout.FENCE_MAX_Z and absf(wx) <= 51.5:
+			var tshape := CylinderShape3D.new()
+			tshape.radius = 0.28 * wsc
+			tshape.height = 4.2 * wsc
+			game.Props.shape_body(self, tshape, Vector3(wx, wy + 2.1 * wsc, wz))
+
+	# 2) Key landmark & trailside Southern Broadleaf Trees (Camphor "香樟" & Maple/Tallow "枫香/乌桕")
+	var curated_trees := [
+		Vector3(-17, 0, -4), Vector3(24, 0, -8), Vector3(-29, 0, -19), Vector3(24, 0, -18),
+		Vector3(-37, 0, -30), Vector3(24, 0, -42), Vector3(-32, 0, -53), Vector3(28, 0, -63),
+		Vector3(-25, 0, -76), Vector3(33, 0, -91), Vector3(-7, 0, -107), Vector3(32, 0, -3),
+		Vector3(-44, 0, 18), Vector3(-31, 0, 21), Vector3(45, 0, 12), Vector3(46, 0, -6),
+		Vector3(45, 0, -38), Vector3(44, 0, -58), Vector3(45, 0, -79), Vector3(42, 0, -102),
+		Vector3(-45, 0, 4), Vector3(-46, 0, -16), Vector3(-46, 0, -44), Vector3(-45, 0, -68),
+		Vector3(-44, 0, -88), Vector3(-42, 0, -106), Vector3(-19, 0, -108), Vector3(11, 0, -108)
+	]
+	# Also scatter natural fence-side & outer-collar woodland trees so hills have zero empty dead zones
+	for k in 34:
+		var sx := rng.randf_range(-56.5, 56.5)
+		var sz := rng.randf_range(-116.0, 24.5)
+		if absf(sx) < 33.0 and sz > -98.0 and sz < 14.0:
+			continue
+		curated_trees.append(Vector3(sx, 0.0, sz))
+
+	for idx in curated_trees.size():
+		var raw: Vector3 = curated_trees[idx]
+		if _is_vista_corridor(raw.x, raw.z):
+			continue
+		if raw.x >= -52.0 and raw.x <= 52.0 and raw.z >= -112.0 and raw.z <= 26.0:
+			if game.Layout.clear_for_route(raw.x, raw.z, 1.8):
+				continue
+		elif game.Layout.stream_distance(raw.x, raw.z) < 4.2:
+			continue
+		var ty := _surface_height_any(raw.x, raw.z) - 0.10
+		var tsc := rng.randf_range(0.90, 1.28)
+		var tyaw := float(idx) * 2.07 + rng.randf_range(-0.25, 0.25)
+		var xform := Transform3D(Basis(Vector3.UP, tyaw).scaled(Vector3.ONE * tsc), Vector3(raw.x, ty, raw.z))
+		if idx % 5 == 1 or idx % 5 == 3:
+			maple_tx.append(xform)
+		else:
+			camphor_tx.append(xform)
+		if raw.x >= -51.5 and raw.x <= 51.5 and raw.z >= -111.5 and raw.z <= 25.5:
+			var shape := CylinderShape3D.new()
+			shape.radius = 0.30 * tsc
+			shape.height = 4.6 * tsc
+			game.Props.shape_body(self, shape, Vector3(raw.x, ty + 2.3 * tsc, raw.z))
+
+	_batch_direct(camphor_mesh, camphor_tx, not low_quality, "MountainCamphorTrees")
+	_batch_direct(willow_mesh, willow_tx, not low_quality, "MountainWillowTrees")
+	_batch_direct(maple_mesh, maple_tx, not low_quality, "MountainMapleTrees")
 
 func _hill_height(x: float, z: float) -> float:
 	return 5.0 + 15.0 * exp(-pow((x + 65.0) / 43.0, 2.0) - pow((z + 175.0) / 45.0, 2.0)) + 22.0 * exp(-pow((x - 45.0) / 58.0, 2.0) - pow((z + 205.0) / 60.0, 2.0)) + 5.0 * sin(x * 0.025 + z * 0.018)
 
 func _outer_stream_x(z: float) -> float:
-	var dz := maxf(0.0, z - 26.0)
-	return float(game.Layout.stream_center_x(26.0)) + sin(dz * 0.056) * 8.0
+	if z <= 36.0:
+		return float(game.Layout.stream_center_x(z))
+	var dz := z - 36.0
+	return 19.6 + (1.0 - exp(-dz * 0.06)) * sin(dz * 0.052) * 8.5
+
+func _outer_stream_width_scale(z: float) -> float:
+	if z <= 36.0:
+		return 1.0
+	return 1.0 + 0.65 * smoothstep(36.0, 145.0, z)
 
 func _outer_foothill_weight(x: float, z: float) -> float:
 	var center_dist := Vector2(x, z + 44.0).length()
@@ -294,79 +445,128 @@ func _outer_foothill_weight(x: float, z: float) -> float:
 	return smoothstep(162.0, 265.0, center_dist) * (1.0 - 0.65 * south_plain)
 
 func _outer_valley_y(x: float, z: float) -> float:
-	var ix := clampf(x, -56.0, 56.0)
-	var iz := clampf(z, -116.0, 28.0)
-	var dx := maxf(0.0, maxf(-56.0 - x, x - 56.0))
-	var dz := maxf(0.0, maxf(-116.0 - z, z - 28.0))
+	var ix := clampf(x, -60.0, 60.0)
+	var iz := clampf(z, -120.0, 36.0)
+	var dx := maxf(0.0, maxf(-60.0 - x, x - 60.0))
+	var dz := maxf(0.0, maxf(-120.0 - z, z - 36.0))
 	var d := sqrt(dx * dx + dz * dz)
-	if d < 0.01:
-		return game.terrain_height(ix, iz) - 0.06
-	var edge_y: float = game.terrain_height(ix, iz) - 0.06
-	var north_w := smoothstep(-110.0, -142.0, z) * (1.0 - smoothstep(52.0, 96.0, absf(x)))
+	if d < 0.001:
+		return _ground_vis_y(ix, iz)
+	var edge_land := float(game.Layout.land_edge_height(ix, iz))
+	var north_w := smoothstep(-114.0, -146.0, z) * (1.0 - smoothstep(56.0, 98.0, absf(x)))
 	var north_h := _hill_height(x, z)
 	# Broad terraced lowland rice paddies surrounding East, West & South hillsides
 	var raw_terrace := -11.4 + 1.6 * sin(x * 0.024 + z * 0.016) + 0.9 * cos(z * 0.028)
 	var quantized := floorf((raw_terrace + 13.0) / 2.2) * 2.2 - 13.0
 	var valley_floor := lerpf(raw_terrace, quantized, 0.56)
-	var down_t := smoothstep(2.0, 28.0, d)
-	var rural_y := lerpf(edge_y, valley_floor, down_t)
-	rural_y = lerpf(rural_y, north_h, north_w * smoothstep(8.0, 38.0, d))
+	var down_t := smoothstep(0.0, 30.0, d)
+	var rural_y := lerpf(edge_land, valley_floor, down_t)
+	rural_y = lerpf(rural_y, north_h, north_w * smoothstep(6.0, 38.0, d))
 	var center_dist := Vector2(x, z + 44.0).length()
 	var foothill_w := _outer_foothill_weight(x, z)
 	var foothill_h := 6.0 + 18.0 * smoothstep(170.0, 280.0, center_dist) + 8.5 * sin(x * 0.027 - z * 0.021) + 5.5 * cos(x * 0.016 + z * 0.031)
 	var land_y := lerpf(rural_y, foothill_h, foothill_w)
-	# Subtle recessed riverbed channel along Southern irrigation creek (z = 26..165)
-	if z >= 25.0 and z <= 170.0:
+	# Continuous recessed riverbed & bank lips extending seamlessly South from z = 36.0 into the rural rice valley
+	if z >= 36.0 and z <= 172.0:
 		var sx := _outer_stream_x(z)
-		var sd := absf(x - sx)
-		if sd < 6.5:
-			var bed_t := (1.0 - smoothstep(1.2, 6.5, sd)) * (1.0 - smoothstep(145.0, 170.0, z))
-			land_y -= 0.52 * bed_t
+		var w_sc := _outer_stream_width_scale(z)
+		var local_off := (x - sx) / w_sc
+		if absf(local_off) < 5.2:
+			var equiv_x := 19.6 + local_off
+			var delta_36 := _ground_vis_y(equiv_x, 36.0) - float(game.Layout.land_edge_height(equiv_x, 36.0))
+			var chan_fade := 1.0 - smoothstep(145.0, 172.0, z)
+			land_y += delta_36 * chan_fade
 	return land_y
 
+func _stream_water_y_any(z: float) -> float:
+	if z <= 36.0:
+		return float(game.Layout.stream_water_y(z))
+	var sx := _outer_stream_x(z)
+	return _outer_valley_y(sx, z) + lerpf(0.575, 0.18, smoothstep(36.0, 155.0, z))
+
 func _outer_valley_normal(x: float, z: float) -> Vector3:
-	var eps := 4.0
+	var dx := maxf(0.0, maxf(-60.0 - x, x - 60.0))
+	var dz := maxf(0.0, maxf(-120.0 - z, z - 36.0))
+	var eps := 1.0 if (dx < 24.0 and dz < 48.0) else 4.0
 	return Vector3(
 		_outer_valley_y(x - eps, z) - _outer_valley_y(x + eps, z),
 		2.0 * eps,
 		_outer_valley_y(x, z - eps) - _outer_valley_y(x, z + eps)
 	).normalized()
 
+func _valley_raw_vert(x: float, z: float) -> Array:
+	var y := _outer_valley_y(x, z)
+	var n := _outer_valley_normal(x, z)
+	var dx := maxf(0.0, maxf(-60.0 - x, x - 60.0))
+	var dz := maxf(0.0, maxf(-120.0 - z, z - 36.0))
+	var d := sqrt(dx * dx + dz * dz)
+	var fh := _outer_foothill_weight(x, z)
+	var paddy_w := smoothstep(22.0, 42.0, d) * (1.0 - smoothstep(-6.5, -2.0, y))
+	var slope_flat := smoothstep(0.86, 0.96, n.y)
+	return [Vector3(x, y, z), n, Vector2(x, z) * 0.015, Color(paddy_w * slope_flat, clampf(d / 220.0, 0.0, 1.0), fh)]
+
+func _valley_stitched_vert(ix: int, iz: int, outer_box: Array, coarse_step: int) -> Array:
+	# Snap fine-ring outer-perimeter vertices linearly onto coarse_step endpoints so zero T-junction cracks can ever form
+	if coarse_step > 1:
+		var ox0: int = outer_box[0]
+		var ox1: int = outer_box[1]
+		var oz0: int = outer_box[2]
+		var oz1: int = outer_box[3]
+		if (ix == ox0 or ix == ox1) and iz >= oz0 and iz <= oz1:
+			var rem_z := posmod(iz - oz0, coarse_step)
+			if rem_z != 0:
+				var z_a := float(iz - rem_z)
+				var z_b := float(iz - rem_z + coarse_step)
+				var tz := float(rem_z) / float(coarse_step)
+				var va := _valley_raw_vert(float(ix), z_a)
+				var vb := _valley_raw_vert(float(ix), z_b)
+				return [(va[0] as Vector3).lerp(vb[0] as Vector3, tz), ((va[1] as Vector3).lerp(vb[1] as Vector3, tz)).normalized(), (va[2] as Vector2).lerp(vb[2] as Vector2, tz), (va[3] as Color).lerp(vb[3] as Color, tz)]
+		if (iz == oz0 or iz == oz1) and ix >= ox0 and ix <= ox1:
+			var rem_x := posmod(ix - ox0, coarse_step)
+			if rem_x != 0:
+				var x_a := float(ix - rem_x)
+				var x_b := float(ix - rem_x + coarse_step)
+				var tx := float(rem_x) / float(coarse_step)
+				var va := _valley_raw_vert(x_a, float(iz))
+				var vb := _valley_raw_vert(x_b, float(iz))
+				return [(va[0] as Vector3).lerp(vb[0] as Vector3, tx), ((va[1] as Vector3).lerp(vb[1] as Vector3, tx)).normalized(), (va[2] as Vector2).lerp(vb[2] as Vector2, tx), (va[3] as Color).lerp(vb[3] as Color, tx)]
+	return _valley_raw_vert(float(ix), float(iz))
+
+func _append_valley_ring(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, colors: PackedColorArray, inner_box: Array, outer_box: Array, step: int, next_step: int):
+	var ix0: int = inner_box[0]
+	var ix1: int = inner_box[1]
+	var iz0: int = inner_box[2]
+	var iz1: int = inner_box[3]
+	for z in range(int(outer_box[2]), int(outer_box[3]), step):
+		for x in range(int(outer_box[0]), int(outer_box[1]), step):
+			if x >= ix0 and x < ix1 and z >= iz0 and z < iz1:
+				continue
+			var v0 := _valley_stitched_vert(x, z, outer_box, next_step)
+			var v1 := _valley_stitched_vert(x, z + step, outer_box, next_step)
+			var v2 := _valley_stitched_vert(x + step, z, outer_box, next_step)
+			var v3 := _valley_stitched_vert(x + step, z + step, outer_box, next_step)
+			var cell := [v0, v1, v2, v3]
+			for k in [0, 2, 1, 2, 3, 1]:
+				var vd: Array = cell[k]
+				vertices.append(vd[0])
+				normals.append(vd[1])
+				uvs.append(vd[2])
+				colors.append(vd[3])
+
 func _backdrop():
-	# 1) 360-degree stepped terraced rural rice-paddy valley seamlessly swelling into outer 3D foothills
+	# 1) Watertight 3-ring terraced rural rice-paddy valley seamlessly stitched to ContinuousGround [-60..60] x [-120..36]
 	var vertices = PackedVector3Array()
 	var normals = PackedVector3Array()
 	var uvs = PackedVector2Array()
 	var colors = PackedColorArray()
-	for z in range(-332, 244, 8):
-		for x in range(-288, 288, 8):
-			if x >= -56 and x < 56 and z >= -116 and z < 28:
-				continue
-			var pts = [
-				Vector3(x, _outer_valley_y(x, z), z),
-				Vector3(x, _outer_valley_y(x, z + 8), z + 8),
-				Vector3(x + 8, _outer_valley_y(x + 8, z), z),
-				Vector3(x + 8, _outer_valley_y(x + 8, z + 8), z + 8)
-			]
-			var ns = [
-				_outer_valley_normal(x, z),
-				_outer_valley_normal(x, z + 8),
-				_outer_valley_normal(x + 8, z),
-				_outer_valley_normal(x + 8, z + 8)
-			]
-			for i in [0, 2, 1, 2, 3, 1]:
-				var p: Vector3 = pts[i]
-				var n: Vector3 = ns[i]
-				vertices.append(p)
-				normals.append(n)
-				uvs.append(Vector2(p.x, p.z) * 0.015)
-				var dx := maxf(0.0, maxf(-56.0 - p.x, p.x - 56.0))
-				var dz := maxf(0.0, maxf(-116.0 - p.z, p.z - 28.0))
-				var d := sqrt(dx * dx + dz * dz)
-				var fh := _outer_foothill_weight(p.x, p.z)
-				var paddy_w := smoothstep(20.0, 40.0, d) * (1.0 - smoothstep(-6.5, -2.0, p.y))
-				var slope_flat := smoothstep(0.86, 0.96, n.y)
-				colors.append(Color(paddy_w * slope_flat, clampf(d / 220.0, 0.0, 1.0), fh))
+	var box0 := [-60, 60, -120, 36]
+	var box1 := [-64, 64, -124, 44]
+	var box2 := [-96, 96, -152, 88]
+	var box3 := [-288, 288, -336, 248]
+	_append_valley_ring(vertices, normals, uvs, colors, box0, box1, 1, 2)
+	_append_valley_ring(vertices, normals, uvs, colors, box1, box2, 2, 8)
+	_append_valley_ring(vertices, normals, uvs, colors, box2, box3, 8, 1)
+
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -404,7 +604,7 @@ void fragment(){
  float ridge_var = 0.5 + 0.5 * sin(wpos.x * 0.025 - wpos.z * 0.029);
  vec3 lush_hill = mix(vec3(0.14, 0.22, 0.12), vec3(0.24, 0.31, 0.18), forest_n);
  vec3 far_hill_col = mix(s_tex, canopy_tex, 0.62) * lush_hill * mix(1.00, 1.24, ridge_var);
- vec3 slope_col = mix(near_grass, far_hill_col, smoothstep(8.0, 52.0, edge_d));
+ vec3 slope_col = mix(near_grass, far_hill_col, smoothstep(10.0, 56.0, edge_d));
 
  vec3 p_tex = texture(paddy_tex, UV).rgb;
  float macro_dapple = 0.88 + 0.14 * sin(wpos.x * 0.022 + wpos.z * 0.018);
@@ -414,7 +614,7 @@ void fragment(){
  ALBEDO = mix(slope_col, paddy_col, paddy_t);
  NORMAL_MAP = texture(soil_normal, soil_uv).rgb;
  NORMAL_MAP_DEPTH = mix(0.50, 0.12, smoothstep(10.0, 75.0, edge_d));
- ROUGHNESS = mix(0.96, 0.90, paddy_t);
+ ROUGHNESS = mix(0.95, 0.90, paddy_t);
  SPECULAR = 0.02;
 }
 """
@@ -428,52 +628,7 @@ void fragment(){
 	valley.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(valley)
 
-	# 2) Distant Southern irrigation creek nestled inside its carved riverbed channel
-	var ov_verts = PackedVector3Array()
-	var ov_uvs = PackedVector2Array()
-	var segs := 20
-	for i in segs:
-		var z0 := 32.0 + float(i) * 6.8
-		var z1 := z0 + 6.8
-		var cx0 := _outer_stream_x(z0)
-		var cx1 := _outer_stream_x(z1)
-		var y0 := _outer_valley_y(cx0, z0) + 0.08
-		var y1 := _outer_valley_y(cx1, z1) + 0.08
-		var hw0 := 1.35 + float(i) * 0.08
-		var hw1 := 1.35 + float(i + 1) * 0.08
-		var q = [Vector3(cx0 - hw0, y0, z0), Vector3(cx0 + hw0, y0, z0), Vector3(cx1 - hw1, y1, z1), Vector3(cx1 + hw1, y1, z1)]
-		var quv = [Vector2(0, float(i)), Vector2(1, float(i)), Vector2(0, float(i + 1)), Vector2(1, float(i + 1))]
-		for k in [0, 1, 2, 1, 3, 2]:
-			ov_verts.append(q[k])
-			ov_uvs.append(quv[k])
-	var ov_arr = []
-	ov_arr.resize(Mesh.ARRAY_MAX)
-	ov_arr[Mesh.ARRAY_VERTEX] = ov_verts
-	ov_arr[Mesh.ARRAY_TEX_UV] = ov_uvs
-	var ov_mesh = ArrayMesh.new()
-	ov_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ov_arr)
-	var ov_inst = MeshInstance3D.new()
-	ov_inst.mesh = ov_mesh
-	var ov_shader = Shader.new()
-	ov_shader.code = """shader_type spatial;
-render_mode blend_mix, cull_disabled;
-void fragment(){
- float edge = abs(UV.x - 0.5) * 2.0;
- float head = smoothstep(0.0, 2.2, UV.y);
- float flow = 0.5 + 0.5 * sin(UV.y * 8.0 - TIME * 2.2);
- ALBEDO = mix(vec3(0.06, 0.16, 0.18), vec3(0.10, 0.25, 0.27), flow);
- ROUGHNESS = 0.88;
- SPECULAR = 0.03;
- ALPHA = head * mix(0.80, 0.0, smoothstep(0.45, 1.0, edge));
-}
-"""
-	var ov_mat = ShaderMaterial.new()
-	ov_mat.shader = ov_shader
-	ov_inst.material_override = ov_mat
-	ov_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(ov_inst)
-
-	# 3) Rural Jiangnan cottages grouped in tree-sheltered valley hamlets + warm olive foothill pines (zero metallic foliage)
+	# 2) Rural Jiangnan cottages sheltered by authentic Weeping Willows, Camphors, Southern Maples & Bamboo Groves (zero Christmas pines!)
 	var village_spots := [
 		Vector3(-34, 0, 82), Vector3(-25, 0, 88), Vector3(-40, 0, 96), Vector3(-18, 0, 102),
 		Vector3(8, 0, 86), Vector3(22, 0, 94), Vector3(31, 0, 84), Vector3(39, 0, 99),
@@ -490,45 +645,75 @@ void fragment(){
 			hp.y = _outer_valley_y(hp.x, hp.z) - 0.14
 			var hyaw := float(j % 4) * (PI * 0.5) + 0.18
 			house_tx.append(Transform3D(Basis(Vector3.UP, hyaw).scaled(Vector3.ONE * 1.12), hp))
-		_batch_direct(house_mesh, house_tx, false)
+		_batch_direct(house_mesh, house_tx, false, "VillageFarmhouses")
 
-	var vtree_mesh := _extract_mesh("res://assets/nature/tree_pineRoundD.glb")
-	if vtree_mesh != null:
-		vtree_mesh = vtree_mesh.duplicate()
-		var vleaf_mat: StandardMaterial3D = game._material(Color("354f2d"))
-		vleaf_mat.roughness = 0.88
-		var vbark_mat: StandardMaterial3D = game._material(Color("4f3e2d"))
-		vbark_mat.roughness = 0.92
-		vtree_mesh.surface_set_material(0, vleaf_mat)
-		if vtree_mesh.get_surface_count() > 1:
-			vtree_mesh.surface_set_material(1, vbark_mat)
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var v_willow := _extract_mesh(v061_path, "tree_willow")
+	var v_camphor := _extract_mesh(v061_path, "tree_camphor")
+	var v_maple := _extract_mesh(v061_path, "tree_maple_tallow")
+	var v_bamboo := _extract_mesh(v061_path, "bamboo_clump")
 
-		var tree_tx: Array = []
-		# Anchor cohesive tree groves right beside village hamlets so cottages nestle into foliage
-		for j in village_spots.size():
-			var hp: Vector3 = village_spots[j]
-			for t_i in 2:
-				var ang := float(j * 3 + t_i) * 2.15
-				var rad := 7.2 + float(t_i) * 4.4
-				var tx_p := hp.x + cos(ang) * rad
-				var tz_p := hp.z + sin(ang) * rad
-				var ty_p := _outer_valley_y(tx_p, tz_p) - 0.15
-				var ts := 4.2 + float((j + t_i) % 3) * 0.95
-				tree_tx.append(Transform3D(Basis(Vector3.UP, ang).scaled(Vector3.ONE * ts), Vector3(tx_p, ty_p, tz_p)))
-		# Add hillside & outer foothill pine stands
-		for k in 56:
-			var angle := float(k) * 0.73
-			var rad := 142.0 + float(k % 7) * 14.0
-			var vx := sin(angle) * rad
-			var vz := -44.0 + cos(angle) * (rad * 1.12)
-			if vz < -118.0 and absf(vx) < 70.0:
-				continue
-			var vy := _outer_valley_y(vx, vz) - 0.18
-			var ts := 5.0 + float(k % 4) * 1.1
-			tree_tx.append(Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * ts), Vector3(vx, vy, vz)))
-		_batch_direct(vtree_mesh, tree_tx, false)
+	var v_willow_tx: Array = []
+	var v_camphor_tx: Array = []
+	var v_maple_tx: Array = []
+	var v_bamboo_tx: Array = []
 
-	# 4) 360-degree distant misty mountain range panorama cylinder harmonizing with sun azimuth & valley mist
+	# Weeping willows ("垂柳") lining the valley irrigation river from the mountain foot right through the village paddies
+	for r_idx in 18:
+		var rz := 40.0 + float(r_idx) * 6.8
+		var r_side := -1.0 if r_idx % 2 == 0 else 1.0
+		var rx := _outer_stream_x(rz) + r_side * (4.8 + float(r_idx % 3) * 1.2)
+		var ry := _outer_valley_y(rx, rz) - 0.12
+		var rsc := 1.08 + float(r_idx % 4) * 0.12
+		v_willow_tx.append(Transform3D(Basis(Vector3.UP, float(r_idx) * 1.63).scaled(Vector3.ONE * rsc), Vector3(rx, ry, rz)))
+
+	# Authentic Jiangnan village groves beside white-wall black-tile cottages: front-yard willows & camphors + backyard bamboo
+	for j in village_spots.size():
+		var hp: Vector3 = village_spots[j]
+		for t_i in 3:
+			var ang := float(j * 3 + t_i) * 2.09 + 0.35
+			var rad := 6.6 + float(t_i) * 3.8
+			var tx_p := hp.x + cos(ang) * rad
+			var tz_p := hp.z + sin(ang) * rad
+			if absf(tx_p - _outer_stream_x(tz_p)) < 3.8 and tz_p > 35.0:
+				tx_p += 5.2
+			var ty_p := _outer_valley_y(tx_p, tz_p) - 0.12
+			var ts := 1.02 + float((j + t_i) % 4) * 0.12
+			var xform := Transform3D(Basis(Vector3.UP, ang).scaled(Vector3.ONE * ts), Vector3(tx_p, ty_p, tz_p))
+			if t_i == 0:
+				v_willow_tx.append(xform)
+			elif t_i == 1:
+				if j % 3 == 0:
+					v_maple_tx.append(xform)
+				else:
+					v_camphor_tx.append(xform)
+			else:
+				v_bamboo_tx.append(xform)
+
+	# Outer foothill & hillside broadleaf / bamboo stands
+	for k in 58:
+		var angle := float(k) * 0.73
+		var rad := 142.0 + float(k % 7) * 14.0
+		var vx := sin(angle) * rad
+		var vz := -44.0 + cos(angle) * (rad * 1.12)
+		if vz < -118.0 and absf(vx) < 70.0:
+			continue
+		var vy := _outer_valley_y(vx, vz) - 0.16
+		var ts := 1.15 + float(k % 4) * 0.16
+		var xform := Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * ts), Vector3(vx, vy, vz))
+		if k % 4 == 0:
+			v_maple_tx.append(xform)
+		elif k % 4 == 1:
+			v_bamboo_tx.append(xform)
+		else:
+			v_camphor_tx.append(xform)
+
+	_batch_direct(v_willow, v_willow_tx, false, "VillageWillows")
+	_batch_direct(v_camphor, v_camphor_tx, false, "VillageCamphors")
+	_batch_direct(v_maple, v_maple_tx, false, "VillageMaples")
+	_batch_direct(v_bamboo, v_bamboo_tx, false, "VillageBamboo")
+
+	# 3) 360-degree distant misty mountain range panorama cylinder harmonizing with sun azimuth & valley mist
 	if ResourceLoader.exists("res://assets/slice/horizon_mountains.png"):
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 278.0
@@ -573,56 +758,9 @@ void fragment(){
 		sky_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(sky_ring)
 
-func _trees():
-	var trunk_material = game._material(Color("9a9681"))
-	trunk_material.albedo_texture = load("res://assets/slice/tree_bark.jpg")
-	trunk_material.uv1_scale = Vector3(1, 5, 1)
-	var shader = Shader.new()
-	shader.code = """shader_type spatial; render_mode cull_disabled;
-uniform sampler2D needles : source_color,filter_linear_mipmap;
-uniform sampler2D mask : filter_linear_mipmap;
-void vertex(){VERTEX.x+=sin(TIME+MODEL_MATRIX[3].x+VERTEX.y)*0.035*UV.y;}
-void fragment(){ALBEDO=texture(needles,UV).rgb*0.8; ALPHA=texture(mask,UV).r;ALPHA_SCISSOR_THRESHOLD=0.48;ROUGHNESS=0.92;}
-"""
-	var mat = ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("needles", load("res://assets/slice/tree_needles.jpg"))
-	mat.set_shader_parameter("mask", load("res://assets/slice/tree_alpha.jpg"))
-	var st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var corners = [Vector3(-1.5, -1.7, 0), Vector3(1.5, -1.7, 0), Vector3(1.5, 1.7, 0), Vector3(-1.5, 1.7, 0)]
-	var uv = [Vector2(0, 0.45), Vector2(0.22, 0.45), Vector2(0.22, 0), Vector2(0, 0)]
-	for i in [0, 2, 1, 0, 3, 2]:
-		st.set_uv(uv[i])
-		st.add_vertex(corners[i])
-	st.generate_normals()
-	var crowns = []
-	var trunks = []
-	for raw in [Vector3(-17, 0, -4), Vector3(24, 0, -8), Vector3(-29, 0, -19), Vector3(24, 0, -18), Vector3(-37, 0, -30), Vector3(24, 0, -42), Vector3(-32, 0, -53), Vector3(28, 0, -63), Vector3(-25, 0, -76), Vector3(33, 0, -91), Vector3(-7, 0, -107), Vector3(32, 0, -3)]:
-		var at = game.Layout.on_ground(raw)
-		var h = rng.randf_range(9, 13)
-		trunks.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1, h, 1)), at + Vector3.UP * h / 2))
-		var shape = CylinderShape3D.new()
-		shape.radius = 0.28
-		shape.height = h
-		game.Props.shape_body(self, shape, at + Vector3.UP * h / 2)
-		for level in 4:
-			var radius = 1.8 - level * 0.36
-			for i in 5:
-				var angle = TAU * i / 5 + level * 0.7
-				var pos = at + Vector3(sin(angle) * radius, h * (0.56 + 0.085 * level), cos(angle) * radius)
-				crowns.append(Transform3D(Basis(Vector3.UP, angle).scaled(Vector3(1.3 - level * 0.17, 1.2 - level * 0.14, 1)), pos))
-	var cylinder_mesh = CylinderMesh.new()
-	cylinder_mesh.height = 1
-	cylinder_mesh.bottom_radius = 0.28
-	cylinder_mesh.top_radius = 0.09
-	cylinder_mesh.radial_segments = 10
-	_batch(cylinder_mesh, trunk_material, trunks, true)
-	_batch(st.commit(), mat, crowns, true)
-
 func rock(at: Vector3, height: float, index: int):
 	var path = "res://assets/nature/rock_largeA.glb" if rock_paths.is_empty() else rock_paths[index % rock_paths.size()]
-	var grounded_y = game.Layout.min_ground_height(at.x, at.z, height * 0.72) - (0.36 + height * 0.08)
+	var grounded_y := _min_surface_height_any(at.x, at.z, height * 0.72) - (0.38 + height * 0.09)
 	return game._model(self, path, Vector3(at.x, grounded_y, at.z), height, rng.randf_range(0, TAU), "convex")
 
 func signpost(at: Vector3, text: String):
@@ -846,40 +984,158 @@ func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
 	var tag = "[E] %s" % parent.get_meta("title", "战术补给")
 	game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
 
+func _is_near_bridge(z: float, margin: float = 3.4) -> bool:
+	for bz in game.Layout.STREAM_BRIDGES:
+		if absf(z - float(bz)) < margin:
+			return true
+	return false
+
 func _stream():
-	# Continuous animated mountain brook flowing downhill from Northern Spring (z=-111) out beneath South Fence (z=26.5)
+	# 1) Carved concave wet-pebble streambed & mossy cobble banks (z = -111.5 .. +58.0, opaque for zero alpha-sort conflict)
+	var bed_verts := PackedVector3Array()
+	var bed_normals := PackedVector3Array()
+	var bed_uvs := PackedVector2Array()
+	var bed_colors := PackedColorArray()
+	var bed_rows := []
+	var bz_cur := -111.5
+	while bz_cur <= 58.01:
+		var zc := minf(bz_cur, 58.0)
+		var cx := _outer_stream_x(zc)
+		var wy := _stream_water_y_any(zc)
+		var w_sc := _outer_stream_width_scale(zc)
+		var end_fade := maxf(1.0 - smoothstep(-111.5, -109.2, zc), smoothstep(50.5, 58.0, zc))
+		var row := []
+		for u_i in range(-7, 8):
+			var norm_off := float(u_i) * 0.34  # -2.38 .. +2.38m
+			var off := norm_off * w_sc
+			var px := cx + off
+			var base_h := float(game.terrain_height(px, zc)) if zc <= 36.0 else (_outer_valley_y(px, zc) + 0.055 * (1.0 - smoothstep(1.48, 2.22, absf(norm_off))))
+			var lip_taper := lerpf(0.014, -0.058, smoothstep(1.86, 2.38, absf(norm_off)))
+			var py := base_h + lip_taper
+			var wet := 1.0 - smoothstep(wy - 0.02, wy + 0.30, py)
+			var grass_blend := maxf(smoothstep(1.74, 2.28, absf(norm_off)), end_fade)
+			var r_t := clampf(float(game.Layout.road_distance(px, zc)) / 4.5, 0.0, 1.0) if zc <= 36.0 else 1.0
+			var s_t := clampf(absf(off) / 3.6, 0.0, 1.0)
+			row.append([Vector3(px, py, zc), Vector2(px * 0.56, zc * 0.56), Color(wet, grass_blend, r_t, s_t)])
+		bed_rows.append(row)
+		bz_cur += 0.75
+
+	for r_i in bed_rows.size() - 1:
+		var r0: Array = bed_rows[r_i]
+		var r1: Array = bed_rows[r_i + 1]
+		for c_i in r0.size() - 1:
+			var a0: Array = r0[c_i]
+			var a1: Array = r0[c_i + 1]
+			var b0: Array = r1[c_i]
+			var b1: Array = r1[c_i + 1]
+			var qv: Array[Vector3] = [a0[0] as Vector3, a1[0] as Vector3, b0[0] as Vector3, b1[0] as Vector3]
+			var qu: Array[Vector2] = [a0[1] as Vector2, a1[1] as Vector2, b0[1] as Vector2, b1[1] as Vector2]
+			var qc: Array[Color] = [a0[2] as Color, a1[2] as Color, b0[2] as Color, b1[2] as Color]
+			var nrm: Vector3 = (qv[1] - qv[0]).cross(qv[2] - qv[0]).normalized()
+			if nrm.y < 0.0:
+				nrm = -nrm
+			for k in [0, 1, 2, 1, 3, 2]:
+				bed_verts.append(qv[k])
+				bed_normals.append(nrm)
+				bed_uvs.append(qu[k])
+				bed_colors.append(qc[k])
+
+	var bed_arr := []
+	bed_arr.resize(Mesh.ARRAY_MAX)
+	bed_arr[Mesh.ARRAY_VERTEX] = bed_verts
+	bed_arr[Mesh.ARRAY_NORMAL] = bed_normals
+	bed_arr[Mesh.ARRAY_TEX_UV] = bed_uvs
+	bed_arr[Mesh.ARRAY_COLOR] = bed_colors
+	var bed_mesh := ArrayMesh.new()
+	bed_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, bed_arr)
+	var bed_inst := MeshInstance3D.new()
+	bed_inst.name = "StreamChannelBed"
+	bed_inst.mesh = bed_mesh
+	var bed_shader := Shader.new()
+	bed_shader.code = """shader_type spatial;
+uniform sampler2D pebbles : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D pebbles_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D pebbles_rough : filter_linear_mipmap, repeat_enable;
+uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+varying vec3 wpos;
+void vertex(){
+ wpos = VERTEX;
+}
+void fragment(){
+ float wet = clamp(COLOR.r, 0.0, 1.0);
+ float grass_t = clamp(COLOR.g, 0.0, 1.0);
+ vec3 p_col = texture(pebbles, UV).rgb;
+ float p_rough = texture(pebbles_rough, UV).r;
+ float moss_n = 0.5 + 0.5 * sin(wpos.x * 2.3 + cos(wpos.z * 1.9) * 2.1);
+ vec3 dry_cobble = mix(p_col * vec3(0.68, 0.68, 0.62), p_col * vec3(0.40, 0.50, 0.32), moss_n * 0.52 * (1.0 - wet));
+ vec3 wet_pebble = p_col * vec3(0.42, 0.46, 0.40);
+ vec3 channel_col = mix(dry_cobble, wet_pebble, wet);
+
+ vec2 soil_uv = wpos.xz * 0.28;
+ vec3 s_tex = texture(soil, soil_uv).rgb;
+ float edge = smoothstep(0.36, 0.94, COLOR.b);
+ float stream_bank = 1.0 - smoothstep(0.45, 0.98, COLOR.a);
+ float patch_n = 0.5 + 0.5 * sin(wpos.x * 0.27 + sin(wpos.z * 0.21) * 2.0);
+ vec3 greenery = mix(vec3(0.28, 0.35, 0.19), vec3(0.42, 0.44, 0.27), patch_n);
+ vec3 bed_soil = mix(s_tex * vec3(0.56, 0.50, 0.37), s_tex * greenery * 1.42, edge);
+ vec3 wet_stone = s_tex * vec3(0.32, 0.36, 0.30);
+ vec3 grass_col = mix(bed_soil, wet_stone, stream_bank * 0.78);
+ float bank_rough = mix(0.94, 0.62, stream_bank);
+
+ ALBEDO = mix(channel_col, grass_col, grass_t);
+ NORMAL_MAP = mix(texture(pebbles_normal, UV).rgb, texture(soil_normal, soil_uv).rgb, grass_t);
+ NORMAL_MAP_DEPTH = mix(0.88, 0.52, grass_t);
+ ROUGHNESS = mix(mix(clamp(p_rough * 0.92, 0.55, 0.92), 0.22, wet), bank_rough, grass_t);
+ SPECULAR = mix(mix(0.16, 0.52, wet), 0.5, grass_t);
+}
+"""
+	var bed_mat := ShaderMaterial.new()
+	bed_mat.shader = bed_shader
+	bed_mat.set_shader_parameter("pebbles", load("res://assets/slice/river_pebbles_color.jpg"))
+	bed_mat.set_shader_parameter("pebbles_normal", load("res://assets/slice/river_pebbles_normal.jpg"))
+	bed_mat.set_shader_parameter("pebbles_rough", load("res://assets/slice/river_pebbles_rough.jpg"))
+	bed_mat.set_shader_parameter("soil", load("res://assets/slice/ground_color.jpg"))
+	bed_mat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
+	bed_inst.material_override = bed_mat
+	bed_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(bed_inst)
+
+	# 2) Continuous clear mountain brook flowing from North Spring (z=-111) right underneath South Fence (z=26) into the village paddies (z=166)
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
 	var rows := []
 	var z_cur := float(game.Layout.STREAM_Z_MIN)
-	while z_cur <= float(game.Layout.STREAM_Z_MAX) + 0.51:
-		var zc := minf(z_cur, float(game.Layout.STREAM_Z_MAX) + 0.5)
-		var cx := float(game.Layout.stream_center_x(zc))
-		var wy := float(game.Layout.stream_water_y(zc))
-		var hw := 1.75 * smoothstep(-112.0, -108.0, zc)
-		hw = maxf(hw, 0.55)
-		var v_coord := (zc + 112.0) * 0.18
-		rows.append([
-			Vector3(cx - hw, wy, zc), Vector2(0.0, v_coord), Color(1.0, 0.0, 0.0),
-			Vector3(cx, wy, zc), Vector2(0.5, v_coord), Color(0.0, 0.0, 0.0),
-			Vector3(cx + hw, wy, zc), Vector2(1.0, v_coord), Color(1.0, 0.0, 0.0)
-		])
-		z_cur += 1.5
+	while z_cur <= 166.01:
+		var zc := minf(z_cur, 166.0)
+		var cx := _outer_stream_x(zc)
+		var wy := _stream_water_y_any(zc)
+		var w_sc := _outer_stream_width_scale(zc)
+		var hw := 1.92 * w_sc * smoothstep(-112.0, -108.5, zc)
+		hw = maxf(hw, 0.58)
+		var tail_fade := 1.0 - smoothstep(150.0, 166.0, zc)
+		var v_coord := (zc + 112.0) * 0.22
+		var r_pts := []
+		for s_i in 5:
+			var frac := -1.0 + float(s_i) * 0.5  # -1.0, -0.5, 0.0, +0.5, +1.0
+			var edge_amt := absf(frac)
+			r_pts.append([Vector3(cx + frac * hw, wy, zc), Vector2(0.5 + frac * 0.5, v_coord), Color(edge_amt, tail_fade, 0.0)])
+		rows.append(r_pts)
+		z_cur += 1.0 if zc < 48.0 else 3.5
+
 	for i in rows.size() - 1:
 		var r0: Array = rows[i]
 		var r1: Array = rows[i + 1]
-		for half in 2:
-			var a := half * 3
-			var b := (half + 1) * 3
-			var p0: Vector3 = r0[a]
-			var p1: Vector3 = r0[b]
-			var p2: Vector3 = r1[a]
-			var p3: Vector3 = r1[b]
-			var quad_v := [p0, p1, p2, p3]
-			var quad_u := [r0[a + 1], r0[b + 1], r1[a + 1], r1[b + 1]]
-			var quad_c := [r0[a + 2], r0[b + 2], r1[a + 2], r1[b + 2]]
+		for seg in 4:
+			var a0: Array = r0[seg]
+			var a1: Array = r0[seg + 1]
+			var b0: Array = r1[seg]
+			var b1: Array = r1[seg + 1]
+			var quad_v := [a0[0] as Vector3, a1[0] as Vector3, b0[0] as Vector3, b1[0] as Vector3]
+			var quad_u := [a0[1] as Vector2, a1[1] as Vector2, b0[1] as Vector2, b1[1] as Vector2]
+			var quad_c := [a0[2] as Color, a1[2] as Color, b0[2] as Color, b1[2] as Color]
 			for k in [0, 1, 2, 1, 3, 2]:
 				verts.append(quad_v[k])
 				normals.append(Vector3.UP)
@@ -898,22 +1154,33 @@ func _stream():
 	water.mesh = wmesh
 	var wshader := Shader.new()
 	wshader.code = """shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled;
+render_mode blend_mix, cull_disabled;
 varying float edge_t;
+varying float tail_a;
+varying vec3 wpos;
 void vertex(){
  edge_t = COLOR.r;
- VERTEX.y += sin(TIME * 2.8 + VERTEX.z * 1.5 + VERTEX.x * 2.1) * 0.015 * (1.0 - edge_t * 0.6);
+ tail_a = COLOR.g;
+ wpos = VERTEX;
+ float rip = sin(TIME * 2.4 + VERTEX.z * 1.7 + sin(VERTEX.x * 2.3) * 1.4) * 0.011;
+ VERTEX.y += rip * (1.0 - edge_t * 0.75);
 }
 void fragment(){
- float flow = sin(UV.y * 11.0 - TIME * 2.9 + sin(UV.x * 6.5 + TIME * 0.8) * 0.85);
- float sparkle = smoothstep(0.66, 0.96, sin(UV.y * 20.0 - TIME * 4.4 + UV.x * 14.0));
- float foam = smoothstep(0.56, 0.95, edge_t * 0.82 + 0.14 * flow);
- vec3 col = mix(vec3(0.14, 0.45, 0.50), vec3(0.32, 0.68, 0.70), 0.45 + 0.38 * flow);
- col = mix(col, vec3(0.86, 0.96, 0.95), max(foam * 0.65, sparkle * 0.42));
+ float w1 = sin(UV.y * 9.5 - TIME * 2.6 + sin(UV.x * 7.2 + TIME * 0.9) * 1.15);
+ float w2 = cos(UV.y * 15.3 - TIME * 3.4 - cos(wpos.x * 2.9 - TIME * 1.1) * 1.25);
+ float ripple = 0.5 + 0.28 * w1 + 0.22 * w2;
+ float glint = smoothstep(0.76, 0.98, ripple) * (1.0 - edge_t * 0.55);
+ float bank_foam = smoothstep(0.76, 0.95, edge_t + 0.06 * w1) * (1.0 - smoothstep(0.95, 1.0, edge_t));
+ vec3 deep_jade = vec3(0.09, 0.22, 0.20);
+ vec3 shallow_olive = vec3(0.16, 0.30, 0.25);
+ vec3 col = mix(deep_jade, shallow_olive, clamp(edge_t * 0.72 + ripple * 0.28, 0.0, 1.0));
+ col = mix(col, vec3(0.78, 0.86, 0.82), max(bank_foam * 0.55, glint * 0.32));
  ALBEDO = col;
- ROUGHNESS = 0.14;
- SPECULAR = 0.78;
- ALPHA = mix(0.78, 0.40, edge_t * 0.85);
+ NORMAL = normalize(vec3((w1 - w2) * 0.07, 1.0, (w1 + w2) * 0.07));
+ ROUGHNESS = 0.12;
+ SPECULAR = 0.68;
+ float shore_alpha = mix(0.62, 0.06, smoothstep(0.68, 0.99, edge_t));
+ ALPHA = shore_alpha * tail_a;
 }
 """
 	var wmat := ShaderMaterial.new()
@@ -922,53 +1189,110 @@ void fragment(){
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(water)
 
-	# Northern spring headwater boulders
+	# 3) Northern spring headwater boulders
 	rock(Vector3(game.Layout.stream_center_x(-111.0), 0, -112.0), 2.4, 2)
-	rock(Vector3(game.Layout.stream_center_x(-110.5) - 2.1, 0, -110.5), 1.8, 0)
-	rock(Vector3(game.Layout.stream_center_x(-110.5) + 2.1, 0, -110.5), 1.9, 1)
+	rock(Vector3(game.Layout.stream_center_x(-110.5) - 2.3, 0, -110.5), 1.8, 0)
+	rock(Vector3(game.Layout.stream_center_x(-110.5) + 2.3, 0, -110.5), 1.9, 1)
 
-	# 3 walkable creek crossings: South & North mountain wooden footbridges + Central v0.6.0 Stone Arch Bridge
+	# 4) 3 walkable creek crossings: South & North mountain wooden footbridges + Central v0.6.0 Stone Arch Bridge
 	for bz in game.Layout.STREAM_BRIDGES:
 		if is_equal_approx(float(bz), -24.0):
 			_build_stone_arch_bridge(float(bz))
 		else:
 			_build_footbridge(float(bz))
 
-	# Natural mossy river stones & stepping boulders (using textured Poly Haven mossy rocks so scale stays spherical/natural)
+	# 5) Stepping stones at z=-73.5 + dense MultiMesh shoreline cobbles, reeds & cattails lining both recessed creek banks
 	var cx_step := float(game.Layout.stream_center_x(-73.5))
 	var wy_step := float(game.Layout.stream_water_y(-73.5))
 	for k_i in 3:
 		var kx: float = [-1.1, 0.0, 1.1][k_i]
-		game._model(self, "res://assets/slice/rock_%d.glb" % (k_i % 3), Vector3(cx_step + kx, wy_step - 0.14, -73.5 + kx * 0.25), 0.36, kx * 0.8, "convex")
-	for r_i in 8:
-		var rz: float = [-98.0, -82.0, -64.0, -52.0, -34.0, -14.0, 1.0, 14.5][r_i]
-		var cx := float(game.Layout.stream_center_x(rz))
-		var side := -1.85 if r_i % 2 == 0 else 1.85
-		game._model(self, "res://assets/slice/rock_%d.glb" % (r_i % 3), Vector3(cx + side, game.terrain_height(cx + side, rz) - 0.12, rz), 0.44, rz * 0.4, "none")
+		game._model(self, "res://assets/slice/rock_%d.glb" % (k_i % 3), Vector3(cx_step + kx, wy_step - 0.16, -73.5 + kx * 0.25), 0.38, kx * 0.8, "convex")
 
-	# Batched creek emerald lotus pads & pink blooms sitting cleanly flush on water surface
+	var cobble_meshes: Array = []
+	var cobble_txs: Array = [[], [], []]
+	for m_i in 3:
+		cobble_meshes.append(_extract_mesh("res://assets/slice/rock_%d.glb" % m_i))
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var reed_mesh := _extract_mesh(v061_path, "prop_reed_clump")
+	var cattail_mesh := _extract_mesh(v061_path, "prop_cattail_clump")
+	var reed_tx: Array = []
+	var cattail_tx: Array = []
+
+	var bank_rng := RandomNumberGenerator.new()
+	bank_rng.seed = 20260611
+	var sz_cur := -108.5
+	var bank_idx := 0
+	while sz_cur <= 44.0:
+		if not _is_near_bridge(sz_cur, 3.6):
+			var cx_b := _outer_stream_x(sz_cur)
+			var w_sc := _outer_stream_width_scale(sz_cur)
+			for side_s in [-1.0, 1.0]:
+				var side_f := float(side_s)
+				var cob_off := side_f * (1.32 + bank_rng.randf_range(0.0, 0.48)) * w_sc
+				var cob_x := cx_b + cob_off
+				var cob_z := sz_cur + bank_rng.randf_range(-0.40, 0.40)
+				var hx0 := _surface_height_any(cob_x - 0.5, cob_z)
+				var hx1 := _surface_height_any(cob_x + 0.5, cob_z)
+				var hz0 := _surface_height_any(cob_x, cob_z - 0.5)
+				var hz1 := _surface_height_any(cob_x, cob_z + 0.5)
+				if absf(hx1 - hx0) > 0.52 or absf(hz1 - hz0) > 0.52:
+					bank_idx += 1
+					continue
+				var surf_up := Vector3(hx0 - hx1, 1.0, hz0 - hz1).normalized()
+				var cyaw := bank_rng.randf_range(0.0, TAU)
+				var c_right := Vector3(cos(cyaw), 0.0, -sin(cyaw))
+				var c_fwd := surf_up.cross(c_right).normalized()
+				c_right = c_fwd.cross(surf_up).normalized()
+				var cob_y := _surface_height_any(cob_x, cob_z) - 0.09
+				var cob_sc := bank_rng.randf_range(0.16, 0.36)
+				var cob_basis := Basis(c_right, surf_up, c_fwd).scaled(Vector3(cob_sc * 1.15, cob_sc * 0.72, cob_sc))
+				cobble_txs[bank_idx % 3].append(Transform3D(cob_basis, Vector3(cob_x, cob_y, cob_z)))
+				if bank_idx % 3 == 0:
+					var reed_off := side_f * (1.68 + bank_rng.randf_range(0.04, 0.46)) * w_sc
+					var rx := cx_b + reed_off
+					var rz := sz_cur + bank_rng.randf_range(-0.50, 0.50)
+					var rhx := absf(_surface_height_any(rx + 0.45, rz) - _surface_height_any(rx - 0.45, rz))
+					if rhx <= 0.48:
+						var ry := _surface_height_any(rx, rz) - 0.06
+						var rsc := bank_rng.randf_range(0.76, 1.16)
+						var r_xf := Transform3D(Basis(Vector3.UP, bank_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * rsc), Vector3(rx, ry, rz))
+						if bank_idx % 6 == 0:
+							cattail_tx.append(r_xf)
+						else:
+							reed_tx.append(r_xf)
+				bank_idx += 1
+		sz_cur += 2.15
+
+	for m_i in 3:
+		_batch_direct(cobble_meshes[m_i], cobble_txs[m_i], false, "StreamBankCobbles_%d" % m_i, 58.0)
+	_batch_direct(reed_mesh, reed_tx, false, "StreamBankReeds", 84.0)
+	_batch_direct(cattail_mesh, cattail_tx, false, "StreamBankCattails", 84.0)
+
+	# 6) Batched creek emerald lotus pads & pink blooms sitting cleanly flush on calm creek pools
 	var pad_mesh := CylinderMesh.new()
-	pad_mesh.top_radius = 0.26
-	pad_mesh.bottom_radius = 0.23
-	pad_mesh.height = 0.024
+	pad_mesh.top_radius = 0.24
+	pad_mesh.bottom_radius = 0.21
+	pad_mesh.height = 0.020
 	pad_mesh.radial_segments = 14
 	var bloom_mesh := SphereMesh.new()
-	bloom_mesh.radius = 0.075
-	bloom_mesh.height = 0.11
+	bloom_mesh.radius = 0.070
+	bloom_mesh.height = 0.10
 	bloom_mesh.radial_segments = 10
 	var pad_tx: Array = []
 	var bloom_tx: Array = []
-	for k_idx in 18:
-		var lz := -98.0 + float(k_idx) * 6.8
-		var cx := float(game.Layout.stream_center_x(lz))
-		var wy := float(game.Layout.stream_water_y(lz)) + 0.008
-		var off := (-0.42 if k_idx % 2 == 0 else 0.40) + sin(float(k_idx) * 1.7) * 0.16
-		var ps := 0.85 + float(k_idx % 3) * 0.18
+	for k_idx in 16:
+		var lz := -96.0 + float(k_idx) * 7.4
+		if _is_near_bridge(lz, 3.2):
+			continue
+		var cx := _outer_stream_x(lz)
+		var wy := _stream_water_y_any(lz) + 0.010
+		var off := (-0.65 if k_idx % 2 == 0 else 0.62) + sin(float(k_idx) * 1.7) * 0.18
+		var ps := 0.82 + float(k_idx % 3) * 0.16
 		pad_tx.append(Transform3D(Basis(Vector3.UP, float(k_idx) * 1.1).scaled(Vector3(ps, 1.0, ps)), Vector3(cx + off, wy, lz)))
 		if k_idx % 2 == 0:
-			bloom_tx.append(Transform3D(Basis.IDENTITY, Vector3(cx + off, wy + 0.045, lz)))
-	_batch(pad_mesh, game._material(Color("3b8248")), pad_tx, false)
-	_batch(bloom_mesh, game._material(Color("f4a6c6")), bloom_tx, false)
+			bloom_tx.append(Transform3D(Basis.IDENTITY, Vector3(cx + off, wy + 0.042, lz)))
+	_batch(pad_mesh, game._material(Color("3b7d45")), pad_tx, false)
+	_batch(bloom_mesh, game._material(Color("f0a4c2")), bloom_tx, false)
 
 func _build_footbridge(z_center: float):
 	var cx := float(game.Layout.stream_center_x(z_center))
@@ -994,7 +1318,7 @@ func _build_footbridge(z_center: float):
 			post.material_override = wood_post_mat
 	for sx in [-2.0, 2.0]:
 		for sz in [-0.90, 0.90]:
-			var pier: Node3D = game._mesh_box(root, Vector3(sx, -0.75, sz), Vector3(0.16, 1.4, 0.16), Color.WHITE, true)
+			var pier: Node3D = game._mesh_box(root, Vector3(sx, -0.82, sz), Vector3(0.16, 1.56, 0.16), Color.WHITE, true)
 			pier.material_override = wood_post_mat
 
 	# Sloped approach ramps with rotated pivot (mesh + StaticBody3D together) flush at deck y=0
@@ -1024,6 +1348,7 @@ func _instantiate_v060_mesh(mesh_name: String) -> Node3D:
 				sub.get_parent().remove_child(sub)
 			sub.owner = null
 			sub.position = Vector3.ZERO
+			_polish_node_materials(sub)
 			inst.queue_free()
 			return sub
 		inst.queue_free()
@@ -1256,43 +1581,106 @@ func _build_jiangnan_heritage():
 		add_child(mmi)
 
 func _flora_meadows():
-	# 1) MultiMesh wildflower carpets, woodland mushrooms & dense hillside shrubs (7 batched draw calls!)
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var grass_f := _extract_mesh(v061_path, "prop_grass_tuft")
+	var azalea_f := _extract_mesh(v061_path, "prop_azalea_bush")
+	var wfern_f := _extract_mesh(v061_path, "prop_fern_clump")
+	var log_f := _extract_mesh(v061_path, "prop_fallen_log")
+
 	var red_f := _extract_mesh("res://assets/nature/flower_redA.glb")
 	var yel_f := _extract_mesh("res://assets/nature/flower_yellowA.glb")
 	var pur_f := _extract_mesh("res://assets/nature/flower_purpleA.glb")
 	var mush_f := _extract_mesh("res://assets/nature/mushroom_redGroup.glb")
-	var bush_f := _extract_mesh("res://assets/nature/plant_bushDetailed.glb")
 	var orchid_f := _extract_mesh("res://assets/slice/v055_eco_assets.glb", "flora_glow_orchid")
 	var fern_f := _extract_mesh("res://assets/slice/v055_eco_assets.glb", "flora_berry_fern")
 
+	var grass_tx: Array = []
+	var azalea_tx: Array = []
+	var wfern_tx: Array = []
+	var log_tx: Array = []
 	var red_tx: Array = []
 	var yel_tx: Array = []
 	var pur_tx: Array = []
 	var mush_tx: Array = []
-	var bush_tx: Array = []
 	var orchid_tx: Array = []
 	var fern_tx: Array = []
 
-	for i in 240:
-		var fx := rng.randf_range(-47.5, 47.5)
-		var fz := rng.randf_range(-108.0, 22.0)
-		if game.Layout.clear_for_route(fx, fz, 0.9) or game.Layout.stream_distance(fx, fz) < 2.25:
+	# 1) Dense batched wild grass tufts ("山野草丛") across hillsides, fence-post margins & creek meadows
+	for g_i in 920:
+		var gx := rng.randf_range(-55.5, 55.5)
+		var gz := rng.randf_range(-115.5, 31.0)
+		# Bias half of grass tufts toward outer slopes & fence margins so perimeter meadows feel rich and natural
+		if g_i % 2 == 0 and absf(gx) < 32.0 and gz > -98.0 and gz < 15.0:
+			gx = (1.0 if g_i % 4 == 0 else -1.0) * rng.randf_range(32.0, 55.0)
+		if game.Layout.road_distance(gx, gz) < 2.9 or absf(gx - _outer_stream_x(gz)) < 2.25:
 			continue
-		var fy := float(game.terrain_height(fx, fz))
-		var yaw := rng.randf_range(0.0, TAU)
-		var r_choice := i % 7
-		if r_choice == 0 or r_choice == 1:
-			red_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.62, 0.92)), Vector3(fx, fy - 0.02, fz)))
-		elif r_choice == 2 or r_choice == 3:
-			yel_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.62, 0.92)), Vector3(fx, fy - 0.02, fz)))
-		elif r_choice == 4:
-			pur_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.64, 0.95)), Vector3(fx, fy - 0.02, fz)))
-		elif r_choice == 5:
-			mush_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.55, 0.85)), Vector3(fx, fy - 0.02, fz)))
-		else:
-			bush_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.75, 1.25)), Vector3(fx, fy - 0.04, fz)))
+		var gy := _surface_height_any(gx, gz) - 0.02
+		var gsc := rng.randf_range(0.95, 1.68)
+		grass_tx.append(Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3(gsc, gsc * rng.randf_range(0.85, 1.20), gsc)), Vector3(gx, gy, gz)))
 
-	# Cluster exotic orchids & berry ferns near creek banks, bridges, overlooks & caves
+	# 2) Flowering Azaleas ("映山红灌木"), Woodland Ferns & Wildflowers across mountain slopes & fence edges
+	for i in 360:
+		var fx := rng.randf_range(-54.5, 54.5)
+		var fz := rng.randf_range(-114.5, 29.0)
+		if i % 3 == 0 and absf(fx) < 30.0 and fz > -96.0 and fz < 14.0:
+			fx = (1.0 if i % 6 == 0 else -1.0) * rng.randf_range(31.0, 54.0)
+		if game.Layout.clear_for_route(fx, fz, 0.7) or absf(fx - _outer_stream_x(fz)) < 2.35:
+			continue
+		var fy := _surface_height_any(fx, fz)
+		var yaw := rng.randf_range(0.0, TAU)
+		var r_choice := i % 10
+		if r_choice == 0 or r_choice == 1:
+			azalea_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.82, 1.32)), Vector3(fx, fy - 0.04, fz)))
+		elif r_choice == 2 or r_choice == 3 or r_choice == 4:
+			wfern_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.92, 1.52)), Vector3(fx, fy - 0.03, fz)))
+		elif r_choice == 5 or r_choice == 6:
+			red_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.62, 0.94)), Vector3(fx, fy - 0.02, fz)))
+		elif r_choice == 7:
+			yel_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.62, 0.94)), Vector3(fx, fy - 0.02, fz)))
+		elif r_choice == 8:
+			pur_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.64, 0.96)), Vector3(fx, fy - 0.02, fz)))
+		else:
+			mush_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.55, 0.86)), Vector3(fx, fy - 0.02, fz)))
+
+	# 3) Wild-Boar Ambush Thickets (dense flowering azalea & fern clusters on slopes where boars nestle)
+	var boar_thickets := [
+		Vector3(-38.5, 0, 11.5), Vector3(39.5, 0, 2.5), Vector3(-40.0, 0, -40.5),
+		Vector3(38.5, 0, -68.5), Vector3(-37.5, 0, -82.0)
+	]
+	for b_idx in boar_thickets.size():
+		var bt: Vector3 = boar_thickets[b_idx]
+		for k in 4:
+			var ang := float(k) * (TAU / 4.0) + float(b_idx) * 0.6
+			var bx := bt.x + cos(ang) * 0.95
+			var bz := bt.z + sin(ang) * 0.95
+			var by := _surface_height_any(bx, bz) - 0.04
+			azalea_tx.append(Transform3D(Basis(Vector3.UP, ang).scaled(Vector3.ONE * (1.08 + float(k % 2) * 0.18)), Vector3(bx, by, bz)))
+			var fx2 := bt.x + cos(ang + 0.5) * 1.45
+			var fz2 := bt.z + sin(ang + 0.5) * 1.45
+			wfern_tx.append(Transform3D(Basis(Vector3.UP, ang * 1.3).scaled(Vector3.ONE * 1.35), Vector3(fx2, _surface_height_any(fx2, fz2) - 0.03, fz2)))
+
+	# 4) Mossy Fallen Logs resting flush on forest & fence-side slopes
+	for l_i in 26:
+		var lx := rng.randf_range(-49.5, 49.5)
+		var lz := rng.randf_range(-108.0, 21.0)
+		if l_i % 2 == 0 and absf(lx) < 32.0:
+			lx = (1.0 if l_i % 4 == 0 else -1.0) * rng.randf_range(33.0, 49.5)
+		if game.Layout.clear_for_route(lx, lz, 2.2) or _is_vista_corridor(lx, lz):
+			continue
+		var ly := _surface_height_any(lx, lz) - 0.05
+		var hx0 := _surface_height_any(lx - 0.8, lz)
+		var hx1 := _surface_height_any(lx + 0.8, lz)
+		var hz0 := _surface_height_any(lx, lz - 0.8)
+		var hz1 := _surface_height_any(lx, lz + 0.8)
+		var nrm := Vector3(hx0 - hx1, 1.6, hz0 - hz1).normalized()
+		var lyaw := rng.randf_range(0.0, TAU)
+		var l_right := Vector3(cos(lyaw), 0.0, -sin(lyaw))
+		var l_fwd := nrm.cross(l_right).normalized()
+		l_right = l_fwd.cross(nrm).normalized()
+		var lsc := rng.randf_range(0.84, 1.24)
+		log_tx.append(Transform3D(Basis(l_right, nrm, l_fwd).scaled(Vector3.ONE * lsc), Vector3(lx, ly, lz)))
+
+	# 5) Cluster exotic orchids & berry ferns near creek banks, bridges, overlooks & caves
 	var special_spots := [
 		Vector3(14.5, 0, 12.0), Vector3(13.8, 0, -18.5), Vector3(22.5, 0, -29.0),
 		Vector3(21.2, 0, -43.0), Vector3(23.2, 0, -64.0), Vector3(21.5, 0, -78.0),
@@ -1301,77 +1689,133 @@ func _flora_meadows():
 	]
 	for idx in special_spots.size():
 		var sp: Vector3 = special_spots[idx]
-		var sy := float(game.terrain_height(sp.x, sp.z))
+		var sy := _surface_height_any(sp.x, sp.z)
 		var tx := Transform3D(Basis(Vector3.UP, float(idx) * 0.95).scaled(Vector3.ONE * 1.15), Vector3(sp.x, sy, sp.z))
 		if idx % 2 == 0:
 			orchid_tx.append(tx)
 		else:
 			fern_tx.append(tx)
 
-	_batch_direct(red_f, red_tx, false)
-	_batch_direct(yel_f, yel_tx, false)
-	_batch_direct(pur_f, pur_tx, false)
-	_batch_direct(mush_f, mush_tx, false)
-	_batch_direct(bush_f, bush_tx, false)
-	_batch_direct(orchid_f, orchid_tx, false)
-	_batch_direct(fern_f, fern_tx, false)
+	_batch_direct(grass_f, grass_tx, false, "HillsideGrassTufts", 54.0)
+	_batch_direct(azalea_f, azalea_tx, false, "HillsideAzaleaBushes", 88.0)
+	_batch_direct(wfern_f, wfern_tx, false, "HillsideFernClumps", 58.0)
+	_batch_direct(log_f, log_tx, false, "HillsideFallenLogs", 84.0)
+	_batch_direct(red_f, red_tx, false, "", 56.0)
+	_batch_direct(yel_f, yel_tx, false, "", 56.0)
+	_batch_direct(pur_f, pur_tx, false, "", 56.0)
+	_batch_direct(mush_f, mush_tx, false, "", 52.0)
+	_batch_direct(orchid_f, orchid_tx, false, "", 68.0)
+	_batch_direct(fern_f, fern_tx, false, "", 68.0)
 
-func _fence_bay_transform(p0: Vector3, p1: Vector3) -> Transform3D:
-	var tangent := (p1 - p0).normalized()
-	var side := tangent.cross(Vector3.UP).normalized()
-	var up := side.cross(tangent).normalized()
-	return Transform3D(Basis(tangent, up, side), (p0 + p1) * 0.5 - Vector3(0, 0.05, 0))
+func _fence_post_profile(px: float, pz: float) -> Vector2:
+	# Returns Vector2(bottom_y, top_y): posts stand strictly vertical, plunging deep into creek streambed where crossing water!
+	var fmax_z := float(game.Layout.FENCE_MAX_Z)
+	var scx := float(game.Layout.stream_center_x(fmax_z))
+	var ground_y := _surface_height_any(px, pz)
+	if is_equal_approx(pz, fmax_z) and absf(px - scx) < 2.95:
+		var west_bank_y := _surface_height_any(scx - 3.05, fmax_z)
+		var east_bank_y := _surface_height_any(scx + 3.05, fmax_z)
+		var span_t := clampf((px - (scx - 3.05)) / 6.10, 0.0, 1.0)
+		var rail_ground_ref := lerpf(west_bank_y, east_bank_y, span_t)
+		var bed_bottom := minf(ground_y, _stream_water_y_any(fmax_z) - 0.52) - 0.65
+		return Vector2(bed_bottom, rail_ground_ref + 1.24)
+	return Vector2(ground_y - 0.58, ground_y + 1.24)
+
+func _append_fence_segment(posts_xz: Array, post_tx: Array, cap_tx: Array, rail_tx: Array, close_loop: bool = false):
+	var profiles: Array = []
+	for p in posts_xz:
+		var v2 := p as Vector2
+		profiles.append(_fence_post_profile(v2.x, v2.y))
+	var count := posts_xz.size()
+	for i in count:
+		var xz := posts_xz[i] as Vector2
+		var prof := profiles[i] as Vector2
+		var h := maxf(0.5, prof.y - prof.x)
+		var mid_y := 0.5 * (prof.x + prof.y)
+		post_tx.append(Transform3D(Basis(Vector3.UP, float(i) * 0.7).scaled(Vector3(1.0, h, 1.0)), Vector3(xz.x, mid_y, xz.y)))
+		cap_tx.append(Transform3D(Basis.IDENTITY, Vector3(xz.x, prof.y + 0.025, xz.y)))
+
+	var fmax_z := float(game.Layout.FENCE_MAX_Z)
+	var scx := float(game.Layout.stream_center_x(fmax_z))
+	var seg_count := count if close_loop else (count - 1)
+	for i in seg_count:
+		var j := (i + 1) % count
+		var a_xz := posts_xz[i] as Vector2
+		var b_xz := posts_xz[j] as Vector2
+		var a_top := (profiles[i] as Vector2).y
+		var b_top := (profiles[j] as Vector2).y
+		var delta := Vector3(b_xz.x - a_xz.x, b_top - a_top, b_xz.y - a_xz.y)
+		var horiz := Vector3(delta.x, 0.0, delta.z)
+		if horiz.length_squared() < 0.001:
+			continue
+		var h_dir := horiz.normalized()
+		var perp := Vector3(-h_dir.z, 0.0, h_dir.x)
+		# Sheared Basis(delta, UP * rail_h, perp * rail_t) joins adjacent vertical posts seamlessly with zero V-gaps!
+		var rail_basis := Basis(delta, Vector3.UP * 0.095, perp * 0.066)
+		var mid_top := Vector3(0.5 * (a_xz.x + b_xz.x), 0.5 * (a_top + b_top), 0.5 * (a_xz.y + b_xz.y))
+		rail_tx.append(Transform3D(rail_basis, mid_top - Vector3(0.0, 0.20, 0.0)))
+		rail_tx.append(Transform3D(rail_basis, mid_top - Vector3(0.0, 0.64, 0.0)))
+		# Extra lower water-gate rail across the creek span so timber pilings & crossbars frame the flowing brook cleanly
+		if is_equal_approx(a_xz.y, fmax_z) and is_equal_approx(b_xz.y, fmax_z) and absf(0.5 * (a_xz.x + b_xz.x) - scx) < 2.6:
+			rail_tx.append(Transform3D(rail_basis, mid_top - Vector3(0.0, 1.04, 0.0)))
 
 func _boundary():
-	# Replace opaque air-wall void with continuous 360-degree mountain timber guardrails + solid collision perimeter
-	var bay_mesh := _extract_mesh("res://assets/slice/v055_eco_assets.glb", "mountain_fence_bay")
-	var bay_tx: Array = []
+	# Continuous 360-degree mountain timber perimeter fence with strictly vertical pilings planted into terrain & creek bed
+	var ring_pts: Array = []
+	var fmin_x := float(game.Layout.FENCE_MIN_X)  # -52.0
+	var fmax_x := float(game.Layout.FENCE_MAX_X)  # +52.0
+	var fmin_z := float(game.Layout.FENCE_MIN_Z)  # -112.0
+	var fmax_z := float(game.Layout.FENCE_MAX_Z)  # +26.0
 
-	# North & South rails along Z = FENCE_MIN_Z (-112) & FENCE_MAX_Z (+26), spanning X in [-52 .. +52]
-	var scx := float(game.Layout.stream_center_x(game.Layout.FENCE_MAX_Z))
-	var scy := float(game.Layout.stream_water_y(game.Layout.FENCE_MAX_Z) + 0.36)
-	for x_i in range(-50, 52, 4):
-		var bx := float(x_i)
-		var pn0 := Vector3(bx - 2.0, float(game.terrain_height(bx - 2.0, game.Layout.FENCE_MIN_Z)), game.Layout.FENCE_MIN_Z)
-		var pn1 := Vector3(bx + 2.0, float(game.terrain_height(bx + 2.0, game.Layout.FENCE_MIN_Z)), game.Layout.FENCE_MIN_Z)
-		bay_tx.append(_fence_bay_transform(pn0, pn1))
+	# 1) North edge (-52 -> +52 at z = -112): 32 equal bays of 3.25m
+	for k in 32:
+		ring_pts.append(Vector2(fmin_x + float(k) * 3.25, fmin_z))
+	# 2) East edge (-112 -> +26 at x = +52): 44 equal bays of ~3.136m
+	for k in 44:
+		ring_pts.append(Vector2(fmax_x, lerpf(fmin_z, fmax_z, float(k) / 44.0)))
+	# 3) South edge (+52 -> -52 at z = +26), placing dedicated submerged creek pilings at x = 18.45 & 16.75 inside the brook!
+	var south_xs := [
+		52.0, 48.75, 45.5, 42.25, 39.0, 35.75, 32.5, 29.25, 26.0, 22.75,
+		20.20, 18.45, 16.75, 15.00,
+		13.0, 9.75, 6.5, 3.25, 0.0, -3.25, -6.5, -9.75, -13.0, -16.25,
+		-19.5, -22.75, -26.0, -29.25, -32.5, -35.75, -39.0, -42.25, -45.5, -48.75
+	]
+	for sx in south_xs:
+		ring_pts.append(Vector2(float(sx), fmax_z))
+	# 4) West edge (+26 -> -112 at x = -52): 44 equal bays closing seamlessly back to (-52, -112)
+	for k in 44:
+		ring_pts.append(Vector2(fmin_x, lerpf(fmax_z, fmin_z, float(k) / 44.0)))
 
-		var ys0 := scy if absf((bx - 2.0) - scx) < 2.3 else float(game.terrain_height(bx - 2.0, game.Layout.FENCE_MAX_Z))
-		var ys1 := scy if absf((bx + 2.0) - scx) < 2.3 else float(game.terrain_height(bx + 2.0, game.Layout.FENCE_MAX_Z))
-		bay_tx.append(_fence_bay_transform(Vector3(bx + 2.0, ys1, game.Layout.FENCE_MAX_Z), Vector3(bx - 2.0, ys0, game.Layout.FENCE_MAX_Z)))
+	var post_tx: Array = []
+	var cap_tx: Array = []
+	var rail_tx: Array = []
+	_append_fence_segment(ring_pts, post_tx, cap_tx, rail_tx, true)
 
-	# West & East rails along X = FENCE_MIN_X (-52) & FENCE_MAX_X (+52), spanning full Z in [-112 .. +26]
-	var z_centers := []
-	for z_i in range(-110, 25, 4):
-		z_centers.append(float(z_i))
-	if z_centers[-1] < 24.0:
-		z_centers.append(24.0)
-	for bz in z_centers:
-		var pw0 := Vector3(game.Layout.FENCE_MIN_X, float(game.terrain_height(game.Layout.FENCE_MIN_X, bz + 2.0)), bz + 2.0)
-		var pw1 := Vector3(game.Layout.FENCE_MIN_X, float(game.terrain_height(game.Layout.FENCE_MIN_X, bz - 2.0)), bz - 2.0)
-		bay_tx.append(_fence_bay_transform(pw0, pw1))
+	var post_cyl := CylinderMesh.new()
+	post_cyl.top_radius = 0.088
+	post_cyl.bottom_radius = 0.098
+	post_cyl.height = 1.0
+	post_cyl.radial_segments = 8
+	var cap_box := BoxMesh.new()
+	cap_box.size = Vector3(0.22, 0.055, 0.22)
+	var rail_box := BoxMesh.new()
+	rail_box.size = Vector3(1.0, 1.0, 1.0)
 
-		var pe0 := Vector3(game.Layout.FENCE_MAX_X, float(game.terrain_height(game.Layout.FENCE_MAX_X, bz - 2.0)), bz - 2.0)
-		var pe1 := Vector3(game.Layout.FENCE_MAX_X, float(game.terrain_height(game.Layout.FENCE_MAX_X, bz + 2.0)), bz + 2.0)
-		bay_tx.append(_fence_bay_transform(pe0, pe1))
+	_batch(post_cyl, wood_post_mat, post_tx, not low_quality)
+	_batch(cap_box, roof_slate_mat, cap_tx, false)
+	_batch(rail_box, wood_plank_mat, rail_tx, not low_quality)
 
-	_batch_direct(bay_mesh, bay_tx, not low_quality)
-
-	# Solid tall perimeter colliders (player cannot climb over, bullets respect border, yet view above 1.28m rails stays wide open!)
+	# Solid tall perimeter colliders (player cannot climb over, bullets respect border, yet view above 1.24m rails stays wide open!)
 	var walls := [
-		[Vector3(game.Layout.FENCE_MIN_X, 6.0, -43.0), Vector3(0.45, 22.0, 140.0)],
-		[Vector3(game.Layout.FENCE_MAX_X, 6.0, -43.0), Vector3(0.45, 22.0, 140.0)],
-		[Vector3(0.0, 8.0, game.Layout.FENCE_MIN_Z), Vector3(106.0, 22.0, 0.45)],
-		[Vector3(0.0, 3.0, game.Layout.FENCE_MAX_Z), Vector3(106.0, 18.0, 0.45)]
+		[Vector3(fmin_x, 6.0, -43.0), Vector3(0.45, 22.0, 140.0)],
+		[Vector3(fmax_x, 6.0, -43.0), Vector3(0.45, 22.0, 140.0)],
+		[Vector3(0.0, 8.0, fmin_z), Vector3(106.0, 22.0, 0.45)],
+		[Vector3(0.0, 3.0, fmax_z), Vector3(106.0, 18.0, 0.45)]
 	]
 	for w in walls:
 		var shape := BoxShape3D.new()
 		shape.size = w[1]
 		game.Props.shape_body(self, shape, w[0]).name = "FencePerimeterWall"
 
-	# Subtle low cliff accent boulders well down the outer slope so views stay 100% open above rails
-	for rz in [-96.0, -64.0, -34.0, -6.0, 18.0]:
-		rock(Vector3(-59.5, 0, rz), rng.randf_range(1.1, 1.5), int(absf(rz)) % 3)
-		rock(Vector3(59.5, 0, rz), rng.randf_range(1.1, 1.5), (int(absf(rz)) + 1) % 3)
 	signpost(Vector3(-3.2, 0, 23.2), "烟山观景木栏\n山下稻田 · 诚庄村落 ↓")
 	signpost(Vector3(46.2, 0, -21.5), "东岭梯田观景台\n金色水田 · 溪流远山 →")

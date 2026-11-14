@@ -609,82 +609,162 @@ def build_poem_stele_pavilion() -> bpy.types.Object:
 
 
 def build_ancient_camphor() -> bpy.types.Object:
-    m_bark = make_mat("Mat_CamphorBark", (0.24, 0.18, 0.14), roughness=0.92)
-    m_deep = make_mat("Mat_CamphorDeepLeaf", (0.14, 0.28, 0.15), roughness=0.78)
-    m_mid = make_mat("Mat_CamphorMidLeaf", (0.20, 0.39, 0.19), roughness=0.74)
-    m_sun = make_mat("Mat_CamphorSunLeaf", (0.30, 0.48, 0.22), roughness=0.70)
+    gen61 = ROOT / "tools" / "generated_v061"
+    bark_diff = gen61 / "japanese_camphor_bark_diff_512.jpg"
+    bark_norm = gen61 / "japanese_camphor_bark_norm_512.jpg"
+    bough_rgba = gen61 / "camphor_bough.png"
+
+    if bark_diff.exists():
+        m_bark = make_tex_mat("Mat_CamphorBark", bark_diff, roughness=0.90)
+        if bark_norm.exists():
+            nt = m_bark.node_tree
+            bsdf = nt.nodes.get("Principled BSDF")
+            tn = nt.nodes.new("ShaderNodeTexImage")
+            tn.image = bpy.data.images.load(str(bark_norm))
+            tn.image.colorspace_settings.name = "Non-Color"
+            nm = nt.nodes.new("ShaderNodeNormalMap")
+            nm.inputs["Strength"].default_value = 0.85
+            nt.links.new(tn.outputs["Color"], nm.inputs["Color"])
+            nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+    else:
+        m_bark = make_mat("Mat_CamphorBark", (0.24, 0.18, 0.14), roughness=0.92)
+
+    m_leaf = bpy.data.materials.new(name="Mat_AncientCamphorLeaf")
+    m_leaf.use_nodes = True
+    m_leaf.use_backface_culling = False
+    nt_l = m_leaf.node_tree
+    bsdf_l = nt_l.nodes.get("Principled BSDF")
+    bsdf_l.inputs["Roughness"].default_value = 0.58
+    if bough_rgba.exists():
+        tl = nt_l.nodes.new("ShaderNodeTexImage")
+        tl.image = bpy.data.images.load(str(bough_rgba))
+        nt_l.links.new(tl.outputs["Color"], bsdf_l.inputs["Base Color"])
+        gt = nt_l.nodes.new("ShaderNodeMath")
+        gt.operation = "GREATER_THAN"
+        gt.inputs[1].default_value = 0.40
+        nt_l.links.new(tl.outputs["Alpha"], gt.inputs[0])
+        nt_l.links.new(gt.outputs["Value"], bsdf_l.inputs["Alpha"])
+
     m_silk = make_mat("Mat_BlessingRibbon", (0.78, 0.14, 0.14), roughness=0.58)
 
     bm_bark = bmesh.new()
-    bm_d = bmesh.new()
-    bm_m = bmesh.new()
-    bm_s = bmesh.new()
+    bm_leaf = bmesh.new()
     bm_silk = bmesh.new()
+    uv_bark = bm_bark.loops.layers.uv.verify()
+    uv_leaf = bm_leaf.loops.layers.uv.verify()
 
-    # Flared gnarled roots hugging down to y=-0.42m + twisted ancient trunk
+    def _tube_uv(pts_gd, radii, segs=8):
+        pts_bl = [gd_to_bl(Vector(p)) for p in pts_gd]
+        rings, vcs = [], [0.0]
+        for i in range(1, len(pts_bl)):
+            vcs.append(vcs[-1] + (pts_bl[i] - pts_bl[i - 1]).length * 0.55)
+        pref = Vector((1.0, 0.0, 0.0))
+        for idx, p in enumerate(pts_bl):
+            tang = (pts_bl[min(len(pts_bl) - 1, idx + 1)] - pts_bl[max(0, idx - 1)]).normalized()
+            if abs(tang.dot(pref)) > 0.95:
+                pref = Vector((0.0, 1.0, 0.0))
+            n1 = (pref - tang * pref.dot(tang)).normalized()
+            n2 = tang.cross(n1).normalized()
+            pref = n1
+            r = radii[idx]
+            rings.append([bm_bark.verts.new(p + n1 * (math.cos(s * math.tau / segs) * r) + n2 * (math.sin(s * math.tau / segs) * r)) for s in range(segs)])
+        for i in range(len(rings) - 1):
+            for s in range(segs):
+                ns = (s + 1) % segs
+                f = bm_bark.faces.new([rings[i][s], rings[i][ns], rings[i + 1][ns], rings[i + 1][s]])
+                for lp, uv in zip(f.loops, [(s / segs, vcs[i]), ((s + 1) / segs, vcs[i]), ((s + 1) / segs, vcs[i + 1]), (s / segs, vcs[i + 1])]):
+                    lp[uv_bark].uv = uv
+
+    def _bough_cluster(anc_gd, dir_gd, width, length, roll_deg):
+        a = Vector(anc_gd)
+        fwd = Vector(dir_gd).normalized()
+        up_ref = Vector((0.0, 1.0, 0.0)) if abs(fwd.y) < 0.92 else Vector((1.0, 0.0, 0.0))
+        r0 = fwd.cross(up_ref).normalized()
+        u0 = r0.cross(fwd).normalized()
+        for ang_deg in (roll_deg, roll_deg + 62.0):
+            ang = math.radians(ang_deg)
+            rv = r0 * math.cos(ang) + u0 * math.sin(ang)
+            uv_v = -r0 * math.sin(ang) + u0 * math.cos(ang)
+            gv = []
+            for iv in range(3):
+                vt = iv / 2.0
+                row = []
+                for iu in range(3):
+                    ut = iu / 2.0
+                    lat = (ut - 0.5) * width
+                    arch = 0.19 * width * (1.0 - (2.0 * ut - 1.0) ** 2) * math.sin(math.pi * min(1.0, vt * 0.85 + 0.15))
+                    drop = 0.20 * length * (vt ** 1.7)
+                    row.append(bm_leaf.verts.new(gd_to_bl(a + fwd * (vt * length) + rv * lat + uv_v * arch - Vector((0.0, drop, 0.0)))))
+                gv.append(row)
+            for iv in range(2):
+                for iu in range(2):
+                    f = bm_leaf.faces.new([gv[iv][iu], gv[iv][iu + 1], gv[iv + 1][iu + 1], gv[iv + 1][iu]])
+                    for lp, uv in zip(f.loops, [(iu / 2.0, iv / 2.0), ((iu + 1) / 2.0, iv / 2.0), ((iu + 1) / 2.0, (iv + 1) / 2.0), (iu / 2.0, (iv + 1) / 2.0)]):
+                        lp[uv_leaf].uv = uv
+
+    # Ancient gnarled multi-buttress root base (-0.52m skirt) + thick century camphor trunk
     for i in range(6):
         ang = i * math.tau / 6.0 + 0.18
         ca, sa = math.cos(ang), math.sin(ang)
-        add_cyl(bm_bark, (ca * 1.28, -0.35, sa * 1.28), (ca * 0.44, 0.45, sa * 0.44), 0.13, 0.25, segs=7)
-    add_cyl(bm_bark, (0.0, -0.40, 0.0), (0.08, 1.35, -0.05), 0.54, 0.42, segs=10)
-    add_cyl(bm_bark, (0.08, 1.30, -0.05), (-0.06, 2.75, 0.06), 0.42, 0.34, segs=10)
+        _tube_uv([(ca * 1.38, -0.52, sa * 1.38), (ca * 0.72, -0.02, sa * 0.72), (ca * 0.34, 0.72, sa * 0.34)], [0.14, 0.22, 0.18], segs=6)
+    _tube_uv([(0.0, -0.52, 0.0), (0.08, 1.25, -0.05), (-0.06, 2.75, 0.06)], [0.58, 0.46, 0.38], segs=10)
 
-    # 5 gnarled spreading primary boughs & 12 secondary twigs + 30 layered camphor crown sub-clusters
     boughs = [
-        ((-0.06, 2.55, 0.06), (1.95, 4.10, 1.15), 0.24, 0.11),
-        ((-0.06, 2.65, 0.06), (-2.05, 4.30, 0.95), 0.23, 0.11),
-        ((-0.06, 2.60, 0.06), (1.55, 4.40, -1.75), 0.22, 0.10),
-        ((-0.06, 2.58, 0.06), (-1.65, 4.05, -1.65), 0.23, 0.10),
-        ((-0.02, 2.75, 0.04), (0.12, 5.15, 0.10), 0.25, 0.12),
+        [(-0.06, 2.45, 0.06), (0.95, 3.25, 0.58), (2.08, 4.02, 1.25), (2.88, 4.55, 1.72)],
+        [(-0.06, 2.55, 0.06), (-1.02, 3.32, 0.46), (-2.18, 4.12, 1.05), (-2.95, 4.65, 1.42)],
+        [(-0.06, 2.50, 0.06), (0.78, 3.35, -0.86), (1.72, 4.18, -1.78), (2.42, 4.72, -2.42)],
+        [(-0.06, 2.48, 0.06), (-0.86, 3.28, -0.82), (-1.82, 4.05, -1.68), (-2.48, 4.58, -2.28)],
+        [(-0.02, 2.62, 0.04), (0.32, 3.95, 0.22), (0.68, 5.25, 0.48), (0.92, 6.15, 0.65)],
+        [(-0.02, 2.62, 0.04), (-0.34, 4.00, -0.25), (-0.70, 5.32, -0.52), (-0.94, 6.22, -0.70)],
     ]
-    twigs = []
-    for idx, (p0, p1, r0, r1) in enumerate(boughs):
-        add_cyl(bm_bark, p0, p1, r0, r1, segs=7)
-        for sign in (-1.0, 1.0):
-            tip = (
-                p1[0] * 1.28 + sign * 0.72 * math.cos(idx + 0.5),
-                p1[1] + 0.85 + 0.25 * (sign + 1.0),
-                p1[2] * 1.24 + sign * 0.68 * math.sin(idx + 0.5),
-            )
-            add_cyl(bm_bark, p1, tip, r1 * 0.9, 0.045, segs=5)
-            twigs.append((p1, tip, idx, sign))
+    for idx, pts in enumerate(boughs):
+        _tube_uv(pts, [0.25, 0.19, 0.12, 0.055], segs=7)
+        pl = Vector(pts[1])
+        pm = Vector(pts[2])
+        pt = Vector(pts[3])
+        bd = (pt - pl).normalized()
+        _bough_cluster(tuple(pl * 0.96 + Vector((0, 0.16, 0))), tuple((bd + Vector((0, 0.55, 0))).normalized()), 2.75, 2.60, idx * 31.0)
+        _bough_cluster(tuple(pm), tuple((bd + Vector((0, 0.40, 0))).normalized()), 2.95, 2.80, idx * 37.0)
+        _bough_cluster(tuple(pt * 0.88), tuple((bd + Vector((0, 0.18, 0))).normalized()), 3.05, 2.88, idx * 37.0 + 44.0)
+        for sgn in (-1.0, 1.0):
+            lat = Vector((-bd.z * sgn, 0.24, bd.x * sgn)).normalized()
+            sd = (bd * 0.72 + lat * 0.68).normalized()
+            stip = pm + sd * 1.50
+            _tube_uv([tuple(pm), tuple(stip)], [0.10, 0.042], segs=5)
+            _bough_cluster(tuple(stip * 0.88), tuple((sd + Vector((0, 0.16, 0))).normalized()), 2.75, 2.58, idx * 29.0 + sgn * 35.0)
 
-    canopy_clusters = [
-        ((0.0, 5.15, 0.0), (1.35, 0.72, 1.30), bm_d, 201),
-        ((0.95, 5.45, 0.65), (1.15, 0.64, 1.10), bm_d, 202),
-        ((-0.95, 5.35, -0.65), (1.15, 0.64, 1.10), bm_d, 203),
-        ((0.0, 6.25, 0.10), (1.30, 0.72, 1.25), bm_m, 204),
-        ((0.85, 6.55, -0.45), (1.05, 0.58, 1.00), bm_s, 205),
-        ((-0.85, 6.65, 0.45), (1.00, 0.56, 0.98), bm_s, 206),
-        ((0.05, 7.15, -0.05), (1.10, 0.62, 1.05), bm_s, 207),
-    ]
-    for k, (p1, tip, bidx, sign) in enumerate(twigs):
-        # Inner shaded camphor puff at primary fork + outer sunlit leaf canopy clusters at twig tips
-        if sign > 0:
-            canopy_clusters.append(((p1[0], p1[1] + 0.48, p1[2]), (1.05, 0.58, 1.00), bm_d, 220 + bidx))
-        target_bm = bm_s if (k % 2 == 0) else bm_m
-        canopy_clusters.append(((tip[0], tip[1] + 0.25, tip[2]), (1.18, 0.62, 1.12), target_bm, 240 + k))
-        mid = ((p1[0] + tip[0]) * 0.5, (p1[1] + tip[1]) * 0.5 + 0.22, (p1[2] + tip[2]) * 0.5)
-        canopy_clusters.append((mid, (0.98, 0.54, 0.92), bm_m, 270 + k))
-
-    for pos, rad, bm_target, seed in canopy_clusters:
-        add_ellipsoid(bm_target, pos, rad, subdiv=1, wobble_seed=seed, wobble_amp=0.20)
+    for k, (anc, dv) in enumerate([
+        ((0.0, 3.85, 0.0), (0.16, 0.96, 0.10)),
+        ((0.0, 4.85, 0.0), (-0.12, 0.98, 0.08)),
+        ((0.65, 5.65, 0.40), (0.35, 0.88, 0.22)),
+        ((-0.65, 5.70, -0.40), (-0.35, 0.88, -0.22)),
+        ((0.40, 5.55, -0.58), (0.25, 0.88, -0.38)),
+        ((-0.40, 5.55, 0.58), (-0.25, 0.88, 0.38)),
+        ((0.0, 6.25, 0.0), (0.0, 1.0, 0.05)),
+    ]):
+        _bough_cluster(anc, dv, 3.15, 2.85, k * 51.0)
 
     # Iconic rural Jiangnan crimson prayer silk ribbon tied around trunk waist & low branch
-    add_cyl(bm_silk, (0.0, 2.12, 0.0), (0.02, 2.26, 0.02), 0.40, 0.40, segs=12)
-    add_box(bm_silk, (0.36, 1.88, 0.20), (0.06, 0.56, 0.14), (-8.0, 18.0, 12.0))
-    add_box(bm_silk, (0.28, 1.94, -0.28), (0.06, 0.48, 0.12), (10.0, -24.0, -8.0))
+    add_cyl(bm_silk, (0.0, 2.12, 0.0), (0.02, 2.26, 0.02), 0.42, 0.42, segs=12)
+    add_box(bm_silk, (0.38, 1.88, 0.20), (0.06, 0.56, 0.14), (-8.0, 18.0, 12.0))
+    add_box(bm_silk, (0.30, 1.94, -0.28), (0.06, 0.48, 0.12), (10.0, -24.0, -8.0))
+    # Hanging red prayer ribbons from lower East bough too!
+    add_box(bm_silk, (1.45, 3.35, 0.90), (0.04, 0.68, 0.10), (4.0, 15.0, -6.0))
+    add_box(bm_silk, (-1.45, 3.45, 0.72), (0.04, 0.62, 0.10), (-5.0, -18.0, 5.0))
 
-    return join_parts(
-        "ancient_camphor",
-        [
-            create_part("CamphorBark", bm_bark, m_bark),
-            create_part("CamphorDeep", bm_d, m_deep, smooth=False),
-            create_part("CamphorMid", bm_m, m_mid, smooth=False),
-            create_part("CamphorSun", bm_s, m_sun, smooth=False),
-            create_part("CamphorSilk", bm_silk, m_silk),
-        ],
-    )
+    p_bark = create_part("CamphorBark", bm_bark, m_bark, smooth=True)
+    p_leaf = create_part("CamphorLeaves", bm_leaf, m_leaf, smooth=True, recalc_normals=False)
+    # Apply smooth hemispherical outward normals to ancient camphor foliage crown
+    c_bl = gd_to_bl(Vector((0.0, 5.2, 0.0)))
+    vnorms = []
+    for v in p_leaf.data.vertices:
+        ov = v.co - c_bl + Vector((0.0, 0.0, 0.65))
+        ov = ov.normalized() if ov.length > 1e-4 else Vector((0.0, 0.0, 1.0))
+        vnorms.append((Vector(v.normal) * 0.22 + ov * 0.78).normalized())
+    p_leaf.data.normals_split_custom_set_from_vertices(vnorms)
+    p_silk = create_part("CamphorSilk", bm_silk, m_silk)
+
+    return join_parts("ancient_camphor", [p_bark, p_leaf, p_silk])
 
 
 def build_wayside_shrine() -> bpy.types.Object:

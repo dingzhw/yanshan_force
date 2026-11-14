@@ -5,7 +5,7 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20GL%20Compatibility-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.6.0-teal.svg)
+![Version](https://img.shields.io/badge/Version-v0.6.1-teal.svg)
 
 ---
 
@@ -15,30 +15,30 @@
 
 因此我们把 **家乡江南小村与丘陵山野**（诚庄村外的成片稻田、白墙黑瓦农舍、蜿蜒竹林山溪）搬进了 3D 世界，结合孩子喜欢的第一人称战术“搜打撤”（搜刮 → 作战破译 → 撤离）玩法，借助 AI 工具在代码、3D 建模（Blender 4.5）、程序化贴图与音效合成上协同推进，做成了这套 **完全离线、轻量流畅（面向核显优化）、可自由扩展词库** 的学习游戏。
 
-本项目代码以 **[MIT License](LICENSE)** 完全开源，美术/音频资产均遵循 `CC0` / `OFL-1.1` / `MIT` 等开放协议，**欢迎各位家长、老师、学生和开发者任意 Fork、魔改、替换词库与二次开发！**
+本项目代码以 **[MIT License](LICENSE)** 完全开源，美术/音频资产均遵循 `CC0` / `CC BY 4.0` / `OFL-1.1` / `MIT` 等开放协议，**欢迎各位家长、老师、学生和开发者任意 Fork、魔改、替换词库与二次开发！**
 
 ---
 
-## 实机画面 · Screenshots (`v0.6.0`)
+## 实机画面 · Screenshots (`v0.6.1`)
 
-| 备战营地与枪匠改装台 | 东岭「望稻亭」重檐飞檐 |
+| 备战营地与枪匠改装台 | 南界山溪顺坡出流与村落垂柳 |
 | :---: | :---: |
-| ![菜单与枪匠改装](docs/media/menu-briefing.png) | ![望稻亭外景](docs/media/wangdao-pavilion-vista.png) |
+| ![菜单与枪匠改装](docs/media/menu-briefing.png) | ![南界山溪出流与垂柳村落](docs/media/fence-paddies-vista.png) |
 
-| 亭栏南眺诚庄稻田村落 | 百年古樟、土地石龛与青石板古道 |
+| 下切鹅卵石山溪与有节毛竹林 | 百年古樟、土地石龛与青石板古道 |
 | :---: | :---: |
-| ![江南稻田农舍远景](docs/media/fence-paddies-vista.png) | ![古樟石龛与青石古道](docs/media/camphor-shrine-trail.png) |
+| ![凹槽鹅卵石山溪](docs/media/concave-pebble-creek.png) | ![古樟石龛与青石古道](docs/media/camphor-shrine-trail.png) |
 
-| 西岭「烟山诗碑亭」研读古诗 | 青石单孔拱桥与「烟山古境」界碑 |
+| 东岭「望稻亭」重檐飞檐 | 青石单孔拱桥与「烟山古境」界碑 |
 | :---: | :---: |
-| ![烟山诗碑亭](docs/media/poem-stele-pavilion.png) | ![青石单孔拱桥与界碑](docs/media/stone-arch-bridge.png) |
+| ![望稻亭外景](docs/media/wangdao-pavilion-vista.png) | ![青石单孔拱桥与界碑](docs/media/stone-arch-bridge.png) |
 
 ---
 
 ## 核心特性 · Features
 
+- **江南山林水系与八类生灵精修（`v0.6.1`）**：真实下切鹅卵石凹槽溪床（穿过木桩直汇山下垂柳水渠）、江南香樟/垂柳/乌桕/有节毛竹/映山红植物换代（移除远村欧式圣诞松），以及 **野兔、松鼠、灌木突袭小野猪、山坡赤狐、惊飞山鸟/白鹭、溪流锦鲤、溪石山蟹、弹尾清溪河虾** 共 8 类 52 只动态生灵。
 - **“古今交织”江南人文地标（`v0.6.0`）**：飞檐重檐「望稻亭」（凭栏远眺诚庄梯田）、溪谷「青石单孔拱桥」与「烟山古境」界碑、四柱传统「烟山诗碑亭」（按 `[E]` 研读）、百年红绸古樟庇荫「土地石龛」及贴坡延展的青石板古道。
-- **江南山野生态与全景视野**：北向南活水山溪与跨溪通道、兔/松鼠/鱼/蟹 24 只林水生灵、240+ 坡野花丛与 8 处奇花异草英文标本点、木栅栏外 360° 立体梯田稻田、白墙黑瓦农舍与山岚雾效（`Filmic` 色调映射）。
 - **“搜打撤”阶梯式英语学习**：
   - **识词交战**：看中文释义 / 听英文语音，射击对应英文全息护盾得分（`+15` 分，3 连击额外 `+5` 分）；
   - **多级密码破译开箱**：常规箱单字拼写解锁；高阶密码箱（Tier 1/2/3）支持 **单词 → 词组 → 课本整句** 多关连破，支持缩写等价与英美拼写变体容错；
@@ -57,8 +57,9 @@
 
 我们正按 **“古今交织（方案 A）”** 持续深化烟山的江南人文与探索厚度：
 - **`v0.6.0` 江南地标重塑**（✅ 已发布）：飞檐黛瓦「望稻亭」、单孔青石拱桥与古道界碑、传统「烟山诗碑亭」、百年古樟土地石龛与青石板古道；
-- **`v0.6.1` 秘境探索**：竹石交错的「迷踪竹石阵」与带残存矿物壁画、摩崖石刻及先人生活痕迹的纵深「烟霞古洞」；
-- **`v0.6.2` 地方风物志**：《烟山风物志》非功利收藏手记与中英双语乡土风物卡片。
+- **`v0.6.1` 江南山林水系与生灵精修**（✅ 已发布）：下切鹅卵石活水溪道贯通出山、江南乡土乔木与有节毛竹林换代、8 类山林与溪涧生灵生态；
+- **`v0.6.2` 秘境探索**：竹石交错的「迷踪竹石阵」与带残存矿物壁画、摩崖石刻及先人生活痕迹的纵深「烟霞古洞」；
+- **`v0.6.3` 地方风物志**：《烟山风物志》非功利收藏手记与中英双语乡土风物卡片。
 
 ---
 
@@ -105,7 +106,7 @@
 ### 4. 自动化回归验证
 本机安装 Godot 4.7.2 后，可将运行时路径填入 `docs/runtime-local.json`（参考 [`docs/runtime-local.example.json`](docs/runtime-local.example.json)），运行：
 ```bash
-python -X utf8 tools/check_slice.py --stage --ver 0.6.0 slice learning smoke navigation movement combat economy
+python -X utf8 tools/check_slice.py --stage --ver 0.6.1 slice learning smoke navigation movement combat economy
 ```
 
 ---
@@ -113,5 +114,5 @@ python -X utf8 tools/check_slice.py --stage --ver 0.6.0 slice learning smoke nav
 ## 开源协议与致谢 · License & Third-Party Credits
 
 - 本项目源码采用 **[MIT License](LICENSE)** 开源发布，你可以自由使用、修改、分发和二次创作。
-- 第三方模型、材质、字体与引擎模板均遵循 `MIT`、`CC0`、`OFL-1.1` 等开放许可，完整溯源与原文许可证详见 [`game/THIRD_PARTY.txt`](game/THIRD_PARTY.txt) 与 [`game/licenses/`](game/licenses/)。
+- 第三方模型、材质、字体与引擎模板均遵循 `MIT`、`CC0`、`CC BY 4.0`（含 Polyfork / Lucas Martinic 野生动物与草木基础网格）、`OFL-1.1` 等开放许可，完整溯源与原文许可证详见 [`game/THIRD_PARTY.txt`](game/THIRD_PARTY.txt) 与 [`game/licenses/`](game/licenses/)。
 - 欢迎提 Issue 或 PR 分享你改造的新地图、新词库或教学玩法！

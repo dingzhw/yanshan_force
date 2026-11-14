@@ -68,6 +68,20 @@ Smoke Mountain / Yanshan v0.5.5 local procedural assets (2026-11-13, CC0 / Origi
 - tools/generate_sfx.py: synthesized animal_flee.wav, animal_hit.wav, and flora_collect.wav into game/assets/sfx/.
 
 Smoke Mountain / Yanshan v0.6.0 local procedural assets (2026-11-13, CC0 / Original Project):
-- tools/build_v060_assets.py: built procedural Blender 4.5 GLB bundle game/assets/slice/v060_jiangnan_assets.glb (wangdao_pavilion, stone_arch_bridge, boundary_stele, poem_stele_pavilion, ancient_camphor, wayside_shrine, bluestone_flagstone; 16,376 triangles total).
+- tools/build_v060_assets.py: built procedural Blender 4.5 GLB bundle game/assets/slice/v060_jiangnan_assets.glb (wangdao_pavilion, stone_arch_bridge, boundary_stele, poem_stele_pavilion, ancient_camphor, wayside_shrine, bluestone_flagstone; updated in v0.6.1 with botanical camphor foliage).
 - tools/generate_v060_textures.py: rendered engraved stone/wood calligraphy PNG textures (plaque_wangdao.png, stele_poem.png, stele_boundary.png) baked as GLB image textures (no font files bundled).
+
+Smoke Mountain / Yanshan v0.6.1 open-community & botanical overhaul (Retrieved 2026-11-14, CC0 1.0 + CC BY 4.0):
+- Poly Haven CC0 1.0 PBR Scans (https://polyhaven.com/license):
+  * Japanese Camphor Bark (Charlotte Baglioni, https://polyhaven.com/a/japanese_camphor_bark)
+  * Bark Willow (Dimitrios Savva & Dario Barresi, https://polyhaven.com/a/bark_willow)
+  * Trident Maple Bark (Charlotte Baglioni, https://polyhaven.com/a/trident_maple_bark)
+  * River Small Rocks (Rob Tuytel & Rico Cilliers, https://polyhaven.com/a/river_small_rocks)
+- Lucas Martinic / Polyfork 3D Models (https://polyfork.dev, CC BY 4.0 — see licenses/CC-BY-4.0.txt):
+  * Wildlife: forest-rabbit-ea2da0, red-fox-5c3bc0, pig-base (modified into dark-bristled wild boar with ivory tusks), pigeon-base (modified plumage), herring-gull-base, koi-base, shore-crab-base, cleaner-shrimp-base (modified into olive-jade freshwater river shrimp).
+  * Undergrowth: azalea-bush-7bb14d, moat-reed-clump-dd6b60, cattail-reed-6abbb3, fern-plant-1559b8, grass-tuft-a40a08, fallen-log-1685fb.
+  * Source SHA-256 checksums recorded in downloads/slice-v061/download-record.json; conversion metadata recorded in docs/slice-v061-assets.json.
+- Local Blender 4.5 & Python additions (CC0 / Original Project):
+  * tools/generate_v061_textures.py & tools/build_v061_assets.py: camphor, weeping willow, trident-maple/tallow trees, segmented Moso bamboo stalks/clumps, and sculpted woodland squirrel in game/assets/slice/v061_nature_wildlife.glb.
+  * tools/generate_sfx.py: boar_charge.wav, bird_flap.wav.
 No proprietary game assets are included.

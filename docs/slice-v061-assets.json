@@ -1,0 +1,367 @@
+{
+  "bundle": "game/assets/slice/v061_nature_wildlife.glb",
+  "total_triangles": 22874,
+  "file_size_bytes": 3637528,
+  "assets": {
+    "tree_camphor": {
+      "triangles": 1360,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -4.899,
+          4.805
+        ],
+        "y": [
+          -0.548,
+          7.594
+        ],
+        "z": [
+          -4.612,
+          4.11
+        ]
+      }
+    },
+    "tree_willow": {
+      "triangles": 1028,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -2.986,
+          3.479
+        ],
+        "y": [
+          -0.538,
+          6.662
+        ],
+        "z": [
+          -3.236,
+          3.12
+        ]
+      }
+    },
+    "tree_maple_tallow": {
+      "triangles": 1012,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -4.283,
+          4.139
+        ],
+        "y": [
+          -0.515,
+          7.656
+        ],
+        "z": [
+          -3.839,
+          3.668
+        ]
+      }
+    },
+    "bamboo_culm_single": {
+      "triangles": 681,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -1.615,
+          2.669
+        ],
+        "y": [
+          -0.45,
+          8.263
+        ],
+        "z": [
+          -1.596,
+          2.543
+        ]
+      }
+    },
+    "bamboo_clump": {
+      "triangles": 4191,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -3.099,
+          3.064
+        ],
+        "y": [
+          -0.45,
+          8.905
+        ],
+        "z": [
+          -3.081,
+          2.598
+        ]
+      }
+    },
+    "prop_azalea_bush": {
+      "triangles": 278,
+      "has_vertex_colors": false,
+      "godot_bounds_m": {
+        "x": [
+          -1.211,
+          1.269
+        ],
+        "y": [
+          -0.295,
+          1.083
+        ],
+        "z": [
+          -1.194,
+          1.222
+        ]
+      }
+    },
+    "prop_reed_clump": {
+      "triangles": 606,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.574,
+          0.574
+        ],
+        "y": [
+          -0.12,
+          1.441
+        ],
+        "z": [
+          -0.65,
+          0.65
+        ]
+      }
+    },
+    "prop_cattail_clump": {
+      "triangles": 388,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.24,
+          0.24
+        ],
+        "y": [
+          -0.1,
+          1.393
+        ],
+        "z": [
+          -0.179,
+          0.179
+        ]
+      }
+    },
+    "prop_fern_clump": {
+      "triangles": 720,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.525,
+          0.525
+        ],
+        "y": [
+          -0.08,
+          0.666
+        ],
+        "z": [
+          -0.501,
+          0.501
+        ]
+      }
+    },
+    "prop_grass_tuft": {
+      "triangles": 368,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.31,
+          0.31
+        ],
+        "y": [
+          -0.06,
+          0.567
+        ],
+        "z": [
+          -0.28,
+          0.28
+        ]
+      }
+    },
+    "prop_fallen_log": {
+      "triangles": 484,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -1.425,
+          1.425
+        ],
+        "y": [
+          -0.14,
+          0.689
+        ],
+        "z": [
+          -0.325,
+          0.325
+        ]
+      }
+    },
+    "animal_rabbit": {
+      "triangles": 1350,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.117,
+          0.117
+        ],
+        "y": [
+          0.0,
+          0.428
+        ],
+        "z": [
+          -0.23,
+          0.23
+        ]
+      }
+    },
+    "animal_squirrel": {
+      "triangles": 960,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.087,
+          0.087
+        ],
+        "y": [
+          0.002,
+          0.406
+        ],
+        "z": [
+          -0.214,
+          0.272
+        ]
+      }
+    },
+    "animal_boar": {
+      "triangles": 1498,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.204,
+          0.204
+        ],
+        "y": [
+          0.0,
+          0.715
+        ],
+        "z": [
+          -0.515,
+          0.46
+        ]
+      }
+    },
+    "animal_fox": {
+      "triangles": 1450,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.11,
+          0.11
+        ],
+        "y": [
+          0.0,
+          0.556
+        ],
+        "z": [
+          -0.43,
+          0.43
+        ]
+      }
+    },
+    "animal_bird": {
+      "triangles": 1250,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.096,
+          0.096
+        ],
+        "y": [
+          0.0,
+          0.373
+        ],
+        "z": [
+          -0.19,
+          0.19
+        ]
+      }
+    },
+    "animal_egret": {
+      "triangles": 1350,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.119,
+          0.119
+        ],
+        "y": [
+          0.0,
+          0.512
+        ],
+        "z": [
+          -0.28,
+          0.28
+        ]
+      }
+    },
+    "animal_fish": {
+      "triangles": 1350,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.09,
+          0.09
+        ],
+        "y": [
+          -0.1,
+          0.1
+        ],
+        "z": [
+          -0.22,
+          0.22
+        ]
+      }
+    },
+    "animal_crab": {
+      "triangles": 1350,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.19,
+          0.19
+        ],
+        "y": [
+          0.0,
+          0.239
+        ],
+        "z": [
+          -0.165,
+          0.165
+        ]
+      }
+    },
+    "animal_shrimp": {
+      "triangles": 1200,
+      "has_vertex_colors": true,
+      "godot_bounds_m": {
+        "x": [
+          -0.091,
+          0.091
+        ],
+        "y": [
+          -0.205,
+          0.205
+        ],
+        "z": [
+          -0.18,
+          0.18
+        ]
+      }
+    }
+  }
+}

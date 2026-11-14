@@ -1,6 +1,6 @@
 {
   "output": "game/assets/slice/v060_jiangnan_assets.glb",
-  "total_triangles": 16376,
+  "total_triangles": 16412,
   "assets": {
     "wangdao_pavilion": {
       "triangles": 7160,
@@ -71,19 +71,19 @@
       }
     },
     "ancient_camphor": {
-      "triangles": 1204,
+      "triangles": 1240,
       "godot_bounds_m": {
         "x": [
-          -3.998,
-          4.085
+          -5.782,
+          5.646
         ],
         "y": [
-          -0.444,
-          7.691
+          -0.631,
+          8.604
         ],
         "z": [
-          -3.56,
-          2.78
+          -5.556,
+          5.038
         ]
       }
     },

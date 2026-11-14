@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.0" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.0 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.6.1" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -347,14 +347,21 @@ func run():
 		sim_key.call(KEY_W, false)
 		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream footbridge at z=" + str(bz) + " is smoothly walkable across water")
 
-	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() == 24 and game.wildlife.flora_nodes.size() == 8, "v0.5.5 spawns 24 animals (rabbit/squirrel/fish/crab) and 8 interactive flora nodes")
+	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 48 and game.wildlife.flora_nodes.size() == 8 and game.wildlife.sky_egrets.size() == 5, "v0.6.1 spawns 52 habitat critters across 8 species + 5 sky egrets + 8 interactive flora nodes")
 	var kinds := {}
+	var first_by_kind := {}
 	for a in game.wildlife.animals:
 		kinds[a.kind] = int(kinds.get(a.kind, 0)) + 1
-	verify(int(kinds.get("rabbit", 0)) >= 6 and int(kinds.get("squirrel", 0)) >= 5 and int(kinds.get("fish", 0)) >= 8 and int(kinds.get("crab", 0)) >= 5, "all four wildlife species meet target counts")
+		if not first_by_kind.has(a.kind):
+			first_by_kind[a.kind] = a
+	verify(
+		int(kinds.get("rabbit", 0)) >= 8 and int(kinds.get("squirrel", 0)) >= 7 and int(kinds.get("boar", 0)) >= 5 and int(kinds.get("fox", 0)) >= 5
+		and int(kinds.get("bird", 0)) >= 9 and int(kinds.get("fish", 0)) >= 7 and int(kinds.get("crab", 0)) >= 5 and int(kinds.get("shrimp", 0)) >= 6,
+		"all 8 Jiangnan wildlife species (rabbit/squirrel/boar/fox/bird/fish/crab/shrimp) meet v0.6.1 target counts"
+	)
 
 	game.wildlife.reset()
-	var squirrel: Dictionary = game.wildlife.animals[6]
+	var squirrel: Dictionary = first_by_kind["squirrel"]
 	game.player.velocity = Vector3.ZERO
 	game.player.position = squirrel.pos + Vector3(0.0, 0.0, 2.8)
 	game.wildlife.update(0.05)
@@ -366,14 +373,29 @@ func run():
 		"fleeing animal stays bounded inside physical timber fence perimeter"
 	)
 
-	var rabbit0: Dictionary = game.wildlife.animals[0]
+	# Test bush-ambush wild boar charge & perched bird 3D flight
+	var boar0: Dictionary = first_by_kind["boar"]
+	verify(boar0.state == "ambush", "wild boar starts nestled in hillside bush ambush thicket")
+	game.player.position = boar0.pos + Vector3(0.0, 0.0, 4.5)
+	game.wildlife.update(0.05)
+	verify(boar0.state == "flee" and game.wildlife.discovered_species.has("boar"), "approaching bush thicket startles wild boar into hillside charge")
+
+	var bird0: Dictionary = first_by_kind["bird"]
+	var perch_y: float = bird0.pos.y
+	game.player.position = Vector3(bird0.pos.x, game.terrain_height(bird0.pos.x, bird0.pos.z), bird0.pos.z + 3.0)
+	game.wildlife.update(0.05)
+	for tick in 12:
+		game.wildlife.update(0.1)
+	verify(bird0.state == "fly" and bird0.pos.y > perch_y + 1.2, "startled mountain bird flaps and climbs dynamically into the sky")
+
+	var rabbit0: Dictionary = first_by_kind["rabbit"]
 	verify(game.wildlife.hit_bullet(rabbit0.area) and rabbit0.state == "downed", "bullet hit downs wildlife critter cleanly")
 	for wait_v in 22:
 		game.wildlife.update(0.1)
 	verify(rabbit0.state == "hidden" and not rabbit0.root.visible, "downed animal dissolves and vanishes after ~1.85s")
 
 	# Knife slash strike on river crab
-	var crab0: Dictionary = game.wildlife.animals[19]
+	var crab0: Dictionary = first_by_kind["crab"]
 	var crab_cam := Camera3D.new()
 	game.add_child(crab_cam)
 	crab_cam.position = crab0.pos + Vector3(0.0, 0.55, 1.45)
@@ -442,6 +464,32 @@ func run():
 	game.player.clear_movement_input()
 	await frames(6)
 	verify(Vector2(game.player.position.x - target_xz.x, game.player.position.z - target_xz.z).length() < 0.75 and game.player.is_on_floor() and game.player.position.y > pav_at.y + 0.14, "player walks cleanly onto WangdaoPavilion terrace without jumping")
+
+	# v0.6.1 Concave Pebble Creek, Watertight Valley Collar, Submerged Pilings, Botanical Flora & HUD non-overlap checks
+	var bed_node := game.landscape.get_node_or_null("StreamChannelBed") as MeshInstance3D
+	verify(bed_node != null and bed_node.mesh != null and bed_node.mesh.get_surface_count() > 0, "v0.6.1 renders StreamChannelBed wet-pebble recessed channel")
+	var concave_ok := true
+	for tz in [16.0, -10.0, -60.0]:
+		var tcx: float = game.Layout.stream_center_x(tz)
+		var twy: float = game.Layout.stream_water_y(tz)
+		var tbed: float = game.terrain_height(tcx, tz)
+		var tbank_l: float = game.terrain_height(tcx - 2.6, tz)
+		var tbank_r: float = game.terrain_height(tcx + 2.6, tz)
+		if (twy - tbed) < 0.45 or (tbank_l - twy) < 0.32 or (tbank_r - twy) < 0.32:
+			concave_ok = false
+	verify(concave_ok, "creek sits in a true concave channel (~0.52m below water, >=0.34m below both bank lips)")
+	var stream_aabb: AABB = (stream_node as MeshInstance3D).get_aabb()
+	verify(stream_aabb.end.z > 150.0, "MountainStreamWater flows continuously past South fence (z=26) into distant village paddies (z>150)")
+	var seam_max_err := 0.0
+	for sx_i in range(-60, 61, 4):
+		seam_max_err = maxf(seam_max_err, absf(game.landscape._outer_valley_y(float(sx_i), 36.0) - game.landscape._ground_vis_y(float(sx_i), 36.0)))
+	verify(seam_max_err < 0.002, "OuterRiceValley South collar matches ContinuousGround z=36 with zero seam gap")
+	var piling_prof: Vector2 = game.landscape._fence_post_profile(16.75, 26.0)
+	verify(piling_prof.x < game.Layout.stream_water_y(26.0) - 0.85, "South fence creek pilings plunge deep into streambed beneath water")
+	for batch_id in ["MountainCamphorTrees", "MountainWillowTrees", "MountainMapleTrees", "MosoBambooCulms", "MosoBambooClumps", "VillageWillows", "VillageCamphors", "HillsideGrassTufts", "HillsideAzaleaBushes"]:
+		var bnode := game.landscape.get_node_or_null(batch_id) as MultiMeshInstance3D
+		verify(bnode != null and bnode.multimesh != null and bnode.multimesh.instance_count > 0, "v0.6.1 MultiMesh batch active: " + batch_id)
+	verify(game.mission_label.position.y + game.mission_label.size.y <= game.guide_label.position.y, "Zone 1 top-left HUD mission_label and guide_label do not overlap")
 
 	game.queue_free()
 	await process_frame

@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.6.0"
+const VERSION = "0.6.1"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -483,15 +483,16 @@ func _build_ui():
 	ui.add_child(hud)
 
 	# ZONE 1: Top-Left Compact Mission & Telemetry Card
-	_panel(hud, Rect2(18, 16, 368, 154))
-	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 23), Vector2(240, 22), 14, MINT)
-	fps_label = _text(hud, "", Vector2(296, 23), Vector2(76, 22), 13, Color("9ecfc0"))
+	_panel(hud, Rect2(18, 16, 372, 166))
+	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 22), Vector2(246, 22), 14, MINT)
+	fps_label = _text(hud, "", Vector2(298, 22), Vector2(78, 22), 13, Color("9ecfc0"))
 	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	stat_label = _text(hud, "", Vector2(32, 47), Vector2(340, 24), 16, CREAM)
-	mission_label = _text(hud, "", Vector2(32, 74), Vector2(340, 44), 14, GOLD)
-	mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guide_label = _text(hud, "", Vector2(32, 124), Vector2(340, 38), 13, Color("a9c7ba"))
+	stat_label = _text(hud, "", Vector2(32, 46), Vector2(346, 24), 16, CREAM)
+	mission_label = _text(hud, "", Vector2(32, 74), Vector2(346, 46), 13, GOLD)
+	mission_label.clip_text = true
+	guide_label = _text(hud, "", Vector2(32, 128), Vector2(346, 42), 12, Color("a9c7ba"))
 	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide_label.clip_text = true
 
 	# ZONE 2: Top-Center Sleek Word Prompt Card
 	_panel(hud, Rect2(398, 16, 514, 102), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
@@ -630,7 +631,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	_text(menu, "【v0.6.0 江南烟山古今地标简报】\n• 青石板古道贯通山野 · 西登烟山诗碑亭研读古诗，东跨青石单孔拱桥\n• 桥畔百年古樟庇荫土地石龛 · 界碑遥指诚庄阡陌稻田\n• 东岭飞檐重檐望稻亭凭栏观田 · 活水山溪、林间鸟兽与战术阵地共生", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
+	_text(menu, "【v0.6.1 江南山林水系与生灵精修简报】\n• 下凹鹅卵石河床与水岸芦苇：清澈山溪穿过木桩直汇诚庄垂柳稻田\n• 江南乡土林木焕新：香樟、垂柳、乌桕枫香与有节毛竹林重塑山村质感\n• 八类鲜活山野生灵：灌木惊起小野猪、山坡赤狐、枝头白鹭、锦鲤山蟹与清溪河虾", Vector2(122, 490), Vector2(465, 145), 14, Color("b4ccbe"))
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
@@ -1190,9 +1191,9 @@ func _process(delta):
 
 	var outpost_part = ("前哨 %d/2 · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
-	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生态 0/12"
-	mission_label.text = "%s  ·  箱 %d/%d  ·  %s  ·  %s\n撤离状态：%s" % [
-		outpost_part, rules.crates.size(), crate_nodes.size(), exploration.status_text(), eco_part, extract_part
+	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
+	mission_label.text = "%s  ·  箱 %d/%d  ·  撤离：%s\n%s  ·  %s" % [
+		outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 	]
 	_update_guide()
 	_update_combat_hud()

@@ -31,4 +31,11 @@ Local procedural v0.5.5 additions (CC0 / Original Project):
 Local procedural v0.6.0 additions (CC0 / Original Project):
 - Jiangnan heritage landmark meshes (wangdao_pavilion, stone_arch_bridge, boundary_stele, poem_stele_pavilion, ancient_camphor, wayside_shrine, bluestone_flagstone) in v060_jiangnan_assets.glb generated locally in Blender 4.5 (tools/build_v060_assets.py).
 - Engraved plaque and stele textures (plaque_wangdao.png, stele_poem.png, stele_boundary.png) rendered locally via Python PIL (tools/generate_v060_textures.py; baked into GLB without redistributing system fonts).
+Jiangnan nature, creek & open-community wildlife v0.6.1 additions (CC0 + CC BY 4.0):
+- Lucas Martinic / Polyfork, 3D Wildlife & Undergrowth Models (forest-rabbit-ea2da0, red-fox-5c3bc0, pig-base, pigeon-base, herring-gull-base, koi-base, shore-crab-base, cleaner-shrimp-base, azalea-bush-7bb14d, moat-reed-clump-dd6b60, cattail-reed-6abbb3, fern-plant-1559b8, grass-tuft-a40a08, fallen-log-1685fb), https://polyfork.dev — Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0, licenses/CC-BY-4.0.txt). Adapted in Blender 4.5 (stripped bounding helper, grounded/oriented to -Z, decimated, and customized pelage/tusks/jade river-shrimp vertex colors in tools/build_v061_assets.py).
+- Poly Haven CC0 1K Bark & Streambed PBR Textures (CC0 1.0 Universal, https://polyhaven.com/license):
+  * Charlotte Baglioni, Japanese Camphor Bark (https://polyhaven.com/a/japanese_camphor_bark) & Trident Maple Bark (https://polyhaven.com/a/trident_maple_bark)
+  * Dimitrios Savva & Dario Barresi, Bark Willow (https://polyhaven.com/a/bark_willow)
+  * Rob Tuytel & Rico Cilliers, River Small Rocks (https://polyhaven.com/a/river_small_rocks)
+- Local Blender 4.5 botanical trees (tree_camphor, tree_willow, tree_maple_tallow), segmented Moso bamboo (bamboo_culm_single, bamboo_clump), sculpted woodland squirrel (animal_squirrel), alpha-cutout leaf bough PNGs (tools/generate_v061_textures.py), and wildlife SFX (boar_charge.wav, bird_flap.wav via tools/generate_sfx.py).
 Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

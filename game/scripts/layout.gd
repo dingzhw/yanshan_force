@@ -1,15 +1,15 @@
 extends RefCounted
 
-const MIN_X = -56.0
-const MAX_X = 56.0
-const MIN_Z = -116.0
-const MAX_Z = 28.0
+const MIN_X = -60.0
+const MAX_X = 60.0
+const MIN_Z = -120.0
+const MAX_Z = 36.0
 const FENCE_MIN_X = -52.0
 const FENCE_MAX_X = 52.0
 const FENCE_MIN_Z = -112.0
 const FENCE_MAX_Z = 26.0
 const STREAM_Z_MIN = -111.0
-const STREAM_Z_MAX = 26.0
+const STREAM_Z_MAX = 36.0
 const STREAM_BRIDGES = [7.0, -24.0, -46.5]
 const STREAM_POINTS = [
 	[-116.0, 15.6],
@@ -20,7 +20,9 @@ const STREAM_POINTS = [
 	[-46.5, 18.5],
 	[-24.0, 16.5],
 	[7.0, 18.6],
-	[28.0, 17.6]
+	[26.0, 17.6],
+	[31.0, 18.3],
+	[36.0, 19.6]
 ]
 const SPAWN = Vector3(0, 0, 4.5)
 const STATIONS = [
@@ -60,8 +62,10 @@ static var grid_height_cache = {}
 static var stream_water_heights: Array = []
 
 static func base_height(x: float, z: float) -> float:
-	if z > 0 and absf(x) < 18:
+	if z > 0.0 and z <= 28.0 and absf(x) < 18.0:
 		return 0.0
+	if z > 28.0 and absf(x) < 18.0:
+		return -smoothstep(28.0, 36.0, z) * 0.85
 	var climb = smoothstep(-3.0, 105.0, -z) * 8.0
 	var shoulders = smoothstep(11.0, 36.0, absf(x)) * 5.0
 	return climb + shoulders + (sin(x * 0.12 + z * 0.045) * 1.8 + sin(z * 0.13) * 0.8) * smoothstep(5, 27, -z)
@@ -81,7 +85,7 @@ static func stream_center_x(z: float) -> float:
 	return float(STREAM_POINTS[-1][1])
 
 static func stream_distance(x: float, z: float) -> float:
-	if z < STREAM_Z_MIN - 1.5 or z > STREAM_Z_MAX + 2.0:
+	if z < STREAM_Z_MIN - 1.5 or z > STREAM_Z_MAX + 1.0:
 		return INF
 	return absf(x - stream_center_x(z))
 
@@ -119,24 +123,29 @@ static func _land_height(x: float, z: float) -> float:
 			result = lerpf(result, saddle, wx * wz)
 	return result
 
+static func land_edge_height(x: float, z: float) -> float:
+	return _land_height(x, z)
+
 static func _ensure_stream_profile():
 	if not stream_water_heights.is_empty():
 		return
-	var z_start := -116
-	var count := 145  # -116 .. +28 inclusive
+	var z_start := -120
+	var count := 157  # -120 .. +36 inclusive
 	stream_water_heights.resize(count)
 	var prev := 999.0
 	for i in count:
 		var z := float(z_start + i)
 		var cx := stream_center_x(z)
-		var bank := (_land_height(cx - 3.4, z) + _land_height(cx + 3.4, z)) * 0.5 - 0.34
-		var wy := bank if i == 0 else minf(prev - 0.018, bank)
+		var low_bank := minf(_land_height(cx - 3.6, z), _land_height(cx + 3.6, z))
+		var avg_bank := (_land_height(cx - 3.6, z) + _land_height(cx + 3.6, z)) * 0.5
+		var bank_ref := lerpf(low_bank, avg_bank, 0.35) - 0.36
+		var wy := bank_ref if i == 0 else minf(prev - 0.017, bank_ref)
 		stream_water_heights[i] = wy
 		prev = wy
 
 static func stream_water_y(z: float) -> float:
 	_ensure_stream_profile()
-	var fidx := clampf(z + 116.0, 0.0, float(stream_water_heights.size() - 2))
+	var fidx := clampf(z + 120.0, 0.0, float(stream_water_heights.size() - 2))
 	var idx := int(floorf(fidx))
 	return lerpf(float(stream_water_heights[idx]), float(stream_water_heights[idx + 1]), fidx - float(idx))
 
@@ -147,12 +156,23 @@ static func height(x: float, z: float) -> float:
 		return grid_height_cache[key]
 	var result = _land_height(x, z)
 	var sd := stream_distance(x, z)
-	if sd < 4.5 and z >= STREAM_Z_MIN - 1.5 and z <= STREAM_Z_MAX + 2.0:
+	if sd < 5.2 and z >= STREAM_Z_MIN - 1.5 and z <= STREAM_Z_MAX + 0.5:
 		var wy := stream_water_y(z)
-		var channel_t := 1.0 - smoothstep(1.35, 4.45, sd)
-		var end_fade := smoothstep(STREAM_Z_MIN - 1.5, STREAM_Z_MIN + 1.5, z)
-		var bed_target := minf(result, wy - 0.42)
-		result = lerpf(result, bed_target, channel_t * end_fade)
+		var head_fade := smoothstep(STREAM_Z_MIN - 1.5, STREAM_Z_MIN + 1.2, z)
+		var min_bz := 99.0
+		for bz in STREAM_BRIDGES:
+			min_bz = minf(min_bz, absf(z - float(bz)))
+		var bridge_clear := smoothstep(1.3, 2.6, min_bz)
+		# Natural raised earthen/stone creek bank lip (+0.38m above water on both sides)
+		var lip_target := maxf(result, wy + 0.38)
+		var lip_w := smoothstep(1.65, 2.60, sd) * (1.0 - smoothstep(3.35, 5.10, sd)) * head_fade * bridge_clear
+		result = lerpf(result, lip_target, lip_w)
+		# True recessed U-shaped streambed channel (water at wy sits ~0.38m below bank lips, bed at wy - 0.52m)
+		if sd < 2.65:
+			var bank_top := maxf(result, wy + 0.36 * bridge_clear)
+			var wall_t := smoothstep(1.05, 2.60, sd)
+			var carved := lerpf(wy - 0.52, bank_top, wall_t)
+			result = lerpf(result, minf(result, carved), head_fade)
 	if integer_point:
 		grid_height_cache[key] = result
 	return result
@@ -188,7 +208,7 @@ static func road_distance(x: float, z: float) -> float:
 static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 	if road_distance(x, z) < 4.5 + padding:
 		return true
-	if stream_distance(x, z) < 2.9 + padding:
+	if stream_distance(x, z) < 3.1 + padding:
 		return true
 	if Vector2(x - EXIT.x, z - EXIT.z).length() < 8 + padding:
 		return true
