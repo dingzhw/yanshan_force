@@ -31,7 +31,7 @@ const STATIONS = [
 	{"id": "rocks", "title": "B · 竹林补给点", "at": Vector3(8, 0, -86)}
 ]
 const PASS_OUTPOST = Vector3(-1, 0, -65)
-const WEST_CAMP = Vector3(-34.0, 0, -18.0)
+const WEST_CAMP = Vector3(-38.0, 0, -9.5)
 const EAST_CAMP = Vector3(37.5, 0, -34.0)
 const NW_CAMP = Vector3(-31.0, 0, -85.0)
 const COMBAT_ZONES = [
@@ -59,8 +59,18 @@ const RECON_RADIO = Vector3(27.5, 0, -46.5)
 const AIRDROP_BEACON = Vector3(23.5, 0, -101.0)
 const WATCHTOWER = Vector3(-34.0, 0, -102.0)
 const SHELTER_BAMBOO = Vector3(14.0, 0, -88.0)
+const BAMBOO_MAZE_GATE = Vector3(-41.6, 0, -36.5)
+const BAMBOO_MAZE_EAST = Vector3(-35.1, 0, -44.0)
+const BAMBOO_MAZE_SUNDIAL = Vector3(-46.8, 0, -47.0)
+const BAMBOO_MAZE_MOYA = Vector3(-36.4, 0, -50.0)
+const YANXIA_CAVE_MOUTH = Vector3(-41.6, 0, -57.5)
+const YANXIA_CAVE_CENTER = Vector3(-41.6, 0, -64.0)
+const YANXIA_CAVE_SANCTUM = Vector3(-40.85, 0, -66.55)
 const BRANCHES = [
 	[Vector3(-18, 0, -27), POEM],
+	# West Bamboo-Stone Labyrinth ("迷踪竹石阵") & Yanxia Cavern approach footpaths (outside camp aggro rings)
+	[POEM, Vector3(-33.5, 0, -33.2), Vector3(-41.6, 0, -31.8), BAMBOO_MAZE_GATE],
+	[Vector3(-25.0, 0, -31.5), Vector3(-33.2, 0, -44.0), BAMBOO_MAZE_EAST],
 	[Vector3(-7, 0, -54), MATH, Vector3(12, 0, -62), EXIT],
 	# Central Stone Arch Bridge (z = -24.0) -> East Overlook & South Ridge to Wangdao Pavilion
 	[Vector3(-7, 0, -15), CLUE, CLUE_LOOT, Vector3(11.0, 0, -24.0), Vector3(22.2, 0, -24.0), EAST_OVERLOOK, Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), WANGDAO_PAVILION],
@@ -130,6 +140,12 @@ static func _land_height(x: float, z: float) -> float:
 	result = lerpf(result, bed, road_t)
 	var pav_pad := 1.0 - smoothstep(5.4, 10.5, Vector2(x - WANGDAO_PAVILION.x, z - WANGDAO_PAVILION.z).length())
 	result = lerpf(result, anchor_height(WANGDAO_PAVILION), pav_pad)
+	# Smoothly graded terrace for v0.6.2 «迷踪竹石阵» (5.85m -> 6.50m) & flat 6.50m floor across «烟霞古洞»
+	if x > -51.8 and x < -31.6 and z > -74.5 and z < -32.0:
+		var maze_wx := 1.0 - smoothstep(7.0, 9.7, absf(x - (-41.7)))
+		var maze_wz := 1.0 - smoothstep(17.15, 20.8, absf(z - (-53.35)))
+		var terrace_y := lerpf(5.85, 6.50, smoothstep(36.5, 55.8, -z))
+		result = lerpf(result, terrace_y, maze_wx * maze_wz)
 	for bz in STREAM_BRIDGES:
 		var bcx := stream_center_x(float(bz))
 		if absf(x - bcx) < 16.5 and absf(z - float(bz)) < 8.5:
@@ -214,6 +230,14 @@ static func anchor_height(at: Vector3) -> float:
 		return 4.55
 	if at == Vector3(30.2, 0, -73.5):
 		return 6.35
+	if at == BAMBOO_MAZE_GATE:
+		return 5.85
+	if at == Vector3(-33.5, 0, -34.2):
+		return 5.42
+	if at == Vector3(-33.2, 0, -44.0):
+		return 6.00
+	if at == BAMBOO_MAZE_EAST:
+		return 6.08
 	return base_height(at.x, at.z)
 
 static func _ensure_fast_grid():
@@ -267,7 +291,12 @@ static func road_distance(x: float, z: float) -> float:
 		result = minf(result, path_distance(x, z, branch))
 	return result
 
+static func is_in_bamboo_cave_zone(x: float, z: float, padding: float = 0.0) -> bool:
+	return x >= (-49.2 - padding) and x <= (-34.3 + padding) and z >= (-71.6 - padding) and z <= (-35.6 + padding)
+
 static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
+	if is_in_bamboo_cave_zone(x, z, float(padding)):
+		return true
 	if road_distance(x, z) < 4.5 + padding:
 		return true
 	if stream_distance(x, z) < 3.1 + padding:

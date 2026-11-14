@@ -54,7 +54,7 @@ const HABITAT_ANIMALS := [
 	# 3. Bush-Ambush Wild Boars (5 — hidden in azalea thickets; sprint on 4 legs & may counter-charge when chased!)
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.5, 0, 9.5)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(34.5, 0, 1.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-33.5, 0, -38.5)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-45.5, 0, -26.5)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(33.5, 0, -66.5)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.0, 0, -82.0)},
 

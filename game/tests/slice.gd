@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.1.2" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1.2 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.6.2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.2 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -37,8 +37,8 @@ func run():
 			tac_counts[t_id] += 1
 		else:
 			supply_count += 1
-	verify(supply_count == 10 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.6.0 places 10 supply caches plus parkour tactical ammo/smoke/stims")
-	verify(game.exploration.nodes.size() == 10, "v0.6.0 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon")
+	verify(supply_count == 11 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.6.2 places 11 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(game.exploration.nodes.size() == 13, "v0.6.2 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon + 3 Yanxia heritage")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)
@@ -548,6 +548,92 @@ func run():
 		var bnode := game.landscape.get_node_or_null(batch_id) as MultiMeshInstance3D
 		verify(bnode != null and bnode.multimesh != null and bnode.multimesh.instance_count > 0, "v0.6.1 MultiMesh batch active: " + batch_id)
 	verify(game.mission_label.position.y + game.mission_label.size.y <= game.guide_label.position.y, "Zone 1 top-left HUD mission_label and guide_label do not overlap")
+
+	# v0.6.2 Lost Bamboo-Stone Labyrinth ("迷踪竹石阵") & Yanxia Ancient Cavern ("烟霞古洞") verification
+	var maze_node := game.landscape.get_node_or_null("BambooStoneMaze") as Node3D
+	var cave_node := game.landscape.get_node_or_null("YanxiaAncientCave") as Node3D
+	verify(maze_node != null and cave_node != null, "v0.6.2 spawns BambooStoneMaze and YanxiaAncientCave")
+	verify(maze_node.get_node_or_null("BambooMazeSouthGate") != null and maze_node.get_node_or_null("KarstCrouchArch") != null and maze_node.get_node_or_null("CliffMoyaStele") != null and maze_node.get_node_or_null("StoneSundialPedestal") != null, "v0.6.2 maze includes South Gate, KarstCrouchArch, CliffMoyaStele, and StoneSundialPedestal")
+	verify(game.crate_nodes.size() >= 6 and str(game.crate_nodes[5].get_meta("title")) == "烟霞古洞秘藏石匣", "v0.6.2 places Tier-3 Yanxia Cavern vault crate at crate_nodes[5]")
+
+	# 1) KarstCrouchArch (-41.60, y, -45.50): physically blocks standing player, passes [C] crouched player
+	game.player.clear_movement_input()
+	game.player.reset_stance()
+	game.player.position = Vector3(-41.60, float(game.terrain_height(-41.60, -44.15)) + 0.05, -44.15)
+	game.player.velocity = Vector3.ZERO
+	game.player.yaw = 0.0
+	await frames(6)
+	game.player.held_keys[KEY_W] = true
+	for _f in 48:
+		await physics_frame
+	game.player.clear_movement_input()
+	await frames(3)
+	var stand_blocked_z: float = game.player.position.z
+	verify(stand_blocked_z > -45.25, "KarstCrouchArch 1.25m lintel blocks standing player (z=%.2f)" % stand_blocked_z)
+
+	sim_key.call(KEY_C, true)
+	await frames(2)
+	sim_key.call(KEY_C, false)
+	await frames(4)
+	verify(game.player.stance == 1, "pressing [C] switches player to crouched stance in front of karst arch")
+	game.player.yaw = 0.0
+	game.player.held_keys[KEY_W] = true
+	for _f in 75:
+		if game.player.position.z < -46.55:
+			break
+		await physics_frame
+	game.player.clear_movement_input()
+	await frames(4)
+	verify(game.player.position.z < -46.30 and game.player.is_on_floor(), "crouched player crawls cleanly underneath KarstCrouchArch (z=%.2f)" % game.player.position.z)
+	sim_key.call(KEY_C, true)
+	await frames(2)
+	sim_key.call(KEY_C, false)
+	await frames(4)
+
+	# 2) Real walk-in traversal from Cavern Forecourt through South Cliff Portal into YanxiaAncientCave
+	game.player.clear_movement_input()
+	game.player.position = Vector3(-41.60, 6.55, -56.20)
+	game.player.velocity = Vector3.ZERO
+	game.player.yaw = 0.0
+	await frames(6)
+	game.player.held_keys[KEY_W] = true
+	for _f in 125:
+		if game.player.position.z < -63.80:
+			break
+		await physics_frame
+	game.player.clear_movement_input()
+	await frames(6)
+	verify(game.player.position.z < -62.50 and game.player.is_on_floor() and absf(game.player.position.y - 6.526) < 0.16, "player walks seamlessly through Yanxia Cave portal onto wet limestone floor (pos=%s)" % str(game.player.position))
+	game.player.position = Vector3(-40.25, 6.526, -65.25)
+	await frames(4)
+	verify(game._can_interact(game.crate_nodes[5]), "Yanxia Cavern Tier-3 vault crate has unobstructed interaction line-of-sight inside Inner Sanctum")
+
+	# 3) All 3 Heritage discoveries ("竹石清音", "耕读图", "寒潭茶灶与古竹简") + minimap reveal + HP/Shield heal + Legendary Bamboo Slips
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN)
+	game.exploration.revealed_secrets.clear()
+	game.exploration.radar_scan_active = false
+	await frames(3)
+	verify(not game.minimap._is_discovered(game.crate_nodes[5]), "Yanxia Cavern vault starts masked on minimap before discovering cliff inscription")
+	var moya_ev: Node3D = node_for.call("cliff_inscription")
+	game.exploration.open(moya_ev)
+	game.exploration.choose(game.exploration.answer_button_index("cliff_inscription"))
+	game.exploration.close()
+	verify(game.exploration.is_secret_revealed("yanxia_cave") and game.minimap._is_discovered(game.crate_nodes[5]), "Moya cliff inscription reveals Yanxia Cavern secret on minimap")
+
+	game.combat.health = 60
+	game.combat.shield = 5.0
+	game.rules.bag.clear()
+	for hid in ["cave_mural", "cave_hearth"]:
+		var hev: Node3D = node_for.call(hid)
+		game.exploration.open(hev)
+		game.exploration.choose(game.exploration.answer_button_index(hid))
+		game.exploration.close()
+	verify(game.exploration.heritage_completed() == 3, "all 3 v0.6.2 Yanxia heritage discoveries solve and track in heritage_completed() == 3")
+	verify(game.combat.health == 80 and game.combat.shield >= 19.5, "cave_hearth spring tea restores +20 HP and +15 Shield")
+	var bag_titles: Array[String] = []
+	for b_item in game.rules.bag:
+		bag_titles.append(str(b_item.get("title", "")))
+	verify("烟山先民竹简" in bag_titles and "烟霞丹青残拓" in bag_titles, "Yanxia mural & hearth award Epic & Legendary heritage collectibles into raid bag")
 
 	game.queue_free()
 	await process_frame

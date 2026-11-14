@@ -5,6 +5,7 @@ extends Node3D
 const TacticalProps = preload("res://scripts/tactical_props.gd")
 const INTEL_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof"]
 const SECRET_EVENT_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof", "recon_radio", "airdrop_beacon"]
+const HERITAGE_IDS = ["cliff_inscription", "cave_mural", "cave_hearth"]
 
 var game
 var nodes = []
@@ -43,6 +44,9 @@ func setup(g):
 	_mark("intel_roof", game.Layout.SHELTER_BAMBOO + Vector3(1.6, 0, 3.8), "战地线报 #4 · 棚顶与高塔", Color("cf8aff"))
 	_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
 	_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
+	_mark("cliff_inscription", Vector3(-36.45, 0, -50.0), "摩崖石刻《竹石清音》", Color("e8b878"))
+	_mark("cave_mural", Vector3(-44.05, 0, -61.15), "先民壁画《耕读图》", Color("8de8c0"))
+	_mark("cave_hearth", Vector3(-41.05, 0, -66.35), "寒潭茶灶与古竹简", Color("ffd15c"))
 	var center = game.Layout.on_ground(Vector3(10, 0, -62))
 	gate = Node3D.new()
 	gate.position = center + Vector3(-1.4, 0, 0)
@@ -133,6 +137,17 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		glow.light_energy = 1.25
 		glow.omni_range = 5.4
 		node.add_child(glow)
+	elif id in HERITAGE_IDS:
+		var h_ring := MeshInstance3D.new()
+		var h_torus := TorusMesh.new()
+		h_torus.inner_radius = 0.30
+		h_torus.outer_radius = 0.38
+		h_torus.rings = 18
+		h_torus.ring_segments = 6
+		h_ring.mesh = h_torus
+		h_ring.position = Vector3(0.0, 0.05, 0.0)
+		h_ring.material_override = game._material(color, true)
+		node.add_child(h_ring)
 	else:
 		var timber_mat = StandardMaterial3D.new()
 		timber_mat.albedo_color = Color("7b684e")
@@ -154,6 +169,18 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		prompt.pixel_size = 0.0040
 		prompt.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		prompt.text = "烟山诗碑亭 · 按 [F] 研读"
+	elif id == "cliff_inscription":
+		prompt.position = Vector3(0.82, 2.74, 0.0)
+		prompt.pixel_size = 0.0038
+		prompt.text = "摩崖石刻《竹石清音》 · [F]"
+	elif id == "cave_mural":
+		prompt.position = Vector3(-0.55, 2.68, 0.0)
+		prompt.pixel_size = 0.0038
+		prompt.text = "先民矿物壁画《耕读图》 · [F]"
+	elif id == "cave_hearth":
+		prompt.position = Vector3(0.0, 1.68, -0.82)
+		prompt.pixel_size = 0.0038
+		prompt.text = "寒潭茶灶与先民竹简 · [F]"
 	prompt.visibility_range_end = 15
 	nodes.append(node)
 
@@ -209,6 +236,9 @@ func reset():
 	for sid in SECRET_EVENT_IDS:
 		states[sid] = false
 		states[sid + "_claimed"] = false
+	for hid in HERITAGE_IDS:
+		states[hid] = false
+		states[hid + "_claimed"] = false
 	revealed_secrets = {}
 	radar_scan_active = false
 	busy = false
@@ -223,6 +253,10 @@ func reset():
 	for iid in INTEL_IDS:
 		if ipools.has(iid):
 			_prepare_item(iid, ipools[iid])
+	var hpools: Dictionary = data.get("heritage_pools", {})
+	for hid in HERITAGE_IDS:
+		if hpools.has(hid):
+			_prepare_item(hid, hpools[hid])
 	if is_instance_valid(overlay):
 		overlay.hide()
 	game.Props.set_enabled(gate, true)
@@ -305,6 +339,8 @@ func choose(index: int):
 			explanation.text = "再想一想！注意看清题目里的图形公式或起点与终点距离。"
 		elif active_id == "poem":
 			explanation.text = "再想一想！回想一下课本古诗的意境与上下句对仗。"
+		elif active_id in HERITAGE_IDS:
+			explanation.text = "再细品一遍碑文、壁画与英文句意，感受烟山先民留下的历史印记！"
 		else:
 			explanation.text = "再读再听一遍英文句！注意空间介词（on top of / between / inside / beside / under / in front of）。"
 		return
@@ -313,6 +349,19 @@ func choose(index: int):
 	if active_id == "math":
 		gate.rotation.y = -PI / 2
 		game.play_sfx("cipher_unlock", -11)
+	elif first_solve and active_id in HERITAGE_IDS:
+		var h_pts := int(item.get("reward_score", 30))
+		game.rules.score += h_pts
+		var hrk := str(item.get("reveal_key", ""))
+		if hrk != "":
+			revealed_secrets[hrk] = true
+		if active_id == "cave_hearth" and is_instance_valid(game.combat):
+			game.combat.heal(20, 15)
+			game.play_sfx("heal_shield", -10)
+			game._notice("品饮寒潭山茶 · 生命+20 护盾+15 · 烟山秘史 +%d 分！" % h_pts, game.GOLD)
+		else:
+			game.play_sfx("cipher_unlock", -10)
+			game._notice("品读烟山古迹成功！获得 +%d 撤离积分" % h_pts, game.MINT)
 	elif first_solve and active_id in INTEL_IDS:
 		game.rules.score += int(item.get("reward_score", 20))
 		var rk := str(item.get("reveal_key", ""))
@@ -404,10 +453,17 @@ func secrets_completed() -> int:
 			n += 1
 	return n
 
+func heritage_completed() -> int:
+	var n := 0
+	for hid in HERITAGE_IDS:
+		if bool(states.get(hid, false)):
+			n += 1
+	return n
+
 func is_secret_revealed(secret_key: String) -> bool:
 	if secret_key == "":
 		return true
 	return radar_scan_active or bool(revealed_secrets.get(secret_key, false))
 
 func status_text() -> String:
-	return "探 %d/3 · 秘 %d/6" % [completed(), secrets_completed()]
+	return "探%d/3·秘%d/6·迹%d/3" % [completed(), secrets_completed(), heritage_completed()]

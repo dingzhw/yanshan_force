@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.6.1.2"
+const VERSION = "0.6.2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -635,7 +635,7 @@ func _build_ui():
 	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
 	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
 
-	var brief_lbl = _text(menu, "【v0.6.1.2 全山6营3波5兵战术重做、飞鸟受击与高帧率优化】\n• 6营×3波×5兵：死兵不中途刷新；清完追兵后下波回营地待命，需赴营地再引仇恨\n• 部位判定与惩戒：正确词兵【爆头1枪秒杀 / 词盾2枪击毙】；打错无伤且敌攻+25%\n• 高空飞鸟与性能：高空白鹭可射击羽化；剔除37万透明阴影面+分区裁剪大幅提帧！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.2 迷踪竹石阵与烟霞古洞 · 江南千年秘史探索】\n• 迷踪竹石阵：太湖奇石与翠竹多岔迷宫，含 [C] 矮石暗拱潜行捷径与日晷秘藏\n• 烟霞古洞：摩崖《竹石清音》、青绿矿物壁画《耕读图》、洞志石刻与钟乳寒潭\n• 先民遗踪：一线天光映照石砌茶灶、越窑青瓷与【大金·先民竹简】，研读回血补盾！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
@@ -692,9 +692,10 @@ func _warehouse_total_value() -> int:
 func _refresh_menu(result = ""):
 	var mastered = rules.mastered_count()
 	var collected = rules.profile.collection.size()
-	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / 7 件" % [
+	var total_collectibles = Rules.LOOT_TABLE[4].size() + Rules.LOOT_TABLE[5].size()
+	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / %d 件" % [
 		rules.level(), rules.profile.xp % 120, rules.profile.coins, rules.profile.points,
-		mastered, words.size(), collected
+		mastered, words.size(), collected, total_collectibles
 	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
@@ -1205,7 +1206,7 @@ func _process(delta):
 	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
 	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
-	mission_label.text = "%s  ·  箱 %d/%d  ·  撤离：%s\n%s  ·  %s" % [
+	mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
 		outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 	]
 	_update_guide()
@@ -1443,8 +1444,8 @@ func _end_run(success: bool, title = ""):
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
 	var eco_count: int = wildlife.eco_discoveries_total() if is_instance_valid(wildlife) else 0
-	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6 · 生态 %d/12\n" % [
-		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), eco_count
+	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6 · 古迹 %d/3 · 生态 %d/12\n" % [
+		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), exploration.heritage_completed(), eco_count
 	]
 	if wrong_words.size() > 0:
 		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()

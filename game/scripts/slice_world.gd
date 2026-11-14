@@ -100,6 +100,10 @@ func _ground_vis_y(x: float, z: float) -> float:
 	var sd := float(game.Layout.stream_distance(x, z))
 	if sd < 2.22 and z >= game.Layout.STREAM_Z_MIN - 1.2:
 		h -= 0.055 * (1.0 - smoothstep(1.48, 2.22, sd))
+	if x > -46.2 and x < -37.0 and z > -70.1 and z < -57.6:
+		var wx := 1.0 - smoothstep(3.6, 4.5, absf(x + 41.6))
+		var wz := (1.0 - smoothstep(-58.3, -57.6, z)) * (1.0 - smoothstep(-69.2, -70.1, z))
+		h -= 0.50 * wx * wz
 	return h
 
 func _ground():
@@ -391,7 +395,7 @@ func _vegetation():
 		var z := rng.randf_range(-107.0, 21.5)
 		if not game.Layout.clear_for_route(x, z, 1.6) and not _is_vista_corridor(x, z):
 			rock(Vector3(x, 0, z), rng.randf_range(1.0, 3.3), i)
-	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-36.5, 0, -36.5), 3.0], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
+	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-46.5, 0, -21.0), 2.8], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
 		rock(info[0], info[1], int(absf(info[0].z)))
 	_backdrop()
 
@@ -444,7 +448,9 @@ func _trees():
 		Vector3(-42.0, 0, -2.0), Vector3(-48.0, 0, -32.0), Vector3(-47.0, 0, -56.0), Vector3(-47.5, 0, -96.0),
 		Vector3(-17.5, 0, -99.5), Vector3(-20.5, 0, -72.0), Vector3(47.5, 0, -48.5), Vector3(48.0, 0, -68.0),
 		Vector3(47.5, 0, -90.0), Vector3(38.0, 0, -4.0), Vector3(-26.0, 0, 14.0), Vector3(-39.5, 0, 12.0), Vector3(39.5, 0, 4.0),
-		Vector3(34.5, 0, -49.0), Vector3(35.5, 0, -56.0)
+		Vector3(34.5, 0, -49.0), Vector3(35.5, 0, -56.0),
+		Vector3(-51.2, 0, -42.0), Vector3(-51.2, 0, -54.0), Vector3(-51.2, 0, -66.0),
+		Vector3(-31.6, 0, -58.5), Vector3(-31.2, 0, -49.5), Vector3(-43.5, 0, -27.2)
 	]
 	# Also scatter natural fence-side & outer-collar woodland trees so hills have zero empty dead zones
 	for k in 34:
@@ -939,6 +945,8 @@ func _camp():
 	TacticalProps.build_cave_grotto(self, game, game.Layout.on_ground(game.Layout.CAVE_GROTTO))
 	# v0.6.0 Jiangnan Rural Hill Heritage Landmarks & Ancient Bluestone Footpaths
 	_build_jiangnan_heritage()
+	# v0.6.2 Lost Bamboo-Stone Labyrinth ("迷踪竹石阵") & Yanxia Ancient Cavern ("烟霞古洞")
+	_build_bamboo_maze_and_yanxia_cave()
 	# Deep Cache landmarks: Twin-Rock Cleft, East Overlook Boulder Alcove, SE Bamboo Crag
 	rock(game.Layout.CLEFT_CACHE + Vector3(-2.6, 0, -0.4), 2.8, 1)
 	rock(game.Layout.CLEFT_CACHE + Vector3(2.6, 0, -0.2), 2.6, 2)
@@ -952,7 +960,8 @@ func _camp():
 	for info in [
 		[Vector3(-9, 0, 7), "烟山基地\nA · 山脚营地"],
 		[Vector3(-12, 0, -17), "林间古道营地 ↑\n西岭山坡营地 ←"],
-		[Vector3(-20, 0, -28), "← 烟山诗碑亭\n林间营地 →"],
+		[Vector3(-20, 0, -28), "← 诗碑亭 · 迷踪竹石阵\n林间营地 →"],
+		[Vector3(-32.8, 0, -33.2), "↙ 迷踪竹石阵 · 烟霞古洞\n摩崖石刻 · 矿物壁画 · 寒潭"],
 		[Vector3(22.4, 0, -21.5), "东坡茶岭营地 ↗\n东上望稻亭 ↘"],
 		[Vector3(-14, 0, -53), "西北高地营 ↖\n山道拦截营 ↑"],
 		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2营·统领"]
@@ -969,8 +978,17 @@ func _landmarks():
 	crate_tower.set_meta("secret_key", "shelter_and_tower")
 	var crate_container = game._make_crate("西岭货柜暗箱", 2, container_yard.top_deck + Vector3(0.45, 0.0, 0.0))
 	crate_container.set_meta("secret_key", "parkour_containers")
+	var crate_yanxia = game._make_crate("烟霞古洞秘藏石匣", 3, Vector3(-39.05, 6.526, -65.45))
+	crate_yanxia.set_meta("secret_key", "yanxia_cave")
 	for crate in game.crate_nodes:
 		TacticalProps.build_tiered_vault_crate(game, crate, int(crate.get_meta("tier")))
+	crate_yanxia.scale = Vector3.ONE * 0.78
+	for lbl_c in crate_yanxia.find_children("*", "Label3D", true, false):
+		var cl := lbl_c as Label3D
+		if cl:
+			cl.pixel_size = 0.0023
+			cl.position.y = 1.24
+			cl.visibility_range_end = 7.4
 
 	var pad = MeshInstance3D.new()
 	var ring = TorusMesh.new()
@@ -1006,7 +1024,8 @@ func _landmarks():
 		{"at": game.Layout.CLEFT_CACHE, "ground": true, "secret_key": "cleft_cache"},
 		{"at": container_yard.mid_deck, "ground": false, "secret_key": "parkour_containers"},
 		{"at": game.Layout.EAST_OVERLOOK, "ground": true, "secret_key": "east_overlook"},
-		{"at": game.Layout.SE_BAMBOO_CACHE, "ground": true, "secret_key": "se_bamboo_cache"}
+		{"at": game.Layout.SE_BAMBOO_CACHE, "ground": true, "secret_key": "se_bamboo_cache"},
+		{"at": Vector3(-46.80, 0, -47.45), "ground": true, "secret_key": "yanxia_cave"}
 	]
 	for idx in pickup_spots.size():
 		var spot: Dictionary = pickup_spots[idx]
@@ -1634,7 +1653,11 @@ func _build_jiangnan_heritage():
 			[Vector3(23.8, 0, 7.0), Vector3(28.0, 0, 13.5), Vector3(32.2, 0, 19.6)],
 			[Vector3(5.5, 0, -49.0), Vector3(13.0, 0, -46.5)],
 			[Vector3(23.6, 0, -46.5), Vector3(27.2, 0, -46.5), Vector3(27.0, 0, -35.5), Vector3(26.5, 0, -25.2)],
-			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)]
+			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)],
+			[Vector3(-28.0, 0, -29.0), Vector3(-33.5, 0, -33.2), Vector3(-41.6, 0, -32.2), Vector3(-41.6, 0, -36.5)],
+			[Vector3(-25.0, 0, -31.5), Vector3(-33.2, 0, -44.0), Vector3(-35.2, 0, -44.0)],
+			[Vector3(-41.6, 0, -36.6), Vector3(-41.6, 0, -38.1)],
+			[Vector3(-41.6, 0, -54.4), Vector3(-41.6, 0, -57.4)]
 		]
 		var xfs: Array[Transform3D] = []
 		var rng_t := RandomNumberGenerator.new()
@@ -1680,6 +1703,373 @@ func _build_jiangnan_heritage():
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 
+func _prepare_v062_mesh_materials(src_mesh: Mesh) -> Mesh:
+	if src_mesh == null:
+		return null
+	var mesh: Mesh = src_mesh.duplicate()
+	for s in mesh.get_surface_count():
+		var mat: Material = mesh.surface_get_material(s)
+		if mat is BaseMaterial3D:
+			var bmat := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+			var mname := mat.resource_name
+			if mname.contains("SkylightBeam") or (bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and bmat.albedo_color.a < 0.35):
+				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				bmat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+				bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				bmat.albedo_color = Color(0.76, 0.93, 0.89, 0.17)
+			elif mname.contains("JadePool") or mname.contains("JadeWater") or bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				bmat.roughness = 0.08
+				bmat.metallic_specular = 0.68
+			mesh.surface_set_material(s, bmat)
+	return mesh
+
+func _instantiate_v062_mesh(mesh_name: String) -> Node3D:
+	var path := "res://assets/slice/v062_bamboo_cave.glb"
+	if ResourceLoader.exists(path):
+		if not game.scene_cache.has(path):
+			game.scene_cache[path] = load(path)
+		var inst: Node3D = game.scene_cache[path].instantiate()
+		var sub = inst.find_child(mesh_name, true, false)
+		if is_instance_valid(sub):
+			if sub.get_parent():
+				sub.get_parent().remove_child(sub)
+			sub.owner = null
+			sub.position = Vector3.ZERO
+			var targets: Array = []
+			if sub is MeshInstance3D:
+				targets.append(sub)
+			targets.append_array(sub.find_children("*", "MeshInstance3D", true, false))
+			for t in targets:
+				var mi := t as MeshInstance3D
+				if mi and mi.mesh:
+					mi.mesh = _prepare_v062_mesh_materials(mi.mesh)
+			inst.queue_free()
+			return sub
+		inst.queue_free()
+	return null
+
+func _extract_v062_mesh(mesh_name: String) -> Mesh:
+	var path := "res://assets/slice/v062_bamboo_cave.glb"
+	var cache_key := path + "::v062::" + mesh_name
+	if extracted_mesh_cache.has(cache_key):
+		return extracted_mesh_cache[cache_key]
+	if not ResourceLoader.exists(path):
+		return null
+	if not game.scene_cache.has(path):
+		game.scene_cache[path] = load(path)
+	var inst: Node3D = game.scene_cache[path].instantiate()
+	var target: Node = inst.find_child(mesh_name, true, false)
+	if target != null and not (target is MeshInstance3D):
+		var sub_m := target.find_children("*", "MeshInstance3D", true, false)
+		target = sub_m[0] if not sub_m.is_empty() else null
+	var out: Mesh = _prepare_v062_mesh_materials((target as MeshInstance3D).mesh) if (target is MeshInstance3D) else null
+	inst.queue_free()
+	extracted_mesh_cache[cache_key] = out
+	return out
+
+func _build_bamboo_maze_and_yanxia_cave():
+	# 1) "迷踪竹石阵" — 5x6 Multi-Path Taihu Karst & Moso Bamboo Labyrinth + row-6 Cavern Forecourt
+	var maze_root := Node3D.new()
+	maze_root.name = "BambooStoneMaze"
+	add_child(maze_root)
+
+	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
+	var culm_mesh := _extract_mesh(v061_path, "bamboo_culm_single")
+	var clump_mesh := _extract_mesh(v061_path, "bamboo_clump")
+	var fern_mesh := _extract_mesh(v061_path, "prop_fern_clump")
+	var karst_a_mesh := _extract_v062_mesh("karst_monolith_a")
+	var karst_b_mesh := _extract_v062_mesh("karst_monolith_b")
+
+	var karst_a_tx: Array = []
+	var karst_b_tx: Array = []
+	var maze_culm_tx: Array = []
+	var maze_clump_tx: Array = []
+	var maze_fern_tx: Array = []
+	var m_rng := RandomNumberGenerator.new()
+	m_rng.seed = 20260620
+
+	var x0 := -48.10
+	var cw := 2.60
+	var z0 := -36.50
+	var ch := 3.00
+
+	# South Bluestone Archway ("迷 踪 竹 石 阵") at (rl=0, c=2) = (-41.60, y, -36.50)
+	var gate_pos := Vector3(-41.60, float(game.terrain_height(-41.60, -36.50)) - 0.04, -36.50)
+	var gate_node := Node3D.new()
+	gate_node.name = "BambooMazeSouthGate"
+	gate_node.position = gate_pos
+	maze_root.add_child(gate_node)
+	var gate_vis := _instantiate_v062_mesh("bamboo_maze_gate")
+	if gate_vis:
+		gate_node.add_child(gate_vis)
+	for sx in [-1.0, 1.0]:
+		var pier_shp := BoxShape3D.new()
+		pier_shp.size = Vector3(0.62, 3.20, 0.78)
+		game.Props.shape_body(gate_node, pier_shp, Vector3(sx * 1.42, 1.60, 0.0)).add_to_group("solid_props")
+	var gate_lintel := BoxShape3D.new()
+	gate_lintel.size = Vector3(3.40, 0.80, 0.86)
+	game.Props.shape_body(gate_node, gate_lintel, Vector3(0.0, 3.28, 0.0)).add_to_group("solid_props")
+
+	# Central Eroded Karst Crouch Arch ("矮石暗拱 · [C] 蹲伏潜行") at (rl=3, c=2) = (-41.60, y, -45.50)
+	var arch_gy := float(game.terrain_height(-41.60, -45.50))
+	var arch_node := Node3D.new()
+	arch_node.name = "KarstCrouchArch"
+	arch_node.position = Vector3(-41.60, arch_gy, -45.50)
+	maze_root.add_child(arch_node)
+	var arch_vis := _instantiate_v062_mesh("karst_crouch_arch")
+	if arch_vis:
+		arch_node.add_child(arch_vis)
+	for sx in [-1.0, 1.0]:
+		var ap_shp := BoxShape3D.new()
+		ap_shp.size = Vector3(0.62, 3.20, 0.88)
+		game.Props.shape_body(arch_node, ap_shp, Vector3(sx * 1.02, 1.60, 0.0)).add_to_group("solid_props")
+	# Bottom strictly at +1.25m (blocks standing 1.675m, passes [C] crouch 1.115m!)
+	var arch_top := BoxShape3D.new()
+	arch_top.size = Vector3(2.64, 2.06, 0.90)
+	game.Props.shape_body(arch_node, arch_top, Vector3(0.0, 2.28, 0.0)).add_to_group("solid_props")
+	for sz_lbl in [0.58, -0.58]:
+		var a_lbl: Label3D = game._label3d(arch_node, "奇石矮拱 · 按 [C] 蹲伏潜行", Vector3(0.0, 1.62, sz_lbl), 22, Color("a8f0d4"))
+		a_lbl.pixel_size = 0.0036
+		a_lbl.visibility_range_end = 11.5
+
+	# Maze wall graph: open_h[rl] (rl=0..6, cols 0..4) & open_v[cl] (cl=0..5, rows 0..6)
+	var open_h := {
+		0: [2],
+		1: [0, 3, 4],
+		2: [1, 3],
+		3: [4],
+		4: [0, 1, 3],
+		5: [1, 3],
+		6: [2]
+	}
+	var open_v := {
+		0: [],
+		1: [0, 1, 2, 4, 5, 6],
+		2: [0, 1, 2, 3, 5, 6],
+		3: [0, 2, 3, 4, 6],
+		4: [0, 2, 3, 4, 5, 6],
+		5: [2]
+	}
+
+	var wall_segments: Array = []
+	for rl in 7:
+		var hz := z0 - float(rl) * ch
+		var oh: Array = open_h.get(rl, [])
+		for c in 5:
+			if c in oh or (rl == 3 and c == 2):
+				continue
+			wall_segments.append([x0 + (float(c) + 0.5) * cw, hz, cw, true, false])
+	for cl in 6:
+		var vx := x0 + float(cl) * cw
+		var ov: Array = open_v.get(cl, [])
+		for r in 7:
+			if r in ov:
+				continue
+			var is_moya_wall := (cl == 5 and r == 4)
+			wall_segments.append([vx, z0 - (float(r) + 0.5) * ch, ch, false, is_moya_wall])
+
+	for seg_idx in wall_segments.size():
+		var seg: Array = wall_segments[seg_idx]
+		var mx: float = seg[0]
+		var mz: float = seg[1]
+		var slen: float = seg[2]
+		var is_horiz: bool = seg[3]
+		var is_moya: bool = seg[4]
+		var gy := float(game.terrain_height(mx, mz))
+
+		var w_shp := BoxShape3D.new()
+		if is_moya:
+			w_shp.size = Vector3(0.56, 3.30, slen + 0.14)
+			game.Props.shape_body(maze_root, w_shp, Vector3(mx + 0.05, gy + 1.60, mz)).add_to_group("solid_props")
+			for z_flank in [-1.25, 1.25]:
+				var zf := float(z_flank)
+				var fy := float(game.terrain_height(mx, mz + zf)) - 0.18
+				karst_b_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(-0.3, 0.3)).scaled(Vector3(0.95, 1.08, 0.95)), Vector3(mx + 0.06, fy, mz + zf)))
+			continue
+
+		w_shp.size = Vector3(slen + 0.14, 3.30, 0.64) if is_horiz else Vector3(0.64, 3.30, slen + 0.14)
+		game.Props.shape_body(maze_root, w_shp, Vector3(mx, gy + 1.60, mz)).add_to_group("solid_props")
+
+		var base_yaw := 0.0 if is_horiz else PI * 0.5
+		var dir_v := Vector3(1.0, 0.0, 0.0) if is_horiz else Vector3(0.0, 0.0, 1.0)
+		var perp_v := Vector3(0.0, 0.0, 1.0) if is_horiz else Vector3(1.0, 0.0, 0.0)
+
+		# Mix Taihu strange karst monoliths & lush Moso bamboo culms along every closed wall segment
+		if seg_idx % 3 != 1:
+			var k_off := m_rng.randf_range(-0.38, 0.38)
+			var kp := Vector3(mx, 0.0, mz) + dir_v * k_off
+			var ky := float(game.terrain_height(kp.x, kp.z)) - 0.18
+			var ksc := m_rng.randf_range(0.92, 1.18)
+			var kyaw := base_yaw + (PI if m_rng.randf() < 0.5 else 0.0) + m_rng.randf_range(-0.18, 0.18)
+			var k_xf := Transform3D(Basis(Vector3.UP, kyaw).scaled(Vector3(ksc * 1.04, ksc, ksc * 0.88)), Vector3(kp.x, ky, kp.z))
+			if seg_idx % 2 == 0:
+				karst_a_tx.append(k_xf)
+			else:
+				karst_b_tx.append(k_xf)
+			var f_pos := kp + perp_v * (0.26 if seg_idx % 2 == 0 else -0.26)
+			maze_fern_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * 0.92), Vector3(f_pos.x, float(game.terrain_height(f_pos.x, f_pos.z)) - 0.03, f_pos.z)))
+
+		for b_i in [-0.92, 0.0, 0.92]:
+			var b_off := float(b_i)
+			if seg_idx % 3 != 1 and absf(b_off) < 0.2:
+				continue
+			var bp: Vector3 = Vector3(mx, 0.0, mz) + dir_v * (b_off + m_rng.randf_range(-0.14, 0.14)) + perp_v * m_rng.randf_range(-0.10, 0.10)
+			var by := float(game.terrain_height(bp.x, bp.z)) - 0.04
+			var bsc := m_rng.randf_range(0.86, 1.18)
+			var b_basis := Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).rotated(Vector3.RIGHT, m_rng.randf_range(-0.035, 0.035)).scaled(Vector3(bsc * 0.92, bsc, bsc * 0.92))
+			maze_culm_tx.append(Transform3D(b_basis, Vector3(bp.x, by, bp.z)))
+
+		if seg_idx % 4 == 1:
+			var cp := Vector3(mx, 0.0, mz) + dir_v * m_rng.randf_range(-0.25, 0.25)
+			var cy := float(game.terrain_height(cp.x, cp.z)) - 0.05
+			maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * 0.72), Vector3(cp.x, cy, cp.z)))
+
+	# East Side Gate framing monoliths & hint at (-35.10, y, -44.00)
+	for ez_off in [-1.22, 1.22]:
+		var ez := float(ez_off)
+		var egy := float(game.terrain_height(-35.10, -44.00 + ez)) - 0.18
+		karst_b_tx.append(Transform3D(Basis(Vector3.UP, PI * 0.5).scaled(Vector3(0.88, 1.04, 0.88)), Vector3(-35.10, egy, -44.00 + ez)))
+	var egate_lbl: Label3D = game._label3d(maze_root, "迷踪竹石阵 · 东侧幽径", Vector3(-34.85, float(game.terrain_height(-35.10, -44.00)) + 2.35, -44.00), 22, Color("e8dfc0"))
+	egate_lbl.pixel_size = 0.0038
+	egate_lbl.visibility_range_end = 15.0
+
+	# West Secret Alcove (0, 3): Ancient Bluestone Sundial Pedestal at (-46.80, y, -46.25)
+	var sun_gy := float(game.terrain_height(-46.80, -46.25)) - 0.02
+	var sundial := Node3D.new()
+	sundial.name = "StoneSundialPedestal"
+	sundial.position = Vector3(-46.80, sun_gy, -46.25)
+	maze_root.add_child(sundial)
+	var sun_vis := _instantiate_v062_mesh("stone_sundial_pedestal")
+	if sun_vis:
+		sundial.add_child(sun_vis)
+	var sun_shp := CylinderShape3D.new()
+	sun_shp.radius = 0.44
+	sun_shp.height = 1.18
+	game.Props.shape_body(sundial, sun_shp, Vector3(0.0, 0.59, 0.0)).add_to_group("solid_props")
+	var sun_lbl: Label3D = game._label3d(sundial, "先民青石日晷残座", Vector3(0.0, 1.52, 0.0), 20, Color("e8d8a8"))
+	sun_lbl.pixel_size = 0.0034
+	sun_lbl.visibility_range_end = 10.5
+
+	# East Cliff Moya Carving Alcove (4, 4): "竹石清音" Cliff Stele at (-35.38, y, -50.00) facing -X West
+	var moya_gy := float(game.terrain_height(-35.38, -50.00)) - 0.04
+	var moya_node := Node3D.new()
+	moya_node.name = "CliffMoyaStele"
+	moya_node.position = Vector3(-35.38, moya_gy, -50.00)
+	maze_root.add_child(moya_node)
+	var moya_vis := _instantiate_v062_mesh("cliff_moya_stele")
+	if moya_vis:
+		moya_node.add_child(moya_vis)
+
+	# 6 Hexagonal Mossy Jiangnan Stone Lanterns guiding key labyrinth junctions & Cavern Forecourt
+	var lantern_pts := [
+		Vector2(-40.62, -37.28),
+		Vector2(-40.62, -44.72),
+		Vector2(-42.55, -46.28),
+		Vector2(-37.22, -48.92),
+		Vector2(-42.55, -53.80),
+		Vector2(-40.05, -56.35)
+	]
+	for l_idx in lantern_pts.size():
+		var lp: Vector2 = lantern_pts[l_idx]
+		var lgy := float(game.terrain_height(lp.x, lp.y)) - 0.02
+		var l_node := Node3D.new()
+		l_node.name = "MazeStoneLantern_%d" % l_idx
+		l_node.position = Vector3(lp.x, lgy, lp.y)
+		l_node.rotation.y = float(l_idx) * 0.52
+		maze_root.add_child(l_node)
+		var l_vis := _instantiate_v062_mesh("stone_maze_lantern")
+		if l_vis:
+			l_node.add_child(l_vis)
+		var l_shp := CylinderShape3D.new()
+		l_shp.radius = 0.22
+		l_shp.height = 1.48
+		game.Props.shape_body(l_node, l_shp, Vector3(0.0, 0.74, 0.0)).add_to_group("solid_props")
+
+	# 2) "烟霞古洞" — Walk-in 2-Chamber Limestone Cavern with Ancient Mineral Mural, Chronicle, Skylight Jade Pool & Hearth Relics
+	var cave_root := Node3D.new()
+	cave_root.name = "YanxiaAncientCave"
+	cave_root.position = Vector3(-41.60, 6.50, -64.00)
+	add_child(cave_root)
+
+	var cave_vis := _instantiate_v062_mesh("yanxia_cave_complex")
+	if cave_vis:
+		cave_root.add_child(cave_vis)
+
+	var hearth_vis := _instantiate_v062_mesh("ancestral_hearth_relics")
+	if hearth_vis:
+		hearth_vis.position = Vector3(0.55, 0.026, -3.35)
+		cave_root.add_child(hearth_vis)
+
+	# Analytical cavern physics colliders (walkable wet limestone floor at y_local=+0.026m, 3.24m x 3.25m portal, walls & roof)
+	var cave_boxes := [
+		[Vector3(0.0, -0.174, 0.25), Vector3(7.60, 0.40, 12.30)],   # Walkable wet limestone floor slab (top = +0.026m = 6.526m world)
+		[Vector3(-2.05, 0.70, -2.85), Vector3(2.08, 1.35, 3.08)],   # Sunken Jade Spring Pool rim guard
+		[Vector3(-3.40, 2.60, 5.68), Vector3(3.56, 5.60, 1.68)],    # South portal West cliff buttress (leaves x >= -1.62 open)
+		[Vector3(3.40, 2.60, 5.68), Vector3(3.56, 5.60, 1.68)],     # South portal East cliff buttress (leaves x <= +1.62 open)
+		[Vector3(0.0, 4.50, 5.68), Vector3(3.60, 2.50, 1.68)],      # South portal over-arch brow (bottom = 3.25m)
+		[Vector3(-4.35, 2.70, -0.15), Vector3(2.20, 5.80, 12.20)],  # West cavern cliff wall (inner face = -3.25)
+		[Vector3(4.35, 2.70, -0.15), Vector3(2.20, 5.80, 12.20)],   # East cavern cliff wall (inner face = +3.25)
+		[Vector3(0.0, 2.70, -6.15), Vector3(9.60, 5.80, 2.00)],     # North cavern back wall (inner face = -5.15)
+		[Vector3(0.0, 4.95, 0.0), Vector3(9.60, 2.00, 12.40)],      # Vaulted mountain roof cap (bottom = 3.95m)
+		[Vector3(-0.33, 0.46, -3.70), Vector3(1.04, 0.88, 0.94)]    # Ancestral stone tea hearth
+	]
+	for cb in cave_boxes:
+		var c_shp := BoxShape3D.new()
+		c_shp.size = cb[1]
+		game.Props.shape_body(cave_root, c_shp, cb[0]).add_to_group("solid_props")
+
+	var tbl_shp := CylinderShape3D.new()
+	tbl_shp.radius = 0.68
+	tbl_shp.height = 0.82
+	game.Props.shape_body(cave_root, tbl_shp, Vector3(0.93, 0.44, -3.25)).add_to_group("solid_props")
+
+	# Distance-faded shadowless cavern lights (0ms cost beyond 32m, rich mineral/jade/ember glow inside!)
+	var light_specs := [
+		[Vector3(0.0, 2.35, 2.85), Color("ffd69c"), 1.28, 6.8],
+		[Vector3(-1.65, 2.65, -2.85), Color("8ef2df"), 1.38, 6.2],
+		[Vector3(0.45, 1.45, -3.30), Color("ffb25e"), 1.22, 5.4]
+	]
+	for ls in light_specs:
+		var ol := OmniLight3D.new()
+		ol.position = ls[0]
+		ol.light_color = ls[1]
+		ol.light_energy = ls[2]
+		ol.omni_range = ls[3]
+		ol.shadow_enabled = false
+		ol.distance_fade_enabled = true
+		ol.distance_fade_begin = 24.0
+		ol.distance_fade_length = 8.0
+		cave_root.add_child(ol)
+
+	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.86, 2.82, 2.85), 20, Color("e8dec2"))
+	chron_lbl.pixel_size = 0.0034
+	chron_lbl.visibility_range_end = 11.0
+	var pool_lbl: Label3D = game._label3d(cave_root, "一线天光 · 洞中寒潭", Vector3(-1.95, 1.52, -2.85), 20, Color("9ef5e2"))
+	pool_lbl.pixel_size = 0.0034
+	pool_lbl.visibility_range_end = 11.5
+
+	# Natural Moso bamboo & woodland ferns crowning the exterior karst mountain bluff atop Yanxia Cave
+	var bluff_bamboo := [
+		Vector3(-44.6, 12.15, -60.5), Vector3(-38.5, 12.25, -60.8),
+		Vector3(-45.2, 12.10, -65.2), Vector3(-38.8, 12.35, -65.6),
+		Vector3(-42.8, 12.20, -69.0), Vector3(-39.6, 12.25, -68.6)
+	]
+	for bb in bluff_bamboo:
+		maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * 0.78), bb))
+	for bf_i in 8:
+		var bfx := -41.6 + cos(float(bf_i) * 0.78) * 3.4
+		var bfz := -64.0 + sin(float(bf_i) * 0.78) * 4.6
+		maze_fern_tx.append(Transform3D(Basis(Vector3.UP, float(bf_i) * 1.1).scaled(Vector3.ONE * 1.12), Vector3(bfx, 12.05, bfz)))
+
+	_batch_direct(karst_a_mesh, karst_a_tx, true, "MazeKarstMonolithsA", 96.0)
+	_batch_direct(karst_b_mesh, karst_b_tx, true, "MazeKarstMonolithsB", 96.0)
+	_batch_direct(culm_mesh, maze_culm_tx, false, "MazeBambooCulms", 98.0)
+	_batch_direct(clump_mesh, maze_clump_tx, false, "MazeBambooClumps", 96.0)
+	_batch_direct(fern_mesh, maze_fern_tx, false, "MazeKarstFerns", 58.0)
+
 func _flora_meadows():
 	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
 	var grass_f := _extract_mesh(v061_path, "prop_grass_tuft")
@@ -1712,7 +2102,7 @@ func _flora_meadows():
 		# Bias half of grass tufts toward outer slopes & fence margins so perimeter meadows feel rich and natural
 		if g_i % 2 == 0 and absf(gx) < 32.0 and gz > -98.0 and gz < 15.0:
 			gx = (1.0 if g_i % 4 == 0 else -1.0) * rng.randf_range(32.0, 55.0)
-		if game.Layout.road_distance(gx, gz) < 2.9 or absf(gx - _outer_stream_x(gz)) < 2.25:
+		if game.Layout.road_distance(gx, gz) < 2.9 or absf(gx - _outer_stream_x(gz)) < 2.25 or game.Layout.is_in_bamboo_cave_zone(gx, gz, 0.35):
 			continue
 		var gy := _surface_height_any(gx, gz) - 0.02
 		var gsc := rng.randf_range(0.95, 1.68)
@@ -1744,7 +2134,7 @@ func _flora_meadows():
 
 	# 3) Wild-Boar Ambush Thickets (dense flowering azalea & fern clusters on slopes where boars nestle)
 	var boar_thickets := [
-		Vector3(-38.5, 0, 11.5), Vector3(39.5, 0, 2.5), Vector3(-40.0, 0, -40.5),
+		Vector3(-38.5, 0, 11.5), Vector3(39.5, 0, 2.5), Vector3(-45.5, 0, -26.5),
 		Vector3(38.5, 0, -68.5), Vector3(-37.5, 0, -82.0)
 	]
 	for b_idx in boar_thickets.size():

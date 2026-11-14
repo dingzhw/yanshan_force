@@ -1,0 +1,159 @@
+{
+  "output": "game/assets/slice/v062_bamboo_cave.glb",
+  "total_triangles": 7648,
+  "assets": {
+    "bamboo_maze_gate": {
+      "triangles": 416,
+      "godot_bounds_m": {
+        "x": [
+          -2.536,
+          2.537
+        ],
+        "y": [
+          -0.617,
+          4.0
+        ],
+        "z": [
+          -0.51,
+          0.723
+        ]
+      }
+    },
+    "karst_monolith_a": {
+      "triangles": 460,
+      "godot_bounds_m": {
+        "x": [
+          -1.311,
+          1.313
+        ],
+        "y": [
+          -0.595,
+          3.577
+        ],
+        "z": [
+          -0.531,
+          0.554
+        ]
+      }
+    },
+    "karst_monolith_b": {
+      "triangles": 380,
+      "godot_bounds_m": {
+        "x": [
+          -1.326,
+          1.192
+        ],
+        "y": [
+          -0.485,
+          3.769
+        ],
+        "z": [
+          -0.488,
+          0.544
+        ]
+      }
+    },
+    "karst_crouch_arch": {
+      "triangles": 496,
+      "godot_bounds_m": {
+        "x": [
+          -1.502,
+          1.509
+        ],
+        "y": [
+          -0.522,
+          3.516
+        ],
+        "z": [
+          -0.575,
+          0.675
+        ]
+      }
+    },
+    "stone_maze_lantern": {
+      "triangles": 256,
+      "godot_bounds_m": {
+        "x": [
+          -0.346,
+          0.346
+        ],
+        "y": [
+          -0.38,
+          1.823
+        ],
+        "z": [
+          -0.4,
+          0.4
+        ]
+      }
+    },
+    "stone_sundial_pedestal": {
+      "triangles": 216,
+      "godot_bounds_m": {
+        "x": [
+          -0.56,
+          0.56
+        ],
+        "y": [
+          -0.35,
+          1.323
+        ],
+        "z": [
+          -0.56,
+          0.56
+        ]
+      }
+    },
+    "cliff_moya_stele": {
+      "triangles": 338,
+      "godot_bounds_m": {
+        "x": [
+          -0.29,
+          1.154
+        ],
+        "y": [
+          -0.554,
+          3.873
+        ],
+        "z": [
+          -1.462,
+          1.514
+        ]
+      }
+    },
+    "yanxia_cave_complex": {
+      "triangles": 4286,
+      "godot_bounds_m": {
+        "x": [
+          -7.156,
+          6.983
+        ],
+        "y": [
+          -1.375,
+          6.801
+        ],
+        "z": [
+          -7.416,
+          7.254
+        ]
+      }
+    },
+    "ancestral_hearth_relics": {
+      "triangles": 800,
+      "godot_bounds_m": {
+        "x": [
+          -1.41,
+          1.409
+        ],
+        "y": [
+          -0.1,
+          1.115
+        ],
+        "z": [
+          -0.83,
+          0.78
+        ]
+      }
+    }
+  }
+}

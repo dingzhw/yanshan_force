@@ -287,5 +287,59 @@
       "reward_value": 290,
       "reward_rarity": 5
     }
-  ]
+  ],
+  "heritage_pools": {
+    "cliff_inscription": {
+      "title": "迷踪竹石阵 · 摩崖石刻《竹石清音》",
+      "tts": "Walk through the bamboo paths, or crouch under the low stone arch to reach the ancient cave!",
+      "question": "石壁朱砂摩崖镌刻：「瘦石穿云立，翠篁引风吟。曲径通幽洞，清泉洗凡心。」\n小注附双语寻踪口诀：\"Walk through the bamboo paths, or crouch under the low stone arch to reach the ancient cave!\"\n石刻提示如何穿过迷踪竹石阵前往烟霞古洞？",
+      "options": [
+        "可循翠竹幽径绕行，或在阵心矮石拱处按 [C] 蹲伏潜行直通古洞",
+        "必须走出竹栏围墙到山下稻田绕一圈",
+        "原地不动等待山石自己移开"
+      ],
+      "answer": 0,
+      "explanation": "摩崖拓读完成！诚庄先人依山中太湖瘦石与翠竹布成竹石奇阵，北端即通千年古迹【烟霞古洞】（已标亮雷达秘匣定位）。",
+      "source": "烟山秘史卷一 · 竹石清音摩崖 / 英语方位 under the low stone arch",
+      "reward_score": 25,
+      "reward_title": "竹海古玉残片",
+      "reward_value": 155,
+      "reward_rarity": 4,
+      "reveal_key": "yanxia_cave"
+    },
+    "cave_mural": {
+      "title": "烟霞古洞 · 先民矿物壁画《烟山先民耕读图》",
+      "tts": "Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.",
+      "question": "西壁以朱砂、石青、石绿绘有《烟山先民耕读图》，东壁《烟霞古洞志》载：「昔诚庄先民辟山畴，见暮霭竹烟常绕石壁，遂名此山曰烟山。」\n\"Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.\"\n诚庄先人当年为何将这座江南小山命名为「烟山」？",
+      "options": [
+        "因傍晚暮霭云霞与竹林山烟常年缭绕青石崖壁，故名「烟山」",
+        "因为山顶每天都在燃放彩色烟花",
+        "因为整座山寸草不生、没有竹林与溪水"
+      ],
+      "answer": 0,
+      "explanation": "品读《耕读图》与《古洞志》完成！千百年前诚庄先民白日采茶耕田、入夜于洞中挑灯读书，烟山文脉由此绵延至今。",
+      "source": "烟山秘史卷二 · 烟霞古洞矿物壁画与古洞志 / 英语过去时叙事",
+      "reward_score": 30,
+      "reward_title": "烟霞丹青残拓",
+      "reward_value": 175,
+      "reward_rarity": 4
+    },
+    "cave_hearth": {
+      "title": "烟霞古洞内室 · 一线天寒潭与先人山居遗迹",
+      "tts": "Clear spring water flows under the skylight. Take a sip of warm tea and keep exploring!",
+      "question": "穹顶「一线天光」斜映碧色寒潭，青石圆桌上留有先民手书竹简、越窑青瓷茶盏与石砌茶灶余温。\n竹简尾篇写道：\"Clear spring water flows under the skylight. Take a sip of warm tea and keep exploring!\"\n内室遗迹展现了烟山先人怎样的山居雅趣？",
+      "options": [
+        "掬寒潭清泉以石灶煮茗，在一线天光与松油灯下展读竹简",
+        "在幽深溶洞里建造现代重型机械车间",
+        "将山泉全部截断不让溪水流入诚庄水田"
+      ],
+      "answer": 0,
+      "explanation": "细品寒潭清泉与先人竹简完成！饮一口温热山泉清茶，顿觉神清气爽（生命 +20 · 护盾 +15），并获赠先民遗珍！",
+      "source": "烟山秘史卷三 · 洞中寒潭茶灶与先民竹简 / 英语祈使句与自然词汇",
+      "reward_score": 35,
+      "reward_title": "烟山先民竹简",
+      "reward_value": 340,
+      "reward_rarity": 5
+    }
+  }
 }

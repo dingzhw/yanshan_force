@@ -44,12 +44,14 @@ const LOOT_TABLE = {
 	4: [
 		{"title": "无人机核心芯片", "value": 145, "rarity": 4},
 		{"title": "竹海古玉残片", "value": 155, "rarity": 4},
-		{"title": "军用黑匣子", "value": 165, "rarity": 4}
+		{"title": "军用黑匣子", "value": 165, "rarity": 4},
+		{"title": "烟霞丹青残拓", "value": 175, "rarity": 4}
 	],
 	5: [
 		{"title": "烟山古铜虎符", "value": 260, "rarity": 5},
 		{"title": "特级金质勋章", "value": 290, "rarity": 5},
 		{"title": "量子词典原型机", "value": 320, "rarity": 5},
+		{"title": "烟山先民竹简", "value": 340, "rarity": 5},
 		{"title": "烟山统领黄金核心", "value": 380, "rarity": 5}
 	]
 }

@@ -59,6 +59,12 @@ func _draw():
 	for at in [game.Layout.POEM, game.Layout.MATH, game.Layout.CLUE]:
 		draw_circle(point(at), 3.0, Color("e0c991"), false, 1.4)
 
+	# Bamboo-Stone Labyrinth footprint & Yanxia Ancient Cavern vault marker
+	var maze_tl := point(Vector3(-48.1, 0, -57.5))
+	draw_rect(Rect2(maze_tl, Vector2(13.0, 21.0) * 0.88), Color(0.56, 0.82, 0.68, 0.34), false, 1.1)
+	var cave_p := point(game.Layout.YANXIA_CAVE_CENTER)
+	draw_arc(cave_p, 4.8, PI, TAU, 14, Color(0.68, 0.92, 0.84, 0.62), 1.6, true)
+
 	if is_instance_valid(game.combat) and game.combat.in_field():
 		for z_idx in game.Layout.COMBAT_ZONES.size():
 			var z_pos = point(game.Layout.COMBAT_ZONES[z_idx].at)
@@ -96,6 +102,9 @@ func _draw():
 				draw_circle(ep, 3.4, Color("5f7d73") if done else Color("ffd15c"))
 			elif eid.begins_with("intel_"):
 				draw_rect(Rect2(ep - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), Color("5f7d73") if done else Color("8ef0c8"))
+			elif eid in ["cliff_inscription", "cave_mural", "cave_hearth"]:
+				var hc := Color("5f7d73") if done else Color("f0c878")
+				draw_colored_polygon(PackedVector2Array([ep + Vector2(0, -3.0), ep + Vector2(3.0, 0), ep + Vector2(0, 3.0), ep + Vector2(-3.0, 0)]), hc)
 
 	for sup in game.pickup_nodes:
 		if sup.visible and _is_discovered(sup):
