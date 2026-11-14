@@ -1,0 +1,107 @@
+{
+  "animal_boar": {
+    "file": "game/assets/slice/wildlife/animal_boar.glb",
+    "bytes": 400728,
+    "triangles": 1450,
+    "bones": 26,
+    "animations": [
+      "Idle",
+      "Run",
+      "Walk",
+      "Gore"
+    ]
+  },
+  "animal_fox": {
+    "file": "game/assets/slice/wildlife/animal_fox.glb",
+    "bytes": 384660,
+    "triangles": 1420,
+    "bones": 26,
+    "animations": [
+      "Idle",
+      "Run",
+      "Walk"
+    ]
+  },
+  "animal_rabbit": {
+    "file": "game/assets/slice/wildlife/animal_rabbit.glb",
+    "bytes": 340628,
+    "triangles": 1320,
+    "bones": 26,
+    "animations": [
+      "Idle",
+      "Run",
+      "Walk"
+    ]
+  },
+  "animal_squirrel": {
+    "file": "game/assets/slice/wildlife/animal_squirrel.glb",
+    "bytes": 64880,
+    "triangles": 960,
+    "bones": 10,
+    "animations": [
+      "Idle",
+      "Run",
+      "Climb"
+    ]
+  },
+  "animal_bird": {
+    "file": "game/assets/slice/wildlife/animal_bird.glb",
+    "bytes": 303824,
+    "triangles": 1280,
+    "bones": 19,
+    "animations": [
+      "Idle",
+      "Run",
+      "Walk",
+      "Fly"
+    ]
+  },
+  "animal_egret": {
+    "file": "game/assets/slice/wildlife/animal_egret.glb",
+    "bytes": 562260,
+    "triangles": 1520,
+    "bones": 80,
+    "animations": [
+      "Fly",
+      "Idle",
+      "Run",
+      "Walk",
+      "Glide"
+    ]
+  },
+  "animal_fish": {
+    "file": "game/assets/slice/wildlife/animal_fish.glb",
+    "bytes": 303604,
+    "triangles": 1320,
+    "bones": 14,
+    "animations": [
+      "Idle",
+      "Swim",
+      "Swim fast"
+    ]
+  },
+  "animal_crab": {
+    "file": "game/assets/slice/wildlife/animal_crab.glb",
+    "bytes": 470080,
+    "triangles": 1320,
+    "bones": 37,
+    "animations": [
+      "Idle",
+      "Run",
+      "Walk",
+      "Walk Sideways"
+    ]
+  },
+  "animal_shrimp": {
+    "file": "game/assets/slice/wildlife/animal_shrimp.glb",
+    "bytes": 530424,
+    "triangles": 1250,
+    "bones": 58,
+    "animations": [
+      "Idle",
+      "Swim",
+      "Swim fast",
+      "Walk"
+    ]
+  }
+}

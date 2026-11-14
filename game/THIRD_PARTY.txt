@@ -38,4 +38,6 @@ Jiangnan nature, creek & open-community wildlife v0.6.1 additions (CC0 + CC BY 4
   * Dimitrios Savva & Dario Barresi, Bark Willow (https://polyhaven.com/a/bark_willow)
   * Rob Tuytel & Rico Cilliers, River Small Rocks (https://polyhaven.com/a/river_small_rocks)
 - Local Blender 4.5 botanical trees (tree_camphor, tree_willow, tree_maple_tallow), segmented Moso bamboo (bamboo_culm_single, bamboo_clump), sculpted woodland squirrel (animal_squirrel), alpha-cutout leaf bough PNGs (tools/generate_v061_textures.py), and wildlife SFX (boar_charge.wav, bird_flap.wav via tools/generate_sfx.py).
+Rigged wildlife skeletal animations v0.6.1.1 additions (CC0 + CC BY 4.0):
+- Per-species skeletal rigged GLB exports in assets/slice/wildlife/ (animal_boar, animal_fox, animal_rabbit, animal_bird, animal_egret, animal_fish, animal_crab, animal_shrimp) adapted from Lucas Martinic / Polyfork CC BY 4.0 armatures (licenses/CC-BY-4.0.txt) with custom gore/glide clips, skinned ivory boar tusks, snowy egret plumage, and jade river-shrimp vertex colors, plus a 10-bone custom Blender 4.5 armature & Idle/Run/Climb clips on animal_squirrel.glb (tools/build_v0611_wildlife_rigs.py).
 Vocabulary is transcribed from the user's local Jiangsu 2026 Grade 5 first-semester English textbook appendix, printed pages 110-116.

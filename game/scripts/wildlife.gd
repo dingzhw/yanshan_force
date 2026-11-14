@@ -1,7 +1,7 @@
 extends Node3D
-## Living Yanshan Mountain ecosystem (8 community/Blender species: rabbits, squirrels, bush-ambush wild boars,
-## red foxes, tree-perching birds & creek egrets, brook koi, creek crabs, and freshwater river shrimp)
-## plus 8 interactive English botanical study specimens.
+## Living Yanshan Mountain ecosystem with true skeletal animations (Skeleton3D + AnimationPlayer),
+## tree-climbing squirrels, counter-charging wild boars (15 HP damage), flapping/gliding egrets & songbirds,
+## brook koi, creek crabs, freshwater shrimp, and 8 interactive [F] English botanical specimens.
 
 var game
 var animals: Array = []
@@ -11,20 +11,24 @@ var discovered_species: Dictionary = {}
 var collected_flora: Dictionary = {}
 var hit_fx: Array = []
 var flee_sfx_cooldown := 0.0
+var frozen_for_capture := false
 var rng := RandomNumberGenerator.new()
+var critter_mat_cache: Dictionary = {}
 
 const HIT_LAYER := 16  # Dedicated bit 4 (isolated from player mask 1|4 and enemy mask 7)
 const TOTAL_SPECIES := 8
+const BOAR_CHARGE_DAMAGE := 15
+const BOAR_CHARGE_CHANCE := 0.48
 
 const FLORA_SPOTS := [
-	{"id": "flora_camp_orchid", "pos": Vector3(13.5, 0, 5.2), "kind": "orchid", "en": "Wild Orchid", "zh": "溪畔幽兰", "tts": "wild orchid", "sentence": "Wild orchids grow beside the clear mountain stream.", "heal": 6},
-	{"id": "flora_bridge_lily", "pos": Vector3(15.2, 0, -21.5), "kind": "lily", "en": "Water Lily", "zh": "石桥睡莲", "tts": "water lily", "sentence": "Green water lilies float quietly near the stone bridge.", "heal": 5},
-	{"id": "flora_forest_mushroom", "pos": Vector3(-19.5, 0, -31.5), "kind": "mushroom", "en": "Red Mushroom", "zh": "红伞山菌", "tts": "red mushroom", "sentence": "Bright red mushrooms grow under tall shady camphor trees.", "heal": 5},
-	{"id": "flora_west_lavender", "pos": Vector3(-24.8, 0, -14.2), "kind": "purple_flower", "en": "Mountain Lavender", "zh": "山坡紫花", "tts": "purple flower", "sentence": "Purple flowers bloom beside the green cargo crates.", "heal": 5},
-	{"id": "flora_overlook_berry", "pos": Vector3(23.8, 0, -26.5), "kind": "berry_fern", "en": "Mountain Berry", "zh": "朱果奇草", "tts": "mountain berry", "sentence": "Curious fern berries shine orange on the east ridge.", "heal": 8},
-	{"id": "flora_cave_orchid", "pos": Vector3(-21.2, 0, -65.0), "kind": "orchid", "en": "Cave Orchid", "zh": "石窟夜光兰", "tts": "cave orchid", "sentence": "A glowing purple orchid blooms in front of the rock cave.", "heal": 8},
-	{"id": "flora_radio_goldflower", "pos": Vector3(24.5, 0, -49.5), "kind": "yellow_flower", "en": "Golden Marigold", "zh": "金盏野花", "tts": "yellow flower", "sentence": "Yellow flowers wave near the East Recon Radio.", "heal": 5},
-	{"id": "flora_bamboo_fern", "pos": Vector3(20.6, 0, -83.5), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 8}
+	{"id": "flora_camp_orchid", "pos": Vector3(13.5, 0, 5.2), "kind": "orchid", "en": "Wild Orchid", "zh": "溪畔幽兰", "tts": "wild orchid", "sentence": "Wild orchids grow beside the clear mountain stream.", "heal": 8},
+	{"id": "flora_bridge_lily", "pos": Vector3(15.2, 0, -21.5), "kind": "lily", "en": "Water Lily", "zh": "石桥睡莲", "tts": "water lily", "sentence": "Green water lilies float quietly near the stone bridge.", "heal": 6},
+	{"id": "flora_forest_mushroom", "pos": Vector3(-19.5, 0, -31.5), "kind": "mushroom", "en": "Red Mushroom", "zh": "红伞山菌", "tts": "red mushroom", "sentence": "Bright red mushrooms grow under tall shady camphor trees.", "heal": 7},
+	{"id": "flora_west_lavender", "pos": Vector3(-24.8, 0, -14.2), "kind": "purple_flower", "en": "Mountain Lavender", "zh": "山坡紫花", "tts": "purple flower", "sentence": "Purple flowers bloom beside the green cargo crates.", "heal": 6},
+	{"id": "flora_overlook_berry", "pos": Vector3(23.8, 0, -26.5), "kind": "berry_fern", "en": "Mountain Berry", "zh": "朱果奇草", "tts": "mountain berry", "sentence": "Curious fern berries shine orange on the east ridge.", "heal": 10},
+	{"id": "flora_cave_orchid", "pos": Vector3(-21.2, 0, -65.0), "kind": "orchid", "en": "Cave Orchid", "zh": "石窟夜光兰", "tts": "cave orchid", "sentence": "A glowing purple orchid blooms in front of the rock cave.", "heal": 10},
+	{"id": "flora_radio_goldflower", "pos": Vector3(24.5, 0, -49.5), "kind": "yellow_flower", "en": "Golden Marigold", "zh": "金盏野花", "tts": "yellow flower", "sentence": "Yellow flowers wave near the East Recon Radio.", "heal": 7},
+	{"id": "flora_bamboo_fern", "pos": Vector3(20.6, 0, -83.5), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 10}
 ]
 
 const HABITAT_ANIMALS := [
@@ -38,27 +42,27 @@ const HABITAT_ANIMALS := [
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-43.5, 0, 16.5)},
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(44.0, 0, -14.0)},
 
-	# 2. Red Squirrels (7 — woodland trunks, bamboo groves & perimeter slopes)
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-15.5, 0, -5.0)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-27.5, 0, -19.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(22.5, 0, -41.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(28.0, 0, -62.0)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-30.0, 0, -94.0)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(43.5, 0, 9.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-44.0, 0, -56.0)},
+	# 2. Red Squirrels (7 — foraging near camphor & maple tree trunks; climb straight up trees when startled!)
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-15.2, 0, -4.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(12.2, 0, -16.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-27.2, 0, -19.2)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(22.6, 0, -41.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(26.8, 0, -62.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-24.2, 0, -75.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(43.2, 0, 10.5)},
 
-	# 3. Bush-Ambush Wild Boars (5 — hidden in flowering azalea thickets on East/West slopes; burst out when approached!)
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-38.5, 0, 11.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(39.5, 0, 2.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-40.0, 0, -40.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(38.5, 0, -68.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-37.5, 0, -82.0)},
+	# 3. Bush-Ambush Wild Boars (5 — hidden in azalea thickets; sprint on 4 legs & may counter-charge when chased!)
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.5, 0, 9.5)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(34.5, 0, 1.5)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-33.5, 0, -38.5)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(33.5, 0, -66.5)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.0, 0, -82.0)},
 
 	# 4. Agile Red Foxes (5 — patrolling fence-side grassy slopes & bamboo edges)
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-20.0, 0, 20.5)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(44.5, 0, -28.0)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-44.5, 0, -22.0)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(43.5, 0, -88.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(42.5, 0, -28.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-42.5, 0, -22.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(42.5, 0, -88.0)},
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-16.0, 0, -106.0)},
 
 	# 5. Tree-Perching Songbirds & Creek Egrets (9 — perched on fence posts, tree branches & wading by creek)
@@ -81,14 +85,14 @@ const HABITAT_ANIMALS := [
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -56.0, "lane": 0.35},
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -84.0, "lane": -0.35},
 
-	# 7. Creek Rock Crabs (5 — scuttling along wet pebble shorelines)
+	# 7. Creek Rock Crabs (5 — scuttling sideways with 8 jointed legs along wet pebble shorelines)
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 18.2, "bank_side": -1.48},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 9.2, "bank_side": 1.50},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -20.5, "bank_side": 1.52},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -43.5, "bank_side": -1.48},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -76.0, "bank_side": 1.50},
 
-	# 8. Freshwater Jade River Shrimp (6 — hovering over pebbles & tail-flipping backward when startled!)
+	# 8. Freshwater Jade River Shrimp (6 — hovering & tail-flipping backward when startled!)
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 20.0, "lane": 0.45},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 14.2, "lane": -0.48},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -8.5, "lane": 0.42},
@@ -105,7 +109,7 @@ func setup(g):
 	_spawn_flora_spots()
 	reset()
 
-func _polish_critter_materials(node: Node3D):
+func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 	if node == null:
 		return
 	var targets: Array = []
@@ -115,26 +119,70 @@ func _polish_critter_materials(node: Node3D):
 	for t in targets:
 		var mi := t as MeshInstance3D
 		if mi and mi.mesh:
-			var dup_mesh: Mesh = mi.mesh.duplicate()
-			for s in dup_mesh.get_surface_count():
-				var fmt: int = int(dup_mesh.surface_get_format(s))
-				var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
-				var mat: Material = dup_mesh.surface_get_material(s)
-				var bmat: BaseMaterial3D = null
-				if mat is BaseMaterial3D:
-					bmat = mat.duplicate() as BaseMaterial3D
-				elif has_vcol:
-					bmat = StandardMaterial3D.new()
-					bmat.roughness = 0.86
+			for s in mi.mesh.get_surface_count():
+				var mkey := "%s::%d" % [cache_key if cache_key != "" else str(mi.mesh.get_rid()), s]
+				var bmat: BaseMaterial3D = critter_mat_cache.get(mkey, null)
+				if bmat == null:
+					var fmt: int = int(mi.mesh.surface_get_format(s))
+					var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
+					var mat: Material = mi.mesh.surface_get_material(s)
+					if mat is BaseMaterial3D:
+						bmat = mat.duplicate() as BaseMaterial3D
+					elif has_vcol:
+						bmat = StandardMaterial3D.new()
+						bmat.roughness = 0.84
+					if bmat != null:
+						if has_vcol:
+							bmat.vertex_color_use_as_albedo = true
+						bmat.metallic = 0.0
+						bmat.metallic_specular = 0.12
+						critter_mat_cache[mkey] = bmat
 				if bmat != null:
-					if has_vcol:
-						bmat.vertex_color_use_as_albedo = true
-					bmat.metallic = 0.0
-					bmat.metallic_specular = 0.12
-					dup_mesh.surface_set_material(s, bmat)
-			mi.mesh = dup_mesh
+					mi.set_surface_override_material(s, bmat)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.visibility_range_end = 74.0
+			mi.extra_cull_margin = 1.2
+			mi.visibility_range_end = 78.0
+
+func _configure_anim_loops(anim: AnimationPlayer):
+	if anim == null:
+		return
+	for lib_name in anim.get_animation_library_list():
+		var lib: AnimationLibrary = anim.get_animation_library(lib_name)
+		if lib == null:
+			continue
+		for anim_name in lib.get_animation_list():
+			var a_res: Animation = lib.get_animation(anim_name)
+			if a_res != null:
+				a_res.loop_mode = Animation.LOOP_LINEAR
+
+func _play_critter_anim(anim: AnimationPlayer, candidates: Array, speed_scale: float = 1.0, phase_seed: float = -1.0):
+	if anim == null:
+		return
+	var chosen := ""
+	var anim_list := anim.get_animation_list()
+	for cand in candidates:
+		var c_str := str(cand)
+		if c_str in anim_list:
+			chosen = c_str
+			break
+		# Fallback case-insensitive match
+		for existing in anim_list:
+			if str(existing).to_lower() == c_str.to_lower():
+				chosen = str(existing)
+				break
+		if chosen != "":
+			break
+	if chosen == "" and anim_list.size() > 0:
+		chosen = str(anim_list[0])
+	if chosen == "":
+		return
+	anim.speed_scale = speed_scale
+	if anim.current_animation != chosen or not anim.is_playing():
+		anim.play(chosen, 0.18)
+		if phase_seed >= 0.0:
+			var a_res: Animation = anim.get_animation(chosen)
+			if a_res != null and a_res.length > 0.05:
+				anim.seek(fmod(phase_seed, 1.0) * a_res.length, true)
 
 func _instantiate_bundle_mesh(glb_path: String, mesh_name: String) -> Node3D:
 	if ResourceLoader.exists(glb_path):
@@ -147,13 +195,22 @@ func _instantiate_bundle_mesh(glb_path: String, mesh_name: String) -> Node3D:
 				sub.get_parent().remove_child(sub)
 			sub.owner = null
 			sub.position = Vector3.ZERO
-			_polish_critter_materials(sub)
+			_polish_critter_materials(sub, glb_path + "::" + mesh_name)
 			inst.queue_free()
 			return sub
 		inst.queue_free()
 	return null
 
 func _instantiate_animal_mesh(mesh_name: String) -> Node3D:
+	var rig_path := "res://assets/slice/wildlife/%s.glb" % mesh_name
+	if ResourceLoader.exists(rig_path):
+		if not game.scene_cache.has(rig_path):
+			game.scene_cache[rig_path] = load(rig_path)
+		var inst: Node3D = game.scene_cache[rig_path].instantiate()
+		_polish_critter_materials(inst, rig_path)
+		var anim := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		_configure_anim_loops(anim)
+		return inst
 	var n := _instantiate_bundle_mesh("res://assets/slice/v061_nature_wildlife.glb", mesh_name)
 	if n != null:
 		return n
@@ -165,10 +222,10 @@ func _instantiate_eco_mesh(mesh_name: String) -> Node3D:
 func _species_scale(kind: String, mesh_name: String) -> float:
 	match kind:
 		"rabbit": return 1.08
-		"squirrel": return 0.96
-		"boar": return 1.14
+		"squirrel": return 0.98
+		"boar": return 1.15
 		"fox": return 1.12
-		"bird": return 1.18 if mesh_name == "animal_egret" else 0.98
+		"bird": return 1.18 if mesh_name == "animal_egret" else 1.02
 		"fish": return 1.05
 		"crab": return 0.94
 		"shrimp": return 0.80
@@ -192,6 +249,7 @@ func _spawn_wildlife():
 		var sc := _species_scale(kind, mesh_name)
 		visual.scale = Vector3.ONE * sc
 		root.add_child(visual)
+		var anim := visual.find_child("AnimationPlayer", true, false) as AnimationPlayer
 
 		var area := Area3D.new()
 		area.collision_layer = HIT_LAYER
@@ -209,10 +267,11 @@ func _spawn_wildlife():
 
 		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab"] else (0.94 if kind == "boar" else 0.76)
 		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 20, Color("f2f7d4"))
-		lbl.visibility_range_end = 10.5
+		lbl.visibility_range_end = 11.5
 
 		var home := _initial_pos(spec)
 		var init_state := "ambush" if kind == "boar" else "idle"
+		var phase0 := rng.randf_range(0.0, TAU)
 		var entry := {
 			"idx": idx,
 			"kind": kind,
@@ -222,8 +281,10 @@ func _spawn_wildlife():
 			"tts": str(spec.tts),
 			"root": root,
 			"visual": visual,
+			"anim": anim,
 			"area": area,
 			"label": lbl,
+			"base_label": "%s · %s" % [spec.en, spec.zh],
 			"home": home,
 			"perch_h": float(spec.get("perch_h", 0.0)),
 			"stream_z": float(spec.get("stream_z", 0.0)),
@@ -231,23 +292,32 @@ func _spawn_wildlife():
 			"bank_side": float(spec.get("bank_side", -1.5)),
 			"pos": home,
 			"dir": Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0)).normalized(),
-			"state": init_state,  # idle, ambush, flee, fly, downed, hidden
+			"state": init_state,  # idle, ambush, flee, charge, climb_approach, climb_up, perched_tree, fly, downed, hidden
 			"timer": 0.0,
-			"phase": rng.randf_range(0.0, TAU),
+			"phase": phase0,
 			"wander_cd": rng.randf_range(0.8, 3.2),
 			"visual_scale": sc,
-			"fly_alt": 0.0
+			"fly_alt": 0.0,
+			"tree_trunk": Vector3.ZERO,
+			"tree_radius": 0.32,
+			"climb_h": 0.0,
+			"climb_target_h": 3.15,
+			"climb_angle": 0.0,
+			"charge_cd": 0.0,
+			"chase_accum": 0.0
 		}
+		_play_critter_anim(anim, ["Idle", "Swim"], 1.0, phase0 / TAU)
 		animals.append(entry)
 
 func _spawn_sky_egrets():
-	# Ambient flock of 5 white Jiangnan egrets soaring peacefully over the creek & southern rice valley
+	# Ambient flock of 6 snowy Jiangnan egrets flapping & gliding gracefully over the creek & rice valley
 	var orbit_specs := [
-		{"center": Vector3(18.0, 15.5, 18.0), "rx": 18.0, "rz": 14.0, "spd": 0.34, "phase": 0.0},
-		{"center": Vector3(20.5, 17.2, 22.0), "rx": 20.0, "rz": 15.5, "spd": 0.34, "phase": 0.55},
-		{"center": Vector3(16.0, 18.8, 42.0), "rx": 26.0, "rz": 19.0, "spd": 0.28, "phase": 1.85},
-		{"center": Vector3(-12.0, 19.5, -18.0), "rx": 24.0, "rz": 18.0, "spd": 0.30, "phase": 3.10},
-		{"center": Vector3(14.0, 22.0, -56.0), "rx": 22.0, "rz": 17.0, "spd": 0.31, "phase": 4.45}
+		{"center": Vector3(16.5, 11.8, 16.5), "rx": 17.5, "rz": 13.5, "spd": 0.36, "phase": 0.0},
+		{"center": Vector3(20.0, 13.4, 21.5), "rx": 19.5, "rz": 15.0, "spd": 0.34, "phase": 0.62},
+		{"center": Vector3(15.5, 15.2, 38.0), "rx": 24.0, "rz": 18.0, "spd": 0.30, "phase": 1.85},
+		{"center": Vector3(-11.0, 15.8, -16.0), "rx": 22.0, "rz": 16.5, "spd": 0.32, "phase": 3.10},
+		{"center": Vector3(16.0, 16.5, -36.0), "rx": 20.0, "rz": 15.5, "spd": 0.33, "phase": 4.15},
+		{"center": Vector3(14.0, 18.5, -62.0), "rx": 21.0, "rz": 16.0, "spd": 0.31, "phase": 5.20}
 	]
 	for i in orbit_specs.size():
 		var sp: Dictionary = orbit_specs[i]
@@ -255,21 +325,27 @@ func _spawn_sky_egrets():
 		holder.name = "SkyEgret_%d" % i
 		add_child(holder)
 		var vis := _instantiate_animal_mesh("animal_egret")
+		var anim: AnimationPlayer = null
 		if vis != null:
-			vis.scale = Vector3.ONE * 1.42
+			vis.scale = Vector3.ONE * 1.48
 			if vis is MeshInstance3D:
 				(vis as MeshInstance3D).visibility_range_end = 0.0
 			for ch in vis.find_children("*", "MeshInstance3D", true, false):
 				(ch as MeshInstance3D).visibility_range_end = 0.0
+			anim = vis.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			_play_critter_anim(anim, ["Fly"], 1.32, float(i) * 0.19)
 			holder.add_child(vis)
 		sky_egrets.append({
 			"node": holder,
 			"vis": vis,
+			"anim": anim,
 			"center": sp.center,
 			"rx": float(sp.rx),
 			"rz": float(sp.rz),
 			"spd": float(sp.spd),
-			"angle": float(sp.phase)
+			"angle": float(sp.phase),
+			"cycle_t": float(i) * 0.95,
+			"gliding": false
 		})
 
 func _initial_pos(spec: Dictionary) -> Vector3:
@@ -323,7 +399,7 @@ func _spawn_flora_spots():
 		root.add_child(ring)
 		root.set_meta("ring_node", ring)
 
-		var lbl: Label3D = game._label3d(root, "%s · %s [E]" % [spot.en, spot.zh], Vector3(0, 0.88, 0), 18, Color("d4ffdc"))
+		var lbl: Label3D = game._label3d(root, "%s · %s [F]" % [spot.en, spot.zh], Vector3(0, 0.88, 0), 18, Color("d4ffdc"))
 		lbl.visibility_range_end = 13.0
 		root.set_meta("label_node", lbl)
 		flora_nodes.append(root)
@@ -384,6 +460,9 @@ func reset():
 		a.state = "ambush" if a.kind == "boar" else "idle"
 		a.timer = 0.0
 		a.fly_alt = 0.0
+		a.climb_h = 0.0
+		a.charge_cd = 0.0
+		a.chase_accum = 0.0
 		a.pos = _initial_pos(HABITAT_ANIMALS[a.idx])
 		a.dir = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0)).normalized()
 		a.root.visible = true
@@ -392,16 +471,21 @@ func reset():
 		a.visual.rotation = Vector3.ZERO
 		a.visual.position = Vector3(0.0, -0.14 if a.state == "ambush" else 0.0, 0.0)
 		a.visual.scale = Vector3.ONE * a.visual_scale
+		a.label.text = a.base_label
+		a.label.modulate = Color("f2f7d4")
 		a.label.visible = (a.state != "ambush")
 		a.area.collision_layer = HIT_LAYER
+		_play_critter_anim(a.anim, ["Swim"] if a.kind in ["fish", "shrimp"] else ["Idle"], 1.0, float(a.idx) * 0.13)
 	for f in flora_nodes:
 		var lbl: Label3D = f.get_meta("label_node")
-		lbl.text = "%s · %s [E]" % [f.get_meta("en"), f.get_meta("zh")]
+		lbl.text = "%s · %s [F]" % [f.get_meta("en"), f.get_meta("zh")]
 		lbl.modulate = Color.WHITE
 		var ring: MeshInstance3D = f.get_meta("ring_node")
 		ring.visible = true
 
 func update(delta: float):
+	if frozen_for_capture:
+		return
 	flee_sfx_cooldown = maxf(0.0, flee_sfx_cooldown - delta)
 	_update_fx(delta)
 	_update_sky_egrets(delta)
@@ -409,20 +493,25 @@ func update(delta: float):
 		return
 	var ppos: Vector3 = game.player.position
 	for a in animals:
+		a.charge_cd = maxf(0.0, float(a.charge_cd) - delta)
 		match a.state:
 			"hidden":
 				a.timer -= delta
 				if a.timer <= 0.0:
 					a.state = "ambush" if a.kind == "boar" else "idle"
 					a.fly_alt = 0.0
+					a.climb_h = 0.0
 					a.pos = _initial_pos(HABITAT_ANIMALS[a.idx])
 					a.root.position = a.pos
 					a.visual.rotation = Vector3.ZERO
 					a.visual.position = Vector3(0.0, -0.14 if a.state == "ambush" else 0.0, 0.0)
 					a.visual.scale = Vector3.ONE * a.visual_scale
+					a.label.text = a.base_label
+					a.label.modulate = Color("f2f7d4")
 					a.label.visible = (a.state != "ambush")
 					a.area.collision_layer = HIT_LAYER
 					a.root.visible = true
+					_play_critter_anim(a.anim, ["Idle"], 1.0)
 			"downed":
 				a.timer -= delta
 				var fade := clampf(a.timer / 0.65, 0.02, 1.0)
@@ -433,49 +522,82 @@ func update(delta: float):
 					a.timer = 24.0
 					a.root.visible = false
 					a.area.collision_layer = 0
-			"ambush", "idle", "flee", "fly":
+			_:
 				_step_creature(a, delta, ppos)
 
 func _update_sky_egrets(delta: float):
 	for eg in sky_egrets:
 		eg.angle += float(eg.spd) * delta
+		eg.cycle_t = fmod(float(eg.cycle_t) + delta, 5.8)
+		var want_glide := float(eg.cycle_t) > 3.5
+		if want_glide != bool(eg.gliding):
+			eg.gliding = want_glide
+			_play_critter_anim(eg.anim, ["Glide", "Fly"] if want_glide else ["Fly"], 0.92 if want_glide else 1.35)
 		var ang: float = eg.angle
 		var c: Vector3 = eg.center
 		var nx := c.x + cos(ang) * float(eg.rx)
 		var nz := c.z + sin(ang) * float(eg.rz)
-		var ny := c.y + sin(ang * 2.0) * 1.1
+		var ny := c.y + sin(ang * 2.0) * 1.15
 		var tx := -sin(ang) * float(eg.rx)
 		var tz := cos(ang) * float(eg.rz)
 		var n: Node3D = eg.node
 		n.position = Vector3(nx, ny, nz)
 		n.rotation.y = atan2(-tx, -tz)
 		if eg.vis != null:
-			(eg.vis as Node3D).rotation.z = 0.22 + sin(ang * 9.0) * 0.14
-			(eg.vis as Node3D).position.y = sin(ang * 9.0) * 0.08
+			# Smooth banked turn roll + subtle wingbeat lift
+			var flap_lift := 0.0 if want_glide else sin(float(eg.cycle_t) * 11.0) * 0.06
+			(eg.vis as Node3D).rotation.z = 0.20 + sin(ang) * 0.08
+			(eg.vis as Node3D).position.y = flap_lift
 
 func _step_creature(a: Dictionary, delta: float, ppos: Vector3):
 	var kind: String = a.kind
 	var pos: Vector3 = a.pos
 	var dist := Vector2(pos.x - ppos.x, pos.z - ppos.z).length()
-	if dist > 54.0 and a.state in ["idle", "ambush"]:
+	if dist > 60.0 and a.state in ["idle", "ambush"]:
+		if a.anim != null:
+			(a.anim as AnimationPlayer).speed_scale = 0.0
 		return
 
 	if kind == "boar" and a.state == "ambush":
 		a.phase += delta * 2.5
 		a.visual.position.y = -0.14 + sin(a.phase) * 0.015
-		if dist < 11.2:
+		_play_critter_anim(a.anim, ["Idle"], 0.7)
+		if dist < 11.5:
 			_trigger_boar_ambush(a, ppos, true)
 		return
 
-	var flee_r := 8.4 if kind in ["rabbit", "squirrel", "fox", "bird"] else (6.5 if kind == "boar" else 4.8)
+	if kind == "squirrel" and a.state in ["climb_approach", "climb_up", "perched_tree"]:
+		_move_climbing_squirrel(a, delta, ppos, dist)
+		return
+
+	if kind == "boar" and a.state == "charge":
+		_move_charging_boar(a, delta, ppos, dist)
+		return
+
+	var flee_r := 8.6 if kind in ["rabbit", "squirrel", "fox", "bird"] else (7.2 if kind == "boar" else 4.8)
 	if dist < flee_r and a.state == "idle":
 		_start_flee(a, ppos, true)
+		if a.state in ["climb_approach", "charge"]:
+			return
+
+	# Wild boar counter-charge when chased closely by the player!
+	if kind == "boar" and a.state == "flee" and float(a.charge_cd) <= 0.0 and dist < 8.8:
+		a.chase_accum = float(a.chase_accum) + delta
+		if float(a.chase_accum) >= 0.85:
+			a.chase_accum = 0.0
+			if rng.randf() < BOAR_CHARGE_CHANCE:
+				trigger_boar_charge(a)
+				return
+	else:
+		a.chase_accum = maxf(0.0, float(a.chase_accum) - delta * 0.5)
 
 	if a.state in ["flee", "fly"]:
 		a.timer -= delta
 		if a.timer <= 0.0 and dist > 14.0:
 			a.state = "idle"
 			a.fly_alt = 0.0
+			a.label.text = a.base_label
+			a.label.modulate = Color("f2f7d4")
 			a.wander_cd = rng.randf_range(0.8, 2.4)
 
 	a.phase += delta * (11.5 if a.state in ["flee", "fly"] else 4.2)
@@ -491,12 +613,195 @@ func _step_creature(a: Dictionary, delta: float, ppos: Vector3):
 		_:
 			_move_land_critter(a, delta, ppos)
 
-func _trigger_boar_ambush(a: Dictionary, ppos: Vector3, by_proximity: bool):
+func _find_nearest_tree_trunk(from_pos: Vector3, max_dist: float = 22.0) -> Dictionary:
+	if not is_instance_valid(game.landscape) or not ("tree_trunks" in game.landscape):
+		return {}
+	var trunks: Array = game.landscape.tree_trunks
+	var radii: Array = game.landscape.tree_trunk_radii
+	var best_d := max_dist
+	var best_idx := -1
+	for i in trunks.size():
+		var tp: Vector3 = trunks[i]
+		var d := Vector2(tp.x - from_pos.x, tp.z - from_pos.z).length()
+		if d < best_d:
+			best_d = d
+			best_idx = i
+	if best_idx < 0:
+		return {}
+	return {
+		"pos": trunks[best_idx],
+		"radius": float(radii[best_idx]) if best_idx < radii.size() else 0.32
+	}
+
+func start_squirrel_tree_climb(a: Dictionary) -> bool:
+	if a.kind != "squirrel":
+		return false
+	var tree_info := _find_nearest_tree_trunk(a.pos, 24.0)
+	if tree_info.is_empty():
+		return false
+	a.tree_trunk = tree_info.pos
+	a.tree_radius = float(tree_info.radius)
+	a.climb_h = 0.08
+	a.climb_target_h = rng.randf_range(2.85, 3.55)
+	var from_t := Vector2(a.pos.x - a.tree_trunk.x, a.pos.z - a.tree_trunk.z)
+	a.climb_angle = atan2(from_t.y, from_t.x) if from_t.length() > 0.05 else 0.0
+	a.state = "climb_approach"
+	a.timer = 6.5
+	return true
+
+func _move_climbing_squirrel(a: Dictionary, delta: float, ppos: Vector3, dist_player: float):
+	var tp: Vector3 = a.tree_trunk
+	var tr: float = float(a.tree_radius)
+	if a.state == "climb_approach":
+		var apos: Vector3 = a.pos
+		var bark_x := tp.x + cos(float(a.climb_angle)) * (tr + 0.06)
+		var bark_z := tp.z + sin(float(a.climb_angle)) * (tr + 0.06)
+		var to_bark := Vector3(bark_x - apos.x, 0.0, bark_z - apos.z)
+		var rem := to_bark.length()
+		if rem <= 0.22:
+			a.state = "climb_up"
+			a.pos = Vector3(bark_x, float(tp.y) + 0.12, bark_z)
+			a.climb_h = 0.12
+			return
+		var dir := to_bark / rem
+		a.dir = dir
+		var step := minf(rem, 7.6 * delta)
+		var nx: float = apos.x + dir.x * step
+		var nz: float = apos.z + dir.z * step
+		a.pos = Vector3(nx, float(game.terrain_height(nx, nz)), nz)
+		a.root.position = a.pos
+		a.root.rotation = Vector3(0.0, atan2(-dir.x, -dir.z), 0.0)
+		a.visual.position = Vector3.ZERO
+		a.visual.rotation = Vector3.ZERO
+		_play_critter_anim(a.anim, ["Run"], 1.85)
+		return
+
+	if a.state == "climb_up":
+		a.climb_h = float(a.climb_h) + 3.45 * delta
+		a.climb_angle = float(a.climb_angle) + 0.55 * delta
+		var ang := float(a.climb_angle)
+		var out_x := cos(ang)
+		var out_z := sin(ang)
+		var bx := tp.x + out_x * (tr + 0.05)
+		var bz := tp.z + out_z * (tr + 0.05)
+		var by := float(tp.y) + float(a.climb_h)
+		a.pos = Vector3(bx, by, bz)
+		a.root.position = a.pos
+		# Face inward toward trunk (-Z -> -out), pitch +86 deg around X so nose points UP (+Y) & paws hug bark!
+		a.root.rotation = Vector3(0.0, atan2(out_x, out_z), 0.0)
+		a.visual.position = Vector3.ZERO
+		a.visual.rotation = Vector3(PI * 0.48, 0.0, 0.0)
+		_play_critter_anim(a.anim, ["Climb", "Run"], 2.15)
+		if float(a.climb_h) >= float(a.climb_target_h):
+			a.state = "perched_tree"
+			a.timer = 7.5
+		return
+
+	if a.state == "perched_tree":
+		a.timer -= delta
+		a.phase += delta * 4.0
+		var ang := float(a.climb_angle)
+		var out_x := cos(ang)
+		var out_z := sin(ang)
+		a.pos = Vector3(tp.x + out_x * (tr + 0.06), float(tp.y) + float(a.climb_target_h), tp.z + out_z * (tr + 0.06))
+		a.root.position = a.pos
+		a.root.rotation = Vector3(0.0, atan2(out_x, out_z), 0.0)
+		a.visual.position = Vector3.ZERO
+		a.visual.rotation = Vector3(PI * 0.46, sin(a.phase * 0.8) * 0.18, 0.0)
+		_play_critter_anim(a.anim, ["Idle"], 1.2)
+		if a.timer <= 0.0 and dist_player > 15.5:
+			var gx := tp.x + out_x * (tr + 0.45)
+			var gz := tp.z + out_z * (tr + 0.45)
+			a.pos = Vector3(gx, float(game.terrain_height(gx, gz)), gz)
+			a.root.position = a.pos
+			a.visual.rotation = Vector3.ZERO
+			a.state = "idle"
+			a.wander_cd = 1.5
+
+func trigger_boar_charge(a: Dictionary):
+	if a.kind != "boar" or not is_instance_valid(game.player):
+		return
+	var ppos: Vector3 = game.player.position
+	var to_p := Vector3(ppos.x - a.pos.x, 0.0, ppos.z - a.pos.z)
+	if to_p.length_squared() < 0.001:
+		to_p = Vector3(0.0, 0.0, -1.0)
+	a.dir = to_p.normalized()
+	a.state = "charge"
+	a.timer = 2.35
+	a.charge_cd = 7.5
+	a.chase_accum = 0.0
+	a.visual.position = Vector3.ZERO
+	a.visual.rotation = Vector3.ZERO
+	a.label.visible = true
+	a.label.text = "⚠ 小野猪冲撞 · %s!" % a.en
+	a.label.modulate = Color("ff8e72")
+	_play_critter_anim(a.anim, ["Gore", "Run"], 1.95)
+	game.play_sfx("boar_charge", -7)
+	game._notice("🐗 小野猪被逼急反身冲撞！快向两侧闪避或跳跃！", Color("ff9b73"))
+
+func _move_charging_boar(a: Dictionary, delta: float, ppos: Vector3, _dist_xz: float):
+	a.timer -= delta
+	var to_p := Vector3(ppos.x - a.pos.x, 0.0, ppos.z - a.pos.z)
+	if to_p.length() > 0.25:
+		a.dir = a.dir.lerp(to_p.normalized(), minf(delta * 5.2, 1.0)).normalized()
+	var charge_spd := 9.8
+	var nxt: Vector3 = a.pos + a.dir * charge_spd * delta
+	nxt.x = clampf(nxt.x, float(game.Layout.FENCE_MIN_X) + 1.6, float(game.Layout.FENCE_MAX_X) - 1.6)
+	nxt.z = clampf(nxt.z, float(game.Layout.FENCE_MIN_Z) + 1.6, float(game.Layout.FENCE_MAX_Z) - 1.6)
+	nxt.y = float(game.terrain_height(nxt.x, nxt.z))
+	a.pos = nxt
+	a.root.position = nxt
+	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
+	a.visual.position = Vector3.ZERO
+	a.visual.rotation = Vector3.ZERO
+	_play_critter_anim(a.anim, ["Gore", "Run"], 1.95)
+
+	var hit_dxz := Vector2(ppos.x - nxt.x, ppos.z - nxt.z).length()
+	var hit_dy := absf(ppos.y - nxt.y)
+	if hit_dxz <= 1.38 and hit_dy <= 1.18:
+		_resolve_boar_gore_impact(a, ppos)
+		return
+	if a.timer <= 0.0:
+		a.state = "flee"
+		a.timer = 3.2
+		a.label.text = a.base_label
+		a.label.modulate = Color("f2f7d4")
+
+func _resolve_boar_gore_impact(a: Dictionary, ppos: Vector3):
+	var push_dir := Vector3(ppos.x - a.pos.x, 0.0, ppos.z - a.pos.z)
+	if push_dir.length_squared() < 0.001:
+		push_dir = a.dir
+	push_dir = push_dir.normalized()
+	if is_instance_valid(game.player) and game.player.has_method("apply_knockback"):
+		game.player.apply_knockback(push_dir * 8.2 + Vector3.UP * 2.5)
+		game.player.recoil = maxf(float(game.player.recoil), 1.35)
+	game.play_sfx("animal_hit", -6)
+	if is_instance_valid(game.combat) and game.combat.in_field():
+		game.combat.apply_physical_trauma(BOAR_CHARGE_DAMAGE, 5, "行动失败 · 遭山林野猪冲撞重伤")
+		game._notice("💥 被【小野猪 · Wild Boar】獠牙撞中！生命 -%d · 请用 [H]医疗包 或 [F]奇植 治疗！" % BOAR_CHARGE_DAMAGE, Color("ff6e6e"))
+	else:
+		game.screen_flash.color = Color(0.95, 0.18, 0.10, 0.24)
+		game._notice("💥 被【小野猪 · Wild Boar】冲撞击退！（实战模式将损失 %d 点生命值）" % BOAR_CHARGE_DAMAGE, Color("ff9b73"))
+	# After ramming, boar veers away into flee state
+	a.dir = Vector3(-push_dir.z, 0.0, push_dir.x).normalized()
 	a.state = "flee"
-	a.timer = 5.4
+	a.timer = 3.6
+	a.label.text = a.base_label
+	a.label.modulate = Color("f2f7d4")
+
+func _trigger_boar_ambush(a: Dictionary, ppos: Vector3, by_proximity: bool):
 	a.label.visible = true
 	a.visual.position.y = 0.0
-	# Burst obliquely out of the bush thicket across the open hillside!
+	_spawn_vanish_motes(a.pos + Vector3(0.0, 0.32, 0.0))
+	if by_proximity and not discovered_species.has("boar"):
+		discovered_species["boar"] = true
+		game.speak_english(a.tts)
+	var dist := Vector2(a.pos.x - ppos.x, a.pos.z - ppos.z).length()
+	if dist < 9.2 and float(a.charge_cd) <= 0.0 and rng.randf() < 0.36:
+		trigger_boar_charge(a)
+		return
+	a.state = "flee"
+	a.timer = 5.4
 	var to_p := Vector3(ppos.x - a.pos.x, 0.0, ppos.z - a.pos.z)
 	if to_p.length_squared() < 0.01:
 		to_p = Vector3(1.0, 0.0, 0.0)
@@ -504,37 +809,38 @@ func _trigger_boar_ambush(a: Dictionary, ppos: Vector3, by_proximity: bool):
 	if a.idx % 2 == 1:
 		tangent = -tangent
 	a.dir = (tangent * 0.82 - to_p.normalized() * 0.58).normalized()
+	_play_critter_anim(a.anim, ["Run"], 1.75)
 	game.play_sfx("boar_charge", -9)
-	_spawn_vanish_motes(a.pos + Vector3(0.0, 0.32, 0.0))
-	if by_proximity and not discovered_species.has("boar"):
-		discovered_species["boar"] = true
-		game.speak_english(a.tts)
-		game._notice("🐗 灌木丛惊起【%s · %s】！正埋头横冲山坡！" % [a.en, a.zh], Color("ffd48a"))
+	if by_proximity:
+		game._notice("🐗 灌木丛惊起【%s · %s】！四蹄飞奔横冲山坡（紧追小心反击）！" % [a.en, a.zh], Color("ffd48a"))
 
 func _start_flee(a: Dictionary, away_from: Vector3, by_proximity: bool = false):
 	if a.kind == "boar" and a.state == "ambush":
 		_trigger_boar_ambush(a, away_from, by_proximity)
 		return
+	if flee_sfx_cooldown <= 0.0:
+		flee_sfx_cooldown = 1.35
+		game.play_sfx("bird_flap" if a.kind == "bird" else ("boar_charge" if a.kind == "boar" else "animal_flee"), -12)
+	if by_proximity and not discovered_species.has(a.kind) and a.pos.distance_to(game.player.position) < 12.0:
+		discovered_species[a.kind] = true
+		game.speak_english(a.tts)
+		var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else "靠近惊动会敏捷逃逸！"
+		game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
+	if a.kind == "squirrel" and start_squirrel_tree_climb(a):
+		return
 	a.state = "fly" if a.kind == "bird" else "flee"
-	a.timer = 5.2 if a.kind == "bird" else (4.4 if a.kind in ["rabbit", "squirrel", "fox", "boar"] else 2.8)
+	a.timer = 5.4 if a.kind == "bird" else (4.5 if a.kind in ["rabbit", "squirrel", "fox", "boar"] else 2.8)
 	var delta_xz := Vector3(a.pos.x - away_from.x, 0.0, a.pos.z - away_from.z)
 	if delta_xz.length_squared() < 0.01:
 		delta_xz = Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1))
 	a.dir = delta_xz.normalized()
-	if flee_sfx_cooldown <= 0.0:
-		flee_sfx_cooldown = 1.35
-		game.play_sfx("bird_flap" if a.kind == "bird" else ("boar_charge" if a.kind == "boar" else "animal_flee"), -12)
-	if by_proximity and not discovered_species.has(a.kind) and a.pos.distance_to(game.player.position) < 11.5:
-		discovered_species[a.kind] = true
-		game.speak_english(a.tts)
-		game._notice("🌿 发现山野生灵：%s（%s）· 靠近惊动会敏捷逃逸！" % [a.en, a.zh], Color("9ef5b8"))
 
 func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 	var kind: String = a.kind
 	var speed := 1.45
 	if a.state == "flee":
 		match kind:
-			"boar": speed = 9.2
+			"boar": speed = 9.0
 			"fox": speed = 8.6
 			"rabbit": speed = 7.4
 			_: speed = 6.8
@@ -581,39 +887,32 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 		nxt.x = float(game.Layout.stream_center_x(nxt.z)) + push_x * 2.40
 
 	nxt.y = float(game.terrain_height(nxt.x, nxt.z))
+	# Align body pitch naturally with mountain slope gradient!
+	var ahead_y := float(game.terrain_height(nxt.x + a.dir.x * 0.45, nxt.z + a.dir.z * 0.45))
+	var slope_pitch := clampf(atan2(ahead_y - nxt.y, 0.45), -0.42, 0.42)
 	a.pos = nxt
 	a.root.position = nxt
 	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
+	a.visual.position = Vector3.ZERO
+	a.visual.rotation = Vector3(slope_pitch, 0.0, 0.0)
 
-	if kind == "rabbit":
-		var hop := absf(sin(a.phase)) * (0.28 if a.state == "flee" else 0.09)
-		a.visual.position.y = hop
-		a.visual.rotation.x = sin(a.phase * 2.0) * (0.18 if a.state == "flee" else 0.06)
-	elif kind == "fox":
-		var bound := absf(sin(a.phase * 0.95)) * (0.26 if a.state == "flee" else 0.05)
-		a.visual.position.y = bound
-		a.visual.rotation.x = sin(a.phase * 1.9) * (0.16 if a.state == "flee" else 0.04)
-	elif kind == "boar":
-		var gallop := absf(sin(a.phase * 1.35)) * (0.12 if a.state == "flee" else 0.03)
-		a.visual.position.y = gallop
-		a.visual.rotation.z = sin(a.phase * 2.1) * (0.09 if a.state == "flee" else 0.03)
+	if a.state == "flee":
+		_play_critter_anim(a.anim, ["Run"], 1.75 if kind in ["boar", "fox"] else 1.65)
 	else:
-		var scurry := absf(sin(a.phase * 1.4)) * (0.14 if a.state == "flee" else 0.04)
-		a.visual.position.y = scurry
-		a.visual.rotation.z = sin(a.phase * 1.6) * 0.07
+		_play_critter_anim(a.anim, ["Walk", "Run"], 1.15)
 
 func _move_bird(a: Dictionary, delta: float, ppos: Vector3):
 	if a.state != "fly":
-		# Perched on tree branch, fence post, or wading in shallow stream: gentle head-turn & wing twitch
 		var home_p: Vector3 = a.home
 		a.pos = a.pos.lerp(home_p, minf(delta * 2.4, 1.0))
 		a.root.position = a.pos
 		a.root.rotation.y = sin(a.phase * 0.45 + float(a.idx)) * 0.85
-		a.visual.position.y = absf(sin(a.phase * 0.9)) * 0.03
-		a.visual.rotation = Vector3(sin(a.phase * 0.7) * 0.06, 0.0, 0.0)
+		a.visual.position = Vector3.ZERO
+		a.visual.rotation = Vector3.ZERO
+		_play_critter_anim(a.anim, ["Idle"], 1.0)
 		return
 
-	# Active 3D banked climb & soaring escape arc!
+	# Active 3D banked climb & flapping flight escape!
 	var away := Vector3(a.pos.x - ppos.x, 0.0, a.pos.z - ppos.z)
 	if away.length() > 0.3 and a.timer > 2.4:
 		a.dir = a.dir.lerp(away.normalized(), minf(delta * 2.8, 1.0)).normalized()
@@ -632,8 +931,9 @@ func _move_bird(a: Dictionary, delta: float, ppos: Vector3):
 	a.pos = Vector3(nxt_xz.x, maxf(gy + float(a.perch_h), gy + float(a.fly_alt)), nxt_xz.y)
 	a.root.position = a.pos
 	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
-	a.visual.position.y = sin(a.phase * 1.9) * 0.11
-	a.visual.rotation = Vector3(-0.14, 0.0, sin(a.phase * 1.9) * 0.24)
+	a.visual.position.y = sin(a.phase * 1.6) * 0.06
+	a.visual.rotation = Vector3(0.08, 0.0, sin(a.phase * 0.7) * 0.16)
+	_play_critter_anim(a.anim, ["Fly"], 1.55)
 
 func _move_fish(a: Dictionary, delta: float, ppos: Vector3):
 	var swim_dir := 1.0 if a.dir.z >= 0.0 else -1.0
@@ -660,10 +960,10 @@ func _move_fish(a: Dictionary, delta: float, ppos: Vector3):
 	a.root.position = nxt
 	if look.length() > 0.002:
 		a.root.rotation.y = atan2(-look.x, -look.z)
-	a.visual.rotation.y = sin(a.phase * 2.2) * 0.22
+	a.visual.rotation = Vector3.ZERO
+	_play_critter_anim(a.anim, ["Swim fast", "Swim"] if a.state == "flee" else ["Swim"], 1.8 if a.state == "flee" else 1.15)
 
 func _move_shrimp(a: Dictionary, delta: float, ppos: Vector3):
-	# Freshwater river shrimp hover gently over wet pebbles, then tail-flip swiftly backward when startled!
 	var z_min := float(game.Layout.STREAM_Z_MIN) + 3.5
 	var z_max := float(game.Layout.FENCE_MAX_Z) - 1.8
 	var z_vel := sin(a.phase * 0.45) * 0.42
@@ -674,19 +974,18 @@ func _move_shrimp(a: Dictionary, delta: float, ppos: Vector3):
 	a.stream_z = clampf(a.stream_z + z_vel * delta, z_min, z_max)
 	var cx := float(game.Layout.stream_center_x(a.stream_z))
 	var px := cx + float(a.lane) + cos(a.phase * 0.6) * 0.28
-	var wy := float(game.Layout.stream_water_y(a.stream_z)) - 0.26 + absf(sin(a.phase * 1.6)) * (0.08 if a.state == "flee" else 0.02)
+	var wy := float(game.Layout.stream_water_y(a.stream_z)) - 0.26 + absf(sin(a.phase * 1.6)) * (0.07 if a.state == "flee" else 0.02)
 	var nxt := Vector3(px, wy, a.stream_z)
 	a.pos = nxt
 	a.root.position = nxt
-	# In flee mode, shrimp face TOWARD threat while darting backward!
 	if a.state == "flee":
 		var toward := Vector3(ppos.x - nxt.x, 0.0, ppos.z - nxt.z)
 		if toward.length() > 0.05:
 			a.root.rotation.y = atan2(-toward.x, -toward.z)
-		a.visual.rotation.x = sin(a.phase * 3.2) * 0.26
+		_play_critter_anim(a.anim, ["Swim fast", "Swim"], 2.0)
 	else:
 		a.root.rotation.y = sin(a.phase * 0.3 + float(a.idx)) * 1.4
-		a.visual.rotation.x = sin(a.phase * 1.2) * 0.06
+		_play_critter_anim(a.anim, ["Swim", "Idle"], 1.05)
 
 func _move_crab(a: Dictionary, delta: float, ppos: Vector3):
 	var crab_speed := 3.4 if a.state == "flee" else 0.72
@@ -705,9 +1004,9 @@ func _move_crab(a: Dictionary, delta: float, ppos: Vector3):
 	var nxt := Vector3(px, float(game.terrain_height(px, a.stream_z)) + 0.03, a.stream_z)
 	a.pos = nxt
 	a.root.position = nxt
-	# Crabs scuttle sideways toward water center!
-	a.root.rotation.y = (PI * 0.5 if float(a.bank_side) > 0.0 else -PI * 0.5) + sin(a.phase) * 0.15
-	a.visual.position.y = absf(sin(a.phase * 1.8)) * 0.025
+	a.root.rotation.y = (PI * 0.5 if float(a.bank_side) > 0.0 else -PI * 0.5) + sin(a.phase) * 0.12
+	a.visual.position = Vector3.ZERO
+	_play_critter_anim(a.anim, ["Walk Sideways", "Run", "Walk"], 1.95 if a.state == "flee" else 1.15)
 
 func on_gunshot_near(origin: Vector3, suppressed: bool):
 	var alert_r := 7.0 if suppressed else 19.0
@@ -730,7 +1029,7 @@ func melee_strike(camera: Camera3D) -> bool:
 	var best = null
 	var best_dist := 3.4
 	for a in animals:
-		if not (a.state in ["idle", "ambush", "flee", "fly"]):
+		if not (a.state in ["idle", "ambush", "flee", "charge", "climb_approach", "climb_up", "perched_tree", "fly"]):
 			continue
 		var center: Vector3 = a.pos + Vector3(0, 0.24, 0)
 		var delta := center - cam_pos
@@ -745,11 +1044,13 @@ func melee_strike(camera: Camera3D) -> bool:
 	return true
 
 func _down_animal(a: Dictionary):
-	if not (a.state in ["idle", "ambush", "flee", "fly"]):
+	if a.state in ["downed", "hidden"]:
 		return
 	a.state = "downed"
 	a.timer = 1.85
 	a.area.collision_layer = 0
+	a.label.text = a.base_label
+	a.label.modulate = Color("ffe09e")
 	a.label.visible = true
 	discovered_species[a.kind] = true
 	game.show_hitmarker(false)
@@ -800,16 +1101,16 @@ func interact_flora(node: Node3D) -> bool:
 		return true
 	collected_flora[fid] = true
 	game.rules.score += 5
-	var heal_amt := int(node.get_meta("heal", 5))
+	var heal_amt := int(node.get_meta("heal", 7))
 	if is_instance_valid(game.combat) and game.combat.in_field():
-		game.combat.heal(heal_amt, 4)
+		game.combat.heal(heal_amt, 6)
 	game.play_sfx("flora_collect", -10)
 	var lbl: Label3D = node.get_meta("label_node")
 	lbl.text = "✓ %s · %s" % [en, zh]
 	lbl.modulate = Color("89f0ad")
 	var ring: MeshInstance3D = node.get_meta("ring_node")
 	ring.visible = false
-	game._notice("🌿 辨识奇植【%s · %s】(+5分 +%d生命) · %s" % [en, zh, heal_amt, sentence], Color("8ff5b5"))
+	game._notice("🌿 辨识奇植【%s · %s】(+5分 +%d生命 +6护盾) · %s" % [en, zh, heal_amt, sentence], Color("8ff5b5"))
 	return true
 
 func eco_discoveries_total() -> int:

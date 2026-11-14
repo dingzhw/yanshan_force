@@ -13,6 +13,8 @@ var leaf: ShaderMaterial
 var rock_paths = []
 var stalk_transforms = []
 var leaf_transforms = []
+var tree_trunks: Array[Vector3] = []
+var tree_trunk_radii: Array[float] = []
 var low_quality = false
 
 func setup(g):
@@ -379,6 +381,8 @@ func _trees():
 			tshape.radius = 0.28 * wsc
 			tshape.height = 4.2 * wsc
 			game.Props.shape_body(self, tshape, Vector3(wx, wy + 2.1 * wsc, wz))
+			tree_trunks.append(Vector3(wx, wy + 0.08, wz))
+			tree_trunk_radii.append(0.28 * wsc)
 
 	# 2) Key landmark & trailside Southern Broadleaf Trees (Camphor "香樟" & Maple/Tallow "枫香/乌桕")
 	var curated_trees := [
@@ -388,7 +392,9 @@ func _trees():
 		Vector3(-44, 0, 18), Vector3(-31, 0, 21), Vector3(45, 0, 12), Vector3(46, 0, -6),
 		Vector3(45, 0, -38), Vector3(44, 0, -58), Vector3(45, 0, -79), Vector3(42, 0, -102),
 		Vector3(-45, 0, 4), Vector3(-46, 0, -16), Vector3(-46, 0, -44), Vector3(-45, 0, -68),
-		Vector3(-44, 0, -88), Vector3(-42, 0, -106), Vector3(-19, 0, -108), Vector3(11, 0, -108)
+		Vector3(-44, 0, -88), Vector3(-42, 0, -106), Vector3(-19, 0, -108), Vector3(11, 0, -108),
+		Vector3(-21.5, 0, -2.5), Vector3(-34.8, 0, -18.5), Vector3(35.0, 0, -41.0), Vector3(36.8, 0, -62.5),
+		Vector3(-32.5, 0, -76.5), Vector3(38.5, 0, -14.0), Vector3(-38.0, 0, -60.0), Vector3(39.0, 0, -96.0)
 	]
 	# Also scatter natural fence-side & outer-collar woodland trees so hills have zero empty dead zones
 	for k in 34:
@@ -420,6 +426,11 @@ func _trees():
 			shape.radius = 0.30 * tsc
 			shape.height = 4.6 * tsc
 			game.Props.shape_body(self, shape, Vector3(raw.x, ty + 2.3 * tsc, raw.z))
+			tree_trunks.append(Vector3(raw.x, ty + 0.10, raw.z))
+			tree_trunk_radii.append(0.30 * tsc)
+	var shrine_p: Vector3 = game.Layout.on_ground(game.Layout.CAMPHOR_SHRINE)
+	tree_trunks.append(shrine_p)
+	tree_trunk_radii.append(0.58)
 
 	_batch_direct(camphor_mesh, camphor_tx, not low_quality, "MountainCamphorTrees")
 	_batch_direct(willow_mesh, willow_tx, not low_quality, "MountainWillowTrees")
@@ -921,7 +932,7 @@ func _landmarks():
 			pickup.set_meta("secret_key", spot.secret_key)
 		game.add_child(pickup)
 		TacticalProps.build_supply_box(game, pickup)
-		var sup_hint := "深藏物资箱 · 单词解锁 [E]" if spot.secret_key != "" else "常规物资箱 · 单词解锁 [E]"
+		var sup_hint := "深藏物资箱 · 单词解锁 [F]" if spot.secret_key != "" else "常规物资箱 · 单词解锁 [F]"
 		game._label3d(pickup, sup_hint, Vector3(0, 0.96, 0), 26, Color("8ef0c8") if spot.secret_key != "" else game.GOLD)
 		game.pickup_nodes.append(pickup)
 
@@ -981,7 +992,7 @@ func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
 	ring.position.y = 0.04
 	ring.material_override = game._material(glow_col, true)
 	parent.add_child(ring)
-	var tag = "[E] %s" % parent.get_meta("title", "战术补给")
+	var tag = "[F] %s" % parent.get_meta("title", "战术补给")
 	game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
 
 func _is_near_bridge(z: float, margin: float = 3.4) -> bool:
@@ -1201,13 +1212,7 @@ void fragment(){
 		else:
 			_build_footbridge(float(bz))
 
-	# 5) Stepping stones at z=-73.5 + dense MultiMesh shoreline cobbles, reeds & cattails lining both recessed creek banks
-	var cx_step := float(game.Layout.stream_center_x(-73.5))
-	var wy_step := float(game.Layout.stream_water_y(-73.5))
-	for k_i in 3:
-		var kx: float = [-1.1, 0.0, 1.1][k_i]
-		game._model(self, "res://assets/slice/rock_%d.glb" % (k_i % 3), Vector3(cx_step + kx, wy_step - 0.16, -73.5 + kx * 0.25), 0.38, kx * 0.8, "convex")
-
+	# 5) Dense MultiMesh shoreline cobbles, reeds & cattails lining both recessed creek banks
 	var cobble_meshes: Array = []
 	var cobble_txs: Array = [[], [], []]
 	for m_i in 3:
@@ -1321,19 +1326,19 @@ func _build_footbridge(z_center: float):
 			var pier: Node3D = game._mesh_box(root, Vector3(sx, -0.82, sz), Vector3(0.16, 1.56, 0.16), Color.WHITE, true)
 			pier.material_override = wood_post_mat
 
-	# Sloped approach ramps with rotated pivot (mesh + StaticBody3D together) flush at deck y=0
+	# Sloped approach ramps with rotated pivot (mesh + StaticBody3D together) flush at deck y=0 and ground x=cx+-5.4
 	for side in [-1.0, 1.0]:
 		var side_f := float(side)
-		var outer_x := cx + side_f * 4.4
+		var run := 3.0
+		var outer_x := cx + side_f * (2.4 + run)
 		var outer_h := float(game.terrain_height(outer_x, z_center))
-		var drop := maxf(0.24, deck_y - (outer_h - 0.10))
-		var run := clampf(drop * 1.65, 2.0, 2.6)
-		var ramp_len := sqrt(run * run + drop * drop) + 0.12
+		var drop := maxf(0.12, deck_y - (outer_h - 0.06))
+		var ramp_len := sqrt(run * run + drop * drop) + 0.18
 		var ramp_pivot := Node3D.new()
 		ramp_pivot.position = Vector3(side_f * (2.4 + run * 0.5), -drop * 0.5, 0.0)
 		ramp_pivot.rotation.z = -side_f * atan2(drop, run)
 		root.add_child(ramp_pivot)
-		var ramp: Node3D = game._mesh_box(ramp_pivot, Vector3(0, -0.07, 0), Vector3(ramp_len, 0.14, 2.15), Color.WHITE, true)
+		var ramp: Node3D = game._mesh_box(ramp_pivot, Vector3(0, -0.07, 0), Vector3(ramp_len, 0.14, 2.22), Color.WHITE, true)
 		ramp.material_override = wood_plank_mat
 
 func _instantiate_v060_mesh(mesh_name: String) -> Node3D:
@@ -1531,9 +1536,12 @@ func _build_jiangnan_heritage():
 		flag_vis.queue_free()
 	if flag_mesh != null:
 		var trail_polylines := [
-			[Vector3(3.5, 0, -18.0), Vector3(7.4, 0, -21.2), Vector3(11.3, 0, -24.0)],
-			[Vector3(21.7, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(32.5, 0, 8.0), Vector3(34.1, 0, 17.6)],
-			[Vector3(22.4, 0, 7.0), Vector3(27.5, 0, 12.8), Vector3(30.4, 0, 19.8)],
+			[Vector3(3.5, 0, -18.0), Vector3(7.4, 0, -21.2), Vector3(10.8, 0, -24.0)],
+			[Vector3(22.2, 0, -24.0), Vector3(26.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), Vector3(33.2, 0, 17.8)],
+			[Vector3(5.5, 0, 6.2), Vector3(13.0, 0, 7.0)],
+			[Vector3(23.8, 0, 7.0), Vector3(28.0, 0, 13.5), Vector3(32.2, 0, 19.6)],
+			[Vector3(5.5, 0, -49.0), Vector3(13.0, 0, -46.5)],
+			[Vector3(23.6, 0, -46.5), Vector3(27.2, 0, -46.5), Vector3(27.0, 0, -35.5), Vector3(26.5, 0, -25.2)],
 			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)]
 		]
 		var xfs: Array[Transform3D] = []

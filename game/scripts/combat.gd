@@ -6,8 +6,7 @@ enum Stage { OFF, FIELD }
 
 const MAX_HEALTH = 100
 const RAGE_SECONDS = 7.0
-const SHIELD_REGEN_DELAY = 4.5
-const SHIELD_REGEN_RATE = 11.0
+const ZONE_ALERT_MEMORY = 8.0
 const STILL_HIT_CHANCE = 0.78
 const FAST_HIT_CHANCE = 0.26
 const MAX_EVASION_SPEED = 6.1
@@ -22,6 +21,7 @@ var health = MAX_HEALTH
 var shield = 30
 var shield_delay = 0.0
 var zone = -1
+var zone_alert_left = 0.0
 var attack_lock = 0.0
 var miss_left = 0.0
 var shot_rng := RandomNumberGenerator.new()
@@ -43,6 +43,7 @@ func begin():
 	health = MAX_HEALTH
 	shield = game.rules.max_shield()
 	shield_delay = 0.0
+	zone_alert_left = 0.0
 	attack_lock = 0.0
 	miss_left = 0.0
 	boss_unit = null
@@ -54,6 +55,7 @@ func begin():
 func stop():
 	stage = Stage.OFF
 	zone = -1
+	zone_alert_left = 0.0
 	boss_unit = null
 	smoke_zones.clear()
 	danger_rings.clear()
@@ -140,12 +142,25 @@ func damage_per_shot(soldier = null) -> int:
 		base = soldier.base_shot_damage()
 	return maxi(2, roundi(float(base) * damage_multiplier()))
 
+func effective_zone_distance(z_idx: int) -> float:
+	var p: Vector3 = game.player.position
+	var c: Vector3 = zone_center(z_idx)
+	var best := Vector2(p.x - c.x, p.z - c.z).length() + absf(p.y - c.y) * 0.28
+	if troops.has(z_idx):
+		for s in troops[z_idx]:
+			if is_instance_valid(s) and not s.defeated:
+				var sd := Vector2(p.x - s.position.x, p.z - s.position.z).length() + absf(p.y - s.position.y) * 0.25
+				best = minf(best, sd + 3.2)
+	return best
+
 func hit_chance() -> float:
 	var motion: Vector3 = game.player.get_real_velocity()
 	var speed := Vector2(motion.x, motion.z).length()
 	var chance := lerpf(STILL_HIT_CHANCE, FAST_HIT_CHANCE, clampf(speed / MAX_EVASION_SPEED, 0.0, 1.0))
 	if not game.player.is_on_floor():
 		chance *= AIRBORNE_HIT_SCALE
+	if is_instance_valid(game.player) and game.player.has_method("evasion_profile_multiplier"):
+		chance *= float(game.player.evasion_profile_multiplier())
 	return chance
 
 func update(delta: float):
@@ -154,10 +169,9 @@ func update(delta: float):
 	rage_left = maxf(0, rage_left - delta)
 	attack_lock = maxf(0, attack_lock - delta)
 	miss_left = maxf(0, miss_left - delta)
-	if shield_delay > 0:
-		shield_delay = maxf(0, shield_delay - delta)
-	elif shield < game.rules.max_shield():
-		shield = minf(float(game.rules.max_shield()), float(shield) + SHIELD_REGEN_RATE * delta)
+	zone_alert_left = maxf(0, zone_alert_left - delta)
+	# Hardcore Extraction Vitals: Neither health nor shield auto-regenerates passively out of combat!
+	# Recovery requires Medkits [H], Energy Stims [T], Mountain Flora [F], 3-streak mastery, or Outpost Clear rewards.
 
 	# Update Smoke/EMP tactical zones
 	for i in range(smoke_zones.size() - 1, -1, -1):
@@ -189,12 +203,14 @@ func update(delta: float):
 	var next_zone := -1
 	var nearest := INF
 	for index in game.Layout.COMBAT_ZONES.size():
-		var center := zone_center(index)
-		var distance: float = game.player.position.distance_to(center)
-		var radius := zone_pursuit(index) if index == zone else zone_aggro(index)
+		var distance: float = effective_zone_distance(index)
+		var pursuit_r := zone_pursuit(index) + (6.0 if zone_alert_left > 0.0 else 0.0)
+		var radius := pursuit_r if index == zone else zone_aggro(index)
 		if distance < radius and distance < nearest:
 			next_zone = index
 			nearest = distance
+	if next_zone >= 0 and effective_zone_distance(next_zone) < zone_aggro(next_zone) + 2.5:
+		zone_alert_left = ZONE_ALERT_MEMORY
 	if next_zone != zone:
 		if zone >= 0 and troops.has(zone):
 			for soldier in troops[zone]:
@@ -294,13 +310,13 @@ func show_question():
 		else:
 			soldier.show_word(game.choices[soldier.option].english, game.rules.question_open)
 	if game.listening_mode and game.rules.question_open:
-		game.question_label.text = "🔊 电台截获英文语音 · 按 [Q] 重播读音"
+		game.question_label.text = "🔊 电台截获英文语音 · 按 [X] 重播读音"
 	else:
 		game.question_label.text = game.question.chinese
 	var z_title = zone_info(zone).title
 	var boss_suffix := (" | ★统领 %d/450" % boss_unit.hp) if (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated) else ""
 	var wave_str = "已占领" if zone_cleared.get(zone, false) else ("波次 %d/%d" % [waves_done.get(zone, 0), waves_target.get(zone, 4)])
-	game.unit_label.text = "%s（%s）%s  |  [Q] 读音" % [z_title, wave_str, boss_suffix]
+	game.unit_label.text = "%s（%s）%s  |  [X] 读音" % [z_title, wave_str, boss_suffix]
 	if not game.rules.question_open:
 		game.unit_label.text = "目标护盾已击破 · 可趁硬直射击核心或迎击下波…"
 
@@ -573,15 +589,26 @@ func blocked(from: Vector3, to: Vector3) -> bool:
 	var ray = PhysicsRayQueryParameters3D.create(from, to, 1)
 	return not get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 
+func player_aim_point() -> Vector3:
+	if is_instance_valid(game.player) and game.player.has_method("get_aim_target_position"):
+		return game.player.get_aim_target_position()
+	return game.player.position + Vector3.UP * 1.26
+
 func clear_shot(at: Vector3) -> bool:
 	if player_in_smoke():
 		return false
-	return not blocked(at + Vector3.UP * 1.52, game.player.position + Vector3.UP * 1.26)
+	var target_pt := player_aim_point()
+	if not blocked(at + Vector3.UP * 1.40, target_pt):
+		return true
+	# When fighting across steep elevation differences, check an eye-level ray so ground crests don't falsely blind bots
+	if absf(target_pt.y - (at.y + 1.40)) > 1.85:
+		return not blocked(at + Vector3.UP * 1.68, target_pt + Vector3.UP * 0.10)
+	return false
 
 func reserve_attack() -> bool:
 	if attack_lock > 0:
 		return false
-	attack_lock = 1.42 if rage_left <= 0 else 0.98
+	attack_lock = 1.32 if rage_left <= 0 else 0.92
 	return true
 
 func active_threat_count() -> int:
@@ -594,7 +621,7 @@ func active_threat_count() -> int:
 	return c
 
 func apply_player_damage(damage: int):
-	shield_delay = SHIELD_REGEN_DELAY
+	shield_delay = 0.0
 	var absorbed := mini(int(shield), damage)
 	shield = maxf(0.0, float(shield) - float(absorbed))
 	var hp_loss := damage - absorbed
@@ -606,15 +633,26 @@ func apply_player_damage(damage: int):
 	if health == 0:
 		game._end_run(false, "行动失败 · 装甲与生命耗尽")
 
+func apply_physical_trauma(hp_damage: int, shield_damage: int = 5, death_reason: String = "行动失败 · 生命耗尽"):
+	if not in_field():
+		return
+	shield_delay = 0.0
+	shield = maxf(0.0, float(shield) - float(maxi(0, shield_damage)))
+	health = maxi(0, health - maxi(0, hp_damage))
+	game.screen_flash.color = Color(0.95, 0.12, 0.08, 0.28)
+	if health == 0:
+		game._end_run(false, death_reason)
+
 func strike(soldier):
 	if not in_field() or game.paused or soldier.defeated or soldier.zone != zone or soldier.stun_left > 0:
 		return
 	if is_instance_valid(game.exploration) and game.exploration.safe():
 		return
-	if soldier.position.distance_to(game.player.position) > soldier.attack_range() or not clear_shot(soldier.position):
+	var horiz_d := Vector2(soldier.position.x - game.player.position.x, soldier.position.z - game.player.position.z).length()
+	if horiz_d > soldier.attack_range() + 2.5 or not clear_shot(soldier.position):
 		return
-	var from: Vector3 = soldier.position + Vector3.UP * (2.10 if soldier.archetype == Soldier.Archetype.BOSS_WARDEN else 1.54)
-	var to: Vector3 = game.player.position + Vector3.UP * 1.26
+	var from: Vector3 = soldier.position + Vector3.UP * (2.10 if soldier.archetype == Soldier.Archetype.BOSS_WARDEN else 1.58)
+	var to: Vector3 = player_aim_point()
 	var chance := hit_chance()
 	if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN]:
 		chance = clampf(chance + 0.10, 0.20, 0.90)

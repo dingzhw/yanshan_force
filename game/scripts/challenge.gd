@@ -20,7 +20,7 @@ func setup(game, data: Dictionary):
 	pedestal.material_override = body_mat
 	var screen = game._mesh_box(self, Vector3(2, rel_ground + 0.92, 2.30), Vector3(0.58, 0.42, 0.04), Color("67e0b4"))
 	screen.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	terminal_label = game._label3d(self, title + "\n[E] 单词挑战", Vector3(2, rel_ground + 1.88, 2), 30, game.MINT)
+	terminal_label = game._label3d(self, title + "\n[F] 单词挑战", Vector3(2, rel_ground + 1.88, 2), 30, game.MINT)
 	for i in 4:
 		var board = StaticBody3D.new()
 		board.collision_layer = 3
@@ -60,10 +60,10 @@ func enable_boards(enabled: bool):
 		board.collision_layer = 3 if enabled else 0
 		for post in board.find_children("*","StaticBody3D",true,false):
 			post.collision_layer = 1 if enabled else 0
-	terminal_label.text = title+("\n[E] 单词挑战" if enabled else "\n词兵行动")
+	terminal_label.text = title+("\n[F] 单词挑战" if enabled else "\n词兵行动")
 
 func clear():
 	for i in 4:
-		targets[i].text = ["前往终端","按 E 开始","单词挑战","探索烟山"][i]
+		targets[i].text = ["前往终端","按 F 开始","单词挑战","探索烟山"][i]
 		targets[i].font_size = 48
 		materials[i].albedo_color = Color("182e30")

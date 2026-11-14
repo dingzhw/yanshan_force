@@ -144,16 +144,16 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		var board_back = game._mesh_box(node, Vector3(0, 1.05, 0.06), Vector3(1.05, 0.66, 0.08), color, true)
 		board_back.material_override = timber_mat
 		game._mesh_box(node, Vector3(0, 1.05, 0.11), Vector3(0.88, 0.50, 0.015), Color("dfd9b8"))
-		var text = game._label3d(node, "巡护记录\nnext to" if id == "clue" else "近道机关\nE 解锁木门", Vector3(0, 1.05, 0.13), 26, Color("223428"))
+		var text = game._label3d(node, "巡护记录\nnext to" if id == "clue" else "近道机关\nF 解锁木门", Vector3(0, 1.05, 0.13), 26, Color("223428"))
 		text.pixel_size = 0.0038
 		text.outline_size = 0
 		text.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	var prompt = game._label3d(node, label + " · [E]", Vector3(0, 2.15, 0), 28, game.GOLD)
+	var prompt = game._label3d(node, label + " · [F]", Vector3(0, 2.15, 0), 28, game.GOLD)
 	if id == "poem":
 		prompt.position = Vector3(0, 2.66, 1.56)
 		prompt.pixel_size = 0.0040
 		prompt.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		prompt.text = "烟山诗碑亭 · 按 [E] 研读"
+		prompt.text = "烟山诗碑亭 · 按 [F] 研读"
 	prompt.visibility_range_end = 15
 	nodes.append(node)
 
@@ -274,7 +274,7 @@ func open(node: Node3D):
 		source.text = "词汇来源：江苏五上英语词表 · next to（在……旁边）。已同步播放读音。"
 		for i in 3:
 			buttons[i].hide()
-		explanation.text = "提示：next to = 在……旁边。找到封存箱按 [E] 即可领取稀有物资！"
+		explanation.text = "提示：next to = 在……旁边。找到封存箱按 [F] 即可领取稀有物资！"
 		game.speak_english("next to")
 	else:
 		var item = current_items[id]

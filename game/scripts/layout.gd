@@ -10,7 +10,7 @@ const FENCE_MIN_Z = -112.0
 const FENCE_MAX_Z = 26.0
 const STREAM_Z_MIN = -111.0
 const STREAM_Z_MAX = 36.0
-const STREAM_BRIDGES = [7.0, -24.0, -46.5]
+const STREAM_BRIDGES = [7.0, -24.0, -46.5, -73.5]
 const STREAM_POINTS = [
 	[-116.0, 15.6],
 	[-101.0, 16.5],
@@ -56,7 +56,16 @@ const SHELTER_BAMBOO = Vector3(14.0, 0, -88.0)
 const BRANCHES = [
 	[Vector3(-18, 0, -27), POEM],
 	[Vector3(-7, 0, -54), MATH, Vector3(12, 0, -62), EXIT],
-	[Vector3(-7, 0, -15), CLUE, CLUE_LOOT, Vector3(11.5, 0, -24.0), Vector3(21.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(32.5, 0, 8.0), WANGDAO_PAVILION]
+	# Central Stone Arch Bridge (z = -24.0) -> East Overlook & South Ridge to Wangdao Pavilion
+	[Vector3(-7, 0, -15), CLUE, CLUE_LOOT, Vector3(11.0, 0, -24.0), Vector3(22.2, 0, -24.0), EAST_OVERLOOK, Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), WANGDAO_PAVILION],
+	# South Camp Wooden Bridge (z = 7.0) -> Gentle East Hillside Trail to Wangdao Pavilion & North Link
+	[SPAWN, Vector3(13.2, 0, 7.0), Vector3(23.8, 0, 7.0), Vector3(28.0, 0, 13.5), WANGDAO_PAVILION],
+	[Vector3(23.8, 0, 7.0), Vector3(28.5, 0, -8.0)],
+	# Upstream Wooden Bridge (z = -46.5) -> Gentle Walkable Climb to East Recon Radio & North Loop
+	[Vector3(-7, 0, -54), Vector3(5.5, 0, -49.0), Vector3(13.2, 0, -46.5), Vector3(23.4, 0, -46.5), RECON_RADIO],
+	[EAST_OVERLOOK, Vector3(27.0, 0, -35.5), RECON_RADIO, Vector3(28.2, 0, -60.0), Vector3(30.2, 0, -73.5), SE_BAMBOO_CACHE],
+	# Northern Creek Wooden Bridge (z = -73.5, cx ≈ 24.3) -> East Bamboo Cache & Airdrop Beacon
+	[EXIT, Vector3(18.6, 0, -73.5), Vector3(30.2, 0, -73.5), Vector3(26.5, 0, -94.0), AIRDROP_BEACON]
 ]
 static var grid_height_cache = {}
 static var stream_water_heights: Array = []
@@ -96,8 +105,8 @@ static func _land_height(x: float, z: float) -> float:
 		var at = station.at
 		var blend = 1.0 - smoothstep(10.0, 15.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, base_height(at.x, at.z), blend)
-	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, RECON_RADIO, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
-		var blend = 1.0 - smoothstep(4.0, 9.0, Vector2(x - at.x, z - at.z).length())
+	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, PARKOUR_CONTAINERS, CAVE_GROTTO, EAST_OVERLOOK, RECON_RADIO, SE_BAMBOO_CACHE, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
+		var blend = 1.0 - smoothstep(4.5, 11.0, Vector2(x - at.x, z - at.z).length())
 		result = lerpf(result, anchor_height(at), blend)
 	var nearest = INF
 	var bed = result
@@ -110,16 +119,18 @@ static func _land_height(x: float, z: float) -> float:
 			if distance < nearest:
 				nearest = distance
 				bed = lerpf(anchor_height(path[i]), anchor_height(path[i + 1]), t)
-	var road_t := 1.0 - smoothstep(2.3, 5.2, nearest)
+	var road_t := 1.0 - smoothstep(2.8, 7.6, nearest)
 	result = lerpf(result, bed, road_t)
+	var pav_pad := 1.0 - smoothstep(5.4, 10.5, Vector2(x - WANGDAO_PAVILION.x, z - WANGDAO_PAVILION.z).length())
+	result = lerpf(result, anchor_height(WANGDAO_PAVILION), pav_pad)
 	for bz in STREAM_BRIDGES:
 		var bcx := stream_center_x(float(bz))
-		if absf(x - bcx) < 11.5 and absf(z - float(bz)) < 4.8:
-			var wh := base_height(bcx - 5.0, float(bz))
-			var eh := base_height(bcx + 5.0, float(bz))
-			var saddle := lerpf(wh, eh, 0.35)
-			var wx := 1.0 - smoothstep(5.5, 11.5, absf(x - bcx))
-			var wz := 1.0 - smoothstep(2.0, 4.8, absf(z - float(bz)))
+		if absf(x - bcx) < 16.5 and absf(z - float(bz)) < 8.5:
+			var wh := base_height(bcx - 5.2, float(bz))
+			var eh := base_height(bcx + 5.2, float(bz))
+			var saddle := lerpf(wh, eh, 0.38)
+			var wx := 1.0 - smoothstep(5.0, 16.5, absf(x - bcx))
+			var wz := 1.0 - smoothstep(2.6, 8.5, absf(z - float(bz)))
 			result = lerpf(result, saddle, wx * wz)
 	return result
 
@@ -178,7 +189,25 @@ static func height(x: float, z: float) -> float:
 	return result
 
 static func anchor_height(at: Vector3) -> float:
-	return 5.0 if at == POEM else base_height(at.x, at.z)
+	if at == POEM:
+		return 5.0
+	if at == WANGDAO_PAVILION:
+		return 4.35
+	if at == EAST_OVERLOOK:
+		return 3.95
+	if at == RECON_RADIO:
+		return 5.55
+	if at == SE_BAMBOO_CACHE:
+		return 7.35
+	if at == Vector3(23.8, 0, 7.0):
+		return 0.72
+	if at == Vector3(22.2, 0, -24.0):
+		return 3.10
+	if at == Vector3(23.4, 0, -46.5):
+		return 4.55
+	if at == Vector3(30.2, 0, -73.5):
+		return 6.35
+	return base_height(at.x, at.z)
 
 static func on_ground(at: Vector3) -> Vector3:
 	return Vector3(at.x, height(at.x, at.z), at.z)

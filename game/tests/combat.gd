@@ -124,12 +124,29 @@ func run():
 		game.combat.strike(first_attacker)
 		verify(is_equal_approx(game.combat.shield, cover_sh) and game.combat.shot_rng.state == rng_state, "solid cover cancels enemy shot before rolling accuracy")
 
-	# Medkit [H] healing test
+	# Medkit [H] healing test & v0.6.1.1 Hardcore Zero Auto-Regen Out-of-Combat check
+	game.player.position = Vector3(0, 0.2, 5.0)
 	game.combat.health = 50
 	game.combat.shield = 5
+	await frames(240)
+	verify(game.combat.zone == -1 and game.combat.health == 50 and roundi(game.combat.shield) == 5, "leaving combat does NOT passively auto-regenerate HP or shield")
 	var kits_before = game.player.medkits
 	game.player.use_medkit()
 	verify(game.player.medkits == kits_before - 1 and game.combat.health == 95 and roundi(game.combat.shield) == 30, "field medkit restores +45 HP and +25 shield")
+
+	# v0.6.1.1 High-slope rear lock-retention check: standing on elevated hillside behind Zone 0 soldiers keeps lock active!
+	var rear_slope_pos: Vector3 = game.Layout.on_ground(center0 + Vector3(-2.5, 0.0, -9.2)) + Vector3(0.0, 0.12, 0.0)
+	game.player.position = center0 + Vector3(0, 0.1, 3.0)
+	await frames(6)
+	game.player.position = rear_slope_pos
+	await frames(45)
+	var rear_engaged := 0
+	for s0 in game.combat.troops[0]:
+		if not s0.defeated and s0.action != Soldier.Action.PATROL:
+			rear_engaged += 1
+	verify(game.combat.zone == 0 and rear_engaged >= 2, "climbing onto elevated slope behind Zone 0 retains enemy lock and squad engagement")
+	game.player.position = center0 + Vector3(0, 0.08, 1.5)
+	await frames(4)
 
 	# Wrong & Correct holographic shield raycast tests
 	var before_wrong: int = game.combat.damage_per_shot()
@@ -309,6 +326,15 @@ func run():
 	game.combat.shield_delay = 30.0
 
 	var stationary: float = game.combat.hit_chance()
+	game.player.set_stance(1, true)
+	await frames(16)
+	var crouched_hit: float = game.combat.hit_chance()
+	game.player.set_stance(2, true)
+	await frames(16)
+	var prone_hit: float = game.combat.hit_chance()
+	verify(crouched_hit < stationary * 0.84 and prone_hit < crouched_hit * 0.80, "crouching and going prone progressively lower enemy hit probability")
+	game.player.reset_stance()
+	await frames(8)
 	var same_roll := seed_for_roll(0.50, 0.70)
 	var before: int = game.combat.health
 	game.combat.shot_rng.seed = same_roll

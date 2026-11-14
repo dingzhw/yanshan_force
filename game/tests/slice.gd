@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.1" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1 slice uses 175-entry word pack and 5 tiered vault crates")
+	verify(game.VERSION == "0.6.1.1" and game.words.size() == 175 and game.crate_nodes.size() == 5, "v0.6.1.1 slice uses 175-entry word pack and 5 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -347,38 +347,73 @@ func run():
 		sim_key.call(KEY_W, false)
 		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream footbridge at z=" + str(bz) + " is smoothly walkable across water")
 
-	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 48 and game.wildlife.flora_nodes.size() == 8 and game.wildlife.sky_egrets.size() == 5, "v0.6.1 spawns 52 habitat critters across 8 species + 5 sky egrets + 8 interactive flora nodes")
+	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 48 and game.wildlife.flora_nodes.size() == 8 and game.wildlife.sky_egrets.size() >= 6, "v0.6.1.1 spawns 52 habitat critters across 8 species + 6 flapping sky egrets + 8 interactive flora nodes")
 	var kinds := {}
 	var first_by_kind := {}
+	var rigged_ok := true
 	for a in game.wildlife.animals:
 		kinds[a.kind] = int(kinds.get(a.kind, 0)) + 1
 		if not first_by_kind.has(a.kind):
 			first_by_kind[a.kind] = a
+		var skel: Node = (a.visual as Node).find_child("Skeleton3D", true, false) if a.visual != null else null
+		if skel == null:
+			skel = (a.visual as Node).find_children("*", "Skeleton3D", true, false)[0] if (a.visual != null and not (a.visual as Node).find_children("*", "Skeleton3D", true, false).is_empty()) else null
+		if skel == null or a.anim == null:
+			rigged_ok = false
+			print("MISSING_RIG kind=", a.kind)
+	var eg0: Dictionary = game.wildlife.sky_egrets[0]
+	var eg_skels: Array = (eg0.vis as Node).find_children("*", "Skeleton3D", true, false) if eg0.vis != null else []
+	verify(rigged_ok and not eg_skels.is_empty() and eg0.anim != null and (eg0.anim as AnimationPlayer).is_playing(), "all 8 wildlife species + sky egrets use real Skeleton3D + AnimationPlayer rigs")
 	verify(
 		int(kinds.get("rabbit", 0)) >= 8 and int(kinds.get("squirrel", 0)) >= 7 and int(kinds.get("boar", 0)) >= 5 and int(kinds.get("fox", 0)) >= 5
 		and int(kinds.get("bird", 0)) >= 9 and int(kinds.get("fish", 0)) >= 7 and int(kinds.get("crab", 0)) >= 5 and int(kinds.get("shrimp", 0)) >= 6,
-		"all 8 Jiangnan wildlife species (rabbit/squirrel/boar/fox/bird/fish/crab/shrimp) meet v0.6.1 target counts"
+		"all 8 Jiangnan wildlife species (rabbit/squirrel/boar/fox/bird/fish/crab/shrimp) meet target counts"
 	)
 
 	game.wildlife.reset()
+	var all_squirrels_have_tree := true
+	for sq_chk in game.wildlife.animals:
+		if sq_chk.kind == "squirrel" and game.wildlife._find_nearest_tree_trunk(sq_chk.pos, 22.0).is_empty():
+			all_squirrels_have_tree = false
+	verify(game.landscape.tree_trunks.size() >= 36 and all_squirrels_have_tree, "slice_world registers >=36 inside-fence tree trunks and every squirrel has a climbable tree within 22m")
 	var squirrel: Dictionary = first_by_kind["squirrel"]
+	var near_trunk: Vector3 = game.landscape.tree_trunks[0]
+	squirrel.pos = Vector3(near_trunk.x + 1.8, game.terrain_height(near_trunk.x + 1.8, near_trunk.z + 1.2), near_trunk.z + 1.2)
+	squirrel.root.position = squirrel.pos
 	game.player.velocity = Vector3.ZERO
 	game.player.position = squirrel.pos + Vector3(0.0, 0.0, 2.8)
 	game.wildlife.update(0.05)
-	verify(squirrel.state == "flee", "approaching squirrel triggers skittish flee state")
-	for tick in 20:
-		game.wildlife.update(0.1)
+	verify(squirrel.state in ["climb_approach", "climb_up"], "approaching squirrel triggers tree-climbing scramble toward nearest trunk")
+	for tick in 24:
+		game.wildlife.update(0.08)
 	verify(
-		squirrel.pos.x >= game.Layout.FENCE_MIN_X and squirrel.pos.x <= game.Layout.FENCE_MAX_X and squirrel.pos.z >= game.Layout.FENCE_MIN_Z and squirrel.pos.z <= game.Layout.FENCE_MAX_Z,
-		"fleeing animal stays bounded inside physical timber fence perimeter"
+		squirrel.state in ["climb_up", "perched_tree"] and squirrel.pos.y > float(near_trunk.y) + 2.0,
+		"startled squirrel climbs >2.0m vertically up tree trunk bark"
 	)
 
-	# Test bush-ambush wild boar charge & perched bird 3D flight
+	# Test bush-ambush wild boar startle + counter-charge gore attack (-15 HP in combat mode)
 	var boar0: Dictionary = first_by_kind["boar"]
 	verify(boar0.state == "ambush", "wild boar starts nestled in hillside bush ambush thicket")
 	game.player.position = boar0.pos + Vector3(0.0, 0.0, 4.5)
 	game.wildlife.update(0.05)
-	verify(boar0.state == "flee" and game.wildlife.discovered_species.has("boar"), "approaching bush thicket startles wild boar into hillside charge")
+	verify(boar0.state in ["flee", "charge"] and game.wildlife.discovered_species.has("boar"), "approaching bush thicket startles wild boar into hillside gallop or charge")
+
+	game.combat.stage = game.combat.Stage.FIELD
+	game.combat.health = 100
+	game.combat.shield = 30
+	var p_stand: Vector3 = game.Layout.on_ground(Vector3(36.0, 0.0, 6.0))
+	game.player.position = p_stand
+	boar0.pos = game.Layout.on_ground(Vector3(36.0, 0.0, 2.8))
+	boar0.root.position = boar0.pos
+	boar0.charge_cd = 0.0
+	game.wildlife.trigger_boar_charge(boar0)
+	verify(boar0.state == "charge", "trigger_boar_charge enters active counter-charge state")
+	for c_tick in 18:
+		game.wildlife.update(0.05)
+		if game.combat.health < 100:
+			break
+	verify(game.combat.health == 85 and roundi(game.combat.shield) == 25, "wild boar counter-charge gore impact deals 15 HP damage + 5 shield loss")
+	game.combat.stage = game.combat.Stage.OFF
 
 	var bird0: Dictionary = first_by_kind["bird"]
 	var perch_y: float = bird0.pos.y

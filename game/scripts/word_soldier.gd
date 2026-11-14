@@ -621,8 +621,8 @@ func _physics_process(delta: float):
 			boss_ring_cd = 6.2 if boss_phase >= 2 else 4.6
 			combat.spawn_danger_ring(player_at, 3.4, 24)
 
-	# Up to 3 active shooters (option < 3) engage aggressively in active zone!
-	if combat.zone != zone or (option >= 3 and archetype != Archetype.BOSS_WARDEN):
+	# All 4 squad soldiers in the active zone engage & pursue across slopes!
+	if combat.zone != zone:
 		action = Action.PATROL
 		speed *= 0.62
 		if position.distance_to(patrol[patrol_index]) < 0.55:
@@ -640,7 +640,7 @@ func _physics_process(delta: float):
 			laser_beam.hide()
 		else:
 			aim_left -= delta
-			_update_laser(player_at + Vector3.UP * 1.24)
+			_update_laser(combat.player_aim_point())
 			if aim_left <= 0:
 				laser_beam.hide()
 				take_cover()
@@ -664,7 +664,7 @@ func _physics_process(delta: float):
 		var zone_center: Vector3 = combat.zone_center(zone)
 		var offset: Vector3 = goal - zone_center
 		offset.y = 0
-		var max_leash: float = combat.zone_pursuit(zone) - 2.0
+		var max_leash: float = combat.zone_pursuit(zone) + 4.5
 		if offset.length() > max_leash:
 			goal = zone_center + offset.limit_length(max_leash)
 
