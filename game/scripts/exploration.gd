@@ -45,7 +45,7 @@ func setup(g):
 	_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
 	_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
 	_mark("cliff_inscription", Vector3(-36.45, 0, -50.0), "摩崖石刻《竹石清音》", Color("e8b878"))
-	_mark("cave_mural", Vector3(-44.05, 0, -61.15), "先民壁画《耕读图》", Color("8de8c0"))
+	_mark("cave_mural", Vector3(-44.05, 0, -61.15), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
 	_mark("cave_hearth", Vector3(-41.05, 0, -66.35), "寒潭茶灶与古竹简", Color("ffd15c"))
 	var center = game.Layout.on_ground(Vector3(10, 0, -62))
 	gate = Node3D.new()
@@ -176,7 +176,7 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 	elif id == "cave_mural":
 		prompt.position = Vector3(-0.55, 2.68, 0.0)
 		prompt.pixel_size = 0.0038
-		prompt.text = "先民矿物壁画《耕读图》 · [F]"
+		prompt.text = "先民岩凿壁画《烟山耕读》 · [F]"
 	elif id == "cave_hearth":
 		prompt.position = Vector3(0.0, 1.68, -0.82)
 		prompt.pixel_size = 0.0038

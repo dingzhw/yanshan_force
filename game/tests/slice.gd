@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.2 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.6.2.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.2.1 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -633,7 +633,7 @@ func run():
 	var bag_titles: Array[String] = []
 	for b_item in game.rules.bag:
 		bag_titles.append(str(b_item.get("title", "")))
-	verify("烟山先民竹简" in bag_titles and "烟霞丹青残拓" in bag_titles, "Yanxia mural & hearth award Epic & Legendary heritage collectibles into raid bag")
+	verify("烟山先民竹简" in bag_titles and "烟霞岩画残拓" in bag_titles, "Yanxia rock petroglyph & hearth award Epic & Legendary heritage collectibles into raid bag")
 
 	game.queue_free()
 	await process_frame

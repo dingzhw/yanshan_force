@@ -78,12 +78,17 @@ def make_tex_mat(
     roughness: float = 0.84,
     tint_srgb: tuple[float, float, float] | None = None,
     emission_strength: float = 0.0,
+    normal_path: Path | None = None,
+    normal_strength: float = 1.65,
+    use_alpha: bool = False,
 ) -> bpy.types.Material:
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nt = mat.node_tree
     bsdf = nt.nodes.get("Principled BSDF")
     bsdf.inputs["Roughness"].default_value = roughness
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.22
     tex_node = nt.nodes.new("ShaderNodeTexImage")
     tex_node.image = bpy.data.images.load(str(image_path))
     color_out = tex_node.outputs["Color"]
@@ -96,9 +101,20 @@ def make_tex_mat(
         nt.links.new(color_out, mix.inputs["A"])
         color_out = mix.outputs["Result"]
     nt.links.new(color_out, bsdf.inputs["Base Color"])
+    if use_alpha:
+        nt.links.new(tex_node.outputs["Alpha"], bsdf.inputs["Alpha"])
+        mat.blend_method = "BLEND"
     if emission_strength > 0.0:
         nt.links.new(color_out, bsdf.inputs["Emission Color"])
         bsdf.inputs["Emission Strength"].default_value = emission_strength
+    if normal_path is not None and normal_path.exists():
+        norm_tex = nt.nodes.new("ShaderNodeTexImage")
+        norm_tex.image = bpy.data.images.load(str(normal_path))
+        norm_tex.image.colorspace_settings.name = "Non-Color"
+        norm_map = nt.nodes.new("ShaderNodeNormalMap")
+        norm_map.inputs["Strength"].default_value = normal_strength
+        nt.links.new(norm_tex.outputs["Color"], norm_map.inputs["Color"])
+        nt.links.new(norm_map.outputs["Normal"], bsdf.inputs["Normal"])
     return mat
 
 
@@ -198,6 +214,56 @@ def add_uv_quad_gd(
         loop[uv_layer].uv = uv
 
 
+def _art_wall_x(sign_x: float, y_gd: float, z_gd: float) -> float:
+    """Shared organic undulating cavern rock-wall surface for CaveInteriorVault & flush chiseled petroglyphs."""
+    undul = (
+        0.048 * math.sin(z_gd * 1.35 + y_gd * 0.85)
+        + 0.034 * math.cos(y_gd * 2.10 - z_gd * 1.15)
+        + 0.018 * math.sin((z_gd + y_gd) * 3.20)
+    )
+    return sign_x * (3.38 + undul)
+
+
+def add_flush_cavern_carving_gd(
+    bm: bmesh.types.BMesh,
+    sign_x: float,
+    y_center: float,
+    z_center: float,
+    width: float,
+    height: float,
+    nx: int = 24,
+    ny: int = 16,
+) -> None:
+    """Create a flush, frameless rock-carving surface conforming strictly to _art_wall_x() with ZERO border geometry."""
+    uv_layer = bm.loops.layers.uv.verify()
+    # sign_x = -1.0 (West wall, right = -Z); sign_x = +1.0 (East wall, right = +Z)
+    z_dir = -1.0 if sign_x < 0.0 else 1.0
+    grid: list[list[bmesh.types.BMVert]] = []
+    for iy in range(ny + 1):
+        v_uv = iy / float(ny)
+        sy = v_uv * 2.0 - 1.0
+        yg = y_center + sy * height * 0.5
+        row: list[bmesh.types.BMVert] = []
+        for ix in range(nx + 1):
+            u_uv = ix / float(nx)
+            sx = u_uv * 2.0 - 1.0
+            zg = z_center + z_dir * sx * width * 0.5
+            xg = _art_wall_x(sign_x, yg, zg) - sign_x * 0.014
+            row.append(bm.verts.new(gd_to_bl(Vector((xg, yg, zg)))))
+        grid.append(row)
+
+    for iy in range(ny):
+        for ix in range(nx):
+            u0, u1 = ix / float(nx), (ix + 1) / float(nx)
+            v0, v1 = iy / float(ny), (iy + 1) / float(ny)
+            verts = [grid[iy][ix], grid[iy][ix + 1], grid[iy + 1][ix + 1], grid[iy + 1][ix]]
+            uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+            face = bm.faces.new(verts)
+            for loop, uv in zip(face.loops, uvs):
+                loop[uv_layer].uv = uv
+    bm.normal_update()
+
+
 def apply_box_uv_gd(bm: bmesh.types.BMesh, uv_scale: float = 0.42) -> None:
     """Assign clean box-projected UVs in Godot space so rock textures never stretch."""
     uv_layer = bm.loops.layers.uv.verify()
@@ -229,6 +295,8 @@ def create_part(
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     if box_uv_scale is not None and len(bm.faces) > 0:
         apply_box_uv_gd(bm, box_uv_scale)
+    if len(bm.faces) > 0:
+        bmesh.ops.triangulate(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new(name + "_Mesh")
     bm.to_mesh(mesh)
     bm.free()
@@ -515,10 +583,26 @@ def _cavern_vault_height(z_gd: float) -> float:
 
 
 def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
-    """Complete 13m walk-in 2-chamber limestone cavern ('烟霞古洞') with mural, chronicle, jade pool & skylight."""
+    """Complete 13m walk-in 2-chamber limestone cavern ('烟霞古洞') with chiseled rock petroglyphs, chronicle, jade pool & skylight."""
     m_plaque = make_tex_mat("Mat_YanxiaPlaque", TEX_DIR / "plaque_yanxia_cave.png", roughness=0.78, emission_strength=0.06)
-    m_mural = make_tex_mat("Mat_YanxiaMural", TEX_DIR / "mural_yanxia_ancients.png", roughness=0.82, emission_strength=0.14)
-    m_chron = make_tex_mat("Mat_YanxiaChronicle", TEX_DIR / "inscription_cave_chronicle.png", roughness=0.80, emission_strength=0.12)
+    m_mural = make_tex_mat(
+        "Mat_YanxiaMural",
+        TEX_DIR / "mural_yanxia_ancients.png",
+        roughness=0.86,
+        emission_strength=0.05,
+        normal_path=TEX_DIR / "mural_yanxia_normal.png",
+        normal_strength=1.95,
+        use_alpha=True,
+    )
+    m_chron = make_tex_mat(
+        "Mat_YanxiaChronicle",
+        TEX_DIR / "inscription_cave_chronicle.png",
+        roughness=0.86,
+        emission_strength=0.05,
+        normal_path=TEX_DIR / "chronicle_normal.png",
+        normal_strength=1.85,
+        use_alpha=True,
+    )
     m_stal = make_tex_mat("Mat_Stalactite", TEX_DIR / "limestone_karst.png", roughness=0.72, tint_srgb=(0.86, 0.84, 0.76), emission_strength=0.06)
     m_pool = make_mat(
         "Mat_JadeSpringWater",
@@ -537,19 +621,19 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
         alpha=0.11,
     )
 
-    bm_in = bmesh.new()      # Interior sculpted limestone vault + wet stone floor
-    bm_out = bmesh.new()     # Exterior craggy karst mountain bluff shell
-    bm_moss = bmesh.new()    # Exterior mossy cliff ledges & skylight rim
-    bm_stone = bmesh.new()   # Carved stone frames, lintel & pool coping
-    bm_stal = bmesh.new()    # Stalactites & stalagmites
-    bm_pool = bmesh.new()    # Jade spring water surface
-    bm_beam = bmesh.new()    # Translucent skylight mist shaft
-    bm_pq = bmesh.new()      # Portal plaque
-    bm_mq = bmesh.new()      # West Wall Ancient Mineral Mural
-    bm_cq = bmesh.new()      # East Wall Historical Chronicle
+    bm_in = bmesh.new()        # Interior sculpted limestone vault + wet stone floor
+    bm_out = bmesh.new()       # Exterior craggy karst mountain bluff shell
+    bm_moss = bmesh.new()      # Exterior/interior mossy cliff ledges & skylight rim
+    bm_stone = bmesh.new()     # Portal lintel & pool coping
+    bm_stal = bmesh.new()      # Stalactites & stalagmites
+    bm_pool = bmesh.new()      # Jade spring water surface
+    bm_beam = bmesh.new()      # Translucent skylight mist shaft
+    bm_pq = bmesh.new()        # Portal plaque
+    bm_mq = bmesh.new()        # West Wall Flush Chiseled Rock Petroglyph
+    bm_cq = bmesh.new()        # East Wall Flush Chiseled Rock Chronicle
 
     # 1) Interior vaulted karst tunnel shell (inward-facing normals!) from z = +6.10 to z = -5.65
-    z_rings = [6.10, 5.45, 4.75, 3.70, 2.55, 1.35, 0.20, -0.85, -1.90, -2.85, -3.80, -4.65, -5.25, -5.65]
+    z_rings = [6.10, 5.45, 4.78, 4.10, 3.45, 2.85, 2.25, 1.60, 0.95, 0.20, -0.85, -1.90, -2.85, -3.80, -4.65, -5.25, -5.65]
     arch_n = 14
     rng = random.Random(6288)
     rings_verts: list[list[bmesh.types.BMVert]] = []
@@ -561,17 +645,18 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
             theta = math.pi * (a_idx / arch_n)  # 0 = East (+X), pi/2 = Crown (+Y), pi = West (-X)
             base_x = math.cos(theta) * hw
             base_y = math.sin(theta) * vh
-            # Keep floor rim plunging to y = -0.35 so wall meets floor watertight; keep mural/chronicle bays flatter!
+            # Keep floor rim plunging to y = -0.38 so wall meets floor watertight; give art bays natural _art_wall_x undulation!
             if a_idx == 0 or a_idx == arch_n:
                 base_y = -0.38
                 jitter = 0.0
-                vx_out = base_x
+                sign_f = 1.0 if base_x >= 0.0 else -1.0
+                vx_out = _art_wall_x(sign_f, base_y, zg) if (0.90 <= zg <= 4.80) else base_x
             else:
-                in_art_bay = (1.20 <= zg <= 4.80) and (a_idx in (1, 2, 3, 4, arch_n - 4, arch_n - 3, arch_n - 2, arch_n - 1))
+                in_art_bay = (0.90 <= zg <= 4.80) and (a_idx in (1, 2, 3, 4, arch_n - 4, arch_n - 3, arch_n - 2, arch_n - 1))
                 if in_art_bay:
                     jitter = 0.0
                     sign_x = 1.0 if base_x >= 0.0 else -1.0
-                    vx_out = sign_x * max(abs(base_x), 3.44)
+                    vx_out = _art_wall_x(sign_x, base_y, zg)
                 else:
                     amp = 0.04 if r_idx == 0 else 0.19
                     jitter = rng.uniform(-amp, amp)
@@ -701,15 +786,14 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
     # Translucent Volumetric-Style Skylight Mist Beam ("一线天光雾柱") slanting from skylight to Jade Spring Pool
     add_cyl(bm_beam, (-1.25, 5.05, -2.85), (-1.95, 0.10, -2.85), 0.56, 1.18, segs=14, cap_ends=False)
 
-    # 4) Outer Gallery Recessed Ancient Mineral Mural (West Wall x=-3.16, z=+2.85, facing +X East!)
-    add_box(bm_stone, (-3.26, 1.72, 2.85), (0.24, 1.74, 3.28))
-    add_box(bm_stone, (-3.06, 0.78, 2.85), (0.28, 0.14, 3.36))
-    add_uv_quad_gd(bm_mq, (-3.12, 1.72, 2.85), (0.0, 0.0, -1.0), (0.0, 1.0, 0.0), 3.08, 1.54)
+    # 4) Outer Gallery Flush Chiseled Rock Petroglyph ("先民岩凿壁画", carved directly into living West cavern rock wall!)
+    add_flush_cavern_carving_gd(bm_mq, -1.0, 1.72, 2.85, 3.60, 1.92, nx=24, ny=14)
+    add_karst_lobe(bm_moss, (-3.22, 0.10, 1.35), (0.24, 0.12, 0.42), subdiv=1, seed=765, amp=0.14)
+    add_karst_lobe(bm_moss, (-3.22, 0.10, 4.30), (0.24, 0.12, 0.42), subdiv=1, seed=766, amp=0.14)
 
-    # 5) Outer Gallery Recessed Historical Chronicle Stele (East Wall x=+3.16, z=+2.85, facing -X West!)
-    add_box(bm_stone, (3.26, 1.66, 2.85), (0.24, 2.22, 1.56))
-    add_box(bm_stone, (3.08, 0.48, 2.85), (0.26, 0.14, 1.62))
-    add_uv_quad_gd(bm_cq, (3.12, 1.66, 2.85), (0.0, 0.0, 1.0), (0.0, 1.0, 0.0), 1.38, 2.06)
+    # 5) Outer Gallery Flush Chiseled Rock Chronicle ("石壁阴刻《烟霞古洞志》", carved directly into living East cavern rock wall!)
+    add_flush_cavern_carving_gd(bm_cq, 1.0, 1.68, 2.85, 1.76, 2.34, nx=16, ny=20)
+    add_karst_lobe(bm_moss, (3.22, 0.10, 2.15), (0.22, 0.12, 0.36), subdiv=1, seed=775, amp=0.14)
 
     # 6) 18 Ceiling Limestone Stalactites + 8 Margin/Pool Stalagmites ("钟乳石与石笋")
     stalactite_specs = [
@@ -749,8 +833,8 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
             create_part("CaveStalactites", bm_stal, m_stal, smooth=True, box_uv_scale=0.65),
             create_part("CaveJadePool", bm_pool, m_pool),
             create_part("CavePortalPlaque", bm_pq, m_plaque, recalc_normals=False),
-            create_part("CaveMuralFace", bm_mq, m_mural, recalc_normals=False),
-            create_part("CaveChronicleFace", bm_cq, m_chron, recalc_normals=False),
+            create_part("CaveMuralFace", bm_mq, m_mural, smooth=True, recalc_normals=False),
+            create_part("CaveChronicleFace", bm_cq, m_chron, smooth=True, recalc_normals=False),
             create_part("CaveSkylightBeam", bm_beam, m_beam, smooth=True, recalc_normals=False),
         ],
     )
@@ -897,6 +981,7 @@ def export_all():
         export_apply=True,
         export_texcoords=True,
         export_normals=True,
+        export_tangents=True,
     )
     record = {
         "output": "game/assets/slice/v062_bamboo_cave.glb",

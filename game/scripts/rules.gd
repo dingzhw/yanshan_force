@@ -8,6 +8,9 @@ const OUTPOST_CLEAR_SCORE = 30
 const BOSS_DEFEAT_SCORE = 60
 const SUPPLY_PERFECT_SCORE = 10
 const CIPHER_PERFECT_SCORE = 25
+const NORMAL_HIT_SCALE = 0.50
+const CONFIDENTIAL_VALUE_MULT = 1.35
+const CONFIDENTIAL_CRATE_BONUS = 0.12
 
 const RARITY_NAMES = {
 	1: "普通",
@@ -45,7 +48,7 @@ const LOOT_TABLE = {
 		{"title": "无人机核心芯片", "value": 145, "rarity": 4},
 		{"title": "竹海古玉残片", "value": 155, "rarity": 4},
 		{"title": "军用黑匣子", "value": 165, "rarity": 4},
-		{"title": "烟霞丹青残拓", "value": 175, "rarity": 4}
+		{"title": "烟霞岩画残拓", "value": 175, "rarity": 4}
 	],
 	5: [
 		{"title": "烟山古铜虎符", "value": 260, "rarity": 5},
@@ -89,6 +92,7 @@ const BOSS_BLUEPRINTS = ["scope_2x", "suppressor", "compensator", "angled_grip",
 
 var phase = "camp"
 var combat_mode = false
+var operation_tier: String = "normal"
 var score = 0
 var correct = 0
 var answered = 0
@@ -200,9 +204,28 @@ func unlock_blueprint(id: String) -> bool:
 func level() -> int:
 	return 1 + int(profile.xp / 120)
 
-func start_run(as_combat = false):
+func is_confidential() -> bool:
+	return combat_mode and operation_tier == "confidential"
+
+func mode_label() -> String:
+	if not combat_mode:
+		return "自由靶场"
+	return "机密行动" if operation_tier == "confidential" else "普通行动"
+
+func migrate_legacy_items():
+	if profile.has("collection") and profile.collection is Array:
+		for i in profile.collection.size():
+			if str(profile.collection[i]) == "烟霞丹青残拓":
+				profile.collection[i] = "烟霞岩画残拓"
+	if profile.has("warehouse") and profile.warehouse is Array:
+		for item in profile.warehouse:
+			if item is Dictionary and str(item.get("title", "")) == "烟霞丹青残拓":
+				item["title"] = "烟霞岩画残拓"
+
+func start_run(as_combat = false, tier: String = "normal"):
 	phase = "active"
 	combat_mode = as_combat
+	operation_tier = "confidential" if (as_combat and tier == "confidential") else "normal"
 	score = 0
 	correct = 0
 	answered = 0
@@ -296,7 +319,10 @@ func add_loot(title: String, value: int, rarity: int = 1) -> bool:
 func roll_item_by_rarity(rarity: int) -> Dictionary:
 	var clamped = clampi(rarity, 1, 5)
 	var list: Array = LOOT_TABLE[clamped]
-	return list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
+	var item: Dictionary = list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
+	if is_confidential():
+		item["value"] = roundi(float(item["value"]) * CONFIDENTIAL_VALUE_MULT)
+	return item
 
 func roll_field_pickup(perfect_spell: bool = true) -> Dictionary:
 	var roll = loot_rng.randf()
@@ -330,6 +356,8 @@ func swap_lowest_loot(item: Dictionary) -> Dictionary:
 
 func roll_crate_rarity(tier: int, perfect_spell: bool) -> int:
 	var roll = loot_rng.randf()
+	if is_confidential():
+		roll = maxf(0.0, roll - CONFIDENTIAL_CRATE_BONUS)
 	if tier <= 1:
 		if perfect_spell:
 			if roll < 0.10: return 5
@@ -421,7 +449,10 @@ func finish_extraction() -> bool:
 		if not (bonus_item.title in profile.collection):
 			profile.collection.append(bonus_item.title)
 	profile.warehouse.append_array(bag.duplicate(true))
-	profile.xp += correct * 6 + outposts_cleared * 25 + perfect_ciphers * 15 + (60 if boss_defeated else 0) + 60
+	var gained_xp: int = int(correct) * 6 + int(outposts_cleared) * 25 + int(perfect_ciphers) * 15 + (60 if boss_defeated else 0) + 60
+	if is_confidential():
+		gained_xp = roundi(float(gained_xp) * CONFIDENTIAL_VALUE_MULT)
+	profile.xp += gained_xp
 	profile.extractions += 1
 	bag.clear()
 	phase = "result"

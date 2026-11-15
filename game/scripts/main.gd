@@ -9,7 +9,7 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.6.2"
+const VERSION = "0.6.2.1"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -57,6 +57,8 @@ var menu_summary: Label
 var menu_finance: Label
 var menu_status: Label
 var start_button: Button
+var confidential_button: Button
+var terminal_title_label: Label
 var sell_button: Button
 var shop_buttons = {}
 var unit_picker: OptionButton
@@ -215,6 +217,7 @@ func _load_profile():
 					"rarity": clampi(int(item.get("rarity", 1)), 1, 5)
 				})
 		rules.profile.warehouse = normalized_wh
+	rules.migrate_legacy_items()
 	rules.ensure_equipped()
 
 func _save():
@@ -470,6 +473,25 @@ func _button(parent: Control, text: String, rect: Rect2, callback: Callable, acc
 	parent.add_child(button)
 	return button
 
+func _style_tactical_button(button: Button, bg: Color, border: Color, font_col: Color):
+	for style_name in ["normal", "hover", "pressed", "disabled"]:
+		var style = StyleBoxFlat.new()
+		style.bg_color = bg
+		if style_name == "hover":
+			style.bg_color = bg.lightened(0.13)
+		elif style_name == "pressed":
+			style.bg_color = bg.darkened(0.08)
+		elif style_name == "disabled":
+			style.bg_color = Color("19272d")
+		style.border_color = border if style_name != "disabled" else Color(0.52, 0.65, 0.62, 0.14)
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(6)
+		button.add_theme_stylebox_override(style_name, style)
+	button.add_theme_color_override("font_color", font_col)
+	button.add_theme_color_override("font_hover_color", font_col)
+	button.add_theme_color_override("font_pressed_color", font_col)
+	button.add_theme_color_override("font_disabled_color", Color("6f8680"))
+
 func _build_ui():
 	var canvas = CanvasLayer.new()
 	add_child(canvas)
@@ -487,7 +509,7 @@ func _build_ui():
 
 	# ZONE 1: Top-Left Compact Mission & Telemetry Card
 	_panel(hud, Rect2(18, 16, 372, 166))
-	_text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 22), Vector2(246, 22), 14, MINT)
+	terminal_title_label = _text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 22), Vector2(262, 22), 14, MINT)
 	fps_label = _text(hud, "", Vector2(298, 22), Vector2(78, 22), 13, Color("9ecfc0"))
 	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	stat_label = _text(hud, "", Vector2(32, 46), Vector2(346, 24), 16, CREAM)
@@ -632,10 +654,15 @@ func _build_ui():
 	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
 
-	start_button = _button(menu, "部署战术行动  →", Rect2(122, 418, 274, 54), func(): start_action(rules.combat_mode if rules.phase in ["active", "extracting"] else true), true)
-	practice_button = _button(menu, "自由靶场练习", Rect2(408, 418, 170, 54), func(): start_action(false))
+	start_button = _button(menu, "普通行动 · 常规", Rect2(122, 418, 154, 54), func():
+		var in_active: bool = rules.phase in ["active", "extracting"]
+		start_action(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
+	, true)
+	confidential_button = _button(menu, "机密行动 · 高危", Rect2(284, 418, 154, 54), func(): start_action(true, "confidential"))
+	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
+	practice_button = _button(menu, "自由靶场", Rect2(446, 418, 132, 54), func(): start_action(false, "normal"))
 
-	var brief_lbl = _text(menu, "【v0.6.2 迷踪竹石阵与烟霞古洞 · 江南千年秘史探索】\n• 迷踪竹石阵：太湖奇石与翠竹多岔迷宫，含 [C] 矮石暗拱潜行捷径与日晷秘藏\n• 烟霞古洞：摩崖《竹石清音》、青绿矿物壁画《耕读图》、洞志石刻与钟乳寒潭\n• 先民遗踪：一线天光映照石砌茶灶、越窑青瓷与【大金·先民竹简】，研读回血补盾！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.2.1 普通/机密双行动模式 · 烟霞古洞先民岩凿石刻重塑】\n• 普通行动：5兵伴随亮词、单兵轮流主攻（其余4兵不进攻）且追击命中率减半！\n• 机密行动：5兵协同高强度围剿、全额锁敌命中；战利品估值×1.35、密码箱大金爆率提升！\n• 烟霞古洞：迷踪竹石阵北通千年石室，探访先民岩壁阴刻《耕读岩画》与一线天寒潭！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
@@ -699,7 +726,7 @@ func _refresh_menu(result = ""):
 	]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "全山 6 处敌营（每营 3 波×5 名词兵）：清完追兵后下波回出生地待命！\n打对词兵：爆头 1 枪秒杀 / 词盾 2 枪击毙；打错无伤且敌攻+25%。\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离！"
+		menu_summary.text = "可选【普通行动（单兵轮攻+半命中）】或【机密行动（5兵围剿+估值×1.35）】！\n打对词兵：爆头 1 枪秒杀 / 词盾 2 枪击毙；打错无伤且敌攻+25%。\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离！"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -742,7 +769,10 @@ func _refresh_menu(result = ""):
 			can_click = not in_run and not owned and not prereq_missing and rules.profile.coins >= item.cost
 		shop_buttons[id].disabled = not can_click
 
-	start_button.text = "继续行动  →" if in_run else "部署战术行动  →"
+	start_button.text = ("继续%s  →" % rules.mode_label()) if in_run else "普通行动 · 常规"
+	start_button.size = Vector2(274 if in_run else 154, 54)
+	if is_instance_valid(confidential_button):
+		confidential_button.visible = not in_run
 	practice_button.visible = not in_run
 	abandon_button.visible = in_run
 	unit_picker.disabled = in_run
@@ -784,13 +814,27 @@ func _build_weighted_queue() -> Array:
 	deck.shuffle()
 	return deck
 
-func start_action(as_combat = false):
-	if rules.phase not in ["active", "extracting"]:
+func _refresh_terminal_title():
+	if not is_instance_valid(terminal_title_label):
+		return
+	if rules.is_confidential():
+		terminal_title_label.text = "YANSHAN · 机密行动 (估值×1.35)"
+		terminal_title_label.add_theme_color_override("font_color", Color("ffd15c"))
+	elif rules.combat_mode:
+		terminal_title_label.text = "YANSHAN · 普通行动 (单兵轮攻)"
+		terminal_title_label.add_theme_color_override("font_color", MINT)
+	else:
+		terminal_title_label.text = "YANSHAN · 自由靶场练习"
+		terminal_title_label.add_theme_color_override("font_color", MINT)
+
+func start_action(as_combat = false, op_tier: String = "normal"):
+	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == bool(as_combat)) and (rules.operation_tier == op_tier)
+	if not same_active_run:
 		review_button.hide()
 		review_overlay.hide()
 		tutorial_moved = false
 		_leave_station()
-		rules.start_run(as_combat)
+		rules.start_run(as_combat, op_tier)
 		exploration.reset()
 		if is_instance_valid(wildlife):
 			wildlife.reset()
@@ -852,6 +896,7 @@ func start_action(as_combat = false):
 	menu.hide()
 	hud.show()
 	combat_panel.show()
+	_refresh_terminal_title()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _pick_smart_distractors(target: Dictionary, desired_count: int = 4) -> Array:
@@ -1203,6 +1248,7 @@ func _process(delta):
 	]
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
 
+	_refresh_terminal_title()
 	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
 	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
@@ -1439,7 +1485,8 @@ func _end_run(success: bool, title = ""):
 	hud.hide()
 	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
-	var header = ("成功带回 %d 件物资（含清哨%s奖励），随身估值 %d 币！\n" % [banked_count, "+首领" if defeated_boss else "", carried_value]) if success else "本局未撤离物资遗留在烟山，调整装备再战！\n"
+	var mode_badge: String = "【%s%s】" % [rules.mode_label(), "·估值×1.35" if rules.is_confidential() else ""]
+	var header = ("%s 成功带回 %d 件物资（含清哨%s奖励），随身估值 %d 币！\n" % [mode_badge, banked_count, "+首领" if defeated_boss else "", carried_value]) if success else ("%s 本局未撤离物资遗留在烟山，调整装备再战！\n" % mode_badge)
 	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
@@ -1465,7 +1512,7 @@ func _input(event):
 			return
 		if is_esc and rules.phase in ["active", "extracting"]:
 			if paused:
-				start_action(rules.combat_mode)
+				start_action(rules.combat_mode, rules.operation_tier)
 			else:
 				paused = true
 				player.clear_movement_input()

@@ -308,19 +308,19 @@
       "reveal_key": "yanxia_cave"
     },
     "cave_mural": {
-      "title": "烟霞古洞 · 先民矿物壁画《烟山先民耕读图》",
+      "title": "烟霞古洞 · 先民岩凿壁画《烟山耕读岩画》",
       "tts": "Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.",
-      "question": "西壁以朱砂、石青、石绿绘有《烟山先民耕读图》，东壁《烟霞古洞志》载：「昔诚庄先民辟山畴，见暮霭竹烟常绕石壁，遂名此山曰烟山。」\n\"Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.\"\n诚庄先人当年为何将这座江南小山命名为「烟山」？",
+      "question": "西壁青灰岩体上直接以石锛铁錾阴刻凿有《烟山耕读岩画》（背篓采茶、驱牛扶犁、洞中挑灯），东壁石壁阴刻《烟霞古洞志》载：「昔诚庄先民辟山畴，见暮霭竹烟常绕石壁，遂名此山曰烟山。」\n\"Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.\"\n诚庄先人当年为何将这座江南小山命名为「烟山」？",
       "options": [
         "因傍晚暮霭云霞与竹林山烟常年缭绕青石崖壁，故名「烟山」",
         "因为山顶每天都在燃放彩色烟花",
         "因为整座山寸草不生、没有竹林与溪水"
       ],
       "answer": 0,
-      "explanation": "品读《耕读图》与《古洞志》完成！千百年前诚庄先民白日采茶耕田、入夜于洞中挑灯读书，烟山文脉由此绵延至今。",
-      "source": "烟山秘史卷二 · 烟霞古洞矿物壁画与古洞志 / 英语过去时叙事",
+      "explanation": "摩挲先民石壁凿痕与《古洞志》完成！千百年前诚庄先人在原始洞壁一锤一錾刻下白日采茶耕田、入夜洞中夜读的岁月痕迹，烟山文脉由此绵延至今。",
+      "source": "烟山秘史卷二 · 烟霞古洞先民石壁岩刻与古洞志 / 英语过去时叙事",
       "reward_score": 30,
-      "reward_title": "烟霞丹青残拓",
+      "reward_title": "烟霞岩画残拓",
       "reward_value": 175,
       "reward_rarity": 4
     },

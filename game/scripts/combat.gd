@@ -45,6 +45,9 @@ var zone_engaged = {}
 var zone_respawn_grace = {}
 var smoke_zones = []
 var danger_rings = []
+var active_attacker = null
+var active_attacker_idle: float = 0.0
+var last_attacker_option: int = -1
 
 func begin():
 	stop()
@@ -60,6 +63,9 @@ func begin():
 	attack_lock = 0.0
 	miss_left = 0.0
 	boss_unit = null
+	active_attacker = null
+	active_attacker_idle = 0.0
+	last_attacker_option = -1
 	smoke_zones.clear()
 	danger_rings.clear()
 	shot_rng.randomize()
@@ -72,6 +78,9 @@ func stop():
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
 	boss_unit = null
+	active_attacker = null
+	active_attacker_idle = 0.0
+	last_attacker_option = -1
 	smoke_zones.clear()
 	danger_rings.clear()
 	camp_covers.clear()
@@ -140,6 +149,9 @@ func damage_per_shot(soldier = null) -> int:
 		base = soldier.base_shot_damage()
 	return maxi(2, roundi(float(base) * damage_multiplier()))
 
+func is_single_attacker_mode() -> bool:
+	return not game.rules.is_confidential()
+
 func hit_chance() -> float:
 	var motion: Vector3 = game.player.get_real_velocity()
 	var speed := Vector2(motion.x, motion.z).length()
@@ -148,6 +160,8 @@ func hit_chance() -> float:
 		chance *= AIRBORNE_HIT_SCALE
 	if is_instance_valid(game.player) and game.player.has_method("evasion_profile_multiplier"):
 		chance *= float(game.player.evasion_profile_multiplier())
+	if is_single_attacker_mode():
+		chance *= game.Rules.NORMAL_HIT_SCALE
 	return chance
 
 func _mark_zone_cleared(z_idx: int):
@@ -322,20 +336,27 @@ func engage_camp(z_idx: int):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	active_attacker = null
+	active_attacker_idle = 0.0
+	last_attacker_option = -1
+	attack_lock = 0.25 if game.rules.is_confidential() else 0.55
 	game._leave_station()
 	game.next_question_left = 0.0
 	for s in alive:
 		if s.action == Soldier.Action.PATROL:
 			s.action = Soldier.Action.ADVANCE
+	if is_single_attacker_mode():
+		active_attacker = _pick_next_attacker(z_idx)
 	_select_next_wave_prompt(z_idx)
 	var z_title: String = zone_info(z_idx).title
 	var w_cur: int = int(waves_done.get(z_idx, 0)) + 1
 	var w_max: int = int(waves_target.get(z_idx, WAVES_PER_CAMP))
+	var pace_tag: String = "机密围剿" if game.rules.is_confidential() else "普通轮攻"
 	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
-		game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %d名守军）：铁甲词尊追击！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size()], Color("ffd15c"))
+		game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %s）：铁甲词尊追击！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, pace_tag], Color("ffd15c"))
 		game.play_sfx("boss_phase", -11)
 	else:
-		game._notice("⚔ 触发【%s】第 %d/%d 波仇恨（%d名词兵追击）！打头1枪秒杀 · 打词盾2枪击毙！" % [z_title, w_cur, w_max, alive.size()], game.GOLD)
+		game._notice("⚔ 触发【%s】第 %d/%d 波仇恨（%d兵 · %s）！打头1枪秒杀 · 打词盾2枪击毙！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
 
 func disengage_active_camp(announce: bool = true):
 	if zone < 0:
@@ -346,6 +367,9 @@ func disengage_active_camp(announce: bool = true):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	active_attacker = null
+	active_attacker_idle = 0.0
+	last_attacker_option = -1
 	for s in troops.get(old_z, []):
 		if is_instance_valid(s) and not s.defeated:
 			s.action = Soldier.Action.PATROL
@@ -413,6 +437,22 @@ func update(delta: float):
 		if living_soldiers(zone).is_empty():
 			_complete_current_wave(zone)
 			return
+		if is_single_attacker_mode():
+			if not is_instance_valid(active_attacker) or active_attacker.defeated or active_attacker.zone != zone or active_attacker.stun_left > 0.0:
+				active_attacker = null
+				active_attacker_idle = 0.0
+			if active_attacker == null:
+				if attack_lock <= 0.0:
+					active_attacker = _pick_next_attacker(zone)
+					active_attacker_idle = 0.0
+			elif active_attacker.action == Soldier.Action.AIM:
+				active_attacker_idle = 0.0
+			else:
+				active_attacker_idle += delta
+				if active_attacker_idle > 2.2:
+					last_attacker_option = active_attacker.option
+					active_attacker = _pick_next_attacker(zone)
+					active_attacker_idle = 0.0
 		var c := zone_center(zone)
 		var d_home := Vector2(game.player.position.x - c.x, game.player.position.z - c.z).length()
 		if d_home > zone_pursuit(zone):
@@ -464,12 +504,13 @@ func show_question():
 	var z_title: String = zone_info(zone).title
 	var w_cur: int = int(waves_done.get(zone, 0)) + 1
 	var w_max: int = int(waves_target.get(zone, WAVES_PER_CAMP))
+	var mode_tag := "机密围剿" if game.rules.is_confidential() else "普通轮攻"
 	var atk_tag := (" | ⚠敌攻×%.2f" % damage_multiplier()) if wave_wrong_stacks > 0 else ""
 	var boss_suffix := ""
 	if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
 		boss_suffix = " | ★统领 %d/450%s" % [boss_unit.hp, " (红核暴露!)" if boss_unit.exposed_left > 0 else ""]
-	game.unit_label.text = "%s · 第 %d/%d 波 · 剩余追兵 %d/%d%s%s  |  [X]读音" % [
-		z_title, w_cur, w_max, alive_count, SQUAD_SIZE, atk_tag, boss_suffix
+	game.unit_label.text = "%s · %s · 第 %d/%d 波 · 追兵 %d/%d%s%s  |  [X]读音" % [
+		z_title, mode_tag, w_cur, w_max, alive_count, SQUAD_SIZE, atk_tag, boss_suffix
 	]
 
 func _resolve_soldier_node(collider):
@@ -561,6 +602,9 @@ func _complete_current_wave(z_idx: int):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	active_attacker = null
+	active_attacker_idle = 0.0
+	last_attacker_option = -1
 	zone_engaged[z_idx] = false
 	if zone == z_idx:
 		zone = -1
@@ -754,7 +798,8 @@ func _on_boss_defeated(_boss):
 	game.rules.boss_defeated = true
 	game.rules.score += game.Rules.BOSS_DEFEAT_SCORE
 	game.player.add_reserve_ammo(game.rules.magazine())
-	var core_item := {"title": "烟山统领黄金核心", "value": 380, "rarity": 5}
+	var core_val := roundi(380.0 * (game.Rules.CONFIDENTIAL_VALUE_MULT if game.rules.is_confidential() else 1.0))
+	var core_item := {"title": "烟山统领黄金核心", "value": core_val, "rarity": 5}
 	if not game.rules.add_loot(core_item.title, core_item.value, core_item.rarity):
 		game.rules.swap_lowest_loot(core_item)
 	var bp_unlocked := ""
@@ -767,7 +812,7 @@ func _on_boss_defeated(_boss):
 				break
 	var bp_msg := (" + 研发图纸【%s】" % bp_unlocked) if bp_unlocked != "" else ""
 	game.play_sfx("loot_epic", -7)
-	game._notice("🏆 击败【铁甲词尊 · 烟山统领】！夺得 B区撤离密钥 + 黄金核心(380)%s！" % bp_msg, Color("ffd15c"))
+	game._notice("🏆 击败【铁甲词尊 · 烟山统领】！夺得 B区撤离密钥 + 黄金核心(%d)%s！" % [core_val, bp_msg], Color("ffd15c"))
 
 func deploy_smoke_emp(center: Vector3):
 	if not is_instance_valid(arena):
@@ -884,10 +929,54 @@ func clear_shot(at: Vector3) -> bool:
 		return not blocked(at + Vector3.UP * 1.68, target_pt + Vector3.UP * 0.10)
 	return false
 
-func reserve_attack() -> bool:
+func _pick_next_attacker(z_idx: int):
+	if not troops.has(z_idx):
+		return null
+	var list: Array = troops[z_idx]
+	var clear_candidate = null
+	var fallback_candidate = null
+	for step in list.size():
+		var idx := (last_attacker_option + 1 + step) % list.size()
+		var s = list[idx]
+		if not is_instance_valid(s) or s.defeated or s.stun_left > 0.0:
+			continue
+		if fallback_candidate == null:
+			fallback_candidate = s
+		var horiz_d := Vector2(s.position.x - game.player.position.x, s.position.z - game.player.position.z).length()
+		if horiz_d < s.attack_range() + 1.5 and clear_shot(s.position):
+			clear_candidate = s
+			break
+	return clear_candidate if clear_candidate != null else fallback_candidate
+
+func is_designated_attacker(soldier) -> bool:
+	if not is_single_attacker_mode():
+		return true
+	if not is_instance_valid(soldier) or soldier.defeated or soldier.zone != zone:
+		return false
+	if not is_instance_valid(active_attacker) or active_attacker.defeated or active_attacker.zone != zone or active_attacker.stun_left > 0.0:
+		if attack_lock <= 0.0:
+			active_attacker = soldier
+			active_attacker_idle = 0.0
+	return active_attacker == soldier
+
+func on_soldier_attack_finished(soldier):
+	if is_single_attacker_mode() and active_attacker == soldier:
+		last_attacker_option = soldier.option
+		active_attacker = null
+		active_attacker_idle = 0.0
+		attack_lock = maxf(attack_lock, 1.55 if wave_wrong_stacks <= 0 else 1.15)
+
+func reserve_attack(soldier = null) -> bool:
 	if attack_lock > 0:
 		return false
-	attack_lock = 1.28 if wave_wrong_stacks <= 0 else 0.94
+	if is_single_attacker_mode():
+		if soldier != null and not is_designated_attacker(soldier):
+			return false
+		if active_threat_count() >= 1:
+			return false
+		attack_lock = 1.60 if wave_wrong_stacks <= 0 else 1.20
+		return true
+	attack_lock = 1.12 if wave_wrong_stacks <= 0 else 0.82
 	return true
 
 func active_threat_count() -> int:
@@ -934,7 +1023,9 @@ func strike(soldier):
 	var to: Vector3 = player_aim_point()
 	var chance := hit_chance()
 	if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN]:
-		chance = clampf(chance + 0.10, 0.20, 0.90)
+		var bonus := 0.05 if is_single_attacker_mode() else 0.10
+		var min_c := 0.10 if is_single_attacker_mode() else 0.20
+		chance = clampf(chance + bonus, min_c, 0.90)
 	var hits_player := shot_rng.randf() < chance
 	if not hits_player:
 		var sideways := (to - from).cross(Vector3.UP).normalized()

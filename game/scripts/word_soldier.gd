@@ -668,9 +668,9 @@ func _physics_process(delta: float):
 
 	if archetype == Archetype.BOSS_WARDEN and engaged:
 		boss_ring_cd = maxf(0, boss_ring_cd - delta)
-		if boss_ring_cd <= 0 and distance < attack_range() and not combat.player_in_smoke():
-			boss_ring_cd = 6.2 if boss_phase >= 2 else 4.6
-			combat.spawn_danger_ring(player_at, 3.4, 24)
+		if boss_ring_cd <= 0 and distance < attack_range() and not combat.player_in_smoke() and combat.is_designated_attacker(self):
+			boss_ring_cd = (7.8 if combat.is_single_attacker_mode() else 6.2) if boss_phase >= 2 else (6.0 if combat.is_single_attacker_mode() else 4.6)
+			combat.spawn_danger_ring(player_at, 3.4, 18 if combat.is_single_attacker_mode() else 24)
 
 	if not engaged:
 		# Standby Garrison at Camp Origin: patrol quietly around camp, DO NOT chase player until aggroed!
@@ -697,18 +697,31 @@ func _physics_process(delta: float):
 				take_cover()
 				cooldown = fire_interval() * (0.82 if combat.wave_wrong_stacks > 0 else 1.0)
 				combat.strike(self)
+				combat.on_soldier_attack_finished(self)
 	else:
 		action = Action.ADVANCE
 		laser_beam.hide()
-		if distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack():
+		var can_engage_now: bool = combat.is_designated_attacker(self)
+		if can_engage_now and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
 			action = Action.AIM
 			aim_left = aim_windup()
 			if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]:
 				game.play_sfx("warning_lock", -13)
+		elif not can_engage_now:
+			# Normal Mode Escort Formation: follow player in a wide, non-crowding fan arc (7.6m–8.8m) without firing!
+			var escort_ang := float(option - 2) * 0.38
+			var base_dir := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+			var escort_dist := 7.6 + float(option % 2) * 1.15
+			var desired := player_at + base_dir.rotated(Vector3.UP, escort_ang) * escort_dist
+			if Vector2(desired.x - position.x, desired.z - position.z).length() > 0.85:
+				goal = desired
+			else:
+				goal = position + base_dir.cross(Vector3.UP) * side * 0.65
+				speed *= 0.45
 		elif archetype == Archetype.SNIPER_GUARD and distance < 14.0 and distance > 7.0 and combat.clear_shot(position):
 			goal = position + toward_player.normalized().cross(Vector3.UP) * side * 1.4
-		elif distance > (4.0 if archetype == Archetype.SCOUT_DRONE else 5.4):
-			var spread_ang := float(option - 2) * 0.42
+		elif distance > (4.0 if archetype == Archetype.SCOUT_DRONE else 5.2):
+			var spread_ang := float(option - 2) * 0.36
 			var approach_off := (-toward_player.normalized()).rotated(Vector3.UP, spread_ang) * 4.6
 			goal = player_at + approach_off
 		else:

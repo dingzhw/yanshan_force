@@ -52,8 +52,12 @@ func run():
 	game.add_child(aim)
 	await frames(2)
 
-	# 1. Immediate field deployment into 6 camps × 3 waves × 5 soldiers in standby
+	# 1. Immediate field deployment into 6 camps × 3 waves × 5 soldiers in standby (Normal Operation default)
 	game.start_button.pressed.emit()
+	verify(
+		game.rules.operation_tier == "normal" and not game.rules.is_confidential() and game.terminal_title_label.text.contains("普通行动"),
+		"start_button launches Normal Operation mode with single-attacker HUD tag"
+	)
 	var all_five_standby := true
 	for z_i in game.Layout.COMBAT_ZONES.size():
 		if game.combat.living_soldiers(z_i).size() != Battle.SQUAD_SIZE or int(game.combat.waves_target.get(z_i, 0)) != Battle.WAVES_PER_CAMP or game.combat.is_zone_engaged(z_i):
@@ -111,24 +115,43 @@ func run():
 	game.combat.show_question()
 	verify(all_words_fit, "all 175 textbook entries fit the holographic word shield")
 
-	# 3. Advance, warn, fire (absorbed by Shield first!), and retreat to cover
+	# 3. Normal Mode: 0.50x accuracy, single-attacker round-robin token + 4-bot non-firing escort, shield absorb & cover retreat
 	game.player.position = center0 + Vector3(0, 0.08, 1.5)
+	game.player.clear_movement_input()
+	game.player.reset_stance()
+	await frames(8)
+	var normal_stationary_hit: float = game.combat.hit_chance()
+	verify(absf(normal_stationary_hit - 0.39) < 0.025, "Normal Operation halves stationary enemy hit probability from 78%% to ~39%% (got %.2f)" % normal_stationary_hit)
 	game.combat.shot_rng.seed = seed_for_roll(0.0, 0.1)
-	await frames(4)
 	var saw_warning = false
 	var fired = false
+	var max_sim_aim := 0
+	var saw_four_escort := false
 	var init_shield: float = game.combat.shield
 	var first_attacker
-	for i in 320:
+	for i in 340:
 		await physics_frame
+		var aim_now := 0
+		var escort_now := 0
 		for soldier in game.combat.troops[0]:
-			if soldier.action == Soldier.Action.AIM and first_attacker == null:
-				saw_warning = true
-				first_attacker = soldier
+			if soldier.action == Soldier.Action.AIM:
+				aim_now += 1
+				if first_attacker == null:
+					saw_warning = true
+					first_attacker = soldier
+			elif not soldier.defeated and soldier.action == Soldier.Action.ADVANCE:
+				escort_now += 1
+		max_sim_aim = maxi(max_sim_aim, aim_now)
+		if aim_now == 1 and escort_now == 4:
+			saw_four_escort = true
 		if game.combat.shield < init_shield or game.combat.health < 100:
 			fired = true
 			break
 	verify(saw_warning and fired and game.combat.shield < init_shield and game.combat.health == 100, "enemy shot warns, fires, and is absorbed by shield first")
+	verify(
+		max_sim_aim == 1 and saw_four_escort and game.combat.active_attacker != first_attacker,
+		"Normal Operation keeps strictly 1 active attacker while 4 bots escort without firing, then rotates token round-robin"
+	)
 
 	var sheltered = false
 	if is_instance_valid(first_attacker):
@@ -263,7 +286,17 @@ func run():
 		"Wave 2 spawns strictly at Camp 0 origin in PATROL standby and waits for player to pull aggro"
 	)
 
-	# 7. Zone 1: Sniper laser, Smoke/EMP [G], Stim [T], Knife execution (+1 mag ammo), and 3-wave permanent camp clear
+	# 7. Confidential Operation ("机密行动"): 1.35x valuation, multi-attacker Sniper laser, Smoke/EMP [G], Stim [T], Knife & 3-wave clear
+	game.rules.loot_rng.seed = 777
+	var norm_leg_loot: Dictionary = game.rules.roll_item_by_rarity(5)
+	game.confidential_button.pressed.emit()
+	await frames(4)
+	game.rules.loot_rng.seed = 777
+	var conf_leg_loot: Dictionary = game.rules.roll_item_by_rarity(5)
+	verify(
+		game.rules.operation_tier == "confidential" and game.rules.is_confidential() and game.terminal_title_label.text.contains("机密行动") and int(conf_leg_loot.get("value", 0)) == roundi(float(norm_leg_loot.get("value", 0)) * 1.35),
+		"confidential_button launches Confidential Operation with exact 1.35x loot valuation multiplier"
+	)
 	var center1: Vector3 = game.combat.zone_center(1)
 	game.player.position = center1 + Vector3(0, 0.08, 2.0)
 	await frames(6)
@@ -394,9 +427,13 @@ func run():
 		await frames(2)
 		shoot(game.player.camera.global_position, t2.head_area.global_position)
 
+	var boss_core_val := 0
+	for b_entry in game.rules.bag:
+		if str(b_entry.get("title", "")).contains("统领黄金核心"):
+			boss_core_val = int(b_entry.get("value", 0))
 	verify(
-		game.rules.boss_defeated and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= 2 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(),
-		"clearing 2 camps (3 waves each) + defeating Zone-B Boss + >=260 pts unlocks combat extraction"
+		game.rules.boss_defeated and boss_core_val == 513 and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= 2 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(),
+		"clearing 2 camps (3 waves each) + defeating Zone-B Boss (513 Confidential core) + >=260 pts unlocks extraction"
 	)
 
 	game.rules.add_loot("前哨战利品", 82, 3)
@@ -408,8 +445,8 @@ func run():
 	await frames(5)
 	verify(game.rules.phase == "result" and game.rules.profile.warehouse.size() > 0 and not game.combat.in_field(), "extraction banks loot and clears combat")
 
-	# 9. Stance Evasion & Lethal Defeat Checks
-	game.start_button.pressed.emit()
+	# 9. Confidential Stance Evasion, Full 78%/26% Accuracy & Lethal Defeat Checks
+	game.confidential_button.pressed.emit()
 	await frames(4)
 	game.player.position = center0 + Vector3(0, 0.08, 1.5)
 	await frames(6)

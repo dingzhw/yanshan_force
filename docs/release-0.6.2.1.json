@@ -1,0 +1,21 @@
+{
+  "version": "0.6.2.1",
+  "source_checkpoint": "docs\\checkpoints\\source-0.6.2.1.zip",
+  "files": [
+    {
+      "path": "playtest\\windows-v0.6.2.1\\YanshanBase.exe",
+      "bytes": 109268480,
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+    },
+    {
+      "path": "playtest\\windows-v0.6.2.1\\YanshanBase.pck",
+      "bytes": 67235780,
+      "sha256": "4b9e87987f8c4ae5acdfe6483909d4eedb0ee5ebfbeaaea17d8489e1614e24e5"
+    },
+    {
+      "path": "playtest\\烟山基地试玩_v0.6.2.1_Windows.zip",
+      "bytes": 105926220,
+      "sha256": "44145ffffe0089e032e015e4f3b756096ffa6c68d720710200bc29b27bf3bc84"
+    }
+  ]
+}

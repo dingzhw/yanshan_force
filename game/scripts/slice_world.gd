@@ -961,7 +961,7 @@ func _camp():
 		[Vector3(-9, 0, 7), "烟山基地\nA · 山脚营地"],
 		[Vector3(-12, 0, -17), "林间古道营地 ↑\n西岭山坡营地 ←"],
 		[Vector3(-20, 0, -28), "← 诗碑亭 · 迷踪竹石阵\n林间营地 →"],
-		[Vector3(-32.8, 0, -33.2), "↙ 迷踪竹石阵 · 烟霞古洞\n摩崖石刻 · 矿物壁画 · 寒潭"],
+		[Vector3(-32.8, 0, -33.2), "↙ 迷踪竹石阵 · 烟霞古洞\n摩崖石刻 · 先民岩画 · 寒潭"],
 		[Vector3(22.4, 0, -21.5), "东坡茶岭营地 ↗\n东上望稻亭 ↘"],
 		[Vector3(-14, 0, -53), "西北高地营 ↖\n山道拦截营 ↑"],
 		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2营·统领"]
@@ -1712,12 +1712,17 @@ func _prepare_v062_mesh_materials(src_mesh: Mesh) -> Mesh:
 		if mat is BaseMaterial3D:
 			var bmat := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
 			var mname := mat.resource_name
-			if mname.contains("SkylightBeam") or (bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and bmat.albedo_color.a < 0.35):
+			if mname.contains("SkylightBeam") or (not mname.contains("Yanxia") and bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and bmat.albedo_color.a < 0.35):
 				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 				bmat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 				bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 				bmat.albedo_color = Color(0.76, 0.93, 0.89, 0.17)
+			elif mname.contains("YanxiaMural") or mname.contains("YanxiaChronicle"):
+				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				bmat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+				bmat.roughness = 0.88
+				bmat.metallic_specular = 0.18
 			elif mname.contains("JadePool") or mname.contains("JadeWater") or bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -2026,9 +2031,10 @@ func _build_bamboo_maze_and_yanxia_cave():
 	tbl_shp.height = 0.82
 	game.Props.shape_body(cave_root, tbl_shp, Vector3(0.93, 0.44, -3.25)).add_to_group("solid_props")
 
-	# Distance-faded shadowless cavern lights (0ms cost beyond 32m, rich mineral/jade/ember glow inside!)
+	# Distance-faded shadowless cavern lights (0ms cost beyond 32m; steep raking torchlight grazes chiseled rock walls!)
 	var light_specs := [
-		[Vector3(0.0, 2.35, 2.85), Color("ffd69c"), 1.28, 6.8],
+		[Vector3(-2.32, 3.04, 3.42), Color("ffd094"), 1.06, 5.8],
+		[Vector3(2.32, 2.98, 2.30), Color("ffd094"), 1.02, 5.6],
 		[Vector3(-1.65, 2.65, -2.85), Color("8ef2df"), 1.38, 6.2],
 		[Vector3(0.45, 1.45, -3.30), Color("ffb25e"), 1.22, 5.4]
 	]
