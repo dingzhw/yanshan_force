@@ -113,7 +113,21 @@ func _draw():
 				var tc = Color("f5c542") if tk == "ammo_crate" else (Color("56e8ff") if tk == "smoke_emp" else Color("6ae3a8"))
 				draw_circle(point(sup.position), 1.8, tc)
 			else:
-				draw_circle(point(sup.position), 2.0, Color("66d9ef"))
+				if sup.has_meta("overcharged"):
+					draw_circle(point(sup.position), 2.5, Color("ffd15c"))
+					draw_arc(point(sup.position), 3.6, 0, TAU, 12, Color("ff8c42"), 1.1)
+				else:
+					draw_circle(point(sup.position), 2.0, Color("66d9ef"))
+
+	if is_instance_valid(game.world_loot):
+		for raw_d in game.world_loot.drop_nodes:
+			var dnode: Node3D = raw_d
+			if is_instance_valid(dnode) and dnode.visible:
+				var dp: Vector2 = point(dnode.position)
+				draw_colored_polygon(PackedVector2Array([
+					dp + Vector2(0, -3.2), dp + Vector2(3.2, 0),
+					dp + Vector2(0, 3.2), dp + Vector2(-3.2, 0)
+				]), Color("ffd15c"))
 
 	for chest in game.crate_nodes:
 		var opened = chest.get_meta("title") in game.rules.crates

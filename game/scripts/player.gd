@@ -184,6 +184,10 @@ func _unhandled_input(event):
 			throw_smoke_emp()
 		elif code == KEY_T:
 			use_stim()
+		elif code == KEY_B and is_instance_valid(game.loot_ui):
+			game.loot_ui.toggle_backpack()
+		elif code == KEY_I and is_instance_valid(game.loot_ui):
+			game.loot_ui.inspect_best_in_bag()
 
 func toggle_crouch():
 	if not active or game.paused:

@@ -1,9 +1,10 @@
 extends Node
-## Tiered English Cipher Terminal:
-## - Regular Supply Boxes: 1-stage single core English word spelling
-## - Tier 1 Outpost Crate: 2-stage combo (Core Word -> Textbook Phrase)
-## - Tier 2 Epic Vault:    2-stage combo (Textbook Phrase -> Grade 5A Short Sentence)
-## - Tier 3 Gold Airdrop:  3-stage protocol (Advanced Word -> Textbook Phrase -> Full Grade 5A Sentence)
+## v0.6.3 Tiered English Cipher & Magnifying-Glass Loot Reveal Terminal:
+## - Regular Supply Boxes: 1-stage word spelling (+ Overcharged golden box bonus & 6-tier miracle jackpot!)
+## - Tier 1/2/3 Vaults: 2–3 stage English combo with visible Perfect-Crack Luck Multiplier & Tier 6 '旷世·大红'
+## - Squad Drop Pouches: Instant unlocking into escalating Magnifying-Glass Slot-by-Slot Inspection!
+
+const LootUI = preload("res://scripts/loot_ui.gd")
 
 const SENTENCE_BANK = [
 	{"id": "s_u1_1", "unit": 1, "textbook_page": 17, "kind": "sentence", "english": "It's your turn.", "chinese": "轮到你了。"},
@@ -51,6 +52,11 @@ var speak_button: Button
 var close_button: Button
 var swap_button: Button
 var loot_container: HBoxContainer
+var reveal_slots: Array = []
+var reveal_cursor: int = 0
+var reveal_timer: float = 0.0
+var reveal_duration: float = 0.3
+var reveal_tick_acc: float = 0.0
 var rng := RandomNumberGenerator.new()
 
 func setup(g):
@@ -106,18 +112,18 @@ func _build_ui():
 	swap_button = game._button(overlay, "替换背包最低值物资", Rect2(636, 372, 340, 46), _swap_lowest)
 	swap_button.hide()
 
-	status_label = game._text(overlay, "", Vector2(242, 428), Vector2(796, 52), 17, game.GOLD)
+	status_label = game._text(overlay, "", Vector2(242, 422), Vector2(796, 44), 16, game.GOLD)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	loot_container = HBoxContainer.new()
-	loot_container.position = Vector2(242, 488)
-	loot_container.size = Vector2(796, 86)
+	loot_container.position = Vector2(218, 470)
+	loot_container.size = Vector2(844, 114)
 	loot_container.alignment = BoxContainer.ALIGNMENT_CENTER
-	loot_container.add_theme_constant_override("separation", 16)
+	loot_container.add_theme_constant_override("separation", 12)
 	overlay.add_child(loot_container)
 
-	game._text(overlay, "破译期间暂停敌袭与计时 · 常规箱考单词，高级/空投大金箱考词组与整句（忽略句末标点）", Vector2(242, 598), Vector2(610, 30), 13, Color("8fb2a4"))
+	game._text(overlay, "破译期间暂停敌袭 · 完美拼写大幅提升【传说·大金】与【旷世·大红】爆率！（按 Space 可跳过放大镜搜索动画）", Vector2(232, 598), Vector2(628, 30), 12, Color("8fb2a4"))
 	close_button = game._button(overlay, "关闭返回 [Esc]", Rect2(868, 590, 174, 38), close)
 	overlay.hide()
 
@@ -128,6 +134,9 @@ func _input(event):
 		var code = event.physical_keycode if event.physical_keycode != 0 else event.keycode
 		if code == KEY_TAB:
 			_speak_hint()
+			get_viewport().set_input_as_handled()
+		elif code == KEY_SPACE and unlocked and reveal_cursor < reveal_slots.size():
+			reveal_all_immediately()
 			get_viewport().set_input_as_handled()
 
 func reset():
@@ -285,13 +294,15 @@ func _refresh_stage_ui():
 
 	var unit_str := "Unit %d · 课本第 %d 页" % [int(target_word.get("unit", 1)), int(target_word.get("textbook_page", 1))]
 	if mode == "supply":
-		meta_label.text = "常规野外物资箱  |  %s  |  准确输入 1 个英文单词即可开箱领取物资" % unit_str
+		var is_over: bool = is_instance_valid(active_crate) and active_crate.has_meta("overcharged")
+		var box_tag: String = "⚡ 高能异动物资箱（大金/大红爆率×2.8！）" if is_over else "常规野外物资箱（完美拼写可触发奇迹大金/大红！）"
+		meta_label.text = "%s  |  %s" % [box_tag, unit_str]
 	else:
 		var tier := int(active_crate.get_meta("tier"))
 		var tier_desc: String = [
-			"前哨补给箱（单词+词组 2连破 · 稀有/史诗）",
-			"精密金库箱（词组+短句 2连破 · 高爆史诗/大金）",
-			"特级大金空投箱（词汇+词组+整句 3重破译 · 高爆传说大金！）"
+			"前哨补给箱（单词+词组 2连破 · 完美破译幸运×2.0 · 可出大红！）",
+			"精密金库箱（词组+短句 2连破 · 高爆史诗/大金/旷世大红！）",
+			"特级大金空投箱（3重破译 · 超高概率爆出【传说大金】与【旷世·大红】！）"
 		][clampi(tier - 1, 0, 2)]
 		meta_label.text = "%s  |  %s" % [tier_desc, unit_str]
 
@@ -327,7 +338,7 @@ func open_for_supply(pickup_node: Node3D):
 			mask_label.text = ""
 			input_box.editable = false
 			submit_button.disabled = true
-			_render_loot_cards(displayed_loot)
+			_render_loot_cards(displayed_loot, false)
 			_try_claim_pending()
 			return
 
@@ -340,10 +351,56 @@ func open_for_supply(pickup_node: Node3D):
 	pending_loot.clear()
 
 	_enter_modal()
-	title_label.text = "%s · 单词拼写解锁" % str(pickup_node.get_meta("title", "常规物资箱"))
+	var is_over: bool = pickup_node.has_meta("overcharged")
+	title_label.text = ("%s%s · 单词拼写解锁" % ["⚡高能·" if is_over else "", str(pickup_node.get_meta("title", "常规物资箱"))])
 	_refresh_stage_ui()
-	status_label.text = "常规物资箱需输入对应的英文单词解锁（按 Tab 可听标准读音）。"
+	status_label.text = "输入英文单词解锁并启动【放大镜物资鉴定】（一次拼对触发幸运加成，按 Tab 听读音）！"
 	status_label.add_theme_color_override("font_color", game.GOLD)
+
+func open_for_drop_pouch(drop_node: Node3D):
+	if not is_instance_valid(drop_node) or not drop_node.visible:
+		return
+	mode = "drop_pouch"
+	active_crate = drop_node
+	_clear_loot_cards()
+	swap_button.hide()
+
+	var pouch_title: String = str(drop_node.get_meta("title", "词兵战术掉落包"))
+	var flawless: bool = bool(drop_node.get_meta("flawless", false))
+	var items_arr: Array = []
+	if drop_node.has_meta("unclaimed_loot"):
+		items_arr = drop_node.get_meta("unclaimed_loot").duplicate(true)
+	else:
+		items_arr = drop_node.get_meta("drop_items", []).duplicate(true)
+
+	stages = [_pick_word_entry(false)]
+	stage_index = 0
+	target_word = stages[0]
+	unlocked = true
+	perfect_crack = flawless
+	displayed_loot = items_arr.duplicate(true)
+	pending_loot = items_arr.duplicate(true)
+	pending_loot.sort_custom(func(a, b): return int(a.value) > int(b.value))
+
+	_enter_modal()
+	title_label.text = "%s · 战利品放大镜搜索" % pouch_title
+	meta_label.text = "已肃清本波追兵 · 免拼写直接搜刮敌方黑匣挂包！"
+	stage_label.text = ("★ 零失误精准歼敌 · 掉落品质已升阶！" if flawless else "✓ 词兵小队已肃清 · 正在逐格搜索掉落物...")
+	prompt_label.text = "🔍 正在检索战术挂包内部隔层..."
+	mask_label.text = "按 [Space] 可瞬间揭晓全部槽位"
+	input_box.editable = false
+	input_box.text = "— 战斗缴获 · 免密码锁 —"
+	submit_button.disabled = true
+	close_button.text = "收下返回 [Esc]"
+
+	_render_loot_cards(displayed_loot, not game.qa_mode)
+	_try_claim_pending()
+	if not pending_loot.is_empty():
+		status_label.text = "随身背包已满（剩余 %d 件高价值物资），可点上方「替换最低物资」换入！" % pending_loot.size()
+		status_label.add_theme_color_override("font_color", Color("ffd166"))
+	else:
+		status_label.text = "已将缴获物资收入随身背包！观察下方放大镜揭晓品质..."
+		status_label.add_theme_color_override("font_color", game.MINT)
 
 func open_for_crate(crate_node: Node3D):
 	var crate_title: String = crate_node.get_meta("title")
@@ -367,7 +424,7 @@ func open_for_crate(crate_node: Node3D):
 			mask_label.text = ""
 			input_box.editable = false
 			submit_button.disabled = true
-			_render_loot_cards(displayed_loot)
+			_render_loot_cards(displayed_loot, false)
 			_try_claim_pending()
 			return
 
@@ -401,7 +458,7 @@ func open_for_crate(crate_node: Node3D):
 	_enter_modal()
 	title_label.text = "%s · 阶梯式英语破译" % crate_title
 	_refresh_stage_ui()
-	status_label.text = "完成全部 %d 关英语验证即可开启宝箱（高阶箱含词组与课本句子，按 Tab 听发音）！" % stages.size()
+	status_label.text = "完成全部 %d 关英语验证即启动放大镜开箱鉴定（完美破译大幅提升大金/大红概率）！" % stages.size()
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func _speak_hint():
@@ -450,20 +507,25 @@ func solve_all_for_qa():
 	while busy and not unlocked and guard < 8:
 		guard += 1
 		submit_text(str(target_word.english))
+	reveal_all_immediately()
 
 func _try_claim_pending():
 	var still_unclaimed := []
 	for item in pending_loot:
-		if not game.rules.add_loot(item.title, int(item.value), int(item.get("rarity", 1))):
+		if not game.rules.add_loot_item(item):
 			still_unclaimed.append(item)
 	pending_loot = still_unclaimed
 
-	if mode == "supply":
+	if mode in ["supply", "drop_pouch"]:
 		if pending_loot.is_empty():
 			if is_instance_valid(active_crate):
 				if active_crate.has_meta("unclaimed_loot"):
 					active_crate.remove_meta("unclaimed_loot")
-				game.Props.set_enabled(active_crate, false)
+				if mode == "supply":
+					game.Props.set_enabled(active_crate, false)
+				else:
+					active_crate.visible = false
+					game.cached_interactables.clear()
 			swap_button.hide()
 		else:
 			if is_instance_valid(active_crate):
@@ -514,27 +576,28 @@ func submit():
 			status_label.add_theme_color_override("font_color", game.MINT)
 			return
 
-		# Final stage cleared -> Unlock container!
+		# Final stage cleared -> Unlock container & start Magnifying-Glass Reveal!
 		unlocked = true
 		perfect_crack = all_stages_perfect
 		input_box.editable = false
 		submit_button.disabled = true
-		stage_label.text = "★ 全部 %d 关验证通过 · 电子锁已解除！" % stages.size()
+		stage_label.text = ("★ 完美破译（爆率加成已激活）· 正在逐格搜索鉴定..." if perfect_crack else "✓ 电子锁已解除 · 正在逐格搜索鉴定...")
 
 		if mode == "supply":
 			var sid := str(active_crate.get_meta("supply_id", active_crate.name))
+			var is_over: bool = active_crate.has_meta("overcharged")
 			if not (sid in game.rules.supplies_opened):
 				game.rules.supplies_opened.append(sid)
 				if perfect_crack:
 					game.rules.score += game.Rules.SUPPLY_PERFECT_SCORE
-			var item: Dictionary = game.rules.roll_field_pickup(perfect_crack)
+			var item: Dictionary = game.rules.roll_field_pickup(perfect_crack, is_over)
 			displayed_loot = [item]
 			pending_loot = [item]
-			_render_loot_cards(displayed_loot)
+			_render_loot_cards(displayed_loot, not game.qa_mode)
 			_try_claim_pending()
 			game.play_sfx("cipher_unlock", -11)
 			if pending_loot.is_empty():
-				status_label.text = ("★ 单词准确！ +%d 分 · 已收入【%s】%s（%d币）" % [game.Rules.SUPPLY_PERFECT_SCORE, game.Rules.RARITY_NAMES[item.rarity], item.title, item.value]) if perfect_crack else ("物资箱已开启！记住拼写：%s — 已获得 %s" % [target_word.english, item.title])
+				status_label.text = ("★ 单词准确！ +%d 分 · 放大镜正在鉴定箱内物资..." % game.Rules.SUPPLY_PERFECT_SCORE) if perfect_crack else ("物资箱已开启！记住拼写：%s" % target_word.english)
 				status_label.add_theme_color_override("font_color", game.MINT if perfect_crack else game.GOLD)
 			else:
 				status_label.text = "背包已满！可点上方「替换最低物资」换入 %s（%d币），或按 Esc 返回。" % [item.title, item.value]
@@ -545,7 +608,6 @@ func submit():
 			var bonus_pts: int = game.Rules.CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 			var res: Dictionary = game.rules.unlock_crate_full(crate_title, tier, perfect_crack)
 			displayed_loot = res.items
-			# Sort pending overflow highest-value first so swapping grabs the best loot (e.g. 大金) first!
 			pending_loot = res.overflow
 			pending_loot.sort_custom(func(a, b): return int(a.value) > int(b.value))
 
@@ -553,22 +615,18 @@ func submit():
 			if active_crate.has_meta("lid_node") and is_instance_valid(active_crate.get_meta("lid_node")):
 				active_crate.get_meta("lid_node").rotation.x = -0.55
 
-			var has_epic := false
-			for it in displayed_loot:
-				if int(it.get("rarity", 1)) >= 4:
-					has_epic = true
-			game.play_sfx("loot_epic" if has_epic else "cipher_unlock", -10)
-			_render_loot_cards(displayed_loot)
+			game.play_sfx("cipher_unlock", -10)
+			_render_loot_cards(displayed_loot, not game.qa_mode)
 			_try_claim_pending()
 
 			if not pending_loot.is_empty():
-				status_label.text = "★ 密码箱已破译！随身背包已满（剩余 %d 件未装入），可点「替换最低物资」换入高价值大金！" % pending_loot.size()
+				status_label.text = "★ 密码箱已破译！随身背包已满（剩余 %d 件未装入），可点「替换最低物资」换入高价值大金/大红！" % pending_loot.size()
 				status_label.add_theme_color_override("font_color", Color("ffd166"))
 			elif perfect_crack:
-				status_label.text = "★ 完美破译全通！ +%d 分 — 高爆率战利品已全部收入背包！" % bonus_pts
+				status_label.text = "★ 完美破译全通！ +%d 分 — 放大镜正在逐格揭晓高爆率战利品！" % bonus_pts
 				status_label.add_theme_color_override("font_color", game.MINT)
 			else:
-				status_label.text = "密码箱已开启！战利品已收入随身背包。"
+				status_label.text = "密码箱已开启！正在逐格鉴定战利品..."
 				status_label.add_theme_color_override("font_color", game.GOLD)
 		close_button.text = "收下返回 [Esc]"
 	else:
@@ -601,48 +659,229 @@ func submit():
 func _swap_lowest():
 	if not busy or not unlocked or pending_loot.is_empty() or game.rules.bag.is_empty():
 		return
+	reveal_all_immediately()
 	var next_item: Dictionary = pending_loot.pop_front()
 	var removed: Dictionary = game.rules.swap_lowest_loot(next_item)
 	if not removed.is_empty():
-		game.play_sfx("cipher_unlock", -11)
+		var r: int = clampi(int(next_item.get("rarity", 1)), 1, 6)
+		game.play_sfx("loot_mythic_red" if r == 6 else ("loot_epic" if r >= 4 else "cipher_unlock"), -10)
 		status_label.text = "已将【%s（%d币）】替换为【%s】%s（%d币）！" % [
 			removed.title, int(removed.value),
-			game.Rules.RARITY_NAMES[int(next_item.get("rarity", 1))], next_item.title, int(next_item.value)
+			game.Rules.RARITY_NAMES[r], next_item.title, int(next_item.value)
 		]
-		status_label.add_theme_color_override("font_color", game.MINT)
+		status_label.add_theme_color_override("font_color", game.Rules.RARITY_COLORS[r])
 	_try_claim_pending()
 
 func _clear_loot_cards():
+	reveal_slots.clear()
+	reveal_cursor = 0
+	reveal_timer = 0.0
 	for child in loot_container.get_children():
 		child.queue_free()
 
-func _render_loot_cards(items: Array):
+func _scan_duration_for(rarity: int) -> float:
+	if rarity >= 6:
+		return 1.18
+	if rarity == 5:
+		return 0.88
+	if rarity == 4:
+		return 0.58
+	if rarity == 3:
+		return 0.40
+	return 0.25
+
+func _render_loot_cards(items: Array, animate: bool = true):
 	_clear_loot_cards()
-	for item in items:
-		var r: int = int(item.get("rarity", 1))
+	for idx in items.size():
+		var item: Dictionary = items[idx]
+		var r: int = clampi(int(item.get("rarity", 1)), 1, 6)
 		var r_color: Color = game.Rules.RARITY_COLORS[r]
 		var r_name: String = game.Rules.RARITY_NAMES[r]
-		var card = Panel.new()
-		card.custom_minimum_size = Vector2(236, 78)
-		var st = StyleBoxFlat.new()
-		st.bg_color = Color(r_color.r * 0.16, r_color.g * 0.16, r_color.b * 0.18, 0.95)
-		st.border_color = r_color
-		st.set_border_width_all(2)
-		st.set_corner_radius_all(7)
-		card.add_theme_stylebox_override("panel", st)
+		var grid_tag: String = str(item.get("grid", "1×1"))
+		var is_big: bool = grid_tag.begins_with("2×")
+		var card_w: float = 264.0 if is_big else 224.0
+
+		var card := Panel.new()
+		card.custom_minimum_size = Vector2(card_w, 108)
+		card.pivot_offset = Vector2(card_w * 0.5, 54.0)
 		loot_container.add_child(card)
-		var tag = game._text(card, "【%s】" % r_name, Vector2(10, 8), Vector2(216, 22), 14, r_color)
-		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var name_lbl = game._text(card, item.title, Vector2(8, 30), Vector2(220, 24), 17, game.CREAM)
-		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var val_lbl = game._text(card, "估值 %d 币" % int(item.value), Vector2(8, 53), Vector2(220, 20), 13, game.GOLD)
+
+		# Revealed content layer
+		var revealed_root := Control.new()
+		revealed_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		card.add_child(revealed_root)
+
+		var ic := LootUI.create_icon(str(item.get("icon", "core")), r_color, Vector2(46, 46))
+		ic.position = Vector2(10, 14)
+		revealed_root.add_child(ic)
+
+		var cond_str: String = str(item.get("cond", "标准"))
+		var badge_txt: String = "【%s · %s】" % [r_name, cond_str]
+		game._text(revealed_root, badge_txt, Vector2(60, 8), Vector2(card_w - 68, 20), 12, r_color)
+		var ct_lbl: Label = game._text(revealed_root, str(item.get("title", "物资")), Vector2(60, 29), Vector2(card_w - 68, 24), 16, game.CREAM)
+		ct_lbl.clip_text = true
+		var ce_lbl: Label = game._text(revealed_root, "%s · [%s]" % [str(item.get("en", "Supply")), grid_tag], Vector2(60, 53), Vector2(card_w - 66, 18), 10, Color("9adbc0"))
+		ce_lbl.clip_text = true
+		ce_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var val_lbl: Label = game._text(revealed_root, "鉴定估值  %d 币" % int(item.value), Vector2(12, 78), Vector2(card_w - 24, 22), 14, Color("ff6b7a") if r == 6 else game.GOLD)
 		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+		# Unsearched Mystery Magnifying-Glass Cover Layer!
+		var cover := Control.new()
+		cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		card.add_child(cover)
+		var myst_hint: String = "🔍 大型高能反应 [%s]" % grid_tag if is_big else "🔍 搜索物资槽 [%s]" % grid_tag
+		var m_lbl: Label = game._text(cover, myst_hint, Vector2(8, 24), Vector2(card_w - 16, 26), 15, Color("ffd166") if is_big else Color("9ec4b5"))
+		m_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var sub_m: Label = game._text(cover, "等待放大镜逐格鉴定...", Vector2(8, 52), Vector2(card_w - 16, 20), 12, Color("729689"))
+		sub_m.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var bar_bg := ColorRect.new()
+		bar_bg.position = Vector2(16, 84)
+		bar_bg.size = Vector2(card_w - 32, 7)
+		bar_bg.color = Color(1, 1, 1, 0.10)
+		cover.add_child(bar_bg)
+		var bar_fill := ColorRect.new()
+		bar_fill.position = Vector2(16, 84)
+		bar_fill.size = Vector2(0, 7)
+		bar_fill.color = Color("ffd166") if is_big else game.MINT
+		cover.add_child(bar_fill)
+
+		# Click card anytime to instant-reveal!
+		var click_btn := Button.new()
+		click_btn.flat = true
+		click_btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		click_btn.pressed.connect(reveal_all_immediately)
+		cover.add_child(click_btn)
+
+		var slot_entry := {
+			"card": card,
+			"revealed_root": revealed_root,
+			"cover": cover,
+			"m_lbl": m_lbl,
+			"sub_m": sub_m,
+			"bar_fill": bar_fill,
+			"bar_max": card_w - 32.0,
+			"item": item,
+			"rarity": r,
+			"color": r_color
+		}
+		reveal_slots.append(slot_entry)
+		_apply_card_mystery_style(slot_entry, false)
+
+	if not animate or reveal_slots.is_empty():
+		reveal_all_immediately()
+	else:
+		reveal_cursor = 0
+		reveal_timer = 0.0
+		reveal_tick_acc = 0.0
+		reveal_duration = _scan_duration_for(int(reveal_slots[0].rarity))
+		_apply_card_mystery_style(reveal_slots[0], true)
+
+func _apply_card_mystery_style(slot: Dictionary, active_scanning: bool):
+	var card: Panel = slot.card
+	var st := StyleBoxFlat.new()
+	var is_big: bool = str(slot.item.get("grid", "1×1")).begins_with("2×")
+	st.bg_color = Color(0.08, 0.09, 0.11, 0.96) if active_scanning else Color(0.04, 0.07, 0.09, 0.92)
+	st.border_color = (Color("ffd166") if is_big else game.MINT) if active_scanning else Color(0.35, 0.56, 0.50, 0.45)
+	st.set_border_width_all(2 if active_scanning else 1)
+	st.set_corner_radius_all(8)
+	card.add_theme_stylebox_override("panel", st)
+	slot.revealed_root.hide()
+	slot.cover.show()
+	if active_scanning:
+		var r: int = int(slot.rarity)
+		if r >= 6:
+			slot.sub_m.text = "⚠ 侦测到超高能奇珍波形！！"
+			slot.sub_m.add_theme_color_override("font_color", Color("ff6b7a"))
+			slot.bar_fill.color = Color("ff4757")
+		elif r == 5:
+			slot.sub_m.text = "✦ 发现金色高价值信号！"
+			slot.sub_m.add_theme_color_override("font_color", Color("ffd15c"))
+			slot.bar_fill.color = Color("ffd15c")
+		else:
+			slot.sub_m.text = "🔍 放大镜鉴定中..."
+
+func _reveal_single_slot(idx: int, with_audio: bool):
+	if idx < 0 or idx >= reveal_slots.size():
+		return
+	var slot: Dictionary = reveal_slots[idx]
+	if not slot.cover.visible:
+		return
+	var r: int = int(slot.rarity)
+	var r_col: Color = slot.color
+	var card: Panel = slot.card
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.22, 0.04, 0.07, 0.97) if r == 6 else Color(r_col.r * 0.17, r_col.g * 0.16, r_col.b * 0.19, 0.96)
+	st.border_color = r_col
+	st.set_border_width_all(3 if r >= 5 else 2)
+	st.set_corner_radius_all(8)
+	card.add_theme_stylebox_override("panel", st)
+	slot.cover.hide()
+	slot.revealed_root.show()
+
+	if with_audio:
+		card.scale = Vector2(1.09, 1.09) if r >= 5 else Vector2(1.04, 1.04)
+		if r == 6:
+			game.play_sfx("loot_mythic_red", -7)
+			stage_label.text = "🔥 奇迹出大红！！开出【旷世·大红】%s（%d币）！！" % [str(slot.item.title), int(slot.item.value)]
+			stage_label.add_theme_color_override("font_color", Color("ff5c6c"))
+			game.speak_english(str(slot.item.get("en", "")))
+		elif r == 5:
+			game.play_sfx("loot_epic", -9)
+			stage_label.text = "✦ 金光闪烁！摸出【传说·大金】%s（%d币）！" % [str(slot.item.title), int(slot.item.value)]
+			stage_label.add_theme_color_override("font_color", Color("ffd15c"))
+		elif r >= 3:
+			game.play_sfx("loot_reveal_rare", -11)
+		else:
+			game.play_sfx("loot_reveal_common", -12)
+
+func reveal_all_immediately():
+	for i in reveal_slots.size():
+		_reveal_single_slot(i, false)
+	reveal_cursor = reveal_slots.size()
+
+func _process(delta: float):
+	if not busy or not unlocked:
+		return
+	# Smooth card punch-scale settle
+	for s in reveal_slots:
+		var c: Panel = s.card
+		if is_instance_valid(c) and c.scale.x > 1.001:
+			c.scale = c.scale.lerp(Vector2.ONE, minf(1.0, delta * 11.0))
+
+	if reveal_cursor >= reveal_slots.size():
+		return
+
+	var cur_slot: Dictionary = reveal_slots[reveal_cursor]
+	reveal_timer += delta
+	reveal_tick_acc += delta
+	if reveal_tick_acc >= 0.18:
+		reveal_tick_acc = 0.0
+		game.play_sfx("loot_scan_tick", -15)
+
+	var ratio: float = clampf(reveal_timer / maxf(0.1, reveal_duration), 0.0, 1.0)
+	cur_slot.bar_fill.size.x = float(cur_slot.bar_max) * ratio
+	if ratio >= 1.0:
+		_reveal_single_slot(reveal_cursor, true)
+		reveal_cursor += 1
+		reveal_timer = 0.0
+		reveal_tick_acc = 0.0
+		if reveal_cursor < reveal_slots.size():
+			reveal_duration = _scan_duration_for(int(reveal_slots[reveal_cursor].rarity))
+			_apply_card_mystery_style(reveal_slots[reveal_cursor], true)
 
 func close():
 	if not busy:
 		return
+	reveal_all_immediately()
+	# Surface HUD jackpot toast for the best high-rarity item pulled from this container!
+	var best_pulled: Dictionary = {}
+	for it in displayed_loot:
+		if int(it.get("rarity", 1)) >= 4 and (best_pulled.is_empty() or int(it.get("rarity", 1)) > int(best_pulled.get("rarity", 1))):
+			best_pulled = it
 	busy = false
 	overlay.hide()
+	stage_label.add_theme_color_override("font_color", Color("ffd166"))
 	close_button.text = "关闭返回 [Esc]"
 	game.paused = false
 	game.player.active = true
@@ -651,3 +890,5 @@ func close():
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if is_instance_valid(game.exploration):
 		game.exploration.grace = maxf(game.exploration.grace, 2.5)
+	if not best_pulled.is_empty() and is_instance_valid(game.loot_ui):
+		game.loot_ui.trigger_loot_toast(best_pulled, "开箱鉴定收获")

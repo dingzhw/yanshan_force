@@ -124,6 +124,46 @@ func run():
 	verify(wv.att_nodes["att_scope_2x"].visible and wv.att_nodes["att_suppressor"].visible and wv.att_nodes["att_angled_grip"].visible and not wv.att_nodes["att_compensator"].visible, "equipped Gunsmith 2.0 attachments render visibly on YS-04 carbine")
 	game._end_run(false)
 
+	# v0.6.3 6-Tier Rarity ('旷世·大红'), Appraisal Condition Variance, Discard & Tier-6 Persistence Checks
+	verify(game.Rules.RARITY_NAMES.has(6) and game.Rules.LOOT_TABLE[6].size() >= 5 and game.Rules.total_collectible_count() == 17, "v0.6.3 defines Tier-6 Crimson Mythic Red ('旷世·大红') with 5 peak curios and 17 collectibles")
+	game.start_action(false)
+	var seen_values := {}
+	var mythic_sample: Dictionary = {}
+	for sample_i in 30:
+		var rolled_red: Dictionary = game.rules.roll_item_by_rarity(6)
+		if rolled_red.get("title", "") == "烟山之心·赤金龙印":
+			mythic_sample = rolled_red
+		seen_values[int(rolled_red.get("value", 0))] = true
+	if mythic_sample.is_empty():
+		mythic_sample = game.rules.roll_item_by_rarity(6)
+	verify(int(mythic_sample.get("rarity", 0)) == 6 and str(mythic_sample.get("en", "")) != "" and seen_values.size() >= 6, "Tier-6 items roll dynamic condition/appraisal valuations and bilingual metadata")
+
+	verify(game.rules.add_loot_item(mythic_sample) and game.rules.add_loot("杂物测试", 18, 1), "add_loot_item inserts enriched Tier-6 item into raid bag")
+	var dropped: Dictionary = game.rules.discard_bag_item(1)
+	verify(str(dropped.get("title", "")) == "杂物测试" and game.rules.bag.size() == 1, "discard_bag_item removes selected bag slot cleanly")
+
+	while game.rules.score < game.Rules.EXTRACTION_SCORE:
+		game.rules.open_question()
+		game.rules.answer(true)
+	var prev_red_cnt := int(game.rules.profile.get("red_extracted", 0))
+	game.player.position = game.exit_position
+	game.interact()
+	game.extraction_left = 0.01
+	game._process(0.02)
+	verify(int(game.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1 and (mythic_sample.title in game.rules.profile.collection) and int(game.rules.profile.get("best_item_value", 0)) >= int(mythic_sample.value), "extracting a Tier-6 Crimson Red treasure increments red_extracted, unlocks Compendium, and updates best_item_value")
+
+	game.profile_path_override = "user://qa-v063-red-economy.json"
+	game._save()
+	var restored_v063 = load("res://scripts/main.gd").new()
+	restored_v063.profile_path_override = game.profile_path_override
+	restored_v063._load_profile()
+	var kept_r6 := false
+	for wh_it in restored_v063.rules.profile.warehouse:
+		if int(wh_it.get("rarity", 0)) == 6 and str(wh_it.get("en", "")) != "":
+			kept_r6 = true
+	verify(kept_r6 and int(restored_v063.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1, "save/load preserves Tier-6 rarity==6 without clamping to 5 and restores red_extracted")
+	restored_v063.free()
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

@@ -48,6 +48,8 @@ var danger_rings = []
 var active_attacker = null
 var active_attacker_idle: float = 0.0
 var last_attacker_option: int = -1
+var wave_had_wrong_shot: bool = false
+var last_kill_pos: Vector3 = Vector3.ZERO
 
 func begin():
 	stop()
@@ -57,6 +59,8 @@ func begin():
 	rage_left = 0.0
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
+	wave_had_wrong_shot = false
+	last_kill_pos = Vector3.ZERO
 	health = MAX_HEALTH
 	shield = float(game.rules.max_shield())
 	shield_delay = 0.0
@@ -77,6 +81,8 @@ func stop():
 	rage_left = 0.0
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
+	wave_had_wrong_shot = false
+	last_kill_pos = Vector3.ZERO
 	boss_unit = null
 	active_attacker = null
 	active_attacker_idle = 0.0
@@ -336,6 +342,8 @@ func engage_camp(z_idx: int):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	wave_had_wrong_shot = false
+	last_kill_pos = Vector3.ZERO
 	active_attacker = null
 	active_attacker_idle = 0.0
 	last_attacker_option = -1
@@ -367,6 +375,8 @@ func disengage_active_camp(announce: bool = true):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	wave_had_wrong_shot = false
+	last_kill_pos = Vector3.ZERO
 	active_attacker = null
 	active_attacker_idle = 0.0
 	last_attacker_option = -1
@@ -524,6 +534,7 @@ func _resolve_soldier_node(collider):
 func _apply_wrong_target_penalty(soldier):
 	# Wrong word soldier takes ZERO HP and ZERO shield damage, and buffs remaining wave attack power!
 	soldier.on_wrong_hit_flash()
+	wave_had_wrong_shot = true
 	wave_wrong_stacks = mini(MAX_WRONG_STACKS, wave_wrong_stacks + 1)
 	rage_left = 7.0
 	wrong_attempts_on_current += 1
@@ -553,6 +564,8 @@ func _apply_wrong_target_penalty(soldier):
 	show_question()
 
 func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_ammo: bool = true):
+	if is_instance_valid(soldier):
+		last_kill_pos = soldier.global_position
 	field_answers += 1
 	field_hits += 1
 	rage_left = 0.0
@@ -599,15 +612,21 @@ func _rotate_boss_word_and_prompt(boss):
 	_select_next_wave_prompt(2)
 
 func _complete_current_wave(z_idx: int):
+	var flawless_wave: bool = not wave_had_wrong_shot
+	var drop_origin: Vector3 = last_kill_pos if last_kill_pos != Vector3.ZERO else zone_center(z_idx)
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	wave_had_wrong_shot = false
+	last_kill_pos = Vector3.ZERO
 	active_attacker = null
 	active_attacker_idle = 0.0
 	last_attacker_option = -1
 	zone_engaged[z_idx] = false
 	if zone == z_idx:
 		zone = -1
+	if is_instance_valid(game.world_loot):
+		game.world_loot.spawn_squad_drop(drop_origin, zone_info(z_idx).title, flawless_wave, z_idx == 2)
 	waves_done[z_idx] = int(waves_done.get(z_idx, 0)) + 1
 	var done_now: int = waves_done[z_idx]
 	var total_w: int = int(waves_target.get(z_idx, WAVES_PER_CAMP))
@@ -621,8 +640,9 @@ func _complete_current_wave(z_idx: int):
 	zone_respawn_grace[z_idx] = 3.2 if dist_now <= zone_aggro(z_idx) else 0.0
 	_spawn_camp_wave(z_idx)
 	game._sync_question()
-	game._notice("★【%s】第 %d/%d 波追兵已全歼！第 %d 波已在营地出生地刷新待命，前往营地吸引仇恨！" % [
-		zone_info(z_idx).title, done_now, total_w, done_now + 1
+	var drop_tag := "【精英无瑕战利品箱】" if flawless_wave else "【词兵战术掉落包】"
+	game._notice("★【%s】第 %d/%d 波已全歼！战场掉落%s（按[F]放大镜搜刮），下波已在营地刷新待命！" % [
+		zone_info(z_idx).title, done_now, total_w, drop_tag
 	], game.MINT)
 
 func _advance_wave_after_kill(z_idx: int):

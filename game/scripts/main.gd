@@ -9,7 +9,9 @@ const Challenge = preload("res://scripts/challenge.gd")
 const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
-const VERSION = "0.6.2.1"
+const LootUI = preload("res://scripts/loot_ui.gd")
+const WorldLoot = preload("res://scripts/world_loot.gd")
+const VERSION = "0.6.3"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -99,12 +101,15 @@ var tutorial_moved = false
 var render_age = 0.0
 var abandon_button: Button
 var practice_button: Button
+var compendium_button: Button
 var combat: Node3D
 var combat_panel: Panel
 var combat_label: Label
 var exploration
 var wildlife
 var cipher_terminal
+var loot_ui
+var world_loot
 var landscape
 var minimap
 
@@ -133,9 +138,15 @@ func _ready():
 	wildlife = Wildlife.new()
 	add_child(wildlife)
 	wildlife.setup(self)
+	world_loot = WorldLoot.new()
+	add_child(world_loot)
+	world_loot.setup(self)
 	cipher_terminal = CipherTerminal.new()
 	add_child(cipher_terminal)
 	cipher_terminal.setup(self)
+	loot_ui = LootUI.new()
+	add_child(loot_ui)
+	loot_ui.setup(self)
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if "--hardware-check" in OS.get_cmdline_user_args():
@@ -206,16 +217,21 @@ func _load_profile():
 		for key in rules.profile:
 			if data.has(key) and typeof(data[key]) == typeof(rules.profile[key]):
 				rules.profile[key] = data[key]
-		for key in ["coins", "xp", "points", "extractions"]:
+		for key in ["coins", "xp", "points", "runs", "extractions", "red_extracted", "gold_extracted", "best_haul", "best_item_value"]:
 			rules.profile[key] = maxi(0, int(data.get(key, 0)))
 		var normalized_wh = []
 		for item in rules.profile.warehouse:
 			if item is Dictionary:
-				normalized_wh.append({
+				normalized_wh.append(rules._enrich_loot_dict({
 					"title": str(item.get("title", "物资")),
+					"en": str(item.get("en", "")),
 					"value": maxi(1, int(item.get("value", 20))),
-					"rarity": clampi(int(item.get("rarity", 1)), 1, 5)
-				})
+					"rarity": clampi(int(item.get("rarity", 1)), 1, 6),
+					"cond": str(item.get("cond", "标准")),
+					"grid": str(item.get("grid", "")),
+					"icon": str(item.get("icon", "")),
+					"lore": str(item.get("lore", ""))
+				}))
 		rules.profile.warehouse = normalized_wh
 	rules.migrate_legacy_items()
 	rules.ensure_equipped()
@@ -368,10 +384,10 @@ func _make_crate(title: String, tier: int, at: Vector3) -> Node3D:
 	var lock_desc = "单词+词组双关锁"
 	var header = title
 	if tier == 2:
-		header = "【史诗/大金】" + title
+		header = "【史诗/大金/大红】" + title
 		lock_desc = "词组+短句双关锁"
 	elif tier >= 3:
-		header = "【传说大金】" + title
+		header = "【大金/旷世大红】" + title
 		lock_desc = "词汇+词组+整句三重破译"
 	var tag = "%s\n%d题 · %d%%正确率 · %s" % [header, req.minimum, roundi(req.accuracy * 100), lock_desc]
 	var lbl = _label3d(crate, tag, Vector3(0, 1.75, 0), 30, _crate_accent(tier))
@@ -609,7 +625,7 @@ func _build_ui():
 	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hitmarker_label.hide()
 
-	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]掩体探头  [F]交互  [X]读音  [1/2/V]枪刀  [R]换弹  [H/G/T]道具", Vector2(342, 682), Vector2(604, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [F]搜刮/交互  [B]背包  [I]3D检视  [X]读音  [1/2/V]枪刀  [H/G/T]道具", Vector2(310, 682), Vector2(668, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -627,7 +643,7 @@ func _build_ui():
 	menu.add_child(veil)
 	_panel(menu, Rect2(86, 56, 1108, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
 
-	menu_title = _text(menu, "烟山基地", Vector2(120, 82), Vector2(820, 52), 34, MINT)
+	menu_title = _text(menu, "烟山基地", Vector2(120, 82), Vector2(950, 52), 32, MINT)
 	menu_title.clip_text = true
 	_text(menu, "英语战术搜撤行动  ·  VERSION " + VERSION, Vector2(122, 142), Vector2(460, 28), 17, GOLD)
 	_button(menu, "退出", Rect2(1098, 84, 68, 36), func(): get_tree().quit())
@@ -640,8 +656,8 @@ func _build_ui():
 	review_button.hide()
 
 	unit_picker = OptionButton.new()
-	unit_picker.position = Vector2(122, 358)
-	unit_picker.size = Vector2(290, 40)
+	unit_picker.position = Vector2(122, 354)
+	unit_picker.size = Vector2(290, 38)
 	unit_picker.add_item("全部单元 · 175 条词汇")
 	for i in range(1, 9):
 		unit_picker.add_item("Unit " + str(i))
@@ -649,21 +665,27 @@ func _build_ui():
 
 	include_extra = CheckBox.new()
 	include_extra.text = "含拓展词与专名"
-	include_extra.position = Vector2(422, 360)
+	include_extra.position = Vector2(422, 356)
 	include_extra.button_pressed = true
 	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
 
-	start_button = _button(menu, "普通行动 · 常规", Rect2(122, 418, 154, 54), func():
+	start_button = _button(menu, "普通行动 · 常规", Rect2(122, 404, 154, 50), func():
 		var in_active: bool = rules.phase in ["active", "extracting"]
 		start_action(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
 	, true)
-	confidential_button = _button(menu, "机密行动 · 高危", Rect2(284, 418, 154, 54), func(): start_action(true, "confidential"))
+	confidential_button = _button(menu, "机密行动 · 高危", Rect2(284, 404, 154, 50), func(): start_action(true, "confidential"))
 	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
-	practice_button = _button(menu, "自由靶场", Rect2(446, 418, 132, 54), func(): start_action(false, "normal"))
+	practice_button = _button(menu, "自由靶场", Rect2(446, 404, 132, 50), func(): start_action(false, "normal"))
 
-	var brief_lbl = _text(menu, "【v0.6.2.1 普通/机密双行动模式 · 烟霞古洞先民岩凿石刻重塑】\n• 普通行动：5兵伴随亮词、单兵轮流主攻（其余4兵不进攻）且追击命中率减半！\n• 机密行动：5兵协同高强度围剿、全额锁敌命中；战利品估值×1.35、密码箱大金爆率提升！\n• 烟霞古洞：迷踪竹石阵北通千年石室，探访先民岩壁阴刻《耕读岩画》与一线天寒潭！", Vector2(122, 490), Vector2(465, 148), 13, Color("b4ccbe"))
-	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	compendium_button = _button(menu, "🏆 烟山奇珍图鉴 · 摸金大红与江南风物双语馆", Rect2(122, 462, 456, 38), func():
+		if is_instance_valid(loot_ui):
+			loot_ui.open_compendium()
+	)
+	_style_tactical_button(compendium_button, Color("481f28"), Color("ff5c6c"), Color("ffe8cf"))
+
+	var brief_lbl = _text(menu, "【v0.6.3 真·摸金大红重塑 · 放大镜鉴定与双语奇珍馆】\n• 6阶品质与奇迹大红：新增【旷世·大红】（秘色青瓷盏/千年紫芝王/烟山之心等），木箱与鸟窝皆可一发逆袭！\n• 动态野外摸金：每局随机刷新3D露天珍宝（金/红冲天光柱）+ 树丫鸟窝摸宝 + 高能箱 + 词兵波次掉落包！\n• 放大镜逐格揭晓与3D检视：开箱声呐蓄力翻牌；按 [B] 整理背包、按 [I] 360°旋转检视宝物并听英文读音！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
+	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
 	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
@@ -719,14 +741,17 @@ func _warehouse_total_value() -> int:
 func _refresh_menu(result = ""):
 	var mastered = rules.mastered_count()
 	var collected = rules.profile.collection.size()
-	var total_collectibles = Rules.LOOT_TABLE[4].size() + Rules.LOOT_TABLE[5].size()
-	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n词表熟练掌握：%d / %d 词   |   史诗/大金藏品图鉴：%d / %d 件" % [
+	var total_collectibles = Rules.total_collectible_count()
+	var red_cnt = int(rules.profile.get("red_extracted", 0))
+	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n掌握词条：%d / %d 词   |   奇珍图鉴：%d / %d 件（旷世大红 %d 件）" % [
 		rules.level(), rules.profile.xp % 120, rules.profile.coins, rules.profile.points,
-		mastered, words.size(), collected, total_collectibles
+		mastered, words.size(), collected, total_collectibles, red_cnt
 	]
+	if is_instance_valid(compendium_button):
+		compendium_button.text = "🏆 烟山奇珍图鉴 · 摸金大红与双语风物馆（已点亮 %d/%d）" % [collected, total_collectibles]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "可选【普通行动（单兵轮攻+半命中）】或【机密行动（5兵围剿+估值×1.35）】！\n打对词兵：爆头 1 枪秒杀 / 词盾 2 枪击毙；打错无伤且敌攻+25%。\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离！"
+		menu_summary.text = "可选【普通行动（单兵轮攻+半命中）】或【机密行动（5兵围剿+估值×1.35）】！\n搜刮物资箱、露天石案、树丫鸟窝与词兵掉落包，冲击【传说·大金】与【旷世·大红】！\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离入库！"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -875,6 +900,10 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		player.recoil = 0.0
 		for node in pickup_nodes:
 			Props.set_enabled(node, true)
+		if is_instance_valid(loot_ui):
+			loot_ui.reset_run()
+		if is_instance_valid(world_loot):
+			world_loot.reset_for_run()
 		for node in crate_nodes:
 			var tier = int(node.get_meta("tier"))
 			node.get_child(node.get_child_count() - 1).modulate = _crate_accent(tier)
@@ -888,6 +917,8 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		else:
 			combat.stop()
 			_next_question()
+	if is_instance_valid(loot_ui):
+		loot_ui.close_all_modals()
 	paused = false
 	get_viewport().gui_release_focus()
 	player.clear_movement_input()
@@ -1021,6 +1052,8 @@ func _interaction_position(node: Node3D) -> Vector3:
 	return node.global_position + (Vector3(2, 0, 2) if node.has_meta("station_id") else Vector3.ZERO)
 
 func _can_interact(node: Node3D) -> bool:
+	if node.has_meta("world_loot_kind"):
+		return true
 	var endpoint = _interaction_position(node) + Vector3(0, 0.6, 0)
 	var query = PhysicsRayQueryParameters3D.create(player.camera.global_position, endpoint, 3, [player.get_rid()])
 	var hit = get_world_3d().direct_space_state.intersect_ray(query)
@@ -1165,19 +1198,19 @@ func _refresh_bag_pills():
 		child.queue_free()
 	if rules.bag.is_empty():
 		var empty_lbl = Label.new()
-		empty_lbl.text = "沿路搜刮物资与密码箱（支持拼写开大金）"
+		empty_lbl.text = "搜刮木箱/桌面/鸟窝/密码箱（皆可爆大金·旷世大红！）"
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color("89a89b"))
 		bag_slots_box.add_child(empty_lbl)
 		return
 	for item in rules.bag:
-		var r = clampi(int(item.get("rarity", 1)), 1, 5)
+		var r = clampi(int(item.get("rarity", 1)), 1, 6)
 		var col: Color = Rules.RARITY_COLORS[r]
 		var pill = PanelContainer.new()
 		var st = StyleBoxFlat.new()
-		st.bg_color = Color(col.r * 0.17, col.g * 0.17, col.b * 0.19, 0.92)
+		st.bg_color = Color(0.24, 0.04, 0.07, 0.95) if r == 6 else Color(col.r * 0.17, col.g * 0.17, col.b * 0.19, 0.92)
 		st.border_color = col
-		st.set_border_width_all(1)
+		st.set_border_width_all(2 if r >= 5 else 1)
 		st.set_corner_radius_all(4)
 		st.content_margin_left = 6
 		st.content_margin_right = 6
@@ -1186,7 +1219,8 @@ func _refresh_bag_pills():
 		pill.add_theme_stylebox_override("panel", st)
 		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var lbl = Label.new()
-		lbl.text = item.title
+		var prefix = "🔥" if r == 6 else ("✦" if r == 5 else "")
+		lbl.text = prefix + str(item.title)
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.add_theme_color_override("font_color", col)
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1202,6 +1236,8 @@ func _process(delta):
 	exploration.update(delta)
 	if is_instance_valid(wildlife):
 		wildlife.update(delta)
+	if is_instance_valid(world_loot):
+		world_loot.update(delta)
 	combat.update(delta)
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) > 15:
 		_leave_station()
@@ -1258,7 +1294,7 @@ func _process(delta):
 	_update_guide()
 	_update_combat_hud()
 
-	bag_label.text = "随身背包 %d / %d 格  ·  估值 %d 币" % [rules.bag.size(), rules.capacity(), rules.bag_value()]
+	bag_label.text = "背包 %d/%d 格 · 估值 %d 币   [B]整理 [I]检视" % [rules.bag.size(), rules.capacity(), rules.bag_value()]
 	_refresh_bag_pills()
 
 	var mods := []
@@ -1354,7 +1390,8 @@ func _update_interaction():
 	var nearest = 3.2
 	if cached_interactables.is_empty():
 		var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
-		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes
+		var wl_nodes: Array = world_loot.interactable_nodes() if is_instance_valid(world_loot) else []
+		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes + wl_nodes
 	for node in cached_interactables:
 		if not is_instance_valid(node):
 			continue
@@ -1381,6 +1418,8 @@ func _update_interaction():
 				interaction_label.text = "[F] 拾取 %s（+1）" % title
 			else:
 				interaction_label.text = "[F] 拾取 %s（+1）" % title
+		elif closest_interaction.has_meta("world_loot_kind") and is_instance_valid(world_loot):
+			interaction_label.text = world_loot.prompt_for(closest_interaction)
 		elif closest_interaction.has_meta("flora_id"):
 			var fid := str(closest_interaction.get_meta("flora_id"))
 			var f_verb := "温习植物" if (is_instance_valid(wildlife) and wildlife.collected_flora.has(fid)) else "辨识奇植"
@@ -1405,6 +1444,8 @@ func _update_interaction():
 			var sup_title = str(closest_interaction.get_meta("title", "常规物资箱"))
 			if closest_interaction.has_meta("unclaimed_loot"):
 				interaction_label.text = "[F] 领取待替换物资 · " + sup_title
+			elif closest_interaction.has_meta("overcharged"):
+				interaction_label.text = "[F] ⚡单词破译高能异动箱（高爆大金/大红！）· " + sup_title
 			else:
 				interaction_label.text = "[F] 单词拼写开箱 · " + sup_title
 	else:
@@ -1447,6 +1488,10 @@ func interact():
 		play_sfx("ammo_pickup", -10)
 		Props.set_enabled(closest_interaction, false)
 		return
+	if closest_interaction.has_meta("world_loot_kind"):
+		if is_instance_valid(world_loot):
+			world_loot.interact(closest_interaction)
+		return
 	if closest_interaction.has_meta("flora_id"):
 		if is_instance_valid(wildlife):
 			wildlife.interact_flora(closest_interaction)
@@ -1477,6 +1522,8 @@ func _end_run(success: bool, title = ""):
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
 		cipher_terminal.reset()
+	if is_instance_valid(loot_ui):
+		loot_ui.reset_run()
 	paused = true
 	player.clear_movement_input()
 	player.active = false
@@ -1501,7 +1548,21 @@ func _end_run(success: bool, title = ""):
 
 func _input(event):
 	if event is InputEventKey and event.pressed and not event.echo:
-		var is_esc = (event.physical_keycode == KEY_ESCAPE or event.keycode == KEY_ESCAPE)
+		var code = event.physical_keycode if event.physical_keycode != 0 else event.keycode
+		var is_esc = (code == KEY_ESCAPE)
+		if is_instance_valid(loot_ui) and loot_ui.any_modal_open():
+			if is_esc:
+				loot_ui.close_all_modals()
+				get_viewport().set_input_as_handled()
+				return
+			if code == KEY_B and loot_ui.busy_bag:
+				loot_ui.close_backpack()
+				get_viewport().set_input_as_handled()
+				return
+			if code == KEY_I and loot_ui.busy_inspect:
+				loot_ui.close_inspect()
+				get_viewport().set_input_as_handled()
+				return
 		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:
 			cipher_terminal.close()
 			get_viewport().set_input_as_handled()

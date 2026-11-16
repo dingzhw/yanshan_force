@@ -362,6 +362,89 @@ def gen_bird_flap() -> None:
     _write_wav("bird_flap.wav", out, 0.42)
 
 
+def gen_loot_scan_tick() -> None:
+    """Crisp tactical magnifying-glass sonar tick during container slot inspection."""
+    dur = 0.065
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.002, dur, 3.0)
+        freq = 1280.0 + 360.0 * (t / dur)
+        s = math.sin(2 * math.pi * freq * t) + 0.30 * math.sin(2 * math.pi * freq * 2.0 * t)
+        out.append(s * env)
+    _write_wav("loot_scan_tick.wav", out, 0.34)
+
+
+def gen_loot_reveal_common() -> None:
+    """Clean mechanical card-flip & latch snap for Common/Uncommon loot reveal."""
+    dur = 0.14
+    n = int(SAMPLE_RATE * dur)
+    out = []
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.003, dur, 2.5)
+        f = 740.0 if t < 0.045 else 987.77
+        s = math.sin(2 * math.pi * f * t) + 0.25 * math.sin(2 * math.pi * f * 1.5 * t)
+        out.append(s * env)
+    _write_wav("loot_reveal_common.wav", out, 0.40)
+
+
+def gen_loot_reveal_rare() -> None:
+    """Shimmering crystalline triad chime for Blue Rare / Purple Epic loot reveal."""
+    notes = [659.25, 830.61, 987.77, 1318.51]
+    dur = 0.46
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    for idx, freq in enumerate(notes):
+        start = int(idx * 0.052 * SAMPLE_RATE)
+        ndur = dur - idx * 0.052
+        for j in range(int(ndur * SAMPLE_RATE)):
+            if start + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = _envelope(t, 0.004, ndur, 1.8)
+            out[start + j] += (math.sin(2 * math.pi * freq * t) + 0.32 * math.sin(4 * math.pi * freq * t)) * env
+    _write_wav("loot_reveal_rare.wav", out, 0.48)
+
+
+def gen_loot_mythic_red() -> None:
+    """Exhilarating Delta-Force-style '出大红！' sub-bass impact + triumphant radiant brass/bell chord fanfare."""
+    dur = 1.08
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    # 1) Heartbeat sub-bass drop (0.0 .. 0.32s)
+    for i in range(int(0.35 * SAMPLE_RATE)):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.006, 0.35, 1.7)
+        f_sub = 138.0 - 68.0 * (t / 0.35)
+        out[i] += 0.85 * math.tanh(math.sin(2 * math.pi * f_sub * t) * 1.8) * env
+    # 2) Ascending crimson-gold fanfare arpeggio + shimmering sustain chord
+    fanfare = [
+        (0.05, 587.33, 0.42),
+        (0.12, 739.99, 0.45),
+        (0.19, 880.00, 0.50),
+        (0.27, 1174.66, 0.78),
+        (0.35, 1479.98, 0.72),
+        (0.35, 1760.00, 0.72),
+        (0.35, 587.33, 0.70),
+    ]
+    for start_s, freq, ndur in fanfare:
+        start = int(start_s * SAMPLE_RATE)
+        for j in range(int(ndur * SAMPLE_RATE)):
+            if start + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = _envelope(t, 0.008, ndur, 1.35)
+            tone = (
+                math.sin(2 * math.pi * freq * t)
+                + 0.42 * math.sin(4 * math.pi * freq * t)
+                + 0.18 * math.sin(6 * math.pi * freq * t)
+            )
+            out[start + j] += 0.55 * tone * env
+    _write_wav("loot_mythic_red.wav", out, 0.62)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -385,7 +468,11 @@ def main() -> None:
     gen_flora_collect()
     gen_boar_charge()
     gen_bird_flap()
-    print("Generated 22 procedural SFX files in", OUT_DIR)
+    gen_loot_scan_tick()
+    gen_loot_reveal_common()
+    gen_loot_reveal_rare()
+    gen_loot_mythic_red()
+    print("Generated 26 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

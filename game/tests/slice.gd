@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.2.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.2.1 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.6.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.3 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -634,6 +634,62 @@ func run():
 	for b_item in game.rules.bag:
 		bag_titles.append(str(b_item.get("title", "")))
 	verify("烟山先民竹简" in bag_titles and "烟霞岩画残拓" in bag_titles, "Yanxia rock petroglyph & hearth award Epic & Legendary heritage collectibles into raid bag")
+
+	# 4) v0.6.3 World Looting ('露天刷货', '掏鸟窝', '高能异动箱', '词兵掉落包'), [B] Backpack, [I] 3D Turntable & Compendium Checks
+	var active_loose := 0
+	for lnode in game.world_loot.loose_nodes:
+		if lnode.visible and lnode.has_meta("loot_item"):
+			active_loose += 1
+	var overcharged_cnt := 0
+	for pnode in game.pickup_nodes:
+		if pnode.has_meta("overcharged"):
+			overcharged_cnt += 1
+	verify(active_loose == 7 and game.world_loot.nest_nodes.size() == 6 and overcharged_cnt == 2, "Normal/Practice run spawns 7 randomized 3D loose relics, 6 bird nests/crevices, and 2 overcharged supply caches")
+
+	# Pickup open-world 3D loose relic at Camp Tent Table (loose_nodes[0] is guaranteed active!)
+	var tent_loose: Node3D = game.world_loot.loose_nodes[0]
+	var pre_loose_bag: int = game.rules.bag.size()
+	game.player.position = tent_loose.position + Vector3(0, 0.1, 1.2)
+	await frames(3)
+	game.interact()
+	verify(game.rules.bag.size() == pre_loose_bag + 1 and not tent_loose.visible and game.loot_ui.toast_panel.visible, "pressing [F] on open-world 3D loose relic collects item immediately and triggers HUD toast")
+
+	# Search a tactile Bird Nest ('掏鸟窝') via quick-search progress bar!
+	var nest0: Node3D = game.world_loot.nest_nodes[0]
+	var pre_nest_bag: int = game.rules.bag.size()
+	game.player.position = nest0.position + Vector3(0, 0.1, 1.2)
+	await frames(3)
+	game.interact()
+	verify(game.loot_ui.active_search_node == nest0 and game.loot_ui.search_panel.visible, "interacting with Bird Nest starts tactile magnifying-glass quick-search bar")
+	game.loot_ui.complete_active_search_for_qa()
+	verify(game.rules.bag.size() == pre_nest_bag + 1 and not nest0.visible, "completing Bird Nest search rolls and awards surprise loot item")
+
+	# Spawn & inspect an Enemy Squad Wave Drop Pouch via Magnifying-Glass Terminal!
+	var pouch_pos: Vector3 = game.Layout.on_ground(Vector3(-6.0, 0.0, -12.0))
+	var pouch: Node3D = game.world_loot.spawn_squad_drop(pouch_pos, "林间古道营地", true, false)
+	var pre_pouch_bag: int = game.rules.bag.size()
+	game.player.position = pouch.position + Vector3(0, 0.1, 1.2)
+	await frames(3)
+	game.interact()
+	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "drop_pouch" and game.cipher_terminal.unlocked, "interacting with enemy wave drop pouch opens zero-typing magnifying-glass loot terminal")
+	verify(game.rules.bag.size() > pre_pouch_bag and not pouch.visible, "claiming flawless enemy wave drop pouch transfers multi-slot battle loot into bag")
+	game.cipher_terminal.close()
+
+	# Test [B] Tactical Backpack modal & [I] 3D Relic Turntable Showcase + Camp Compendium
+	game.loot_ui.toggle_backpack()
+	verify(game.loot_ui.busy_bag and game.paused and game.loot_ui.bag_grid.get_child_count() == game.rules.capacity(), "[B] opens Tactical Backpack grid matching player capacity")
+	game.loot_ui.toggle_backpack()
+	verify(not game.loot_ui.busy_bag and not game.paused, "pressing [B] again closes Tactical Backpack and resumes field play")
+
+	game.loot_ui.inspect_best_in_bag()
+	verify(game.loot_ui.busy_inspect and game.loot_ui.inspect_turntable.get_child_count() >= 3, "[I] opens 3D Relic Turntable Showcase with procedural 3D sculpture on spinning pedestal")
+	game.loot_ui.close_inspect()
+	verify(not game.loot_ui.busy_inspect and not game.paused, "closing 3D Relic Turntable resumes field play")
+
+	game._end_run(false)
+	game.compendium_button.pressed.emit()
+	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() >= 31, "Camp Compendium button opens bilingual Yanshan Curios & Mythic Red gallery with all 31 catalog cards")
+	game.loot_ui.close_compendium()
 
 	game.queue_free()
 	await process_frame
