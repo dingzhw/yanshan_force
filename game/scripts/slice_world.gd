@@ -56,32 +56,32 @@ func _lighting():
 	var e = Environment.new()
 	var sky = Sky.new()
 	var s = ProceduralSkyMaterial.new()
-	s.sky_top_color = Color("6b8ea0")
-	s.sky_horizon_color = Color("bdcbc0")
-	s.ground_bottom_color = Color("445140")
-	s.ground_horizon_color = Color("aabaae")
-	s.sun_angle_max = 32.0
-	s.sun_curve = 0.14
+	s.sky_top_color = Color("588496")
+	s.sky_horizon_color = Color("c5d4c8")
+	s.ground_bottom_color = Color("3c4f44")
+	s.ground_horizon_color = Color("aec0b4")
+	s.sun_angle_max = 30.0
+	s.sun_curve = 0.13
 	sky.sky_material = s
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_sky_contribution = 0.78
-	e.ambient_light_energy = 0.40
+	e.ambient_light_sky_contribution = 0.76
+	e.ambient_light_energy = 0.42
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 1.00
-	e.tonemap_white = 1.45
+	e.tonemap_exposure = 1.02
+	e.tonemap_white = 1.42
 	e.fog_enabled = true
-	e.fog_density = 0.0030
-	e.fog_light_color = Color("b1c3b7")
+	e.fog_density = 0.0028
+	e.fog_light_color = Color("b6cabf")
 	e.fog_sky_affect = 0.18
 	env.environment = e
 	add_child(env)
 
 	var sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-47, -38, 0)
-	sun.light_color = Color("f6eedb")
-	sun.light_energy = 0.88
+	sun.light_color = Color("faefd8")
+	sun.light_energy = 0.94
 	low_quality = "--low-quality" in OS.get_cmdline_user_args()
 	sun.shadow_enabled = not low_quality
 	sun.directional_shadow_max_distance = 42
@@ -149,12 +149,13 @@ void fragment(){
  vec3 tex=texture(soil,UV).rgb;
  float edge=smoothstep(0.36,0.94,COLOR.r);
  float stream_bank=1.0-smoothstep(0.45,0.98,COLOR.g);
- float patch=0.5+0.5*sin(pos.x*0.27+sin(pos.z*0.21)*2.0);
- vec3 greenery=mix(vec3(0.28,0.35,0.19),vec3(0.42,0.44,0.27),patch);
- vec3 bed=mix(tex*vec3(0.56,0.50,0.37),tex*greenery*1.42,edge);
- vec3 wet_stone=tex*vec3(0.32,0.36,0.30);
+ float patch=0.5+0.5*sin(pos.x*0.24+sin(pos.z*0.19)*2.1);
+ float micro_band=smoothstep(0.32,0.68,patch);
+ vec3 greenery=mix(vec3(0.21,0.34,0.23),vec3(0.37,0.46,0.27),micro_band);
+ vec3 bed=mix(tex*vec3(0.54,0.49,0.39),tex*greenery*1.44,edge);
+ vec3 wet_stone=tex*vec3(0.30,0.36,0.32);
  ALBEDO=mix(bed,wet_stone,stream_bank*0.78);
- NORMAL_MAP=texture(soil_normal,UV).rgb; NORMAL_MAP_DEPTH=0.52; ROUGHNESS=mix(0.94,0.62,stream_bank);
+ NORMAL_MAP=texture(soil_normal,UV).rgb; NORMAL_MAP_DEPTH=0.46; ROUGHNESS=mix(0.96,0.68,stream_bank); SPECULAR=0.03;
 }
 """
 	var mat = ShaderMaterial.new()
@@ -175,6 +176,91 @@ void fragment(){
 	game.Props.shape_body(self, shape, Vector3(0, 0, -42)).name = "GroundCollision"
 
 var extracted_mesh_cache: Dictionary = {}
+var qinglu_foliage_shader: Shader = null
+var qinglu_foliage_cache: Dictionary = {}
+
+func _get_qinglu_foliage_material(tex: Texture2D, mat_key: String, has_vcol: bool) -> ShaderMaterial:
+	var cache_id := mat_key + "::" + (str(tex.get_rid().get_id()) if tex != null else "notex") + ("::vc" if has_vcol else "::novc")
+	if qinglu_foliage_cache.has(cache_id):
+		return qinglu_foliage_cache[cache_id]
+	if qinglu_foliage_shader == null:
+		qinglu_foliage_shader = Shader.new()
+		qinglu_foliage_shader.code = """shader_type spatial;
+render_mode cull_disabled, specular_disabled;
+
+uniform sampler2D leaf_tex : source_color, filter_linear_mipmap;
+uniform float alpha_cut = 0.40;
+uniform float sway_amp = 0.045;
+uniform float use_baked_ao = 1.0;
+uniform float warm_autumn = 0.0;
+
+varying vec3 v_world_nrm;
+varying vec3 v_vcol;
+varying float v_instance_var;
+
+void vertex() {
+	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_world_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	v_vcol = mix(vec3(0.78, clamp(VERTEX.y / 5.5, 0.0, 1.0), 0.5), COLOR.rgb, use_baked_ao);
+	vec3 origin_w = MODEL_MATRIX[3].xyz;
+	v_instance_var = fract(sin(dot(origin_w.xz, vec2(12.9898, 78.233))) * 43758.5453);
+
+	// Gentle mountain breeze sway weighted toward outer/upper bough tips
+	float flex = clamp(v_vcol.g * 0.72 + (1.0 - UV.y) * 0.28, 0.0, 1.0);
+	float phase = TIME * 1.55 + origin_w.x * 0.37 + origin_w.z * 0.29 + VERTEX.y * 0.35;
+	VERTEX.x += sin(phase) * sway_amp * flex;
+	VERTEX.z += cos(phase * 0.85) * sway_amp * 0.65 * flex;
+}
+
+void fragment() {
+	vec4 tex = texture(leaf_tex, UV);
+	ALPHA = tex.a;
+	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
+
+	// Lock view-space normal to the smooth outward canopy normal (never flip on backfaces -> zero harsh X-card seams!)
+	NORMAL = normalize((VIEW_MATRIX * vec4(v_world_nrm, 0.0)).xyz);
+
+	// 3D Volumetric Qinglü core-to-crown gradient: Deep Qingdai Ink-Jade interior -> Sunlit Tea-Gold exterior!
+	float core_ao = clamp(v_vcol.r, 0.20, 1.0);
+	float crown_h = clamp(v_vcol.g, 0.0, 1.0);
+	float vol_t = smoothstep(0.22, 0.94, core_ao * 0.74 + crown_h * 0.26);
+
+	vec3 shadow_tint = mix(vec3(0.42, 0.60, 0.62), vec3(0.56, 0.50, 0.52), warm_autumn);
+	vec3 crown_tint = mix(vec3(1.12, 1.10, 0.94), vec3(1.16, 1.04, 0.90), warm_autumn);
+	// Subtle per-tree & per-bouquet organic shift so neighboring trees never merge into one flat mass
+	vec3 var_tint = mix(vec3(0.93, 1.03, 1.02), vec3(1.06, 0.99, 0.92), clamp(v_instance_var * 0.65 + v_vcol.b * 0.35, 0.0, 1.0));
+
+	ALBEDO = tex.rgb * mix(shadow_tint, crown_tint, vol_t) * var_tint;
+	ROUGHNESS = 1.0;
+	METALLIC = 0.0;
+	SPECULAR = 0.0;
+}
+
+void light() {
+	float half_nl = dot(NORMAL, LIGHT) * 0.5 + 0.5;
+	float lit = clamp(half_nl * (0.46 + 0.68 * v_vcol.r), 0.0, 1.0);
+	// Soft 2-step Qinglü painterly cel-band (clean sunlit crowns vs cool mineral-jade shade, zero plastic shine!)
+	float cel = mix(smoothstep(0.30, 0.56, lit) * 0.56 + smoothstep(0.58, 0.86, lit) * 0.44, lit, 0.32);
+	vec3 cool_shade = vec3(0.14, 0.24, 0.26);
+	vec3 warm_sun = (LIGHT_COLOR / 3.14159) * vec3(1.02, 0.98, 0.84);
+	// Translucent spring-leaf rim glow when looking toward the sun
+	float back_rim = pow(clamp(dot(-VIEW, LIGHT), 0.0, 1.0), 3.0) * smoothstep(0.52, 1.0, v_vcol.r) * 0.26;
+	DIFFUSE_LIGHT += (mix(cool_shade, warm_sun, cel) + vec3(0.24, 0.28, 0.14) * back_rim) * ATTENUATION;
+}
+"""
+	var sm := ShaderMaterial.new()
+	sm.shader = qinglu_foliage_shader
+	if tex != null:
+		sm.set_shader_parameter("leaf_tex", tex)
+	var is_willow := "Willow" in mat_key
+	var is_maple := "Maple" in mat_key
+	var is_azalea := "Azalea" in mat_key
+	sm.set_shader_parameter("alpha_cut", 0.36 if is_willow else 0.40)
+	sm.set_shader_parameter("sway_amp", 0.075 if is_willow else (0.022 if is_azalea else 0.045))
+	sm.set_shader_parameter("use_baked_ao", 1.0 if has_vcol else 0.0)
+	sm.set_shader_parameter("warm_autumn", 0.65 if is_maple else 0.0)
+	qinglu_foliage_cache[cache_id] = sm
+	return sm
 
 func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 	if src_mesh == null:
@@ -184,6 +270,12 @@ func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 		var fmt: int = int(mesh.surface_get_format(s))
 		var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
 		var mat: Material = mesh.surface_get_material(s)
+		if mat is StandardMaterial3D:
+			var smat := mat as StandardMaterial3D
+			var mname := String(smat.resource_name)
+			if smat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and smat.albedo_texture != null:
+				mesh.surface_set_material(s, _get_qinglu_foliage_material(smat.albedo_texture, mname, has_vcol))
+				continue
 		var bmat: BaseMaterial3D = null
 		if mat is BaseMaterial3D:
 			bmat = mat.duplicate() as BaseMaterial3D
@@ -193,15 +285,15 @@ func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 		if bmat != null:
 			if has_vcol:
 				bmat.vertex_color_use_as_albedo = true
-			bmat.metallic = 0.0
-			bmat.metallic_specular = 0.08
+			if bmat.metallic < 0.35:
+				bmat.metallic = 0.0
+				bmat.metallic_specular = 0.05
+				bmat.roughness = maxf(bmat.roughness, 0.78)
 			if bmat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 				bmat.alpha_scissor_threshold = 0.40
 				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-				bmat.roughness = 0.90
-				bmat.backlight_enabled = true
-				bmat.backlight = Color(0.06, 0.08, 0.04)
+				bmat.roughness = 0.92
 			mesh.surface_set_material(s, bmat)
 	return mesh
 

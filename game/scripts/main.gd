@@ -11,7 +11,7 @@ const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
-const VERSION = "0.6.3"
+const VERSION = "0.6.4"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -684,7 +684,7 @@ func _build_ui():
 	)
 	_style_tactical_button(compendium_button, Color("481f28"), Color("ff5c6c"), Color("ffe8cf"))
 
-	var brief_lbl = _text(menu, "【v0.6.3 真·摸金大红重塑 · 放大镜鉴定与双语奇珍馆】\n• 6阶品质与奇迹大红：新增【旷世·大红】（秘色青瓷盏/千年紫芝王/烟山之心等），木箱与鸟窝皆可一发逆袭！\n• 动态野外摸金：每局随机刷新3D露天珍宝（金/红冲天光柱）+ 树丫鸟窝摸宝 + 高能箱 + 词兵波次掉落包！\n• 放大镜逐格揭晓与3D检视：开箱声呐蓄力翻牌；按 [B] 整理背包、按 [I] 360°旋转检视宝物并听英文读音！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.4 青绿烟山 · 美术、建模与第一人称动作重塑】\n• 双手持刀与锁肩骨骼：重做双肩封口与正向肘腕解算，左右双手战术戒备 + 青锋刀光残影，告别“独臂悬空”！\n• 江南青绿水墨树竹：团簇写意枝叶 + 内黛青/外嫩茗体积着色器 + 乌桕丹枫点缀，零树影开销下彻底消除绿团塑料感！\n• 枪刀分件与风物精雕：YS-04 苍青护木/错金机匣、伞绳青锋短刃、须弥青石案、盘枝鸟窝与飞檐甲词卫全面换新！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory

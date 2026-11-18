@@ -112,9 +112,9 @@ def prepare_pbr_textures() -> dict[str, Path]:
     rip_y = np.where((yy.astype(int) % 16) < 2, 0.91, 1.0)
     rip = (rip_x * rip_y).astype(np.float32)
 
-    # Standard Military Ranger Olive-Drab sleeve albedo (sRGB target)
+    # Yanshan Qinglü Slate-Pine tactical ripstop sleeve albedo (sRGB target — zero plastic brown-grey)
     olive = np.ones((size, size, 4), dtype=np.float32)
-    base_olive = np.array([0.335, 0.385, 0.285], dtype=np.float32)
+    base_olive = np.array([0.245, 0.348, 0.315], dtype=np.float32)
     olive[..., :3] = base_olive[None, None, :] * (lum_norm * rip)[..., None]
 
     # Woodland Camo ("forest_skin") sleeve albedo (sRGB target)
@@ -701,6 +701,80 @@ def add_left_wrist_tactical_watch(arm_obj: bpy.types.Object, joints: dict) -> li
     return added_indices
 
 
+def add_sealed_shoulder_caps(arm_obj: bpy.types.Object, joints: dict) -> dict[str, list[int]]:
+    """Extrude and seal both proximal shoulder sleeve openings 13cm toward the torso so an open arm stump NEVER exists."""
+    bm = bmesh.new()
+    bm.from_mesh(arm_obj.data)
+    uv_layer = bm.loops.layers.uv.verify()
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+    start_idx = len(bm.verts)
+    cap_verts: dict[str, list[int]] = {"L": [], "R": []}
+
+    for side in ("L", "R"):
+        sign_x = 1.0 if side == "L" else -1.0
+        j = joints[side]
+        prox_dir = (j["shoulder"] - j["elbow"]).normalized()
+        # Angle slightly inward toward clavicle/neck so the extended sleeve follows natural human trapezius/deltoid slope
+        inward_dir = (prox_dir * 0.78 + Vector((-0.58 * sign_x, -0.18, 0.12))).normalized()
+
+        bnd_edges = [
+            e for e in bm.edges
+            if e.is_boundary and (e.verts[0].co.x * sign_x > 0.05)
+            and (e.verts[0].co - j["shoulder"]).length < 0.16
+        ]
+        if not bnd_edges:
+            continue
+
+        cur_edges = bnd_edges
+        new_faces_side = []
+        for step_len, rad_scale in ((0.065, 1.03), (0.070, 0.88)):
+            res = bmesh.ops.extrude_edge_only(bm, edges=cur_edges)
+            geom = res["geom"]
+            ext_verts = [ele for ele in geom if isinstance(ele, bmesh.types.BMVert)]
+            ext_faces = [ele for ele in geom if isinstance(ele, bmesh.types.BMFace)]
+            ext_edges = [ele for ele in geom if isinstance(ele, bmesh.types.BMEdge)]
+            ring_center = sum((v.co for v in ext_verts), Vector((0.0, 0.0, 0.0))) / max(1, len(ext_verts))
+            for v in ext_verts:
+                v.co = ring_center + (v.co - ring_center) * rad_scale + inward_dir * step_len
+            for f in ext_faces:
+                f.material_index = 0  # Mat_Sleeve
+                f.smooth = True
+                for lp in f.loops:
+                    lp[uv_layer].uv = (lp.vert.co.x * 6.0, lp.vert.co.y * 6.0)
+            new_faces_side.extend(ext_faces)
+            cur_edges = [e for e in ext_edges if e.is_boundary]
+
+        # Seal the proximal ring watertight to a smooth shoulder-yoke center vertex
+        if cur_edges:
+            end_verts = list({v for e in cur_edges for v in e.verts})
+            end_center = sum((v.co for v in end_verts), Vector((0.0, 0.0, 0.0))) / len(end_verts) + inward_dir * 0.025
+            v_cap = bm.verts.new(end_center)
+            for e in cur_edges:
+                try:
+                    cf = bm.faces.new((e.verts[0], e.verts[1], v_cap))
+                    cf.material_index = 0
+                    cf.smooth = True
+                    for lp in cf.loops:
+                        lp[uv_layer].uv = (lp.vert.co.x * 6.0, lp.vert.co.y * 6.0)
+                    new_faces_side.append(cf)
+                except ValueError:
+                    pass
+        if new_faces_side:
+            bmesh.ops.recalc_face_normals(bm, faces=new_faces_side)
+
+    bm.verts.ensure_lookup_table()
+    for vi in range(start_idx, len(bm.verts)):
+        side_k = "L" if bm.verts[vi].co.x >= 0.0 else "R"
+        cap_verts[side_k].append(vi)
+
+    bm.normal_update()
+    bm.to_mesh(arm_obj.data)
+    bm.free()
+    arm_obj.data.update()
+    return cap_verts
+
+
 # ---------------------------------------------------------------------------
 # 3. Build Anatomical Armature & Zero-Bleed Parent-Child Skinning
 # ---------------------------------------------------------------------------
@@ -709,6 +783,7 @@ def create_armature_and_weights(
     arm_obj: bpy.types.Object,
     joints: dict,
     watch_verts: list[int],
+    shoulder_cap_verts: dict[str, list[int]] | None = None,
 ) -> bpy.types.Object:
     arm_data = bpy.data.armatures.new("FPArmsRig")
     rig_obj = bpy.data.objects.new("FPArmsRig", arm_data)
@@ -799,10 +874,18 @@ def create_armature_and_weights(
 
     vert_fs: list[set[int]] = joints["vert_fs"]
     watch_set = set(watch_verts)
+    cap_L = set((shoulder_cap_verts or {}).get("L", []))
+    cap_R = set((shoulder_cap_verts or {}).get("R", []))
 
     for vi in range(n_verts):
         if vi in watch_set:
             weights[vi, bone_idx["forearm_twist.L"]] = 1.0
+            continue
+        if vi in cap_L:
+            weights[vi, bone_idx["upperarm.L"]] = 1.0
+            continue
+        if vi in cap_R:
+            weights[vi, bone_idx["upperarm.R"]] = 1.0
             continue
         v = mesh.vertices[vi]
         side = "L" if v.co.x >= 0.0 else "R"
@@ -997,6 +1080,109 @@ def pose_arm_chain(
     }
 
 
+def pose_arm_locked_shoulder(
+    rig_obj: bpy.types.Object,
+    side: str,
+    shoulder_bl: Vector,
+    wrist_bl: Vector,
+    mcp_target_bl: Vector,
+    hand_dorsal_bl: Vector,
+    pole_elbow_bl: Vector,
+    finger_curls_deg: dict[str, tuple[float, float, float]],
+    thumb_abduct_deg: tuple[float, float] = (0.0, 0.0),
+    index_abduct_deg: tuple[float, float] = (0.0, 0.0),
+) -> dict[str, list[float]]:
+    """Solve exact 2-Bone Analytical Law-of-Cosines IK with shoulder_bl 100% LOCKED to the torso behind camera!"""
+    suf = f".{side}"
+    pb = rig_obj.pose.bones
+    bones = rig_obj.data.bones
+
+    L_up = bones["upperarm" + suf].length
+    L_fa = bones["forearm" + suf].length
+    L_ft = bones["forearm_twist" + suf].length
+    L_fore_total = L_fa + L_ft
+
+    sw = wrist_bl - shoulder_bl
+    raw_d = max(1e-5, sw.length)
+    min_d = abs(L_up - L_fore_total) + 0.018
+    max_d = L_up + L_fore_total - 0.008
+    d = max(min_d, min(max_d, raw_d))
+    dir_sw = sw / raw_d
+    wrist_exact = shoulder_bl + dir_sw * d
+    mcp_exact = mcp_target_bl + (wrist_exact - wrist_bl)
+
+    cos_a = max(-0.999, min(0.999, (L_up * L_up + d * d - L_fore_total * L_fore_total) / (2.0 * L_up * d)))
+    sin_a = math.sqrt(max(0.0, 1.0 - cos_a * cos_a))
+
+    pole_v = pole_elbow_bl - shoulder_bl
+    pole_perp = pole_v - dir_sw * pole_v.dot(dir_sw)
+    if pole_perp.length < 1e-5:
+        pole_perp = Vector((0.0, 0.0, -1.0))
+    pole_dir = pole_perp.normalized()
+
+    shoulder_pos = shoulder_bl.copy()
+    elbow_pos = shoulder_pos + dir_sw * (L_up * cos_a) + pole_dir * (L_up * sin_a)
+    fore_mid_pos = elbow_pos.lerp(wrist_exact, L_fa / L_fore_total)
+
+    hand_y = (mcp_exact - wrist_exact).normalized()
+    hand_rot = _basis_from_yz(hand_y, hand_dorsal_bl)
+    hand_z = Vector((hand_rot[0][2], hand_rot[1][2], hand_rot[2][2]))
+
+    up_y = (elbow_pos - shoulder_pos).normalized()
+    fa_y = (fore_mid_pos - elbow_pos).normalized()
+    ft_y = (wrist_exact - fore_mid_pos).normalized()
+
+    elbow_bend_normal = (-up_y).cross(ft_y)
+    if elbow_bend_normal.length < 1e-4:
+        elbow_bend_normal = hand_z
+    elbow_bend_normal.normalize()
+    if elbow_bend_normal.dot(hand_z) < 0.0:
+        elbow_bend_normal = -elbow_bend_normal
+
+    up_rot = _basis_from_yz(up_y, elbow_bend_normal)
+    fa_rot = _basis_from_yz(fa_y, elbow_bend_normal.lerp(hand_z, 0.38).normalized())
+    ft_rot = _basis_from_yz(ft_y, elbow_bend_normal.lerp(hand_z, 0.80).normalized())
+
+    def set_world_mat(bname: str, head_pos: Vector, rot3: Matrix):
+        pbone = pb[bname]
+        mat4 = rot3.to_4x4()
+        mat4.translation = head_pos
+        pbone.matrix = mat4
+        bpy.context.view_layer.update()
+
+    set_world_mat("upperarm" + suf, shoulder_pos, up_rot)
+    set_world_mat("forearm" + suf, elbow_pos, fa_rot)
+    set_world_mat("forearm_twist" + suf, fore_mid_pos, ft_rot)
+    set_world_mat("hand" + suf, wrist_exact, hand_rot)
+
+    for fname in ("thumb", "index", "middle", "ring", "little"):
+        c1, c2, c3 = finger_curls_deg[fname]
+        for idx, ang_deg in ((1, c1), (2, c2), (3, c3)):
+            fbone = pb[f"{fname}_0{idx}{suf}"]
+            fbone.rotation_mode = "QUATERNION"
+            rx = -math.radians(ang_deg)
+            ry = 0.0
+            rz = 0.0
+            if fname == "thumb" and idx == 1:
+                rz = math.radians(thumb_abduct_deg[0])
+                ry = math.radians(thumb_abduct_deg[1])
+            elif fname == "index" and idx == 1:
+                rz = math.radians(index_abduct_deg[0])
+                ry = math.radians(index_abduct_deg[1])
+            fbone.rotation_quaternion = Euler((rx, ry, rz), "XYZ").to_quaternion()
+
+    bpy.context.view_layer.update()
+    return {
+        f"shoulder_{side}_gd": bl_to_gd(shoulder_pos),
+        f"elbow_{side}_gd": bl_to_gd(elbow_pos),
+        f"wrist_{side}_gd": bl_to_gd(wrist_exact),
+        f"mcp_{side}_gd": bl_to_gd(pb["hand" + suf].tail),
+        f"index_tip_{side}_gd": bl_to_gd(pb["index_03" + suf].tail),
+        f"middle_tip_{side}_gd": bl_to_gd(pb["middle_03" + suf].tail),
+        f"thumb_tip_{side}_gd": bl_to_gd(pb["thumb_03" + suf].tail),
+    }
+
+
 def apply_pose_preset(rig_obj: bpy.types.Object, preset: str) -> dict:
     # Reset all bones first
     for pbone in rig_obj.pose.bones:
@@ -1005,119 +1191,144 @@ def apply_pose_preset(rig_obj: bpy.types.Object, preset: str) -> dict:
         pbone.scale = (1.0, 1.0, 1.0)
     bpy.context.view_layer.update()
 
+    # Anatomical shoulders LOCKED behind camera eye!
+    # With weapon_root = (0.0, -0.145, -0.35) in knife mode, Camera Eye is at (0.0, +0.145, +0.35) local.
+    # Locking shoulders at (+/-0.215, -0.075, +0.430) places them at (+/-0.215, -0.220, +0.080) in Camera space (8cm BEHIND lens!).
+    sh_R = gd(+0.215, -0.075, +0.430)
+    sh_L = gd(-0.215, -0.075, +0.430)
+    knife_grip_curls = {
+        "thumb": (28.0, 38.0, 26.0),
+        "index": (68.0, 86.0, 62.0),
+        "middle": (72.0, 90.0, 66.0),
+        "ring": (74.0, 92.0, 68.0),
+        "little": (76.0, 94.0, 68.0),
+    }
+    guard_curls = {
+        "thumb": (18.0, 24.0, 14.0),
+        "index": (26.0, 38.0, 24.0),
+        "middle": (32.0, 44.0, 28.0),
+        "ring": (38.0, 50.0, 34.0),
+        "little": (44.0, 56.0, 38.0),
+    }
+
     if preset == "pose_knife_idle":
-        # Natural human sabre grip: knuckles rake forward-down (-Y,-Z) so top of fist & blade aim forward-up-left (-X,+Y,-Z)
-        r_info = pose_arm_chain(
-            rig_obj,
-            "R",
-            wrist_bl=gd(+0.025, +0.005, +0.165),
-            mcp_target_bl=gd(-0.008, -0.035, +0.082),
-            hand_dorsal_bl=gd(+0.76, +0.42, +0.32),
-            elbow_dir_bl=gd(+0.195, -0.155, +0.325),
-            shoulder_dir_bl=gd(+0.285, -0.075, +0.545),
-            finger_curls_deg={
-                "thumb": (28.0, 38.0, 26.0),
-                "index": (68.0, 86.0, 62.0),
-                "middle": (72.0, 90.0, 66.0),
-                "ring": (74.0, 92.0, 68.0),
-                "little": (76.0, 94.0, 68.0),
-            },
+        # True Two-Handed CQB Martial Stance: Both gloved hands, wrist watch & cord-wrapped knife framed crisply!
+        r_info = pose_arm_locked_shoulder(
+            rig_obj, "R",
+            shoulder_bl=sh_R,
+            wrist_bl=gd(+0.132, +0.012, +0.065),
+            mcp_target_bl=gd(+0.088, -0.026, -0.016),
+            hand_dorsal_bl=gd(+0.78, +0.40, +0.48),
+            pole_elbow_bl=gd(+0.31, -0.24, +0.25),
+            finger_curls_deg=knife_grip_curls,
             thumb_abduct_deg=(-12.0, +14.0),
             index_abduct_deg=(+4.0, 0.0),
         )
-        # Left hand kept low in natural non-obstructing tactical balance position
-        l_info = pose_arm_chain(
-            rig_obj,
-            "L",
-            wrist_bl=gd(-0.365, -0.135, +0.185),
-            mcp_target_bl=gd(-0.315, -0.105, +0.105),
-            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
-            elbow_dir_bl=gd(-0.465, -0.265, +0.345),
-            shoulder_dir_bl=gd(-0.545, -0.205, +0.535),
-            finger_curls_deg={
-                "thumb": (16.0, 22.0, 14.0),
-                "index": (34.0, 44.0, 30.0),
-                "middle": (38.0, 48.0, 32.0),
-                "ring": (42.0, 52.0, 36.0),
-                "little": (46.0, 56.0, 38.0),
-            },
-            thumb_abduct_deg=(+14.0, -10.0),
+        l_info = pose_arm_locked_shoulder(
+            rig_obj, "L",
+            shoulder_bl=sh_L,
+            wrist_bl=gd(-0.138, -0.004, +0.078),
+            mcp_target_bl=gd(-0.086, +0.042, +0.004),
+            hand_dorsal_bl=gd(-0.72, +0.38, +0.58),
+            pole_elbow_bl=gd(-0.32, -0.25, +0.26),
+            finger_curls_deg=guard_curls,
+            thumb_abduct_deg=(+16.0, -10.0),
+        )
+        return {**r_info, **l_info}
+    elif preset == "pose_knife_windup_a":
+        # Crisp forehand chamber: Right blade coils upper-right while Left guard hand checks forward
+        r_info = pose_arm_locked_shoulder(
+            rig_obj, "R",
+            shoulder_bl=sh_R,
+            wrist_bl=gd(+0.188, +0.105, +0.098),
+            mcp_target_bl=gd(+0.168, +0.068, +0.010),
+            hand_dorsal_bl=gd(+0.62, +0.72, +0.31),
+            pole_elbow_bl=gd(+0.34, -0.16, +0.27),
+            finger_curls_deg=knife_grip_curls,
+            thumb_abduct_deg=(-12.0, +14.0),
+            index_abduct_deg=(+4.0, 0.0),
+        )
+        l_info = pose_arm_locked_shoulder(
+            rig_obj, "L",
+            shoulder_bl=sh_L,
+            wrist_bl=gd(-0.122, +0.012, +0.058),
+            mcp_target_bl=gd(-0.072, +0.054, -0.012),
+            hand_dorsal_bl=gd(-0.72, +0.40, +0.56),
+            pole_elbow_bl=gd(-0.31, -0.24, +0.25),
+            finger_curls_deg=guard_curls,
+            thumb_abduct_deg=(+16.0, -10.0),
         )
         return {**r_info, **l_info}
     elif preset == "pose_knife_slash_a":
-        # Fast forehand diagonal cleave from upper-right to lower-left across screen center
-        r_info = pose_arm_chain(
-            rig_obj,
-            "R",
-            wrist_bl=gd(-0.185, +0.095, +0.055),
-            mcp_target_bl=gd(-0.260, +0.055, -0.015),
-            hand_dorsal_bl=gd(+0.22, +0.90, -0.32),
-            elbow_dir_bl=gd(+0.035, -0.075, +0.235),
-            shoulder_dir_bl=gd(+0.205, -0.055, +0.465),
-            finger_curls_deg={
-                "thumb": (30.0, 40.0, 28.0),
-                "index": (70.0, 88.0, 64.0),
-                "middle": (74.0, 92.0, 68.0),
-                "ring": (76.0, 94.0, 70.0),
-                "little": (78.0, 96.0, 70.0),
-            },
+        # Explosive diagonal forehand cleave across screen center! Forearm & fist clearly visible, shoulder locked behind lens!
+        r_info = pose_arm_locked_shoulder(
+            rig_obj, "R",
+            shoulder_bl=sh_R,
+            wrist_bl=gd(-0.072, +0.038, +0.068),
+            mcp_target_bl=gd(-0.150, +0.012, +0.002),
+            hand_dorsal_bl=gd(+0.18, +0.92, -0.34),
+            pole_elbow_bl=gd(+0.23, -0.17, +0.24),
+            finger_curls_deg=knife_grip_curls,
             thumb_abduct_deg=(-12.0, +14.0),
             index_abduct_deg=(+4.0, 0.0),
         )
-        l_info = pose_arm_chain(
-            rig_obj,
-            "L",
-            wrist_bl=gd(-0.415, -0.175, +0.205),
-            mcp_target_bl=gd(-0.365, -0.145, +0.125),
-            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
-            elbow_dir_bl=gd(-0.505, -0.295, +0.365),
-            shoulder_dir_bl=gd(-0.565, -0.215, +0.545),
-            finger_curls_deg={
-                "thumb": (16.0, 22.0, 14.0),
-                "index": (38.0, 48.0, 32.0),
-                "middle": (42.0, 52.0, 36.0),
-                "ring": (46.0, 56.0, 38.0),
-                "little": (50.0, 60.0, 42.0),
-            },
-            thumb_abduct_deg=(+14.0, -10.0),
+        l_info = pose_arm_locked_shoulder(
+            rig_obj, "L",
+            shoulder_bl=sh_L,
+            wrist_bl=gd(-0.195, -0.052, +0.145),
+            mcp_target_bl=gd(-0.152, -0.016, +0.072),
+            hand_dorsal_bl=gd(-0.78, +0.34, +0.52),
+            pole_elbow_bl=gd(-0.34, -0.26, +0.29),
+            finger_curls_deg=guard_curls,
+            thumb_abduct_deg=(+16.0, -10.0),
+        )
+        return {**r_info, **l_info}
+    elif preset == "pose_knife_windup_b":
+        # Reverse backhand coil at lower-left with palm supinated upward
+        r_info = pose_arm_locked_shoulder(
+            rig_obj, "R",
+            shoulder_bl=sh_R,
+            wrist_bl=gd(-0.062, +0.008, +0.082),
+            mcp_target_bl=gd(-0.002, +0.018, +0.002),
+            hand_dorsal_bl=gd(+0.28, -0.86, +0.42),
+            pole_elbow_bl=gd(+0.22, -0.22, +0.25),
+            finger_curls_deg=knife_grip_curls,
+            thumb_abduct_deg=(-12.0, +14.0),
+            index_abduct_deg=(+4.0, 0.0),
+        )
+        l_info = pose_arm_locked_shoulder(
+            rig_obj, "L",
+            shoulder_bl=sh_L,
+            wrist_bl=gd(-0.188, -0.042, +0.128),
+            mcp_target_bl=gd(-0.142, -0.002, +0.055),
+            hand_dorsal_bl=gd(-0.76, +0.36, +0.54),
+            pole_elbow_bl=gd(-0.33, -0.25, +0.28),
+            finger_curls_deg=guard_curls,
+            thumb_abduct_deg=(+16.0, -10.0),
         )
         return {**r_info, **l_info}
     elif preset == "pose_knife_slash_b":
-        # Reverse diagonal cross-slash sweeping back lower-left to upper-right
-        r_info = pose_arm_chain(
-            rig_obj,
-            "R",
-            wrist_bl=gd(-0.075, +0.120, +0.035),
-            mcp_target_bl=gd(+0.015, +0.155, -0.035),
-            hand_dorsal_bl=gd(+0.55, -0.62, +0.55),
-            elbow_dir_bl=gd(+0.115, -0.085, +0.225),
-            shoulder_dir_bl=gd(+0.235, -0.055, +0.465),
-            finger_curls_deg={
-                "thumb": (28.0, 38.0, 26.0),
-                "index": (68.0, 86.0, 62.0),
-                "middle": (72.0, 90.0, 66.0),
-                "ring": (74.0, 92.0, 68.0),
-                "little": (76.0, 94.0, 68.0),
-            },
+        # Reverse upward-right cross-slash follow-through; shoulder_R remains locked behind camera!
+        r_info = pose_arm_locked_shoulder(
+            rig_obj, "R",
+            shoulder_bl=sh_R,
+            wrist_bl=gd(+0.168, +0.095, +0.048),
+            mcp_target_bl=gd(+0.228, +0.122, -0.022),
+            hand_dorsal_bl=gd(+0.46, -0.76, +0.45),
+            pole_elbow_bl=gd(+0.32, -0.18, +0.24),
+            finger_curls_deg=knife_grip_curls,
             thumb_abduct_deg=(-12.0, +14.0),
             index_abduct_deg=(+4.0, 0.0),
         )
-        l_info = pose_arm_chain(
-            rig_obj,
-            "L",
-            wrist_bl=gd(-0.385, -0.155, +0.195),
-            mcp_target_bl=gd(-0.335, -0.125, +0.115),
-            hand_dorsal_bl=gd(-0.72, +0.48, +0.30),
-            elbow_dir_bl=gd(-0.485, -0.275, +0.355),
-            shoulder_dir_bl=gd(-0.555, -0.205, +0.535),
-            finger_curls_deg={
-                "thumb": (16.0, 22.0, 14.0),
-                "index": (34.0, 44.0, 30.0),
-                "middle": (38.0, 48.0, 32.0),
-                "ring": (42.0, 52.0, 36.0),
-                "little": (46.0, 56.0, 38.0),
-            },
-            thumb_abduct_deg=(+14.0, -10.0),
+        l_info = pose_arm_locked_shoulder(
+            rig_obj, "L",
+            shoulder_bl=sh_L,
+            wrist_bl=gd(-0.142, -0.012, +0.078),
+            mcp_target_bl=gd(-0.092, +0.032, +0.005),
+            hand_dorsal_bl=gd(-0.74, +0.36, +0.56),
+            pole_elbow_bl=gd(-0.32, -0.24, +0.26),
+            finger_curls_deg=guard_curls,
+            thumb_abduct_deg=(+16.0, -10.0),
         )
         return {**r_info, **l_info}
 
@@ -1233,7 +1444,9 @@ def bake_actions_to_nla(rig_obj: bpy.types.Object) -> dict:
         "pose_reload_pull",
         "pose_fire",
         "pose_knife_idle",
+        "pose_knife_windup_a",
         "pose_knife_slash_a",
+        "pose_knife_windup_b",
         "pose_knife_slash_b",
     ]
     diagnostics = {}
@@ -1351,7 +1564,8 @@ def main():
     joints = compute_joints_and_normals(arm_obj.data, poly_fs)
     sculpt_tactical_garments_and_materials(arm_obj, poly_fs, joints, tex_paths)
     watch_verts = add_left_wrist_tactical_watch(arm_obj, joints)
-    rig_obj = create_armature_and_weights(arm_obj, joints, watch_verts)
+    shoulder_cap_verts = add_sealed_shoulder_caps(arm_obj, joints)
+    rig_obj = create_armature_and_weights(arm_obj, joints, watch_verts, shoulder_cap_verts)
     pose_diag = bake_actions_to_nla(rig_obj)
 
     bounds_hip = measure_posed_bounds_godot(arm_obj, rig_obj, "pose_hip")

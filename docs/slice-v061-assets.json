@@ -1,11 +1,11 @@
 {
   "bundle": "game/assets/slice/v061_nature_wildlife.glb",
   "total_triangles": 22874,
-  "file_size_bytes": 3637528,
+  "file_size_bytes": 3371004,
   "assets": {
     "tree_camphor": {
       "triangles": 1360,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -4.899,
@@ -23,7 +23,7 @@
     },
     "tree_willow": {
       "triangles": 1028,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -2.986,
@@ -41,7 +41,7 @@
     },
     "tree_maple_tallow": {
       "triangles": 1012,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -4.283,
@@ -59,7 +59,7 @@
     },
     "bamboo_culm_single": {
       "triangles": 681,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -1.615,
@@ -77,7 +77,7 @@
     },
     "bamboo_clump": {
       "triangles": 4191,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -3.099,
@@ -95,7 +95,7 @@
     },
     "prop_azalea_bush": {
       "triangles": 278,
-      "has_vertex_colors": false,
+      "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
           -1.211,

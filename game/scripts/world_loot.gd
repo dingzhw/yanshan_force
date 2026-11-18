@@ -35,6 +35,7 @@ var loose_nodes: Array = []
 var nest_nodes: Array = []
 var drop_nodes: Array = []
 var overcharged_halos: Array = []
+var drop_case_mesh: Mesh = null
 var spin_clock: float = 0.0
 
 func setup(g):
@@ -46,12 +47,15 @@ func interactable_nodes() -> Array:
 	return loose_nodes + nest_nodes + drop_nodes
 
 func _build_static_anchors():
-	# 1) Loose World Loot Pedestals / Spots
-	var stone_mat := StandardMaterial3D.new()
-	stone_mat.albedo_color = Color("4f5953")
-	stone_mat.roughness = 0.88
+	var props_glb := "res://assets/slice/v064_world_props.glb"
+	var ped_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_stone_pedestal")
+	var nest_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_bird_nest")
+	var crevice_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_karst_crevice")
+	drop_case_mesh = game.landscape._extract_mesh(props_glb, "prop_squad_drop_case")
 
-	for spec in LOOSE_SPOTS:
+	# 1) Sculpted Jiangnan Octagonal Sumidero Stone Pedestals (top y = 0.44m)
+	for idx_l in LOOSE_SPOTS.size():
+		var spec: Dictionary = LOOSE_SPOTS[idx_l]
 		var root := Node3D.new()
 		var gp: Vector3 = game.Layout.on_ground(spec.at)
 		root.position = gp
@@ -61,15 +65,11 @@ func _build_static_anchors():
 		root.set_meta("high_tier", bool(spec.high))
 		add_child(root)
 
-		if bool(spec.pedestal):
+		if bool(spec.pedestal) and ped_mesh != null:
 			var stump := MeshInstance3D.new()
-			var cm := CylinderMesh.new()
-			cm.top_radius = 0.36
-			cm.bottom_radius = 0.42
-			cm.height = 0.44
-			stump.mesh = cm
-			stump.position.y = 0.22
-			stump.material_override = stone_mat
+			stump.mesh = ped_mesh
+			stump.rotation.y = float(idx_l) * 0.785
+			stump.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(stump)
 
 		var holder := Node3D.new()
@@ -78,23 +78,15 @@ func _build_static_anchors():
 		root.add_child(holder)
 		loose_nodes.append(root)
 
-	# 2) Tactile Bird Nests & Karst Rock Crevices ('掏鸟窝')
-	var twig_mat := StandardMaterial3D.new()
-	twig_mat.albedo_color = Color("6b4f35")
-	twig_mat.roughness = 0.94
-	var moss_mat := StandardMaterial3D.new()
-	moss_mat.albedo_color = Color("4c6b48")
-	moss_mat.roughness = 0.90
-	var egg_mat := StandardMaterial3D.new()
-	egg_mat.albedo_color = Color("e8e2cf")
-	egg_mat.roughness = 0.55
+	# 2) Sculpted Woven-Twig Bird Nests & Perforated Taihu Karst Rock Crevices ('掏鸟窝')
 	var glint_mat := StandardMaterial3D.new()
-	glint_mat.albedo_color = Color("ffd166")
+	glint_mat.albedo_color = Color("ffe082")
 	glint_mat.emission_enabled = true
 	glint_mat.emission = Color("ffd166")
-	glint_mat.emission_energy_multiplier = 1.2
+	glint_mat.emission_energy_multiplier = 1.25
 
-	for nspec in NEST_SPOTS:
+	for idx_n in NEST_SPOTS.size():
+		var nspec: Dictionary = NEST_SPOTS[idx_n]
 		var nroot := Node3D.new()
 		nroot.position = game.Layout.on_ground(nspec.at)
 		nroot.set_meta("world_loot_kind", "nest")
@@ -102,51 +94,19 @@ func _build_static_anchors():
 		nroot.set_meta("title", nspec.title)
 		add_child(nroot)
 
-		var rock_base := MeshInstance3D.new()
-		var rmesh := CylinderMesh.new()
-		rmesh.top_radius = 0.34
-		rmesh.bottom_radius = 0.44
-		rmesh.height = 0.32
-		rock_base.mesh = rmesh
-		rock_base.position.y = 0.16
-		rock_base.material_override = moss_mat
-		nroot.add_child(rock_base)
-
-		if str(nspec.kind) == "nest":
-			var ring := MeshInstance3D.new()
-			var tmesh := TorusMesh.new()
-			tmesh.inner_radius = 0.14
-			tmesh.outer_radius = 0.27
-			ring.mesh = tmesh
-			ring.position.y = 0.35
-			ring.material_override = twig_mat
-			nroot.add_child(ring)
-			for ex in [-0.05, 0.06]:
-				var egg := MeshInstance3D.new()
-				var sp := SphereMesh.new()
-				sp.radius = 0.048
-				sp.height = 0.11
-				egg.mesh = sp
-				egg.position = Vector3(ex, 0.36, 0.02)
-				egg.material_override = egg_mat
-				nroot.add_child(egg)
-		else:
-			var cleft := MeshInstance3D.new()
-			var bmesh := BoxMesh.new()
-			bmesh.size = Vector3(0.56, 0.42, 0.46)
-			cleft.mesh = bmesh
-			cleft.position.y = 0.34
-			cleft.rotation_degrees.y = 18.0
-			cleft.material_override = stone_mat
-			nroot.add_child(cleft)
+		var prop_mi := MeshInstance3D.new()
+		prop_mi.mesh = nest_mesh if str(nspec.kind) == "nest" else crevice_mesh
+		prop_mi.rotation.y = float(idx_n) * 1.15
+		prop_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		nroot.add_child(prop_mi)
 
 		var spark := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.045
-		sm.height = 0.09
+		sm.radius = 0.038
+		sm.height = 0.076
 		spark.mesh = sm
 		spark.name = "Glint"
-		spark.position = Vector3(0.0, 0.44, 0.0)
+		spark.position = Vector3(0.0, 0.40, 0.0)
 		spark.material_override = glint_mat
 		nroot.add_child(spark)
 		nest_nodes.append(nroot)
@@ -295,23 +255,22 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 		max_r = maxi(max_r, int(it.get("rarity", 2)))
 	var strip_col: Color = game.Rules.RARITY_COLORS[clampi(max_r, 1, 6)]
 
-	var case_mat := StandardMaterial3D.new()
-	case_mat.albedo_color = Color("263036")
-	case_mat.metallic = 0.58
-	case_mat.roughness = 0.38
 	var body := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.68, 0.34, 0.46)
-	body.mesh = bm
-	body.position.y = 0.17
-	body.material_override = case_mat
+	if drop_case_mesh != null:
+		body.mesh = drop_case_mesh
+	else:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.68, 0.32, 0.46)
+		body.mesh = bm
+		body.position.y = 0.16
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	dnode.add_child(body)
 
 	var strip := MeshInstance3D.new()
 	var sm := BoxMesh.new()
-	sm.size = Vector3(0.70, 0.06, 0.48)
+	sm.size = Vector3(0.62, 0.035, 0.48)
 	strip.mesh = sm
-	strip.position.y = 0.28
+	strip.position.y = 0.285
 	var st_mat := StandardMaterial3D.new()
 	st_mat.albedo_color = strip_col
 	st_mat.emission_enabled = true

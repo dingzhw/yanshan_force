@@ -1,0 +1,22 @@
+{
+  "rifle": {
+    "file": "game/assets/slice/rifle.glb",
+    "bytes": 567500,
+    "receiver_polys": 4054
+  },
+  "knife": {
+    "file": "game/assets/slice/tactical_knife.glb",
+    "bytes": 46924,
+    "polys": 400
+  },
+  "world_props": {
+    "file": "game/assets/slice/v064_world_props.glb",
+    "bytes": 518080,
+    "props": {
+      "prop_stone_pedestal": 110,
+      "prop_bird_nest": 836,
+      "prop_karst_crevice": 260,
+      "prop_squad_drop_case": 72
+    }
+  }
+}

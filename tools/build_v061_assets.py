@@ -293,18 +293,42 @@ def finalize_part(
     for poly in mesh.polygons:
         poly.use_smooth = smooth
 
-    if canopy_center_gd is not None and len(mesh.vertices) > 0:
-        center_bl = gd_to_bl(Vector(canopy_center_gd))
-        vert_normals = []
-        for v in mesh.vertices:
-            out_v = v.co - center_bl + Vector((0.0, 0.0, 0.55))
-            if out_v.length < 1e-4:
-                out_v = Vector((0.0, 0.0, 1.0))
-            else:
-                out_v.normalize()
-            blended = (Vector(v.normal) * 0.22 + out_v * 0.78).normalized()
-            vert_normals.append(blended)
-        mesh.normals_split_custom_set_from_vertices(vert_normals)
+    n_verts = len(mesh.vertices)
+    if n_verts > 0:
+        ca = mesh.color_attributes.get("Color") or mesh.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+        zs = [v.co.z for v in mesh.vertices]
+        z_min, z_max = min(zs), max(zs)
+        z_span = max(0.25, z_max - z_min)
+
+        if canopy_center_gd is not None:
+            center_bl = gd_to_bl(Vector(canopy_center_gd))
+            rads = [(v.co - center_bl).length for v in mesh.vertices]
+            max_rad = max(0.35, max(rads))
+            vert_normals = []
+            for vi, v in enumerate(mesh.vertices):
+                out_v = v.co - center_bl + Vector((0.0, 0.0, 0.45))
+                if out_v.length < 1e-4:
+                    out_v = Vector((0.0, 0.0, 1.0))
+                else:
+                    out_v.normalize()
+                # Preserve 48% bough curvature + 52% crown volume so individual bough bouquets separate cleanly!
+                blended = (Vector(v.normal) * 0.48 + out_v * 0.52).normalized()
+                vert_normals.append(blended)
+
+                rad_t = min(1.0, rads[vi] / max_rad)
+                h_t = max(0.0, min(1.0, (v.co.z - z_min) / z_span))
+                canopy_ao = max(0.22, min(1.0, 0.22 + 0.54 * (rad_t ** 0.85) + 0.28 * h_t))
+                cluster_var = 0.5 + 0.5 * math.sin((vi // 9) * 12.9898 + 1.7)
+                ca.data[vi].color = (canopy_ao, h_t, cluster_var, 1.0)
+            mesh.normals_split_custom_set_from_vertices(vert_normals)
+        else:
+            # Bark / culm grounding & under-canopy ambient occlusion
+            for vi, v in enumerate(mesh.vertices):
+                h_t = max(0.0, min(1.0, (v.co.z - z_min) / z_span))
+                root_ao = 0.62 + 0.38 * min(1.0, max(0.0, (v.co.z + 0.15) / 0.85))
+                crown_shade = 1.0 - 0.28 * max(0.0, (h_t - 0.58) / 0.42)
+                ao = max(0.52, min(1.0, root_ao * crown_shade))
+                ca.data[vi].color = (ao, ao, ao, 1.0)
 
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
@@ -1076,6 +1100,8 @@ def build_all() -> None:
         export_yup=True,
         export_materials="EXPORT",
         export_normals=True,
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=True,
         export_attributes=True,
     )
 

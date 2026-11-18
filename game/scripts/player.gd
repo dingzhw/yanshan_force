@@ -446,8 +446,8 @@ func _physics_process(delta):
 	var fov_speed = 19.0 if grip_id == "angled_grip" else 13.0
 	camera.fov = lerpf(camera.fov, target_fov, minf(delta * fov_speed, 1))
 	var progress = clampf(reload_left / RELOAD_SECONDS, 0, 1) if weapon_slot == 0 else 0.0
-	# Align optic reticle (y = 0.234) straight with camera optical axis when aiming; keep Knife pose steady forward
-	var target_pose = Vector3(0.0, -0.234, -0.46) if ads_active else (Vector3(0.155, -0.182, -0.49) if weapon_slot == 1 else Vector3(0.21, -0.245, -0.58))
+	# Align optic reticle (y = 0.234) straight with camera optical axis when aiming; keep Knife rig torso-centered so shoulders stay behind lens!
+	var target_pose = Vector3(0.0, -0.234, -0.46) if ads_active else (Vector3(0.0, -0.145, -0.35) if weapon_slot == 1 else Vector3(0.21, -0.245, -0.58))
 	target_pose.y -= sin(progress * PI) * 0.042
 	target_pose.x -= sin(progress * PI) * 0.035
 	target_pose.z += recoil * 0.055

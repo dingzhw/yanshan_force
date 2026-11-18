@@ -4,6 +4,24 @@
 
 ---
 
+## [v0.6.4] - 2026-11-18
+### 青绿烟山：第一人称双手锁肩近战重塑、江南青绿水墨树竹着色器与枪械风物精雕
+- **根除近战挥刀“孤独断臂”：双肩封口拓扑 + 锁肩正向双骨 IK + 双手武术持刀与青瓷金锋刀光（`tools/build_fp_arms.py` / `player.gd` / `weapon.gd`）**：
+  - 针对早期挥刀时肩袖开口前探至镜头前方暴露悬空断臂的三大根因，在 Blender 4.5 为 `fp_arms.glb`（严格保持 `39` 骨骼与 `9` 分区材质）新增 `add_sealed_shoulder_caps()` 向锁骨内侧延伸 `13.5cm` 封闭双侧肩袖管口，并以精确余弦定理锁肩正向双骨 IK（`pose_arm_locked_shoulder`）替代旧版反向手腕推肩算法，将左右肩关节严格锁定在 `Camera3D` 镜头后方（`z_cam = +0.08m`），数学上彻底杜绝任何动作露出肩膀末端；
+  - 重构 `[2]` 战术匕首与 `[V]` 快刀动作（`pose_knife_idle` / `pose_knife_windup_a/b` / `pose_knife_slash_a/b` 共 10 组 NLA 姿态）：左手战术半指手套+腕表于左前方格挡戒备，右手正握短刀于右前方蓄势，挥刀采用「蓄力引刀 → 爆发斜劈 → 回防收势」三段式曲线，并沿三维贝塞尔轨迹实时生成面向镜头的 **青瓷金锋新月刀光弧面（`_build_slash_arc`）**，双袖始终自屏幕底角自然延展。
+- **江南青绿水墨树竹换代与零树影开销立体体积着色器（`tools/generate_v061_textures.py` / `tools/build_v061_assets.py` / `tools/build_v060_assets.py` / `slice_world.gd`）**：
+  - 彻底重绘 6 张轻国风团簇写意植物贴图（`camphor_bough.png` 团簇香樟、`willow_curtain.png` 丝绦垂柳、`maple_tallow_bough.png` **乌桕丹枫金赭朱砂秋叶**、`azalea_bough.png` 映山红、`bamboo_spray.png` **水墨“介/个”字写意竹叶**、`bamboo_culm.png` 粉霜竹节）；
+  - 在 Blender 4.5 为 `v061_nature_wildlife.glb` 与 `v060_jiangnan_assets.glb` 树冠逐顶点烘焙三维径向+纵向树冠暗部遮蔽（`COLOR_0`），并在 `slice_world.gd` 实现专属 **`Mat_QingluFoliage` 青绿水墨叶片 Shader**（球冠外扩法线锁定 + 内部花青黛绿 `#1b3b36` 至冠顶春茶嫩绿 `#86bc5e` 三维体积渐变 + Half-Lambert 二阶国风色阶 + 暖金逆光透射边 + GPU 微风轻拂 + **`SPECULAR = 0.0` 零塑料反光**），在不恢复任何镂空树叶动态阴影贴图开销的前提下彻底消除旧版“一坨绿色塑料感”。
+- **多材质分件精雕枪刀、野外风物底座与飞檐机关词卫（`tools/build_v064_weapons_and_props.py` / `world_loot.gd` / `word_soldier.gd`）**：
+  - 重建 **`rifle.glb`（YS-04 青绿战术卡宾枪）**：拆分为 **6 组独立物理表面材质**（哑光玄铁机匣、苍青软玉护木与枪托、精钢枪管导气箍、防滑握把、错金古铜抛壳挺与拉机柄卡笋、弧形弹匣）并烘焙折角腔体 AO；重建 **`tactical_knife.glb`（竹影青锋战术短刀）**：实装苍青伞绳菱格缠柄、古铜吞口护手与尾环、玄铁血槽及青霜开刃；
+  - 新建 **`v064_world_props.glb`** 替换野外简陋几何体：含八角束腰青石须弥座石案（`prop_stone_pedestal`）、28 根枯枝交织三枚鸟蛋的盘枝鸟窝（`prop_bird_nest`）、太湖奇石秘缝（`prop_karst_crevice`）与战术词兵掉落箱（`prop_squad_drop_case`）；
+  - 将全山词兵重塑为 **「烟山演武机关词卫」**：哑光青灰陶钢甲片、飞檐古铜肩甲、八角斗笠飞檐盔配鎏金帽圈，以及四角古铜包角高对比度电子词盾。
+- **全量回归与标准画质高帧率验证（`tests/slice.gd` / `tests/economy.gd` / `tests/capture_v064.gd`）**：
+  - 全量 9 大自动化回归套件扩展至 **`363 / 363`** 项检查 100% 零失败通过（新增双肩后锁不穿帮校验、双手持刀入画校验、10 组骨骼姿态与 `Mat_QingluFoliage` 着色器零高光校验）；
+  - 标准画质（开启实时阴影，零树叶阴影贴图开销）多视角实测平均 **`160.6–192.5 FPS`**（南坡青绿溪谷远眺达 **`274.4 FPS`**，`P95 = 8.4 ms`，AMD Radeon RX 6600 `1280×720`）。
+
+---
+
 ## [v0.6.3] - 2026-11-16
 ### 真摸金随机爆率爽感系统、放大镜悬念鉴定与烟山双语奇珍图鉴
 - **6 阶稀有度体系、「旷世·大红」奇迹池与动态成色鉴定（`rules.gd` / `tools/generate_sfx.py`）**：

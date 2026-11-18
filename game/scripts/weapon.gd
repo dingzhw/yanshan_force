@@ -20,6 +20,8 @@ var left_hand_pivot: Node3D
 var left_sleeve: MeshInstance3D
 var knife_mount: BoneAttachment3D
 var knife_root: Node3D
+var slash_arc: MeshInstance3D
+var slash_arc_mat: ShaderMaterial
 
 var flash: MeshInstance3D
 var light: OmniLight3D
@@ -49,35 +51,48 @@ func _ready():
 		elif has_mag1:
 			magazine.scale.y = 1.25
 
-	var body_mat = StandardMaterial3D.new()
-	body_mat.albedo_color = Color("376c55") if has_skin else Color("2b3136")
-	body_mat.metallic = 0.62 if has_skin else 0.55
-	body_mat.roughness = 0.38 if has_skin else 0.44
-
-	var mag_mat = StandardMaterial3D.new()
-	mag_mat.albedo_color = Color("234538") if has_skin else Color("3b423c")
-	mag_mat.metallic = 0.35
-	mag_mat.roughness = 0.62
-
 	rifle_meshes.clear()
 	for m in rifle.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if is_instance_valid(magazine) and (mi == magazine or magazine.is_ancestor_of(mi)):
-			mi.material_override = mag_mat
-		else:
-			mi.material_override = body_mat
+		if mi.mesh != null:
+			for s_idx in mi.mesh.get_surface_count():
+				var base_m: Material = mi.mesh.surface_get_material(s_idx)
+				if base_m is BaseMaterial3D:
+					var dup := (base_m as BaseMaterial3D).duplicate() as BaseMaterial3D
+					var fmt_s: int = int(mi.mesh.surface_get_format(s_idx))
+					if (fmt_s & Mesh.ARRAY_FORMAT_COLOR) != 0:
+						dup.vertex_color_use_as_albedo = true
+					dup.metallic_specular = 0.18
+					var mname := String(base_m.resource_name)
+					if has_skin and ("HandguardStock" in mname or "Magazine" in mname):
+						dup.albedo_color = Color("376c55")
+					mi.set_surface_override_material(s_idx, dup)
 		rifle_meshes.append(mi)
 
-	# Low-profile M-LOK rail cover marker under forend
+	# Low-profile M-LOK polymer rail cover under forend (also carries forest_skin tint!)
 	support_grip = Node3D.new()
 	support_grip.position = Vector3(0.0, 0.136, -0.145)
 	rifle.add_child(support_grip)
+	var mlok_panel := MeshInstance3D.new()
+	var mlok_box := BoxMesh.new()
+	mlok_box.size = Vector3(0.030, 0.006, 0.095)
+	mlok_panel.mesh = mlok_box
+	var mlok_mat := StandardMaterial3D.new()
+	mlok_mat.albedo_color = Color("376c55") if has_skin else Color("324d45")
+	mlok_mat.roughness = 0.78
+	mlok_mat.metallic = 0.05
+	mlok_mat.metallic_specular = 0.12
+	mlok_panel.material_override = mlok_mat
+	mlok_panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	support_grip.add_child(mlok_panel)
+	rifle_meshes.append(mlok_panel)
 
 	_build_reflex_optic()
 	_build_attachments()
 	_setup_skinned_arms(has_skin)
 	_setup_knife_attachment()
+	_build_slash_arc()
 
 	# Muzzle flash aligned with YS-04 barrel centerline (y = 0.158)
 	flash = MeshInstance3D.new()
@@ -152,6 +167,15 @@ func _setup_knife_attachment():
 			var mi := m as MeshInstance3D
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.extra_cull_margin = 1.5
+			if mi.mesh != null:
+				for s_idx in mi.mesh.get_surface_count():
+					var km: Material = mi.mesh.surface_get_material(s_idx)
+					if km is BaseMaterial3D:
+						var kdup := (km as BaseMaterial3D).duplicate() as BaseMaterial3D
+						if (int(mi.mesh.surface_get_format(s_idx)) & Mesh.ARRAY_FORMAT_COLOR) != 0:
+							kdup.vertex_color_use_as_albedo = true
+						kdup.metallic_specular = 0.24
+						mi.set_surface_override_material(s_idx, kdup)
 		knife_root.hide()
 
 func refresh_loadout():
@@ -198,6 +222,8 @@ func set_weapon_slot(slot: int):
 		attachments_root.visible = is_rifle
 	if is_instance_valid(knife_root):
 		knife_root.visible = not is_rifle
+	if is_instance_valid(slash_arc) and is_rifle:
+		slash_arc.hide()
 	if not is_rifle:
 		shot_left = 0.0
 		if is_instance_valid(flash):
@@ -311,10 +337,18 @@ func _apply_arm_pose(ads_w: float, dip: float, fire_w: float):
 		final_map = k_idle
 		if slash_left > 0.001:
 			var t := clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0)
-			var w := sin(t * PI)
+			var w_name := "pose_knife_windup_a" if slash_combo == 0 else "pose_knife_windup_b"
 			var s_name := "pose_knife_slash_a" if slash_combo == 0 else "pose_knife_slash_b"
+			var k_wind: Dictionary = pose_cache.get(w_name, k_idle)
 			var k_slash: Dictionary = pose_cache.get(s_name, k_idle)
-			final_map = _blend_bone_maps(k_idle, k_slash, w)
+			if t < 0.18:
+				final_map = _blend_bone_maps(k_idle, k_wind, smoothstep(0.0, 0.18, t))
+			elif t < 0.52:
+				var u := clampf((t - 0.18) / 0.34, 0.0, 1.0)
+				var snap := 1.0 - pow(1.0 - u, 2.6)
+				final_map = _blend_bone_maps(k_wind, k_slash, snap)
+			else:
+				final_map = _blend_bone_maps(k_slash, k_idle, smoothstep(0.52, 1.0, t))
 	else:
 		var hip_map: Dictionary = pose_cache["pose_hip"]
 		var ads_map: Dictionary = pose_cache.get("pose_ads", hip_map)
@@ -394,6 +428,68 @@ func _build_reflex_optic():
 	reticle_dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	optic_root.add_child(reticle_dot)
 
+func _build_slash_arc():
+	slash_arc = MeshInstance3D.new()
+	slash_arc.position = Vector3.ZERO
+	var segs := 24
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	var p0 := Vector3(0.28, 0.27, -0.15)
+	var p1 := Vector3(-0.01, 0.15, -0.31)
+	var p2 := Vector3(-0.35, -0.02, -0.16)
+	var cam_eye := Vector3(0.0, 0.145, 0.35)
+	for i in range(segs + 1):
+		var u := float(i) / float(segs)
+		var omt := 1.0 - u
+		var p_out := omt * omt * p0 + 2.0 * omt * u * p1 + u * u * p2
+		var tang := (2.0 * omt * (p1 - p0) + 2.0 * u * (p2 - p1)).normalized()
+		var view_ray := (p_out - cam_eye).normalized()
+		var inward := tang.cross(view_ray).normalized()
+		var w_rib := 0.086 * pow(sin(u * PI), 0.82) + 0.006
+		var p_in := p_out + inward * w_rib + Vector3(0.0, -0.01, 0.032) * sin(u * PI)
+		verts.append(p_in)
+		verts.append(p_out)
+		uvs.append(Vector2(u, 0.0))
+		uvs.append(Vector2(u, 1.0))
+		if i < segs:
+			var b := i * 2
+			indices.append_array([b, b + 1, b + 3, b, b + 3, b + 2])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = indices
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	slash_arc.mesh = am
+	slash_arc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, cull_disabled, blend_mix, depth_draw_never;
+uniform float sweep_head = 0.0;
+uniform float opacity = 0.0;
+void fragment() {
+	float wake = smoothstep(sweep_head - 0.68, sweep_head, UV.x) * (1.0 - smoothstep(sweep_head, sweep_head + 0.045, UV.x));
+	float outer_rim = pow(UV.y, 1.15);
+	float edge_gleam = smoothstep(0.76, 1.0, UV.y);
+	float tip_flash = smoothstep(sweep_head - 0.28, sweep_head, UV.x);
+	vec3 ink_jade = vec3(0.14, 0.58, 0.52);
+	vec3 celadon = vec3(0.48, 0.96, 0.82);
+	vec3 gold = vec3(1.00, 0.93, 0.60);
+	vec3 col = mix(ink_jade, celadon, outer_rim);
+	col = mix(col, gold, clamp(edge_gleam * 0.65 + outer_rim * tip_flash * 0.82, 0.0, 1.0));
+	ALBEDO = col;
+	ALPHA = wake * (0.18 + 0.78 * outer_rim) * opacity;
+}
+"""
+	slash_arc_mat = ShaderMaterial.new()
+	slash_arc_mat.shader = sh
+	am.surface_set_material(0, slash_arc_mat)
+	slash_arc.hide()
+	add_child(slash_arc)
+
 func shot():
 	shot_left = 0.065
 
@@ -425,9 +521,23 @@ func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 	else:
 		rifle.rotation.z = 0.0
 		_apply_arm_pose(0.0, 0.0, 0.0)
-		var slash_t := sin(clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0) * PI) if slash_left > 0.0 else 0.0
+		var raw_t := clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0) if slash_left > 0.0 else 0.0
+		var cleave_env := sin(clampf((raw_t - 0.12) / 0.56, 0.0, 1.0) * PI) if slash_left > 0.0 else 0.0
 		var dir_sign := -1.0 if slash_combo == 0 else 1.0
-		position.x = sin(elapsed * 8.5) * moving * 0.0045 + dir_sign * slash_t * 0.14
-		position.y = absf(sin(elapsed * 8.5)) * moving * 0.0035 + slash_t * (0.045 if slash_combo == 0 else -0.025)
-		position.z = -slash_t * 0.12
-		rotation = Vector3(-slash_t * 0.18, dir_sign * slash_t * 0.16, -dir_sign * slash_t * 0.36)
+		# Subtle upper-body martial torque ONLY — shoulders stay strictly behind the camera lens!
+		position.x = sin(elapsed * 8.2) * moving * 0.0040 + dir_sign * cleave_env * 0.016
+		position.y = absf(sin(elapsed * 8.2)) * moving * 0.0032 - cleave_env * 0.008
+		position.z = -cleave_env * 0.015
+		rotation = Vector3(-cleave_env * 0.032, dir_sign * cleave_env * 0.048, -dir_sign * cleave_env * 0.036)
+
+		if is_instance_valid(slash_arc):
+			if slash_left > 0.0 and raw_t >= 0.14 and raw_t <= 0.64:
+				var arc_u := clampf((raw_t - 0.14) / 0.38, 0.0, 1.04)
+				var arc_alpha := sin(clampf((raw_t - 0.14) / 0.50, 0.0, 1.0) * PI)
+				slash_arc.scale.x = 1.0 if slash_combo == 0 else -1.0
+				slash_arc.rotation.z = 0.0
+				slash_arc_mat.set_shader_parameter("sweep_head", arc_u)
+				slash_arc_mat.set_shader_parameter("opacity", arc_alpha * 0.92)
+				slash_arc.show()
+			else:
+				slash_arc.hide()

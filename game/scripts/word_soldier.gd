@@ -5,6 +5,7 @@ enum Action { PATROL, ADVANCE, AIM, COVER }
 enum Archetype { ASSAULT_BOT, SCOUT_DRONE, SNIPER_GUARD, BOSS_WARDEN }
 
 const HIT_LAYER = 4
+const TacticalProps = preload("res://scripts/tactical_props.gd")
 
 var combat
 var zone: int
@@ -152,12 +153,44 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	add_child(hitbox)
 	_build_model()
 
-func _metal_mat(color: Color, metallic = 0.52, rough = 0.45) -> StandardMaterial3D:
+func _metal_mat(color: Color, metallic = 0.22, rough = 0.72) -> StandardMaterial3D:
 	var m = StandardMaterial3D.new()
 	m.albedo_color = color
-	m.metallic = metallic
-	m.roughness = rough
+	m.metallic = minf(metallic, 0.32)
+	m.roughness = maxf(rough, 0.66)
+	m.metallic_specular = 0.12
 	return m
+
+func _ceramic_plate_mat(color: Color, emerald_weave: bool = false) -> StandardMaterial3D:
+	var m = StandardMaterial3D.new()
+	m.albedo_color = color
+	m.albedo_texture = TacticalProps.ripstop_texture(emerald_weave)
+	m.uv1_scale = Vector3(2.2, 2.2, 1.0)
+	m.metallic = 0.12
+	m.roughness = 0.78
+	m.metallic_specular = 0.08
+	return m
+
+func _bronze_trim_mat(color: Color = Color("c29a4b")) -> StandardMaterial3D:
+	var m = StandardMaterial3D.new()
+	m.albedo_color = color
+	m.metallic = 0.76
+	m.roughness = 0.34
+	m.metallic_specular = 0.28
+	return m
+
+func _oct_drum(parent: Node3D, at: Vector3, top_r: float, bot_r: float, h: float, mat: Material, segs: int = 8) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = top_r
+	cyl.bottom_radius = bot_r
+	cyl.height = h
+	cyl.radial_segments = segs
+	mi.mesh = cyl
+	mi.position = at
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
 
 func _build_model():
 	var game = combat.game
@@ -241,9 +274,16 @@ func _build_model():
 	shield_area.add_child(badge_hitbox)
 
 	base_border_col = Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else (Color("ff9b54") if archetype == Archetype.SCOUT_DRONE else (Color("ff5d6c") if archetype == Archetype.SNIPER_GUARD else Color("5ce0b8")))
-	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.015), Vector3(bw, bh, 0.06), base_border_col)
+	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.015), Vector3(bw, bh, 0.055), base_border_col)
 	frame_material = outer_bezel.material_override
 	frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	# Antique-bronze Jiangnan corner brackets framing the tactical word screen
+	var corner_mat := _bronze_trim_mat()
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			var brk = game._mesh_box(shield_area, Vector3(sx * (bw * 0.5 - 0.06), sy * (bh * 0.5 - 0.045), 0.022), Vector3(0.16, 0.12, 0.045), Color.WHITE)
+			brk.material_override = corner_mat
 
 	var screen_box = game._mesh_box(shield_area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.12, bh - 0.12, 0.05), Color("edf2e6"))
 	shield_material = screen_box.material_override
@@ -281,93 +321,99 @@ func _build_model():
 
 func _build_drone_chassis(game):
 	legs.clear()
-	var hull_mat = _metal_mat(Color("2d3840"), 0.68, 0.34)
-	var accent_mat = _metal_mat(Color("8a5d2e"), 0.72, 0.32)
-	var fuselage = game._mesh_box(visual_root, Vector3(0, 1.66, 0), Vector3(0.54, 0.26, 0.56), Color.WHITE)
-	fuselage.material_override = hull_mat
-	# Prominent top optical sensor head dome for clean 1-shot headshot targeting
-	var sensor_head = game._mesh_box(visual_root, Vector3(0, 1.88, 0.06), Vector3(0.38, 0.24, 0.38), Color.WHITE)
-	sensor_head.material_override = accent_mat
-	var wing_mat = _metal_mat(Color("1e262c"), 0.65, 0.38)
+	var hull_mat = _ceramic_plate_mat(Color("344d48"), true)
+	var accent_mat = _bronze_trim_mat(Color("b88b44"))
+	var wing_mat = _metal_mat(Color("1e2928"), 0.24, 0.74)
+	_oct_drum(visual_root, Vector3(0, 1.66, 0), 0.30, 0.26, 0.26, hull_mat, 8)
+	# Octagonal optical dome + eave-brim cap for crisp 1-shot headshot readability
+	_oct_drum(visual_root, Vector3(0, 1.88, 0.05), 0.18, 0.22, 0.24, wing_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 2.02, 0.05), 0.06, 0.25, 0.07, accent_mat, 8)
 	for x in [-0.58, 0.58]:
-		var arm = game._mesh_box(visual_root, Vector3(x * 0.56, 1.72, 0), Vector3(0.46, 0.06, 0.12), Color.WHITE)
-		arm.material_override = wing_mat
+		var arm = game._mesh_box(visual_root, Vector3(x * 0.56, 1.72, 0), Vector3(0.46, 0.05, 0.10), Color.WHITE)
+		arm.material_override = accent_mat
 		var ring = MeshInstance3D.new()
 		var torus = TorusMesh.new()
-		torus.inner_radius = 0.18
-		torus.outer_radius = 0.24
+		torus.inner_radius = 0.17
+		torus.outer_radius = 0.23
 		ring.mesh = torus
 		ring.position = Vector3(x, 1.74, 0)
 		ring.material_override = wing_mat
 		visual_root.add_child(ring)
-		var thruster = game._mesh_box(visual_root, Vector3(x, 1.71, 0), Vector3(0.18, 0.02, 0.18), Color("6cf0d0"))
-		thruster.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.32, 0.11, 0.05), Color("ffb35c")).material_override
+		var thruster = _oct_drum(visual_root, Vector3(x, 1.71, 0), 0.13, 0.13, 0.025, game._material(Color("6cf0d0"), true), 8)
+		thruster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.30, 0.10, 0.04), Color("ffb35c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 func _build_assault_chassis(game):
-	var armor_mat = _metal_mat(Color("455954") if zone % 2 == 0 else Color("3f5261"), 0.48, 0.46)
-	var dark_mat = _metal_mat(Color("222b2e"), 0.60, 0.40)
-	var chest = game._mesh_box(visual_root, Vector3(0, 1.15, 0), Vector3(0.68, 0.68, 0.42), Color.WHITE)
-	chest.material_override = armor_mat
-	var head = game._mesh_box(visual_root, Vector3(0, 1.72, 0.04), Vector3(0.48, 0.34, 0.44), Color.WHITE)
-	head.material_override = dark_mat
-	var crest = game._mesh_box(visual_root, Vector3(0, 1.92, 0.02), Vector3(0.54, 0.12, 0.48), Color.WHITE)
-	crest.material_override = armor_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 1.73, 0.27), Vector3(0.38, 0.11, 0.04), Color("7ef0c8")).material_override
+	var armor_mat = _ceramic_plate_mat(Color("42665c") if zone % 2 == 0 else Color("3c5960"), zone % 2 == 0)
+	var dark_mat = _metal_mat(Color("1f2b2b"), 0.20, 0.78)
+	var bronze_mat = _bronze_trim_mat()
+	# Tapered Qinglü lamellar chest cuirass + waist belt
+	_oct_drum(visual_root, Vector3(0, 1.18, 0), 0.36, 0.30, 0.64, armor_mat, 8)
+	var belt = game._mesh_box(visual_root, Vector3(0, 0.84, 0), Vector3(0.56, 0.10, 0.38), Color.WHITE)
+	belt.material_override = bronze_mat
+	# Octagonal tactical helm + Jiangnan sloped eave crest ('斗笠飞檐盔')
+	_oct_drum(visual_root, Vector3(0, 1.72, 0.04), 0.21, 0.23, 0.32, dark_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 1.92, 0.03), 0.08, 0.32, 0.12, armor_mat, 8)
+	var rim = _oct_drum(visual_root, Vector3(0, 1.86, 0.03), 0.33, 0.34, 0.025, bronze_mat, 8)
+	rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	visor = game._mesh_box(visual_root, Vector3(0, 1.73, 0.25), Vector3(0.34, 0.10, 0.04), Color("7ef0c8")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for x in [-0.46, 0.46]:
-		var pauldron = game._mesh_box(visual_root, Vector3(x, 1.34, 0.02), Vector3(0.24, 0.26, 0.36), Color.WHITE)
+		var sgn := signf(x)
+		var pauldron = game._mesh_box(visual_root, Vector3(x, 1.36, 0.02), Vector3(0.26, 0.22, 0.36), Color.WHITE)
+		pauldron.rotation.z = -sgn * 0.22
 		pauldron.material_override = armor_mat
-		var forearm = game._mesh_box(visual_root, Vector3(x, 1.02, 0.22), Vector3(0.16, 0.22, 0.36), Color.WHITE)
-		forearm.material_override = dark_mat
+		var p_trim = game._mesh_box(visual_root, Vector3(x * 1.06, 1.26, 0.02), Vector3(0.27, 0.04, 0.38), Color.WHITE)
+		p_trim.rotation.z = -sgn * 0.22
+		p_trim.material_override = bronze_mat
+		_oct_drum(visual_root, Vector3(x, 1.02, 0.18), 0.085, 0.075, 0.34, dark_mat, 6)
 	for x in [-0.21, 0.21]:
 		var leg = Node3D.new()
 		leg.position = Vector3(x, 0.78, 0)
 		visual_root.add_child(leg)
-		var thigh = game._mesh_box(leg, Vector3(0, -0.30, 0), Vector3(0.22, 0.56, 0.26), Color.WHITE)
-		thigh.material_override = dark_mat
-		var boot = game._mesh_box(leg, Vector3(0, -0.66, 0.07), Vector3(0.25, 0.18, 0.38), Color.WHITE)
-		boot.material_override = armor_mat
+		_oct_drum(leg, Vector3(0, -0.30, 0), 0.115, 0.095, 0.54, dark_mat, 6)
+		var greave = game._mesh_box(leg, Vector3(0, -0.44, 0.05), Vector3(0.18, 0.26, 0.14), Color.WHITE)
+		greave.material_override = armor_mat
+		var boot = game._mesh_box(leg, Vector3(0, -0.66, 0.07), Vector3(0.23, 0.16, 0.36), Color.WHITE)
+		boot.material_override = dark_mat
 		legs.append(leg)
 
 func _build_sniper_chassis(game):
-	var heavy_mat = _metal_mat(Color("3b332b"), 0.58, 0.38)
-	var trim_mat = _metal_mat(Color("8c6d3f"), 0.72, 0.32)
-	var dark_mat = _metal_mat(Color("1d2126"), 0.62, 0.42)
-	var torso = game._mesh_box(visual_root, Vector3(0, 1.24, 0), Vector3(0.82, 0.78, 0.50), Color.WHITE)
-	torso.material_override = heavy_mat
-	var helm = game._mesh_box(visual_root, Vector3(0, 1.84, 0.04), Vector3(0.52, 0.36, 0.46), Color.WHITE)
-	helm.material_override = dark_mat
+	var heavy_mat = _ceramic_plate_mat(Color("3b3632"), false)
+	var trim_mat = _bronze_trim_mat(Color("b68542"))
+	var dark_mat = _metal_mat(Color("1c2226"), 0.22, 0.76)
+	_oct_drum(visual_root, Vector3(0, 1.24, 0), 0.42, 0.35, 0.74, heavy_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 1.84, 0.04), 0.23, 0.25, 0.34, dark_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 2.04, 0.04), 0.10, 0.34, 0.12, trim_mat, 8)
 	for x in [-0.54, 0.54]:
-		var pad = game._mesh_box(visual_root, Vector3(x, 1.48, 0), Vector3(0.28, 0.34, 0.44), Color.WHITE)
+		var sgn := signf(x)
+		var pad = game._mesh_box(visual_root, Vector3(x, 1.48, 0), Vector3(0.30, 0.28, 0.44), Color.WHITE)
+		pad.rotation.z = -sgn * 0.20
 		pad.material_override = trim_mat
-		var rail = game._mesh_box(visual_root, Vector3(x * 0.85, 1.94, 0.14), Vector3(0.10, 0.14, 0.62), Color.WHITE)
+		var rail = game._mesh_box(visual_root, Vector3(x * 0.85, 1.94, 0.14), Vector3(0.09, 0.12, 0.62), Color.WHITE)
 		rail.material_override = dark_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 1.84, 0.28), Vector3(0.42, 0.12, 0.05), Color("ff5c6c")).material_override
+	visor = game._mesh_box(visual_root, Vector3(0, 1.84, 0.27), Vector3(0.38, 0.11, 0.05), Color("ff5c6c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for x in [-0.25, 0.25]:
 		var leg = Node3D.new()
 		leg.position = Vector3(x, 0.82, 0)
 		visual_root.add_child(leg)
-		var thigh = game._mesh_box(leg, Vector3(0, -0.34, 0), Vector3(0.26, 0.62, 0.30), Color.WHITE)
-		thigh.material_override = dark_mat
-		var boot = game._mesh_box(leg, Vector3(0, -0.72, 0.08), Vector3(0.30, 0.20, 0.44), Color.WHITE)
+		_oct_drum(leg, Vector3(0, -0.34, 0), 0.135, 0.11, 0.60, dark_mat, 6)
+		var boot = game._mesh_box(leg, Vector3(0, -0.72, 0.08), Vector3(0.28, 0.18, 0.42), Color.WHITE)
 		boot.material_override = trim_mat
 		legs.append(leg)
 
 func _build_boss_chassis(game):
-	var obsidian_mat = _metal_mat(Color("22242a"), 0.72, 0.34)
-	var gold_mat = _metal_mat(Color("c9963a"), 0.85, 0.24)
-	var armor_mat = _metal_mat(Color("343c44"), 0.65, 0.40)
+	var obsidian_mat = _ceramic_plate_mat(Color("222c30"), false)
+	var gold_mat = _bronze_trim_mat(Color("d6a648"))
+	var armor_mat = _ceramic_plate_mat(Color("2f4b44"), true)
 
-	var torso = game._mesh_box(visual_root, Vector3(0, 1.48, 0), Vector3(1.16, 1.05, 0.68), Color.WHITE)
-	torso.material_override = obsidian_mat
-	var abdomen = game._mesh_box(visual_root, Vector3(0, 0.94, 0), Vector3(0.76, 0.38, 0.48), Color.WHITE)
-	abdomen.material_override = armor_mat
+	_oct_drum(visual_root, Vector3(0, 1.48, 0), 0.60, 0.48, 1.02, obsidian_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 0.94, 0), 0.42, 0.36, 0.38, armor_mat, 8)
 
 	# Exposed glowing reactor chest core (crit weakpoint when shield/phase shattered)
-	var core_box = game._mesh_box(visual_root, Vector3(0, 1.52, 0.36), Vector3(0.42, 0.42, 0.14), Color("ff9d3b"))
+	var core_box = game._mesh_box(visual_root, Vector3(0, 1.52, 0.38), Vector3(0.42, 0.42, 0.14), Color("ff9d3b"))
 	core_material = core_box.material_override
 	core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	core_area = Area3D.new()
@@ -384,28 +430,26 @@ func _build_boss_chassis(game):
 	ccol.shape = cshape
 	core_area.add_child(ccol)
 
-	var helm = game._mesh_box(visual_root, Vector3(0, 2.26, 0.06), Vector3(0.62, 0.44, 0.56), Color.WHITE)
-	helm.material_override = obsidian_mat
-	var crest = game._mesh_box(visual_root, Vector3(0, 2.54, 0.02), Vector3(0.84, 0.16, 0.58), Color.WHITE)
-	crest.material_override = gold_mat
-	visor = game._mesh_box(visual_root, Vector3(0, 2.26, 0.36), Vector3(0.50, 0.12, 0.06), Color("ff4f4f")).material_override
+	_oct_drum(visual_root, Vector3(0, 2.26, 0.06), 0.30, 0.32, 0.42, obsidian_mat, 8)
+	_oct_drum(visual_root, Vector3(0, 2.54, 0.04), 0.14, 0.48, 0.16, gold_mat, 8)
+	visor = game._mesh_box(visual_root, Vector3(0, 2.26, 0.36), Vector3(0.48, 0.12, 0.06), Color("ff4f4f")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	for x in [-0.76, 0.76]:
-		var pauldron = game._mesh_box(visual_root, Vector3(x, 1.78, 0.0), Vector3(0.44, 0.50, 0.62), Color.WHITE)
+		var sgn := signf(x)
+		var pauldron = game._mesh_box(visual_root, Vector3(x, 1.80, 0.0), Vector3(0.46, 0.42, 0.62), Color.WHITE)
+		pauldron.rotation.z = -sgn * 0.22
 		pauldron.material_override = gold_mat
-		var launcher = game._mesh_box(visual_root, Vector3(x * 0.92, 2.18, -0.05), Vector3(0.24, 0.28, 0.48), Color.WHITE)
+		var launcher = game._mesh_box(visual_root, Vector3(x * 0.92, 2.18, -0.05), Vector3(0.24, 0.26, 0.48), Color.WHITE)
 		launcher.material_override = armor_mat
-		var arm = game._mesh_box(visual_root, Vector3(x * 0.95, 1.24, 0.28), Vector3(0.24, 0.28, 0.54), Color.WHITE)
-		arm.material_override = obsidian_mat
+		_oct_drum(visual_root, Vector3(x * 0.95, 1.24, 0.24), 0.13, 0.11, 0.52, obsidian_mat, 8)
 
 	for x in [-0.34, 0.34]:
 		var leg = Node3D.new()
 		leg.position = Vector3(x, 0.92, 0)
 		visual_root.add_child(leg)
-		var thigh = game._mesh_box(leg, Vector3(0, -0.38, 0), Vector3(0.34, 0.72, 0.38), Color.WHITE)
-		thigh.material_override = armor_mat
-		var boot = game._mesh_box(leg, Vector3(0, -0.80, 0.09), Vector3(0.40, 0.24, 0.56), Color.WHITE)
+		_oct_drum(leg, Vector3(0, -0.38, 0), 0.18, 0.15, 0.70, armor_mat, 8)
+		var boot = game._mesh_box(leg, Vector3(0, -0.80, 0.09), Vector3(0.38, 0.22, 0.54), Color.WHITE)
 		boot.material_override = gold_mat
 		legs.append(leg)
 

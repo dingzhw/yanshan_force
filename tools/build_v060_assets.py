@@ -754,15 +754,35 @@ def build_ancient_camphor() -> bpy.types.Object:
 
     p_bark = create_part("CamphorBark", bm_bark, m_bark, smooth=True)
     p_leaf = create_part("CamphorLeaves", bm_leaf, m_leaf, smooth=True, recalc_normals=False)
-    # Apply smooth hemispherical outward normals to ancient camphor foliage crown
-    c_bl = gd_to_bl(Vector((0.0, 5.2, 0.0)))
-    vnorms = []
-    for v in p_leaf.data.vertices:
-        ov = v.co - c_bl + Vector((0.0, 0.0, 0.65))
-        ov = ov.normalized() if ov.length > 1e-4 else Vector((0.0, 0.0, 1.0))
-        vnorms.append((Vector(v.normal) * 0.22 + ov * 0.78).normalized())
-    p_leaf.data.normals_split_custom_set_from_vertices(vnorms)
     p_silk = create_part("CamphorSilk", bm_silk, m_silk)
+
+    # Bake 3D volumetric Qinglü canopy AO & cluster variation onto Ancient Camphor + neutral AO on bark/silk
+    c_bl = gd_to_bl(Vector((0.0, 5.2, 0.0)))
+    l_zs = [v.co.z for v in p_leaf.data.vertices]
+    lz_min, lz_max = min(l_zs), max(l_zs)
+    lz_span = max(0.3, lz_max - lz_min)
+    l_rads = [(v.co - c_bl).length for v in p_leaf.data.vertices]
+    l_max_r = max(0.4, max(l_rads))
+    ca_leaf = p_leaf.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+    vnorms = []
+    for vi, v in enumerate(p_leaf.data.vertices):
+        ov = v.co - c_bl + Vector((0.0, 0.0, 0.50))
+        ov = ov.normalized() if ov.length > 1e-4 else Vector((0.0, 0.0, 1.0))
+        vnorms.append((Vector(v.normal) * 0.48 + ov * 0.52).normalized())
+        rad_t = min(1.0, l_rads[vi] / l_max_r)
+        h_t = max(0.0, min(1.0, (v.co.z - lz_min) / lz_span))
+        ao = max(0.22, min(1.0, 0.22 + 0.54 * (rad_t ** 0.85) + 0.28 * h_t))
+        c_var = 0.5 + 0.5 * math.sin((vi // 9) * 12.9898 + 2.3)
+        ca_leaf.data[vi].color = (ao, h_t, c_var, 1.0)
+    p_leaf.data.normals_split_custom_set_from_vertices(vnorms)
+
+    ca_bark = p_bark.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+    for vi, v in enumerate(p_bark.data.vertices):
+        ao_b = 0.62 + 0.38 * min(1.0, max(0.0, (v.co.z + 0.20) / 1.0))
+        ca_bark.data[vi].color = (ao_b, ao_b, ao_b, 1.0)
+    ca_silk = p_silk.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+    for vi in range(len(p_silk.data.vertices)):
+        ca_silk.data[vi].color = (1.0, 1.0, 1.0, 1.0)
 
     return join_parts("ancient_camphor", [p_bark, p_leaf, p_silk])
 
@@ -881,6 +901,9 @@ def export_all():
         export_apply=True,
         export_texcoords=True,
         export_normals=True,
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=True,
+        export_attributes=True,
     )
     record = {
         "output": "game/assets/slice/v060_jiangnan_assets.glb",

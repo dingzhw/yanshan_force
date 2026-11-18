@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.3 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.6.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.4 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -690,6 +690,39 @@ func run():
 	game.compendium_button.pressed.emit()
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() >= 31, "Camp Compendium button opens bilingual Yanshan Curios & Mythic Red gallery with all 31 catalog cards")
 	game.loot_ui.close_compendium()
+
+	# v0.6.4 Qinglü Art, Multi-Surface Weapons, Sculpted Props & Locked-Shoulder CQB Knife Verification
+	game.start_action(false)
+	await frames(6)
+	var wv64 = game.player.weapon_view
+	verify(wv64.pose_cache.size() >= 10 and wv64.rifle_meshes[0].mesh.get_surface_count() >= 5, "v0.6.4 loads 10 CQB/rifle poses and 5-surface Qinglu-tactical YS-04 carbine")
+	game.player.select_weapon(1)
+	game.player.weapon_root.position = Vector3(0.0, -0.145, -0.35)
+	var skel64: Skeleton3D = wv64.arms_skeleton
+	var up_r_idx: int = skel64.find_bone("upperarm.R")
+	var up_l_idx: int = skel64.find_bone("upperarm.L")
+	var shoulder_always_behind_cam := true
+	for combo_i in [0, 1]:
+		for phase_u in [0.0, 0.18, 0.36, 0.50, 0.78]:
+			wv64.slash_combo = combo_i
+			wv64.slash_left = wv64.slash_duration * (1.0 - phase_u) if phase_u > 0.0 else 0.0
+			wv64.animate(0.0, 0.0, 0.0, false)
+			var sr_world: Vector3 = skel64.global_transform * skel64.get_bone_global_pose(up_r_idx).origin
+			var sl_world: Vector3 = skel64.global_transform * skel64.get_bone_global_pose(up_l_idx).origin
+			var sr_cam: Vector3 = game.player.camera.to_local(sr_world)
+			var sl_cam: Vector3 = game.player.camera.to_local(sl_world)
+			if sr_cam.z <= 0.01 or sl_cam.z <= 0.01:
+				shoulder_always_behind_cam = false
+	verify(shoulder_always_behind_cam, "v0.6.4 locks both left and right shoulder joints strictly behind Camera3D lens across all knife idle/windup/slash frames")
+
+	var camphor_tree_mesh: Mesh = game.landscape._extract_mesh("res://assets/slice/v061_nature_wildlife.glb", "tree_camphor")
+	var has_qinglu_shader := false
+	if camphor_tree_mesh != null:
+		for si in camphor_tree_mesh.get_surface_count():
+			if camphor_tree_mesh.surface_get_material(si) is ShaderMaterial and (int(camphor_tree_mesh.surface_get_format(si)) & Mesh.ARRAY_FORMAT_COLOR) != 0:
+				has_qinglu_shader = true
+	verify(has_qinglu_shader and game.world_loot.drop_case_mesh != null, "v0.6.4 binds Qinglu volumetric ShaderMaterial with baked COLOR_0 on trees and sculpted v064_world_props meshes")
+	game._end_run(false)
 
 	game.queue_free()
 	await process_frame
