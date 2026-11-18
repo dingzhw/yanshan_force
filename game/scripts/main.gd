@@ -11,7 +11,7 @@ const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
-const VERSION = "0.6.5"
+const VERSION = "0.6.6"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -684,7 +684,7 @@ func _build_ui():
 	)
 	_style_tactical_button(compendium_button, Color("481f28"), Color("ff5c6c"), Color("ffe8cf"))
 
-	var brief_lbl = _text(menu, "【v0.6.5 晴云烟山 · 太平村云海梯田美学全图统合 & 波次休整修复】\n• 太平村晴空云海色彩：晴朗钴蓝天幕、暖金立体云海积云、冷青暗部→暖金春芽树冠色相推移、金绿稻浪水镜梯田与山茶白花！\n• 全图徽派粉墙黛瓦与 Forward+ 双档画质：全图民居/土地石龛升级三级马头墙与 CC0 青砖瓦石，按 [F6] 一键切换核显流畅档！\n• 据点波次休整修复：清完一轮 5 兵后留足 8.5 秒空营搜刮间隔 + 增援就位后 14 秒休整免战期，从容摸金不连轴挨追！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.6 智战烟山 · 词兵谨慎掩体战术 AI、动态随机兵力与 30 秒休整窗口】\n• 谨慎掩体战术 AI：词兵告别无脑贴脸，依托宽距高低垛口矮垣闪身探射，换掩体与破盾时边机动疾跑边压制点射！\n• 动态随机兵力与追击分级：普通行动每波 3~4 兵谨慎周旋+小范围出营追击；机密行动 3~6 兵随机伏击与交替跃进！\n• 30 秒从容摸金窗口：清波后留足 15 秒空营刷新间隔 + 增援就位后 15 秒免战保护，安心搜刮换弹不连轴挨追！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory

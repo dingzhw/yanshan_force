@@ -58,13 +58,15 @@ func run():
 		game.rules.operation_tier == "normal" and not game.rules.is_confidential() and game.terminal_title_label.text.contains("普通行动"),
 		"start_button launches Normal Operation mode with single-attacker HUD tag"
 	)
-	var all_five_standby := true
+	var normal_standby_ok := true
 	for z_i in game.Layout.COMBAT_ZONES.size():
-		if game.combat.living_soldiers(z_i).size() != Battle.SQUAD_SIZE or int(game.combat.waves_target.get(z_i, 0)) != Battle.WAVES_PER_CAMP or game.combat.is_zone_engaged(z_i):
-			all_five_standby = false
+		var sz_n: int = game.combat.living_soldiers(z_i).size()
+		var cov_n: int = game.combat.camp_covers.get(z_i, []).size()
+		if sz_n < Battle.NORMAL_MIN_SQUAD or sz_n > Battle.NORMAL_MAX_SQUAD or cov_n != Battle.CAMP_COVER_COUNT or int(game.combat.waves_target.get(z_i, 0)) != Battle.WAVES_PER_CAMP or game.combat.is_zone_engaged(z_i):
+			normal_standby_ok = false
 	verify(
-		game.combat.in_field() and game.combat.troops.size() == 6 and all_five_standby,
-		"v0.6.1.2 combat deploys 6 mountain camps × 3 waves × 5 soldiers in standby at spawn"
+		game.combat.in_field() and game.combat.troops.size() == 6 and normal_standby_ok,
+		"v0.6.6 Normal Operation deploys 6 camps × 3 waves × random 3-4 soldiers across 7 castellated cover slots"
 	)
 	verify(game.combat.health == 100 and game.combat.shield == 30 and not game.stations[1].boards[0].visible, "player starts with 100 HP + 30 Shield and field static boards disabled")
 
@@ -93,16 +95,20 @@ func run():
 		"standby camp squad patrols at spawn and does NOT auto-chase from 24.5m away"
 	)
 
-	# Stepping into Camp 0's spawn aggro radius (~15.5m) pulls aggro on all 5 wave soldiers!
+	# Stepping into Camp 0's spawn aggro radius (~15.8m) pulls aggro on the 3-4 wave soldiers & triggers cover bounding!
 	game.player.position = center0 + Vector3(0, 0.1, 13.5)
 	await frames(6)
+	var squad0_n: int = game.combat.troops[0].size()
 	var wave0_words := {}
+	var claimed_slots := {}
 	for s0_check in game.combat.troops[0]:
 		wave0_words[str(s0_check.assigned_word.get("english", "")).to_lower()] = true
+		if s0_check.claimed_cover_idx >= 0:
+			claimed_slots[s0_check.claimed_cover_idx] = true
 	var prompted_soldier = game.combat.troops[0][game.answer_index]
 	verify(
-		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and wave0_words.size() == 5 and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
-		"entering camp aggro radius engages 5-bot wave with 5 distinct words and prompts a living soldier's Chinese meaning"
+		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
+		"entering camp aggro radius engages 3-4 bot wave with distinct words & unique claimed cover slots"
 	)
 
 	var all_words_fit = true
@@ -115,42 +121,45 @@ func run():
 	game.combat.show_question()
 	verify(all_words_fit, "all 175 textbook entries fit the holographic word shield")
 
-	# 3. Normal Mode: 0.50x accuracy, single-attacker round-robin token + 4-bot non-firing escort, shield absorb & cover retreat
+	# 3. Normal Mode: 0.50x accuracy, single-attacker token + cautious cover-holding teammates + moving suppression fire
 	game.player.position = center0 + Vector3(0, 0.08, 1.5)
 	game.player.clear_movement_input()
 	game.player.reset_stance()
 	await frames(8)
 	var normal_stationary_hit: float = game.combat.hit_chance()
 	verify(absf(normal_stationary_hit - 0.39) < 0.025, "Normal Operation halves stationary enemy hit probability from 78%% to ~39%% (got %.2f)" % normal_stationary_hit)
-	game.combat.shot_rng.seed = seed_for_roll(0.0, 0.1)
+	game.combat.shot_rng.seed = seed_for_roll(0.0, 0.08)
 	var saw_warning = false
 	var fired = false
 	var max_sim_aim := 0
-	var saw_four_escort := false
+	var saw_cover_escort := false
+	var min_cautious_dist := 999.0
 	var init_shield: float = game.combat.shield
 	var first_attacker
-	for i in 340:
+	for i in 360:
 		await physics_frame
 		var aim_now := 0
 		var escort_now := 0
 		for soldier in game.combat.troops[0]:
+			var hd := Vector2(soldier.position.x - game.player.position.x, soldier.position.z - game.player.position.z).length()
+			min_cautious_dist = minf(min_cautious_dist, hd)
 			if soldier.action == Soldier.Action.AIM:
 				aim_now += 1
 				if first_attacker == null:
 					saw_warning = true
 					first_attacker = soldier
-			elif not soldier.defeated and soldier.action == Soldier.Action.ADVANCE:
+			elif not soldier.defeated and soldier.action in [Soldier.Action.ADVANCE, Soldier.Action.COVER]:
 				escort_now += 1
 		max_sim_aim = maxi(max_sim_aim, aim_now)
-		if aim_now == 1 and escort_now == 4:
-			saw_four_escort = true
-		if game.combat.shield < init_shield or game.combat.health < 100:
+		if aim_now == 1 and escort_now == squad0_n - 1:
+			saw_cover_escort = true
+		if first_attacker != null and first_attacker.action == Soldier.Action.COVER and (game.combat.shield < init_shield or game.combat.health < 100):
 			fired = true
 			break
 	verify(saw_warning and fired and game.combat.shield < init_shield and game.combat.health == 100, "enemy shot warns, fires, and is absorbed by shield first")
 	verify(
-		max_sim_aim == 1 and saw_four_escort and game.combat.active_attacker != first_attacker,
-		"Normal Operation keeps strictly 1 active attacker while 4 bots escort without firing, then rotates token round-robin"
+		max_sim_aim == 1 and saw_cover_escort and min_cautious_dist > 5.0 and game.combat.active_attacker != first_attacker,
+		"Normal Operation keeps strictly 1 active attacker while cautious teammates hold camp covers (>5m stand-off, zero face-hug)"
 	)
 
 	var sheltered = false
@@ -167,7 +176,7 @@ func run():
 		game.combat.strike(first_attacker)
 		verify(is_equal_approx(game.combat.shield, cover_sh) and game.combat.shot_rng.state == rng_state, "solid cover cancels enemy shot before rolling accuracy")
 
-	# 4. High-slope rear lock retention + Leash disengage (>86m) + Hardcore Zero Out-of-Combat Regen + Medkit [H]
+	# 4. High-slope rear lock retention + Small-range out-of-camp pursuit (~28m) + Cautious disengage (>44m) + Medkit [H]
 	var rear_slope_pos: Vector3 = game.Layout.on_ground(center0 + Vector3(-2.5, 0.0, -9.2)) + Vector3(0.0, 0.12, 0.0)
 	game.player.position = rear_slope_pos
 	await frames(45)
@@ -175,24 +184,30 @@ func run():
 	for s0 in game.combat.troops[0]:
 		if not s0.defeated and s0.action != Soldier.Action.PATROL:
 			rear_engaged += 1
-	verify(game.combat.zone == 0 and rear_engaged >= 3, "climbing onto elevated slope behind Zone 0 retains enemy lock and squad pursuit")
+	verify(game.combat.zone == 0 and rear_engaged >= 2, "climbing onto elevated slope behind Zone 0 retains enemy lock and squad pursuit")
 
-	# Move >86m away from Zone 0 (to SE valley corner far from all camps) to trigger leash disengage
+	# Small-range out-of-camp pursuit (~28m from Camp 0) keeps Normal mode cautiously engaged!
+	game.player.position = game.Layout.on_ground(center0 + Vector3(0.0, 0.0, 28.0)) + Vector3(0.0, 0.12, 0.0)
+	await frames(30)
+	verify(game.combat.zone == 0 and game.combat.is_zone_engaged(0), "Normal Operation maintains small-range out-of-camp pursuit (~28m)")
+
+	# Retreating >44m in Normal mode (e.g. 52m away to SE valley) triggers cautious disengage & zero passive regen
 	game.player.position = game.Layout.on_ground(Vector3(48.0, 0.0, 22.0)) + Vector3(0, 0.15, 0)
 	game.combat.health = 50
 	game.combat.shield = 5
 	await frames(240)
-	verify(game.combat.zone == -1 and game.combat.health == 50 and roundi(game.combat.shield) == 5, "leaving pursuit leash disengages camp and does NOT passively auto-regenerate HP or shield")
+	verify(game.combat.zone == -1 and game.combat.health == 50 and roundi(game.combat.shield) == 5, "leaving Normal 44m pursuit perimeter disengages camp and does NOT passively auto-regenerate HP or shield")
 	var kits_before = game.player.medkits
 	game.player.use_medkit()
 	verify(game.player.medkits == kits_before - 1 and game.combat.health == 95 and roundi(game.combat.shield) == 30, "field medkit restores +45 HP and +25 shield")
 
-	# 5. Re-engage Camp 0 & test Wrong Hit (0 Damage + +25% Wave Attack Stack) vs 1-Shot Headshot vs 2-Shot Word Shield
+	# 5. Re-engage Camp 0 & test Wrong Hit vs 1-Shot Headshot vs 2-Shot Cracked-Shield Cover Reposition + Moving Suppression
 	game.player.position = center0 + Vector3(0, 0.08, 2.2)
 	await frames(6)
 	verify(game.combat.zone == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0), "returning to Camp 0 re-engages wave at 1.00x base enemy attack")
 
-	var wrong = game.combat.troops[0][(game.answer_index + 1) % Battle.SQUAD_SIZE]
+	var wave0_init_alive: int = game.combat.living_soldiers(0).size()
+	var wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
 	for s_pause in game.combat.troops[0]:
 		s_pause.set_physics_process(false)
 	wrong.position = center0 + Vector3(0, 0.08, -2.6)
@@ -220,8 +235,8 @@ func run():
 	var score_before_hs: int = game.rules.score
 	shoot(game.player.camera.global_position, correct_hs.head_area.global_position)
 	verify(
-		correct_hs.defeated and correct_hs.head_area.collision_layer == 0 and game.rules.score >= score_before_hs + game.Rules.BASE_ANSWER_SCORE and game.combat.living_soldiers(0).size() == 4,
-		"headshot on correct word soldier kills in 1 shot and shrinks pursuing wave to 4/5"
+		correct_hs.defeated and correct_hs.head_area.collision_layer == 0 and game.rules.score >= score_before_hs + game.Rules.BASE_ANSWER_SCORE and game.combat.living_soldiers(0).size() == wave0_init_alive - 1,
+		"headshot on correct word soldier kills in 1 shot and shrinks living wave by 1"
 	)
 	var score_after_hs: int = game.rules.score
 	shoot(game.player.camera.global_position, correct_hs.head_area.global_position)
@@ -232,39 +247,55 @@ func run():
 			s_res.set_physics_process(true)
 	await frames(105)
 	verify(
-		correct_hs.defeated and game.combat.living_soldiers(0).size() == 4 and not game.combat.troops[0][game.answer_index].defeated,
+		correct_hs.defeated and game.combat.living_soldiers(0).size() == wave0_init_alive - 1 and not game.combat.troops[0][game.answer_index].defeated,
 		"eliminated soldier NEVER respawns mid-wave and Chinese prompt rotates to a remaining living soldier"
 	)
 
-	# Word Shield hit on CORRECT soldier = 2-shot kill (1st cracks 1/2, 2nd shatters & kills)!
+	# Word Shield hit on CORRECT soldier = 2-shot kill (1st cracks 1/2 & triggers cover reposition + moving suppression fire!)
 	for s_pause2 in game.combat.troops[0]:
 		s_pause2.set_physics_process(false)
 	var correct_sh = game.combat.troops[0][game.answer_index]
 	var sh_slot: int = correct_sh.option
+	var prev_cov_idx: int = correct_sh.claimed_cover_idx
 	correct_sh.position = center0 + Vector3(0, 0.08, -2.6)
 	correct_sh.rotation = Vector3.ZERO
 	await frames(2)
 	shoot(game.player.camera.global_position, correct_sh.shield_area.global_position)
 	verify(
-		not correct_sh.defeated and correct_sh.shield_layers == 1 and game.answer_index == sh_slot and correct_sh.shield_area.visible,
-		"1st shot on correct word shield cracks shield (1/2) without killing and keeps English word visible"
+		not correct_sh.defeated and correct_sh.shield_layers == 1 and game.answer_index == sh_slot and correct_sh.shield_area.visible and (correct_sh.is_bounding_to_cover or correct_sh.claimed_cover_idx != prev_cov_idx),
+		"1st shot on correct word shield cracks shield (1/2) and triggers emergency cover reposition"
 	)
+	# Let the shield-cracked soldier bound toward its new cover for ~0.7s so it fires moving suppression on the run!
+	var supp_before: int = game.combat.moving_suppression_shots
+	game.combat.suppress_lock = 0.0
+	correct_sh.stun_left = 0.0
+	correct_sh.suppress_cd = 0.02
+	correct_sh.set_physics_process(true)
+	await frames(28)
+	correct_sh.set_physics_process(false)
+	verify(game.combat.moving_suppression_shots > supp_before, "soldier bounding to cover fires moving suppression shots toward player")
+
+	correct_sh.position = center0 + Vector3(0, 0.08, -2.6)
+	correct_sh.rotation = Vector3.ZERO
+	await frames(2)
 	shoot(game.player.camera.global_position, correct_sh.shield_area.global_position)
 	verify(
-		correct_sh.defeated and game.combat.living_soldiers(0).size() == 3 and not game.combat.troops[0][game.answer_index].defeated,
-		"2nd shot on cracked word shield shatters & kills soldier (wave 3/5) and advances Chinese prompt"
+		correct_sh.defeated and game.combat.living_soldiers(0).size() == wave0_init_alive - 2 and not game.combat.troops[0][game.answer_index].defeated,
+		"2nd shot on cracked word shield shatters & kills soldier and advances Chinese prompt"
 	)
 	for s_res2 in game.combat.troops[0]:
 		if not s_res2.defeated:
 			s_res2.set_physics_process(true)
 
-	# 6. Kite >aggro away (21.6m from Camp 0) & finish remaining 3 soldiers -> Wave 2 spawns at Camp 0 in STANDBY!
+	# 6. Kite >aggro away (21.6m from Camp 0) & finish remaining soldiers -> 15s empty camp + 15s truce (= 30s safe window)!
 	var kite_pos: Vector3 = game.Layout.on_ground(Vector3(0.0, 0.0, -24.0)) + Vector3(0, 0.12, 0)
 	game.player.position = kite_pos
 	await frames(12)
-	verify(game.combat.zone == 0 and game.combat.is_zone_engaged(0), "active wave continues pursuing player outside spawn aggro radius")
+	verify(game.combat.zone == 0 and game.combat.is_zone_engaged(0), "active wave continues pursuing player in small-range out-of-camp perimeter (21.6m)")
 
-	for kill_step in 3:
+	for kill_step in 6:
+		if game.combat.living_soldiers(0).is_empty():
+			break
 		var rem_target = game.combat.troops[0][game.answer_index]
 		rem_target.set_physics_process(false)
 		rem_target.position = kite_pos + Vector3(0, 0.0, -2.6)
@@ -273,38 +304,46 @@ func run():
 		shoot(game.player.camera.global_position, rem_target.head_area.global_position)
 
 	verify(
-		int(game.combat.waves_done.get(0, 0)) == 1 and game.combat.wave_wrong_stacks == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0) and game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 7.5,
-		"wiping all 5 pursuing bots resets wrong-shot buff and starts an 8.5s empty-camp reinforcement interval (zero instant respawn)"
+		int(game.combat.waves_done.get(0, 0)) == 1 and game.combat.wave_wrong_stacks == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0) and game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 14.0,
+		"wiping pursuing wave resets wrong-shot buff and starts full 15s empty-camp reinforcement interval"
 	)
-	# Stand right inside Camp 0 (2.0m from center!) while reinforcement timer finishes -> Wave 2 arrives in PATROL and respects 14s truce!
+	# Stand right inside Camp 0 (2.0m from center!) for 10s -> camp MUST still be empty (15s delay > 10s)!
 	game.player.position = center0 + Vector3(0, 0.08, 2.0)
-	await frames(60)
+	game.combat.update(10.0)
+	await frames(4)
 	verify(
-		game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 5.5 and game.combat.zone == -1,
-		"standing right inside cleared wave camp during 8.5s interval keeps camp empty for calm looting"
+		game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 4.2 and game.combat.zone == -1,
+		"camp remains 100% empty past 10s so player has plenty of time to loot and walk away"
 	)
-	game.combat.update(8.0)
+	# Advance past 15s -> Wave 2 (3-4 bots) arrives in PATROL and grants another 15s truce (30s total safe window)!
+	game.combat.update(5.5)
 	await frames(2)
-	var spawned_at_home: bool = (game.combat.living_soldiers(0).size() == 5)
+	var w2_count: int = game.combat.living_soldiers(0).size()
+	var spawned_at_home: bool = (w2_count >= Battle.NORMAL_MIN_SQUAD and w2_count <= Battle.NORMAL_MAX_SQUAD)
 	for w2_s in game.combat.troops[0]:
-		if Vector2(w2_s.position.x - center0.x, w2_s.position.z - center0.z).length() > 13.5 or w2_s.action != Soldier.Action.PATROL:
+		if Vector2(w2_s.position.x - center0.x, w2_s.position.z - center0.z).length() > 14.5 or w2_s.action != Soldier.Action.PATROL:
 			spawned_at_home = false
 	await frames(90)
 	verify(
-		spawned_at_home and float(game.combat.zone_respawn_grace.get(0, 0.0)) > 10.0 and game.combat.zone == -1 and not game.combat.is_zone_engaged(0),
-		"after 8.5s interval, Wave 2 arrives at Camp 0 in PATROL standby and grants 14s truce without chasing a nearby looting player"
+		spawned_at_home and float(game.combat.zone_respawn_grace.get(0, 0.0)) > 12.5 and game.combat.zone == -1 and not game.combat.is_zone_engaged(0),
+		"after 15s interval, Wave 2 (3-4 bots) arrives at Camp 0 in PATROL and grants 15s truce (30s total breathing window)"
 	)
 
-	# 7. Confidential Operation ("机密行动"): 1.35x valuation, multi-attacker Sniper laser, Smoke/EMP [G], Stim [T], Knife & 3-wave clear
+	# 7. Confidential Operation ("机密行动"): random 3-6 squad sizes, 1.35x valuation, Sniper laser, Smoke/EMP, Stim, Knife & 3-wave clear
 	game.rules.loot_rng.seed = 777
 	var norm_leg_loot: Dictionary = game.rules.roll_item_by_rarity(5)
 	game.confidential_button.pressed.emit()
 	await frames(4)
+	var conf_sizes_ok := true
+	for cz_i in game.Layout.COMBAT_ZONES.size():
+		var c_sz: int = game.combat.living_soldiers(cz_i).size()
+		if c_sz < Battle.CONF_MIN_SQUAD or c_sz > Battle.CONF_MAX_SQUAD:
+			conf_sizes_ok = false
 	game.rules.loot_rng.seed = 777
 	var conf_leg_loot: Dictionary = game.rules.roll_item_by_rarity(5)
 	verify(
-		game.rules.operation_tier == "confidential" and game.rules.is_confidential() and game.terminal_title_label.text.contains("机密行动") and int(conf_leg_loot.get("value", 0)) == roundi(float(norm_leg_loot.get("value", 0)) * 1.35),
-		"confidential_button launches Confidential Operation with exact 1.35x loot valuation multiplier"
+		conf_sizes_ok and game.rules.operation_tier == "confidential" and game.rules.is_confidential() and game.terminal_title_label.text.contains("机密行动") and int(conf_leg_loot.get("value", 0)) == roundi(float(norm_leg_loot.get("value", 0)) * 1.35),
+		"confidential_button launches Confidential Operation with random 3-6 squad sizes and exact 1.35x loot valuation"
 	)
 	var center1: Vector3 = game.combat.zone_center(1)
 	game.player.position = center1 + Vector3(0, 0.08, 2.0)
@@ -425,7 +464,8 @@ func run():
 				for s_w2 in game.combat.troops[2]:
 					if s_w2.archetype == Soldier.Archetype.BOSS_WARDEN:
 						has_second_boss = true
-				verify(game.rules.boss_defeated and not has_second_boss and game.combat.living_soldiers(2).size() == 5, "defeated Boss never respawns in Wave 2 while 5 remnant guards spawn at camp")
+				var w2_z2_cnt: int = game.combat.living_soldiers(2).size()
+				verify(game.rules.boss_defeated and not has_second_boss and w2_z2_cnt >= Battle.CONF_MIN_SQUAD and w2_z2_cnt <= Battle.CONF_MAX_SQUAD, "defeated Boss never respawns in Wave 2 while 3-6 remnant guards spawn at camp")
 			game.combat.engage_camp(2)
 		var t2 = game.combat.troops[2][game.answer_index]
 		if not is_instance_valid(t2) or t2.defeated:

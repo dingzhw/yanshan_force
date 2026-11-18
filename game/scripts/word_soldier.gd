@@ -56,6 +56,14 @@ var cooldown = 0.0
 var aim_left = 0.0
 var cover_left = 0.0
 var cover_goal: Vector3
+var claimed_cover_idx: int = -1
+var is_bounding_to_cover: bool = false
+var bound_goal: Vector3 = Vector3.ZERO
+var peek_goal: Vector3 = Vector3.ZERO
+var cover_reposition_cd: float = 0.0
+var suppress_cd: float = 0.0
+var occluded_prompt_time: float = 0.0
+var peek_phase: float = 0.0
 
 func attack_range() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
@@ -138,7 +146,13 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	]
 	patrol_index = 1
 	hover_clock = index * 1.3
+	peek_phase = index * 1.15
 	cooldown = 0.65 + index * 0.30
+	is_bounding_to_cover = false
+	cover_reposition_cd = 0.0
+	suppress_cd = 0.0
+	occluded_prompt_time = 0.0
+	peek_goal = home
 	collision_layer = HIT_LAYER
 	collision_mask = 1 | HIT_LAYER | 8
 	floor_snap_length = 0.38
@@ -214,7 +228,7 @@ func _build_model():
 	head_area.collision_mask = 0
 	head_area.monitoring = false
 	head_area.monitorable = false
-	var head_y := 2.30 if archetype == Archetype.BOSS_WARDEN else (1.84 if archetype == Archetype.SNIPER_GUARD else (1.84 if archetype == Archetype.SCOUT_DRONE else 1.74))
+	var head_y := 2.30 if archetype == Archetype.BOSS_WARDEN else (1.88 if archetype == Archetype.SNIPER_GUARD else (1.88 if archetype == Archetype.SCOUT_DRONE else 1.78))
 	head_area.position = Vector3(0, head_y, 0.14)
 	add_child(head_area)
 	var hshape = SphereShape3D.new()
@@ -256,7 +270,7 @@ func _build_model():
 	# 3. Chest-Mounted Holographic Electronic Word Shield (2 Shots to Break & Kill on Correct Soldier)
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
-	var shield_y := 1.56 if archetype == Archetype.BOSS_WARDEN else (1.16 if archetype == Archetype.SNIPER_GUARD else (1.14 if archetype == Archetype.SCOUT_DRONE else 1.08))
+	var shield_y := 1.56 if archetype == Archetype.BOSS_WARDEN else (1.22 if archetype == Archetype.SNIPER_GUARD else (1.20 if archetype == Archetype.SCOUT_DRONE else 1.16))
 	shield_area.position = Vector3(0, shield_y, 0.66 if archetype == Archetype.BOSS_WARDEN else 0.46)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
@@ -501,20 +515,27 @@ func crack_shield_once():
 	if is_instance_valid(frame_material):
 		frame_material.albedo_color = Color("ff8c3b")
 	if is_instance_valid(tag_label):
-		tag_label.text = "⚡ 护盾破损 (1/2) · 再补1枪!"
+		tag_label.text = "⚡ 护盾破损 (1/2) · 机动换掩体!"
 		tag_label.modulate = Color("8a2d0a")
-	stun_left = maxf(stun_left, 0.22)
+	stun_left = maxf(stun_left, 0.18)
 	_refresh_hp_bar()
+	# Wounded soldier immediately bounds to a fresh unoccupied cover while firing suppression shots!
+	if archetype != Archetype.BOSS_WARDEN and is_instance_valid(combat) and combat.is_zone_engaged(zone):
+		begin_tactical_engagement(true)
+		suppress_cd = 0.12
 
 func on_wrong_hit_flash():
 	if defeated:
 		return
-	# Wrong target takes ZERO HP / shield damage! Flash deflection warning briefly.
+	# Wrong target takes ZERO HP / shield damage! Flash deflection warning and duck briefly if not aiming.
 	wrong_flash_left = 0.42
 	if is_instance_valid(shield_material):
 		shield_material.albedo_color = Color("f4a69e")
 	if is_instance_valid(frame_material):
 		frame_material.albedo_color = Color("ff3b30")
+	if action == Action.ADVANCE and not is_bounding_to_cover and archetype != Archetype.BOSS_WARDEN:
+		take_cover()
+		cover_left = 0.65
 
 func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool = false) -> bool:
 	if defeated:
@@ -616,22 +637,44 @@ func _spawn_shatter_fx():
 		tw.tween_property(shard, "scale", Vector3(0.05, 0.05, 0.05), 0.35)
 		tw.chain().tween_callback(shard.queue_free)
 
+func begin_tactical_engagement(force_reposition: bool = false):
+	if defeated or not is_instance_valid(combat):
+		return
+	laser_beam.hide()
+	var slot: Dictionary = combat.claim_tactical_cover(self, force_reposition)
+	cover = slot["anchor"]
+	cover_goal = slot["shelter_pos"]
+	peek_goal = slot["peek_pos"]
+	var use_peek: bool = bool(combat.is_designated_attacker(self)) or (option == int(combat.game.answer_index))
+	bound_goal = peek_goal if use_peek else cover_goal.lerp(peek_goal, 0.78)
+	is_bounding_to_cover = Vector2(position.x - bound_goal.x, position.z - bound_goal.z).length() > 1.15
+	action = Action.ADVANCE
+	cover_reposition_cd = (4.8 if combat.is_single_attacker_mode() else 3.4) + float(option % 3) * 0.95
+	suppress_cd = 0.24 + float(option % 4) * 0.18
+
+func _refresh_cover_poses(player_at: Vector3):
+	var to_p := Vector3(player_at.x - cover.x, 0.0, player_at.z - cover.z)
+	if to_p.length_squared() < 0.04:
+		to_p = Vector3.BACK
+	var dir_p := to_p.normalized()
+	var right_v := dir_p.cross(Vector3.UP).normalized()
+	cover_goal = combat.game.Layout.on_ground(cover - dir_p * 1.42)
+	peek_goal = combat.game.Layout.on_ground(cover + right_v * side * 1.16 - dir_p * 0.78)
+
 func take_cover():
 	laser_beam.hide()
+	is_bounding_to_cover = false
+	visual_root.rotation.x = 0.0
 	var player_at: Vector3 = combat.game.player.position
-	var toward_player := player_at - cover
-	toward_player.y = 0
-	if toward_player.length_squared() < 0.1:
-		toward_player = Vector3.BACK
-	var dist_to_cover := Vector2(position.x - cover.x, position.z - cover.z).length()
-	if dist_to_cover < 9.5:
-		cover_goal = combat.game.Layout.on_ground(cover - toward_player.normalized() * 1.55)
+	if is_instance_valid(combat) and combat.has_method("claim_tactical_cover"):
+		var slot: Dictionary = combat.claim_tactical_cover(self, false)
+		cover = slot["anchor"]
+		cover_goal = slot["shelter_pos"]
+		peek_goal = slot["peek_pos"]
 	else:
-		# When pursuing far from home camp, sidestep tactically instead of running all the way back to camp cover!
-		var strafe := toward_player.normalized().cross(Vector3.UP) * side * 2.4
-		cover_goal = position + strafe
+		_refresh_cover_poses(player_at)
 	action = Action.COVER
-	cover_left = 0.82 if archetype == Archetype.SCOUT_DRONE else 1.05
+	cover_left = 1.15 if combat.is_single_attacker_mode() else (0.78 if archetype == Archetype.SCOUT_DRONE else 0.95)
 
 func _update_laser(player_eye: Vector3):
 	if action != Action.AIM or defeated or stun_left > 0:
@@ -707,6 +750,9 @@ func _physics_process(delta: float):
 		visual_root.rotation.z = 0.0
 
 	cooldown = maxf(0, cooldown - delta)
+	cover_reposition_cd = maxf(0.0, cover_reposition_cd - delta)
+	suppress_cd = maxf(0.0, suppress_cd - delta)
+	peek_phase += delta
 	var goal := position
 	var speed := move_speed()
 
@@ -719,17 +765,21 @@ func _physics_process(delta: float):
 	if not engaged:
 		# Standby Garrison at Camp Origin: patrol quietly around camp, DO NOT chase player until aggroed!
 		action = Action.PATROL
+		is_bounding_to_cover = false
+		visual_root.rotation.x = 0.0
 		speed *= 0.58
 		if position.distance_to(patrol[patrol_index]) < 0.55:
 			patrol_index = (patrol_index + 1) % patrol.size()
 		goal = patrol[patrol_index]
 	elif action == Action.COVER:
+		visual_root.rotation.x = 0.0
 		goal = cover_goal
 		speed *= 1.18
 		cover_left -= delta if position.distance_to(cover_goal) < 0.65 else delta * 0.25
 		if cover_left <= 0:
 			action = Action.ADVANCE
 	elif action == Action.AIM:
+		visual_root.rotation.x = 0.0
 		if combat.player_in_smoke():
 			action = Action.ADVANCE
 			laser_beam.hide()
@@ -740,36 +790,91 @@ func _physics_process(delta: float):
 				laser_beam.hide()
 				take_cover()
 				cooldown = fire_interval() * (0.82 if combat.wave_wrong_stacks > 0 else 1.0)
-				combat.strike(self)
+				combat.strike(self, false)
 				combat.on_soldier_attack_finished(self)
 	else:
 		action = Action.ADVANCE
 		laser_beam.hide()
+		_refresh_cover_poses(player_at)
+
+		# Guarantee the soldier carrying the prompted answer word never stays hidden behind an obstacle >1.2s
+		if option == game.answer_index:
+			if not combat.clear_shot(position):
+				occluded_prompt_time += delta
+			else:
+				occluded_prompt_time = 0.0
+			if occluded_prompt_time > 1.20:
+				occluded_prompt_time = 0.0
+				if combat.clear_shot(peek_goal):
+					bound_goal = peek_goal
+					is_bounding_to_cover = true
+				else:
+					begin_tactical_engagement(true)
+
+		var d_cover_player: float = Vector2(player_at.x - cover.x, player_at.z - cover.z).length()
+		var too_close_thresh: float = 6.2 if combat.is_single_attacker_mode() else 4.4
+		if not is_bounding_to_cover and cover_reposition_cd <= 0.0:
+			if (archetype != Archetype.BOSS_WARDEN and distance < too_close_thresh) or d_cover_player > attack_range() - 1.2 or (not combat.is_single_attacker_mode() and archetype != Archetype.BOSS_WARDEN):
+				begin_tactical_engagement(true)
+
 		var can_engage_now: bool = combat.is_designated_attacker(self)
-		if can_engage_now and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
+		var heavy_ready_aim: bool = (archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]) and shield_layers >= max_shield_layers and distance >= 5.5
+		if can_engage_now and (not is_bounding_to_cover or heavy_ready_aim) and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
+			is_bounding_to_cover = false
+			visual_root.rotation.x = 0.0
 			action = Action.AIM
 			aim_left = aim_windup()
 			if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]:
 				game.play_sfx("warning_lock", -13)
-		elif not can_engage_now:
-			# Normal Mode Escort Formation: follow player in a wide, non-crowding fan arc (7.6m–8.8m) without firing!
-			var escort_ang := float(option - 2) * 0.38
-			var base_dir := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
-			var escort_dist := 7.6 + float(option % 2) * 1.15
-			var desired := player_at + base_dir.rotated(Vector3.UP, escort_ang) * escort_dist
-			if Vector2(desired.x - position.x, desired.z - position.z).length() > 0.85:
-				goal = desired
+		elif is_bounding_to_cover:
+			# Bounding to Cover + Firing Suppression Shots on the Move!
+			goal = bound_goal
+			speed *= 1.12
+			visual_root.rotation.x = -0.08
+			var rem_d := Vector2(position.x - bound_goal.x, position.z - bound_goal.z).length()
+			if rem_d > 0.92:
+				if suppress_cd <= 0.0 and combat.try_moving_suppression(self):
+					suppress_cd = 1.45 if combat.is_single_attacker_mode() else 0.95
 			else:
-				goal = position + base_dir.cross(Vector3.UP) * side * 0.65
-				speed *= 0.45
-		elif archetype == Archetype.SNIPER_GUARD and distance < 14.0 and distance > 7.0 and combat.clear_shot(position):
-			goal = position + toward_player.normalized().cross(Vector3.UP) * side * 1.4
-		elif distance > (4.0 if archetype == Archetype.SCOUT_DRONE else 5.2):
-			var spread_ang := float(option - 2) * 0.36
-			var approach_off := (-toward_player.normalized()).rotated(Vector3.UP, spread_ang) * 4.6
-			goal = player_at + approach_off
+				is_bounding_to_cover = false
+				visual_root.rotation.x = 0.0
 		else:
-			goal = position + toward_player.normalized().cross(Vector3.UP) * side * 1.6
+			visual_root.rotation.x = 0.0
+			if can_engage_now:
+				if combat.clear_shot(peek_goal) and d_cover_player < attack_range() - 0.8:
+					goal = peek_goal
+				else:
+					# Cautious small-range flank/pursuit when terrain or range blocks the camp parapet
+					var camp_c: Vector3 = combat.zone_center(zone)
+					var base_dir := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+					var stand_off := 8.8 if combat.is_single_attacker_mode() else 5.8
+					var desired := player_at + base_dir.rotated(Vector3.UP, side * 0.42) * stand_off
+					if combat.is_single_attacker_mode():
+						var off_camp := Vector2(desired.x - camp_c.x, desired.z - camp_c.z)
+						if off_camp.length() > 31.0:
+							off_camp = off_camp.normalized() * 31.0
+							desired = Vector3(camp_c.x + off_camp.x, desired.y, camp_c.z + off_camp.y)
+					goal = desired
+					if Vector2(goal.x - position.x, goal.z - position.z).length() > 1.4 and suppress_cd <= 0.0 and combat.try_moving_suppression(self):
+						suppress_cd = 1.55 if combat.is_single_attacker_mode() else 1.05
+			else:
+				# Cautious Cover-Holding Teammates (Normal Mode): stay behind camp parapets & peek shields over low wings!
+				if d_cover_player <= 19.5:
+					var peek_w: float = 1.0 if (option == int(combat.game.answer_index) or sin(peek_phase * 1.55) > -0.35) else 0.48
+					goal = cover_goal.lerp(peek_goal, peek_w)
+					speed *= 0.72
+				else:
+					# Small-range out-of-camp cautious follow (10.5m..13.5m stand-off, capped within 30m of camp)
+					var camp_c2: Vector3 = combat.zone_center(zone)
+					var escort_ang: float = (float(option) - 1.5) * 0.42
+					var base_dir2 := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+					var desired2 := player_at + base_dir2.rotated(Vector3.UP, escort_ang) * (10.5 + float(option % 2) * 1.8)
+					var off_c2 := Vector2(desired2.x - camp_c2.x, desired2.z - camp_c2.z)
+					if off_c2.length() > 30.0:
+						off_c2 = off_c2.normalized() * 30.0
+						desired2 = Vector3(camp_c2.x + off_c2.x, desired2.y, camp_c2.z + off_c2.y)
+					goal = desired2
+					speed *= 0.85
 
 	if not combat.in_field():
 		return

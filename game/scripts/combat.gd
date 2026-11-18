@@ -11,9 +11,16 @@ enum Stage { OFF, FIELD }
 
 const MAX_HEALTH = 100
 const SQUAD_SIZE = 5
+const CAMP_COVER_COUNT = 6
+const NORMAL_MIN_SQUAD = 3
+const NORMAL_MAX_SQUAD = 4
+const CONF_MIN_SQUAD = 3
+const CONF_MAX_SQUAD = 6
+const NORMAL_PURSUIT_RADIUS = 44.0
 const WAVES_PER_CAMP = 3
-const WAVE_REINFORCE_DELAY = 8.5
-const WAVE_TRUCE_GRACE = 14.0
+const WAVE_REINFORCE_DELAY = 15.0
+const WAVE_TRUCE_GRACE = 15.0
+const SUPPRESS_HIT_SCALE = 0.40
 const WRONG_DAMAGE_STEP = 0.25
 const MAX_WRONG_STACKS = 4
 const STILL_HIT_CHANCE = 0.78
@@ -33,10 +40,14 @@ var shield: float = 30.0
 var shield_delay: float = 0.0
 var zone: int = -1
 var attack_lock: float = 0.0
+var suppress_lock: float = 0.0
+var moving_suppression_shots: int = 0
 var miss_left: float = 0.0
 var shot_rng := RandomNumberGenerator.new()
 var arena: Node3D
 var camp_covers = {}
+var camp_outer_anchors = {}
+var wave_squad_size = {}
 var troops = {}
 var wave_words = {}
 var boss_unit = null
@@ -68,6 +79,8 @@ func begin():
 	shield = float(game.rules.max_shield())
 	shield_delay = 0.0
 	attack_lock = 0.0
+	suppress_lock = 0.0
+	moving_suppression_shots = 0
 	miss_left = 0.0
 	boss_unit = null
 	active_attacker = null
@@ -93,6 +106,8 @@ func stop():
 	smoke_zones.clear()
 	danger_rings.clear()
 	camp_covers.clear()
+	camp_outer_anchors.clear()
+	wave_squad_size.clear()
 	troops.clear()
 	wave_words.clear()
 	waves_done.clear()
@@ -148,6 +163,8 @@ func zone_aggro(z_idx: int) -> float:
 	return float(zone_info(z_idx).aggro)
 
 func zone_pursuit(z_idx: int) -> float:
+	if is_single_attacker_mode():
+		return minf(NORMAL_PURSUIT_RADIUS, float(zone_info(z_idx).pursuit))
 	return float(zone_info(z_idx).pursuit)
 
 func damage_multiplier() -> float:
@@ -193,29 +210,45 @@ func _mark_zone_cleared(z_idx: int):
 		game.rules.outposts_cleared, game.Layout.COMBAT_ZONES.size()
 	], game.MINT)
 
-func _squad_archetypes(z_idx: int, wave_idx: int) -> Array:
+func _roll_wave_squad_size(_z_idx: int, _wave_idx: int) -> int:
+	if game.rules.is_confidential():
+		return shot_rng.randi_range(CONF_MIN_SQUAD, CONF_MAX_SQUAD)
+	return shot_rng.randi_range(NORMAL_MIN_SQUAD, NORMAL_MAX_SQUAD)
+
+func _squad_archetypes(z_idx: int, wave_idx: int, count: int = 4) -> Array:
+	var template: Array
 	if z_idx == 0:
-		return [Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT]
-	if z_idx == 1:
-		return [Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD]
-	if z_idx == 2:
+		template = [Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE]
+	elif z_idx == 1:
+		template = [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT]
+	elif z_idx == 2:
 		if wave_idx == 0 and not game.rules.boss_defeated:
-			return [Soldier.Archetype.BOSS_WARDEN, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE]
-		return [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT]
-	if z_idx == 3:
-		return [Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE]
-	if z_idx == 4:
-		return [Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT]
-	return [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE]
+			template = [Soldier.Archetype.BOSS_WARDEN, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT]
+		else:
+			template = [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE]
+	elif z_idx == 3:
+		template = [Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT]
+	elif z_idx == 4:
+		template = [Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SNIPER_GUARD]
+	else:
+		template = [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.ASSAULT_BOT]
+	var out: Array = []
+	for i in count:
+		out.append(template[i % template.size()])
+	return out
 
 func _build_tactical_cover(at: Vector3, index: int):
 	var base_y: float = game.Layout.min_ground_height(at.x, at.z, 0.9) - 0.12
-	var uphill_y: float = maxf(at.y, maxf(game.Layout.height(at.x - 1.2, at.z - 1.5), game.Layout.height(at.x + 1.2, at.z - 1.5)))
-	var box_h: float = maxf(2.08, (uphill_y - base_y) + 2.06)
+	var uphill_y: float = maxf(at.y, maxf(game.Layout.height(at.x - 1.0, at.z - 1.2), game.Layout.height(at.x + 1.0, at.z - 1.2)))
+	# Castellated stepped Jiangnan parapet ('高低错落垛口战术矮垣'):
+	# - Center solid merlon (~1.84m, 1.04m wide) blocks shots during full shelter;
+	# - Left/right low firing wings (~0.72m) shield legs while keeping 100% of the chest English Word Shield unobstructed!
+	var merlon_h: float = maxf(1.84, (uphill_y - base_y) + 1.80)
+	var wing_h: float = maxf(0.72, (at.y - base_y) + 0.68)
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
 	arena.add_child(root)
-	# Hui-style whitewashed plaster & bluestone tactical low wall ('粉墙青瓦战术矮垣')
+
 	var wall_mat = StandardMaterial3D.new()
 	wall_mat.albedo_color = Color("dedad0") if index % 2 == 0 else Color("d4d0c5")
 	wall_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/plaster_albedo.jpg")
@@ -224,14 +257,19 @@ func _build_tactical_cover(at: Vector3, index: int):
 	wall_mat.normal_scale = 0.60
 	wall_mat.roughness = 0.90
 	wall_mat.metallic_specular = 0.05
-	var main_block = game._mesh_box(root, Vector3(0, box_h * 0.5, 0), Vector3(1.56, box_h, 0.94), Color.WHITE, true)
-	main_block.material_override = wall_mat
+
+	var center_merlon = game._mesh_box(root, Vector3(0, merlon_h * 0.5, 0), Vector3(1.04, merlon_h, 0.88), Color.WHITE, true)
+	center_merlon.material_override = wall_mat
+	var low_wings = game._mesh_box(root, Vector3(0, wing_h * 0.5, 0), Vector3(2.08, wing_h, 0.82), Color.WHITE, true)
+	low_wings.material_override = wall_mat
+
 	var plinth_mat = StandardMaterial3D.new()
 	plinth_mat.albedo_color = Color("9aa3a6")
 	plinth_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/bluestone_albedo.jpg")
 	plinth_mat.roughness = 0.86
-	var plinth = game._mesh_box(root, Vector3(0, 0.28, 0), Vector3(1.62, 0.56, 1.00), Color.WHITE)
+	var plinth = game._mesh_box(root, Vector3(0, 0.22, 0), Vector3(2.14, 0.44, 0.90), Color.WHITE)
 	plinth.material_override = plinth_mat
+
 	var cap_mat = StandardMaterial3D.new()
 	cap_mat.albedo_color = Color("6e7d8a")
 	cap_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/tile_albedo.jpg")
@@ -239,9 +277,12 @@ func _build_tactical_cover(at: Vector3, index: int):
 	cap_mat.normal_texture = load("res://assets/slice/ink_jiangnan/tile_normal.jpg")
 	cap_mat.roughness = 0.55
 	cap_mat.metallic_specular = 0.15
-	var top_trim = game._mesh_box(root, Vector3(0, box_h + 0.04, 0), Vector3(1.68, 0.14, 1.06), Color.WHITE)
-	top_trim.material_override = cap_mat
-	var stripe = game._mesh_box(root, Vector3(0, box_h - 0.12, 0), Vector3(1.60, 0.07, 0.97), Color("52463a"))
+	var center_cap = game._mesh_box(root, Vector3(0, merlon_h + 0.04, 0), Vector3(1.14, 0.11, 0.98), Color.WHITE)
+	center_cap.material_override = cap_mat
+	for sx in [-0.78, 0.78]:
+		var wing_cap = game._mesh_box(root, Vector3(sx, wing_h + 0.035, 0), Vector3(0.56, 0.08, 0.90), Color.WHITE)
+		wing_cap.material_override = cap_mat
+	var stripe = game._mesh_box(root, Vector3(0, merlon_h - 0.12, 0), Vector3(1.07, 0.06, 0.91), Color("52463a"))
 	stripe.material_override.roughness = 0.82
 
 func _pick_seed_word() -> Dictionary:
@@ -251,10 +292,10 @@ func _pick_seed_word() -> Dictionary:
 		return game.wrong_words.pick_random()
 	return game.question_queue.pop_back()
 
-func _build_wave_words() -> Array:
+func _build_wave_words(count: int) -> Array:
 	var seed_word := _pick_seed_word()
-	var words_list: Array = game._pick_smart_distractors(seed_word, SQUAD_SIZE)
-	while words_list.size() < SQUAD_SIZE:
+	var words_list: Array = game._pick_smart_distractors(seed_word, count)
+	while words_list.size() < count:
 		var extra: Dictionary = game.words[shot_rng.randi_range(0, game.words.size() - 1)]
 		var dup := false
 		for w in words_list:
@@ -273,16 +314,22 @@ func _spawn_camp_wave(z_idx: int):
 				old_s.collision_layer = 0
 				old_s.queue_free()
 	var wave_idx := int(waves_done.get(z_idx, 0))
-	var archetypes := _squad_archetypes(z_idx, wave_idx)
-	var words_5 := _build_wave_words()
-	wave_words[z_idx] = words_5
+	var sq_count := _roll_wave_squad_size(z_idx, wave_idx)
+	wave_squad_size[z_idx] = sq_count
+	var archetypes := _squad_archetypes(z_idx, wave_idx, sq_count)
+	var words_n := _build_wave_words(sq_count)
+	wave_words[z_idx] = words_n
 	var covers: Array = camp_covers[z_idx]
+	# Spread squad evenly across the 6 wide-spaced camp cover slots (leaving unoccupied covers + clear lanes!)
+	var cover_order := [1, 4, 2, 3, 0, 5]
 	var soldiers := []
-	for i in SQUAD_SIZE:
+	for i in sq_count:
+		var c_slot: int = int(cover_order[i % cover_order.size()]) % covers.size()
 		var soldier = Soldier.new()
 		arena.add_child(soldier)
-		soldier.setup(self, z_idx, i, covers[i], archetypes[i])
-		soldier.assigned_word = words_5[i]
+		soldier.setup(self, z_idx, i, covers[c_slot], archetypes[i])
+		soldier.claimed_cover_idx = c_slot
+		soldier.assigned_word = words_n[i]
 		soldier.show_word("", false)
 		soldiers.append(soldier)
 		if archetypes[i] == Soldier.Archetype.BOSS_WARDEN:
@@ -298,6 +345,15 @@ func _deploy():
 	for s_idx in game.stations.size():
 		game.stations[s_idx].enable_boards(s_idx == 0)
 
+	# 6 wide-spaced staggered tactical cover offsets (~3.3m open lanes so front covers never occlude rear covers!)
+	var cover_offsets := [
+		Vector2(-8.0, -5.8),
+		Vector2(-4.8, -7.4),
+		Vector2(-1.6, -6.2),
+		Vector2(1.6, -7.5),
+		Vector2(4.8, -6.3),
+		Vector2(8.0, -5.9),
+	]
 	for z_idx in game.Layout.COMBAT_ZONES.size():
 		var info = zone_info(z_idx)
 		var center := zone_center(z_idx)
@@ -308,13 +364,22 @@ func _deploy():
 		zone_respawn_grace[z_idx] = 0.0
 		zone_reinforce_left[z_idx] = 0.0
 		var covers := []
-		for i in SQUAD_SIZE:
-			var offset_x := (float(i) - 2.0) * 2.55
-			var offset_z := -6.4 - float(i % 2) * 1.35
-			var barrier: Vector3 = game.Layout.on_ground(center + Vector3(offset_x, 0.0, offset_z))
+		for i in CAMP_COVER_COUNT:
+			var off2: Vector2 = cover_offsets[i]
+			var barrier: Vector3 = game.Layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
 			_build_tactical_cover(barrier, i)
 			covers.append(barrier)
 		camp_covers[z_idx] = covers
+		# Collect nearby natural tree trunks (12m..30m from camp) as out-of-camp small-pursuit cover anchors!
+		var outer_pts := []
+		if is_instance_valid(game.landscape) and "tree_trunks" in game.landscape:
+			for tp in game.landscape.tree_trunks:
+				var d_camp := Vector2(tp.x - center.x, tp.z - center.z).length()
+				if d_camp >= 11.5 and d_camp <= 29.5:
+					outer_pts.append(game.Layout.on_ground(tp))
+					if outer_pts.size() >= 8:
+						break
+		camp_outer_anchors[z_idx] = outer_pts
 		_spawn_camp_wave(z_idx)
 
 	game.player.ammo = game.rules.magazine()
@@ -379,19 +444,19 @@ func engage_camp(z_idx: int):
 	game.next_question_left = 0.0
 	for s in alive:
 		if s.action == Soldier.Action.PATROL:
-			s.action = Soldier.Action.ADVANCE
+			s.begin_tactical_engagement()
 	if is_single_attacker_mode():
 		active_attacker = _pick_next_attacker(z_idx)
 	_select_next_wave_prompt(z_idx)
 	var z_title: String = zone_info(z_idx).title
 	var w_cur: int = int(waves_done.get(z_idx, 0)) + 1
 	var w_max: int = int(waves_target.get(z_idx, WAVES_PER_CAMP))
-	var pace_tag: String = "机密围剿" if game.rules.is_confidential() else "普通轮攻"
+	var pace_tag: String = "机密机动包抄" if game.rules.is_confidential() else "普通谨慎掩体战"
 	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
-		game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %s）：铁甲词尊追击！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, pace_tag], Color("ffd15c"))
+		game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %d兵 · %s）：铁甲词尊登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
 		game.play_sfx("boss_phase", -11)
 	else:
-		game._notice("⚔ 触发【%s】第 %d/%d 波仇恨（%d兵 · %s）！打头1枪秒杀 · 打词盾2枪击毙！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
+		game._notice("⚔ 触发【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
 
 func disengage_active_camp(announce: bool = true):
 	if zone < 0:
@@ -430,6 +495,7 @@ func update(delta: float):
 	if not in_field():
 		return
 	attack_lock = maxf(0.0, attack_lock - delta)
+	suppress_lock = maxf(0.0, suppress_lock - delta)
 	miss_left = maxf(0.0, miss_left - delta)
 
 	for z_i in zone_respawn_grace.keys():
@@ -461,7 +527,7 @@ func update(delta: float):
 				var w_next := int(waves_done.get(zi, 0)) + 1
 				var w_tot := int(waves_target.get(zi, WAVES_PER_CAMP))
 				if _camp_pull_distance(zi) <= zone_aggro(zi) + 8.0:
-					game._notice("⚑【%s】第 %d/%d 波增援已在掩体就位待命（14秒休整内不主动开火，搜完物资可离开或开枪迎战）！" % [
+					game._notice("⚑【%s】第 %d/%d 波增援已在掩体就位（15秒休整内不主动开火，搜完物资可离开或开枪迎战）！" % [
 						zone_info(zi).title, w_next, w_tot
 					], game.GOLD)
 			elif zone < 0 and int(ceilf(r_left)) != prev_sec:
@@ -583,13 +649,14 @@ func show_question():
 	var z_title: String = zone_info(zone).title
 	var w_cur: int = int(waves_done.get(zone, 0)) + 1
 	var w_max: int = int(waves_target.get(zone, WAVES_PER_CAMP))
-	var mode_tag := "机密围剿" if game.rules.is_confidential() else "普通轮攻"
+	var mode_tag := "机密机动" if game.rules.is_confidential() else "普通谨慎"
 	var atk_tag := (" | ⚠敌攻×%.2f" % damage_multiplier()) if wave_wrong_stacks > 0 else ""
 	var boss_suffix := ""
 	if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
 		boss_suffix = " | ★统领 %d/450%s" % [boss_unit.hp, " (红核暴露!)" if boss_unit.exposed_left > 0 else ""]
-	game.unit_label.text = "%s · %s · 第 %d/%d 波 · 追兵 %d/%d%s%s  |  [X]读音" % [
-		z_title, mode_tag, w_cur, w_max, alive_count, SQUAD_SIZE, atk_tag, boss_suffix
+	var wave_total: int = int(wave_squad_size.get(zone, troops[zone].size()))
+	game.unit_label.text = "%s · %s · 第 %d/%d 波 · 守军 %d/%d%s%s  |  [X]读音" % [
+		z_title, mode_tag, w_cur, w_max, alive_count, wave_total, atk_tag, boss_suffix
 	]
 
 func _resolve_soldier_node(collider):
@@ -741,7 +808,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 	if muzzle_id != "suppressor":
 		for other in living_soldiers(zone):
 			if other.action == Soldier.Action.PATROL:
-				other.action = Soldier.Action.ADVANCE
+				other.begin_tactical_engagement()
 
 	# Bonus weakpoint: Exposed Boss Reactor Core always takes 42 crit damage while glowing!
 	if soldier.archetype == Soldier.Archetype.BOSS_WARDEN and collider == soldier.core_area and soldier.exposed_left > 0.0:
@@ -1105,7 +1172,109 @@ func apply_physical_trauma(hp_damage: int, shield_damage: int = 5, death_reason:
 	if health == 0:
 		game._end_run(false, death_reason)
 
-func strike(soldier):
+func claim_tactical_cover(soldier, force_new_cover: bool = false) -> Dictionary:
+	var z_idx: int = soldier.zone
+	var center := zone_center(z_idx)
+	var player_pos: Vector3 = game.player.position
+	var d_player_camp := Vector2(player_pos.x - center.x, player_pos.z - center.z).length()
+	var camp_list: Array = camp_covers.get(z_idx, [])
+	var outer_list: Array = camp_outer_anchors.get(z_idx, [])
+
+	var all_anchors: Array = []
+	for p in camp_list:
+		all_anchors.append({"pos": p, "is_parapet": true})
+	# Include roadside natural tree/rock covers when player steps outside camp (>17m) or in Confidential flanking!
+	if d_player_camp > 17.0 or game.rules.is_confidential():
+		for op in outer_list:
+			all_anchors.append({"pos": op, "is_parapet": false})
+
+	if all_anchors.is_empty():
+		return {"idx": 0, "anchor": soldier.cover, "shelter_pos": soldier.home, "peek_pos": soldier.home, "is_parapet": true}
+
+	var ideal_min := 11.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (8.2 if is_single_attacker_mode() else 6.2)
+	var ideal_max := 20.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (17.2 if is_single_attacker_mode() else 14.5)
+
+	var best_idx := 0
+	var best_score := -1e9
+	for k in all_anchors.size():
+		var anc: Vector3 = all_anchors[k]["pos"]
+		var is_parapet: bool = all_anchors[k]["is_parapet"]
+		var occupied := false
+		for other in troops.get(z_idx, []):
+			if other != soldier and is_instance_valid(other) and not other.defeated:
+				if other.claimed_cover_idx == k or Vector2(other.position.x - anc.x, other.position.z - anc.z).length() < 2.05:
+					occupied = true
+					break
+		if occupied:
+			continue
+
+		var d_p := Vector2(player_pos.x - anc.x, player_pos.z - anc.z).length()
+		var d_self := Vector2(soldier.position.x - anc.x, soldier.position.z - anc.z).length()
+		var d_camp := Vector2(anc.x - center.x, anc.z - center.z).length()
+
+		# Normal mode small-range out-of-camp limit: stay within cautious ~29m camp perimeter!
+		if is_single_attacker_mode() and d_camp > 29.5:
+			continue
+
+		var score := 0.0
+		if d_p >= ideal_min and d_p <= ideal_max:
+			score += 24.0
+		elif d_p < ideal_min:
+			score -= (ideal_min - d_p) * 4.5
+		else:
+			score -= (d_p - ideal_max) * 1.85
+
+		# Prefer built Hui parapets when player is near camp, and nearby moves (4..11m) over marathon sprints
+		if is_parapet and d_player_camp <= 21.5:
+			score += 8.5
+		score -= d_self * 0.42
+
+		if force_new_cover and (k == soldier.claimed_cover_idx or d_self < 1.85):
+			score -= 32.0
+		elif not force_new_cover and k == soldier.claimed_cover_idx:
+			score += 5.5
+
+		if score > best_score:
+			best_score = score
+			best_idx = k
+
+	var chosen: Vector3 = all_anchors[best_idx]["pos"]
+	var chosen_parapet: bool = all_anchors[best_idx]["is_parapet"]
+	var to_p := Vector3(player_pos.x - chosen.x, 0.0, player_pos.z - chosen.z)
+	if to_p.length_squared() < 0.04:
+		to_p = Vector3.BACK
+	var dir_p := to_p.normalized()
+	var right_v := dir_p.cross(Vector3.UP).normalized()
+	# Shelter behind center solid 1.84m merlon / trunk; Peek laterally over 0.72m low wing so 100% of Word Shield is readable!
+	var shelter_p: Vector3 = game.Layout.on_ground(chosen - dir_p * (1.42 if chosen_parapet else 1.15))
+	var peek_off: float = 1.16 if chosen_parapet else 1.10
+	var peek_p: Vector3 = game.Layout.on_ground(chosen + right_v * soldier.side * peek_off - dir_p * (0.78 if chosen_parapet else 0.45))
+	soldier.claimed_cover_idx = best_idx
+	soldier.cover = chosen
+	return {
+		"idx": best_idx,
+		"anchor": chosen,
+		"shelter_pos": shelter_p,
+		"peek_pos": peek_p,
+		"is_parapet": chosen_parapet,
+	}
+
+func try_moving_suppression(soldier) -> bool:
+	if suppress_lock > 0.0 or not in_field() or game.paused or soldier.defeated or soldier.zone != zone or not is_zone_engaged(zone) or soldier.stun_left > 0.0:
+		return false
+	if player_in_smoke():
+		return false
+	if is_single_attacker_mode() and active_threat_count() >= 1 and active_attacker != soldier:
+		return false
+	var horiz_d := Vector2(soldier.position.x - game.player.position.x, soldier.position.z - game.player.position.z).length()
+	if horiz_d > soldier.attack_range() + 2.0 or not clear_shot(soldier.position):
+		return false
+	suppress_lock = 0.92 if is_single_attacker_mode() else 0.48
+	moving_suppression_shots += 1
+	strike(soldier, true)
+	return true
+
+func strike(soldier, is_moving_suppression: bool = false):
 	if not in_field() or game.paused or soldier.defeated or soldier.zone != zone or not is_zone_engaged(zone) or soldier.stun_left > 0:
 		return
 	if is_instance_valid(game.exploration) and game.exploration.safe():
@@ -1120,26 +1289,30 @@ func strike(soldier):
 		var bonus := 0.05 if is_single_attacker_mode() else 0.10
 		var min_c := 0.10 if is_single_attacker_mode() else 0.20
 		chance = clampf(chance + bonus, min_c, 0.90)
+	if is_moving_suppression:
+		chance *= SUPPRESS_HIT_SCALE
 	var hits_player := shot_rng.randf() < chance
 	if not hits_player:
 		var sideways := (to - from).cross(Vector3.UP).normalized()
 		if sideways.is_zero_approx():
 			sideways = Vector3.RIGHT
 		var side := -1.0 if shot_rng.randf() < 0.5 else 1.0
-		to += sideways * side * shot_rng.randf_range(0.7, 1.4)
+		var spread := shot_rng.randf_range(0.95, 1.85) if is_moving_suppression else shot_rng.randf_range(0.7, 1.4)
+		to += sideways * side * spread + Vector3.UP * (shot_rng.randf_range(-0.22, 0.35) if is_moving_suppression else 0.0)
 		var ray := PhysicsRayQueryParameters3D.create(from, to, 1)
 		var impact := get_world_3d().direct_space_state.intersect_ray(ray)
 		if not impact.is_empty():
 			to = impact.position
-	var beam_col = Color("ff5d6c") if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else Color("ffc483")
+	var beam_col = Color("ffd970") if is_moving_suppression else (Color("ff5d6c") if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else Color("ffc483"))
 	var trace = game._mesh_box(arena, (from + to) / 2, Vector3(0.032, 0.032, from.distance_to(to)), beam_col)
 	trace.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var trace_up := Vector3.RIGHT if absf((to - from).normalized().y) > 0.99 else Vector3.UP
 	trace.look_at(to, trace_up)
 	trace.create_tween().tween_callback(trace.queue_free).set_delay(0.14)
-	game.play_sound("enemy_attack", -19)
+	game.play_sound("enemy_attack", -20 if is_moving_suppression else -19)
 	if not hits_player:
 		miss_left = 1.2
 		return
 	miss_left = 0.0
-	apply_player_damage(damage_per_shot(soldier))
+	var shot_dmg := maxi(2, roundi(float(damage_per_shot(soldier)) * (0.75 if is_moving_suppression else 1.0)))
+	apply_player_damage(shot_dmg)
