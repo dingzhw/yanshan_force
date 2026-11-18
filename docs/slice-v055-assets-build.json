@@ -1,6 +1,6 @@
 {
   "glb": "game\\assets\\slice\\v055_eco_assets.glb",
-  "bytes": 88092,
+  "bytes": 112472,
   "meshes": {
     "animal_rabbit": {
       "verts": 366,
@@ -27,8 +27,8 @@
       "polys": 248
     },
     "horizon_farmhouse": {
-      "verts": 64,
-      "polys": 48
+      "verts": 192,
+      "polys": 144
     },
     "mountain_fence_bay": {
       "verts": 80,

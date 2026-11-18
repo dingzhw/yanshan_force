@@ -273,17 +273,26 @@ func run():
 		shoot(game.player.camera.global_position, rem_target.head_area.global_position)
 
 	verify(
-		int(game.combat.waves_done.get(0, 0)) == 1 and game.combat.wave_wrong_stacks == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0) and game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and game.combat.living_soldiers(0).size() == 5,
-		"wiping all 5 pursuing bots resets wrong-shot buff and spawns Wave 2 (5 fresh bots) in standby"
+		int(game.combat.waves_done.get(0, 0)) == 1 and game.combat.wave_wrong_stacks == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0) and game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 7.5,
+		"wiping all 5 pursuing bots resets wrong-shot buff and starts an 8.5s empty-camp reinforcement interval (zero instant respawn)"
 	)
-	var spawned_at_home := true
+	# Stand right inside Camp 0 (2.0m from center!) while reinforcement timer finishes -> Wave 2 arrives in PATROL and respects 14s truce!
+	game.player.position = center0 + Vector3(0, 0.08, 2.0)
+	await frames(60)
+	verify(
+		game.combat.living_soldiers(0).is_empty() and float(game.combat.zone_reinforce_left.get(0, 0.0)) > 5.5 and game.combat.zone == -1,
+		"standing right inside cleared wave camp during 8.5s interval keeps camp empty for calm looting"
+	)
+	game.combat.update(8.0)
+	await frames(2)
+	var spawned_at_home: bool = (game.combat.living_soldiers(0).size() == 5)
 	for w2_s in game.combat.troops[0]:
 		if Vector2(w2_s.position.x - center0.x, w2_s.position.z - center0.z).length() > 13.5 or w2_s.action != Soldier.Action.PATROL:
 			spawned_at_home = false
-	await frames(45)
+	await frames(90)
 	verify(
-		spawned_at_home and game.combat.zone == -1 and not game.combat.is_zone_engaged(0),
-		"Wave 2 spawns strictly at Camp 0 origin in PATROL standby and waits for player to pull aggro"
+		spawned_at_home and float(game.combat.zone_respawn_grace.get(0, 0.0)) > 10.0 and game.combat.zone == -1 and not game.combat.is_zone_engaged(0),
+		"after 8.5s interval, Wave 2 arrives at Camp 0 in PATROL standby and grants 14s truce without chasing a nearby looting player"
 	)
 
 	# 7. Confidential Operation ("机密行动"): 1.35x valuation, multi-attacker Sniper laser, Smoke/EMP [G], Stim [T], Knife & 3-wave clear
@@ -411,6 +420,7 @@ func run():
 		if not game.combat.is_zone_engaged(2):
 			if int(game.combat.waves_done.get(2, 0)) == 1 and not checked_wave2_no_boss:
 				checked_wave2_no_boss = true
+				game.combat.spawn_pending_wave_now(2)
 				var has_second_boss := false
 				for s_w2 in game.combat.troops[2]:
 					if s_w2.archetype == Soldier.Archetype.BOSS_WARDEN:

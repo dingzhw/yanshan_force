@@ -9,7 +9,7 @@ const LootUI = preload("res://scripts/loot_ui.gd")
 
 const LOOSE_SPOTS = [
 	{"id": "loose_camp_tent", "title": "营地帐篷行军案", "at": Vector3(-5.2, 0.0, 3.8), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "loose_shrine", "title": "土地石龛青石案", "at": Vector3(12.8, 0.0, -14.8), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_shrine", "title": "土地石龛青石案", "at": Vector3(7.4, 0.0, -16.2), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_wangdao", "title": "望稻亭观景石几", "at": Vector3(35.8, 0.0, 23.2), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_poem", "title": "诗碑亭石栏旁", "at": Vector3(-23.2, 0.0, -30.5), "y_off": 0.44, "pedestal": true, "high": false},
 	{"id": "loose_forest", "title": "古道掩体补给台", "at": Vector3(-8.4, 0.0, -35.8), "y_off": 0.44, "pedestal": true, "high": false},

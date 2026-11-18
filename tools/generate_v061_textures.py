@@ -1,17 +1,10 @@
-"""Generate v0.6.4 Jiangnan Qinglü (江南青绿水墨) Stylized Botanical Foliage & Bamboo Textures.
+"""Generate Taiping-Village inspired Jiangnan Cloud-Sea & Terraced Mountain (太平村·江南云海梯田山境)
+painterly brushstroke botanical textures.
 
-Artistic Direction ("不拼写实，做出江南青绿特色，彻底告别一坨绿与塑料感"):
-- Bold clustered bouquet silhouettes (5-7 distinct leaf fans per bough with clean sky-gap negative space)
-  so foliage reads crisply from 3m to 120m without mipmap mush;
-- Built-in Qinglü mineral color-temperature contrast: Deep Ink-Jade / Qingdai (#183832) interior shadow
-  -> Lush Malachite-Emerald (#2e6b4c) mid-canopy -> Warm Tea-Sprout Gold (#86bc5e) sunlit tips;
-- Species color diversity across Yanshan:
-  * camphor_bough.png      : Emerald-jade umbrella clusters + warm amber-coral spring shoots (香樟春梢)
-  * willow_curtain.png     : Airy calligraphic weeping strands in celadon-chartreuse (柳浪缃绿)
-  * maple_tallow_bough.png : Jiangnan Chinese Tallow & Trident Maple in teal-jade, golden ochre & cinnabar red (乌桕丹枫)
-  * bamboo_spray.png       : Crisp ink-wash '个/介' calligraphic bamboo leaf fans (潇湘竹羽)
-  * azalea_bough.png       : Deep jade foliage with vivid cinnabar-rose Rhododendron blossoms (映山红)
-  * bamboo_culm.png        : Stylized celadon-jade internodes with powdery white bloom & dark ink nodes
+Color Science (empirically sampled from the Taiping Village reference):
+- Warm Golden-Olive Sunlit Crowns (R > B: #5c823c -> #809e4a, zero plastic bluish-neon!)
+- Cool Cerulean-Teal Sky-Lit Shadows (B >= R: #224246 -> #345b5c, Ghibli/Shinkai hue shift!)
+- Airy calligraphic negative space ('疏可走马 · 露枝透云天') + creamy mountain blossoms!
 """
 from __future__ import annotations
 
@@ -27,15 +20,12 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def _bleed_rgb_into_alpha(img: Image.Image, iterations: int = 24) -> Image.Image:
-    """Dilate valid RGB colors outward into alpha==0 pixels to eliminate mipmap halos."""
+    """Dilate valid RGB colors outward into alpha==0 pixels to prevent dark/white mipmap fringes."""
     arr = np.array(img, dtype=np.uint8)
     rgb = arr[:, :, :3].astype(np.float32)
     alpha = arr[:, :, 3]
     valid = alpha > 32
-    if np.any(valid):
-        mean_col = rgb[valid].mean(axis=0)
-    else:
-        mean_col = np.array([42.0, 84.0, 62.0], dtype=np.float32)
+    mean_col = rgb[valid].mean(axis=0) if np.any(valid) else np.array([76.0, 108.0, 62.0], dtype=np.float32)
 
     cur_rgb = rgb.copy()
     cur_mask = valid.copy()
@@ -61,7 +51,7 @@ def _bleed_rgb_into_alpha(img: Image.Image, iterations: int = 24) -> Image.Image
     return Image.fromarray(out, mode="RGBA")
 
 
-def _draw_painterly_leaf(
+def _draw_sumi_leaf(
     draw: ImageDraw.ImageDraw,
     base_xy: tuple[float, float],
     angle_rad: float,
@@ -70,107 +60,40 @@ def _draw_painterly_leaf(
     fill_rgb: tuple[int, int, int],
     tip_rgb: tuple[int, int, int] | None = None,
     rim_rgb: tuple[int, int, int] | None = None,
-    vein_rgb: tuple[int, int, int] | None = None,
-    tip_taper: float = 1.38,
+    tip_taper: float = 1.42,
+    alpha: int = 255,
 ) -> None:
-    """Draw a bold stylized brushstroke leaf with subtle ink-jade silhouette rim & sunlit half-blade."""
+    """Draw a painterly brushstroke leaf cluster dab (warm sunlit tip, cool teal base)."""
     bx, by = base_xy
     ca, sa = math.cos(angle_rad), math.sin(angle_rad)
     nx, ny = -sa, ca
-    steps = 12
+    steps = 11
     pts = []
     for i in range(steps + 1):
         t = i / steps
-        half_w = 0.5 * width * math.sin(math.pi * (t ** 0.74)) * ((1.0 - t * 0.25) ** (tip_taper - 1.0))
+        half_w = 0.5 * width * math.sin(math.pi * (t ** 0.72)) * ((1.0 - t * 0.26) ** (tip_taper - 1.0))
         pts.append((bx + ca * length * t + nx * half_w, by + sa * length * t + ny * half_w))
     for i in range(steps - 1, 0, -1):
         t = i / steps
-        half_w = 0.5 * width * math.sin(math.pi * (t ** 0.74)) * ((1.0 - t * 0.25) ** (tip_taper - 1.0))
-        pts.append((bx + ca * length * t - nx * half_w, by + sa * length * length * 0.0 + sa * length * t - ny * half_w))
+        half_w = 0.5 * width * math.sin(math.pi * (t ** 0.72)) * ((1.0 - t * 0.26) ** (tip_taper - 1.0))
+        pts.append((bx + ca * length * t - nx * half_w, by + sa * length * t - ny * half_w))
 
-    # Crisp subtle dark ink-jade outline so overlapping leaves keep painterly separation instead of blurring
     if rim_rgb is not None:
-        draw.polygon(pts, fill=(*rim_rgb, 255))
-        in_pts = []
-        cx = bx + ca * length * 0.46
-        cy = by + sa * length * 0.46
-        for px, py in pts:
-            in_pts.append((cx + (px - cx) * 0.90, cy + (py - cy) * 0.90))
-        draw.polygon(in_pts, fill=(*fill_rgb, 255))
+        draw.polygon(pts, fill=(*rim_rgb, alpha))
+        cx = bx + ca * length * 0.45
+        cy = by + sa * length * 0.45
+        in_pts = [(cx + (px - cx) * 0.91, cy + (py - cy) * 0.91) for px, py in pts]
+        draw.polygon(in_pts, fill=(*fill_rgb, alpha))
     else:
-        draw.polygon(pts, fill=(*fill_rgb, 255))
+        draw.polygon(pts, fill=(*fill_rgb, alpha))
 
-    # Sunlit half-blade brushstroke wash
-    hi_rgb = (
-        min(255, int(fill_rgb[0] * 1.13 + 7)),
-        min(255, int(fill_rgb[1] * 1.12 + 8)),
-        min(255, int(fill_rgb[2] * 1.06 + 4)),
-    )
-    draw.polygon(pts[: steps + 1], fill=(*hi_rgb, 255))
-
-    # Warm tip wash (for Qinglü sunlit tips or camphor coral flush)
     if tip_rgb is not None:
-        tip_poly = []
-        for i in range(5, steps + 1):
-            tip_poly.append(pts[i])
-        for i in range(steps + 1, len(pts) - 4):
-            tip_poly.append(pts[i])
+        tip_poly = pts[4 : steps + 1] + pts[steps + 1 : len(pts) - 3]
         if len(tip_poly) >= 3:
-            draw.polygon(tip_poly, fill=(*tip_rgb, 235))
-
-    if vein_rgb is not None:
-        tip_x = bx + ca * length * 0.86
-        tip_y = by + sa * length * 0.86
-        draw.line([(bx + ca * length * 0.06, by + sa * length * 0.06), (tip_x, tip_y)], fill=(*vein_rgb, 235), width=max(2, int(width * 0.055)))
+            draw.polygon(tip_poly, fill=(*tip_rgb, max(195, alpha - 15)))
 
 
-def _draw_stylized_trilobe(
-    draw: ImageDraw.ImageDraw,
-    base_xy: tuple[float, float],
-    angle_rad: float,
-    length: float,
-    width: float,
-    fill_rgb: tuple[int, int, int],
-    tip_rgb: tuple[int, int, int],
-    rim_rgb: tuple[int, int, int],
-    vein_rgb: tuple[int, int, int],
-) -> None:
-    bx, by = base_xy
-    fork = (bx + math.cos(angle_rad) * length * 0.16, by + math.sin(angle_rad) * length * 0.16)
-    for sgn in (-1.0, 1.0):
-        _draw_painterly_leaf(
-            draw,
-            fork,
-            angle_rad + sgn * 0.64,
-            length * 0.74,
-            width * 0.44,
-            fill_rgb,
-            tip_rgb=tip_rgb,
-            rim_rgb=rim_rgb,
-            vein_rgb=vein_rgb,
-            tip_taper=1.35,
-        )
-    _draw_painterly_leaf(
-        draw,
-        base_xy,
-        angle_rad,
-        length,
-        width * 0.54,
-        fill_rgb,
-        tip_rgb=tip_rgb,
-        rim_rgb=rim_rgb,
-        vein_rgb=vein_rgb,
-        tip_taper=1.32,
-    )
-
-
-def _draw_twig(
-    draw: ImageDraw.ImageDraw,
-    pts: list[tuple[float, float]],
-    w0: float,
-    w1: float,
-    col: tuple[int, int, int],
-) -> None:
+def _draw_twig(draw: ImageDraw.ImageDraw, pts: list[tuple[float, float]], w0: float, w1: float, col: tuple[int, int, int]) -> None:
     n = len(pts) - 1
     for i in range(n):
         t = i / max(1, n)
@@ -178,112 +101,100 @@ def _draw_twig(
         draw.line([pts[i], pts[i + 1]], fill=(*col, 255), width=w)
 
 
-def _draw_azalea_flower(
-    draw: ImageDraw.ImageDraw,
-    center_xy: tuple[float, float],
-    radius: float,
-    rot_rad: float,
-    rng: random.Random,
-) -> None:
-    cx, cy = center_xy
-    petal_base = (rng.randint(204, 232), rng.randint(52, 76), rng.randint(74, 98))
-    petal_rim = (126, 26, 44)
-    for k in range(5):
-        a = rot_rad + k * (math.tau / 5.0) + rng.uniform(-0.07, 0.07)
-        ca, sa = math.cos(a), math.sin(a)
-        nx, ny = -sa, ca
-        pts = [(cx, cy)]
-        for s in range(1, 9):
-            t = s / 8.0
-            hw = radius * 0.52 * math.sin(math.pi * (t ** 0.68))
-            pts.append((cx + ca * radius * t + nx * hw, cy + sa * radius * t + ny * hw))
-        for s in range(7, 0, -1):
-            t = s / 8.0
-            hw = radius * 0.52 * math.sin(math.pi * (t ** 0.68))
-            pts.append((cx + ca * radius * t - nx * hw, cy + sa * radius * t - ny * hw))
-        p_col = (
-            min(255, petal_base[0] + rng.randint(-8, 8)),
-            min(255, petal_base[1] + rng.randint(-6, 8)),
-            min(255, petal_base[2] + rng.randint(-6, 8)),
-        )
-        draw.polygon(pts, fill=(*p_col, 255), outline=(*petal_rim, 255))
-    r_in = radius * 0.25
-    draw.ellipse((cx - r_in, cy - r_in, cx + r_in, cy + r_in), fill=(152, 24, 46, 255))
-    for st in range(5):
-        sa_ang = rot_rad + (st - 2.0) * 0.36
-        sx = cx + math.cos(sa_ang) * radius * 0.50
-        sy = cy + math.sin(sa_ang) * radius * 0.50
-        draw.line([(cx, cy), (sx, sy)], fill=(246, 196, 176, 255), width=2)
-        draw.ellipse((sx - 3.5, sy - 3.5, sx + 3.5, sy + 3.5), fill=(252, 222, 118, 255))
+def build_camphor_ink_dab() -> Path:
+    """Camera-facing painterly cloud-puff foliage dab calibrated to Taiping Village canopies:
+    cool teal-emerald core -> warm golden-sprout sunlit tips!"""
+    sz = 512
+    img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    rng = random.Random(6501)
+
+    sub_clusters = [
+        (256, 295, -math.pi * 0.50, 1.00, False),
+        (148, 268, -math.pi * 0.78, 0.88, False),
+        (366, 264, -math.pi * 0.22, 0.88, False),
+        (192, 176, -math.pi * 0.64, 0.92, True),
+        (324, 174, -math.pi * 0.36, 0.92, True),
+        (256, 142, -math.pi * 0.50, 0.95, True),
+    ]
+    _draw_twig(draw, [(256, 415), (252, 285), (195, 195)], 7, 3, (58, 52, 44))
+    _draw_twig(draw, [(252, 295), (318, 202)], 6, 3, (58, 52, 44))
+
+    for cx, cy, c_ang, sc, is_top in sub_clusters:
+        # Cool sky-lit teal-pine backing dabs (matches Taiping cool canopy shadow #23464b)
+        for k in range(5):
+            a = c_ang + (k - 2.0) * 0.48 + rng.uniform(-0.08, 0.08)
+            L = rng.uniform(98, 128) * sc
+            col = (rng.randint(36, 48), rng.randint(68, 82), rng.randint(66, 76))
+            _draw_sumi_leaf(draw, (cx, cy + 12), a, L, L * 0.56, col, rim_rgb=(28, 52, 54))
+
+        # Mid & sunlit warm golden-olive spring-sprout dabs (R > B: #5c843d -> #82a44c!)
+        for k in range(5):
+            a = c_ang + (k - 2.0) * 0.42 + rng.uniform(-0.07, 0.07)
+            ox = cx + math.cos(a) * 14
+            oy = cy + math.sin(a) * 14
+            L = rng.uniform(84, 114) * sc
+            if is_top:
+                col = (rng.randint(92, 110), rng.randint(128, 146), rng.randint(62, 74))
+                tip = (rng.randint(122, 142), rng.randint(154, 172), rng.randint(72, 84))
+            else:
+                col = (rng.randint(68, 84), rng.randint(104, 120), rng.randint(56, 68))
+                tip = (rng.randint(94, 112), rng.randint(130, 146), rng.randint(64, 76))
+            _draw_sumi_leaf(draw, (ox, oy), a, L, L * 0.52, col, tip_rgb=tip, rim_rgb=(44, 74, 52))
+
+    arr = np.array(img)
+    rgb_blur = np.array(Image.fromarray(arr[:, :, :3]).filter(ImageFilter.GaussianBlur(1.0)))
+    arr[:, :, :3] = rgb_blur
+    out_img = _bleed_rgb_into_alpha(Image.fromarray(arr, mode="RGBA"), iterations=20)
+    path = OUT / "camphor_ink_dab.png"
+    out_img.save(path)
+    return path
 
 
 def build_camphor_bough() -> Path:
-    """Jiangnan Qinglü Camphor (香樟): 6 bold cloud-fan bouquets with ink-jade core & spring tea-gold/amber tips."""
+    """Painterly Camphor bough with warm timber twigs & golden-sprout spring foliage."""
     sz = 1024
     img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    rng = random.Random(6401)
+    rng = random.Random(6502)
 
-    bark_ink = (52, 42, 36)
+    bark_warm = (64, 56, 46)
     branches = [
-        [(512, 998), (508, 810), (504, 575), (512, 310)],
-        [(509, 855), (345, 710), (225, 555)],
-        [(509, 845), (675, 700), (795, 545)],
-        [(505, 610), (335, 445), (235, 295)],
-        [(505, 600), (680, 435), (780, 290)],
+        [(512, 998), (496, 790), (518, 545), (498, 295)],
+        [(500, 845), (332, 695), (212, 540)],
+        [(502, 825), (685, 685), (805, 525)],
+        [(514, 585), (330, 425), (235, 285)],
+        [(514, 575), (685, 420), (782, 280)],
     ]
     for idx, br in enumerate(branches):
-        _draw_twig(draw, br, 18 if idx == 0 else 12, 5, bark_ink)
+        _draw_twig(draw, br, 20 if idx == 0 else 13, 5, bark_warm)
 
-    # 6 distinct, well-spaced cloud-fan bouquets leaving airy sky gaps between clusters!
     bouquets = [
-        (512, 765, -math.pi * 0.5, 1.02, False),   # Basal center cushion
-        (255, 585, -math.pi * 0.72, 0.98, False),  # Lower-left fan
-        (770, 575, -math.pi * 0.28, 0.98, False),  # Lower-right fan
-        (260, 320, -math.pi * 0.66, 1.04, True),   # Upper-left sunlit fan
-        (762, 315, -math.pi * 0.34, 1.04, True),   # Upper-right sunlit fan
-        (512, 245, -math.pi * 0.50, 1.10, True),   # Apex crown fan
+        (508, 745, -math.pi * 0.50, 0.92, False),
+        (235, 555, -math.pi * 0.74, 0.90, False),
+        (785, 545, -math.pi * 0.26, 0.90, False),
+        (252, 305, -math.pi * 0.66, 0.94, True),
+        (768, 298, -math.pi * 0.34, 0.94, True),
+        (504, 240, -math.pi * 0.50, 0.98, True),
     ]
-
-    rim_ink = (20, 46, 40)
     for bx, by, center_ang, sc, is_upper in bouquets:
-        # Layer 1: Deep Qingdai Ink-Jade backing fan (cool teal-emerald shadow core)
         for fi in range(5):
-            a = center_ang + (fi - 2.0) * 0.44 + rng.uniform(-0.06, 0.06)
-            L = rng.uniform(185, 220) * sc
-            W = L * 0.54
-            col = (rng.randint(24, 34), rng.randint(58, 76), rng.randint(50, 64))
-            _draw_painterly_leaf(draw, (bx, by + 26), a, L, W, col, rim_rgb=(16, 36, 32))
-
-        # Layer 2: Mid Malachite-Jade fan (rich Jiangnan camphor green)
-        for fi in range(5):
-            a = center_ang + (fi - 2.0) * 0.38 + rng.uniform(-0.05, 0.05)
-            ox = bx + math.cos(a) * 24
-            oy = by + math.sin(a) * 24
+            a = center_ang + (fi - 2.0) * 0.45 + rng.uniform(-0.06, 0.06)
             L = rng.uniform(165, 198) * sc
-            W = L * 0.50
-            col = (rng.randint(42, 58), rng.randint(96, 122), rng.randint(64, 80))
-            tip_c = (rng.randint(76, 98), rng.randint(138, 162), rng.randint(72, 86))
-            _draw_painterly_leaf(draw, (ox, oy), a, L, W, col, tip_rgb=tip_c, rim_rgb=rim_ink, vein_rgb=(98, 152, 84))
-
-        # Layer 3: Sunlit Spring-Tea Gold & authentic Camphor Amber-Coral young shoots at crown tips
-        n_top = 4 if is_upper else 3
-        for fi in range(n_top):
-            a = center_ang + (fi - (n_top - 1) * 0.5) * 0.36 + rng.uniform(-0.04, 0.04)
-            ox = bx + math.cos(a) * 52
-            oy = by + math.sin(a) * 52 - 10
-            L = rng.uniform(135, 162) * sc
-            W = L * 0.48
-            if is_upper and fi in (0, n_top - 1) and rng.random() < 0.55:
-                # Subtle warm bronze-coral camphor spring flush leaf!
-                col = (rng.randint(128, 152), rng.randint(124, 144), rng.randint(58, 70))
-                tip_c = (rng.randint(176, 198), rng.randint(118, 138), rng.randint(64, 76))
-                vein_c = (196, 158, 86)
+            col = (rng.randint(36, 48), rng.randint(68, 82), rng.randint(66, 76))
+            _draw_sumi_leaf(draw, (bx, by + 22), a, L, L * 0.52, col, rim_rgb=(28, 52, 54))
+        for fi in range(5):
+            a = center_ang + (fi - 2.0) * 0.39 + rng.uniform(-0.05, 0.05)
+            ox = bx + math.cos(a) * 28
+            oy = by + math.sin(a) * 28
+            L = rng.uniform(145, 175) * sc
+            if is_upper:
+                col = (rng.randint(92, 110), rng.randint(128, 146), rng.randint(62, 74))
+                tip_c = (rng.randint(120, 140), rng.randint(152, 170), rng.randint(70, 82))
             else:
-                col = (rng.randint(78, 102), rng.randint(136, 162), rng.randint(66, 80))
-                tip_c = (rng.randint(118, 142), rng.randint(172, 194), rng.randint(78, 92))
-                vein_c = (146, 192, 98)
-            _draw_painterly_leaf(draw, (ox, oy), a, L, W, col, tip_rgb=tip_c, rim_rgb=(28, 62, 48), vein_rgb=vein_c)
+                col = (rng.randint(68, 84), rng.randint(104, 120), rng.randint(56, 68))
+                tip_c = (rng.randint(92, 110), rng.randint(128, 144), rng.randint(62, 74))
+            _draw_sumi_leaf(draw, (ox, oy), a, L, L * 0.48, col, tip_rgb=tip_c, rim_rgb=(42, 72, 50))
 
     out_img = _bleed_rgb_into_alpha(img, iterations=24)
     path = OUT / "camphor_bough.png"
@@ -292,45 +203,36 @@ def build_camphor_bough() -> Path:
 
 
 def build_willow_curtain() -> Path:
-    """Calligraphic Jiangnan Weeping Willow (垂柳): 9 airy silk-brush strands in celadon & chartreuse."""
+    """Sunlit Jiangnan Spring Weeping Willow ('万条垂下绿丝绦'): warm golden-jade slender wisps + >68% sky air."""
     sz = 1024
     img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    rng = random.Random(6402)
+    rng = random.Random(6503)
 
-    # Top leafy arch crown (airy clusters, never a solid bar)
-    for ci in range(6):
-        cx = 120 + (ci / 5.0) * (sz - 240)
-        cy = 96 - 28 * math.sin(math.pi * (ci / 5.0))
-        for k in range(4):
-            ang = math.pi * 0.5 + (k - 1.5) * 0.52
-            L = rng.uniform(118, 148)
-            col = (rng.randint(62, 84), rng.randint(118, 146), rng.randint(62, 76))
-            tip_c = (rng.randint(108, 132), rng.randint(164, 188), rng.randint(78, 92))
-            _draw_painterly_leaf(draw, (cx, cy), ang, L, L * 0.28, col, tip_rgb=tip_c, rim_rgb=(28, 60, 48), tip_taper=1.55)
+    arch_pts = [(75, 115), (295, 58), (512, 44), (735, 62), (945, 120)]
+    _draw_twig(draw, arch_pts, 11, 6, (62, 58, 46))
 
-    # 9 well-separated graceful weeping whips so sky & water shimmer cleanly between strands!
-    n_whips = 9
+    n_whips = 7
     for wi in range(n_whips):
         u = (wi + 0.5) / n_whips
-        start_x = 86 + u * (sz - 172) + rng.uniform(-10, 10)
-        start_y = 92 - 26 * math.sin(math.pi * u)
-        end_y = rng.uniform(820, 985) if (wi % 2 == 0) else rng.uniform(700, 865)
-        sway_amp = rng.uniform(16, 30)
+        start_x = 105 + u * (sz - 210) + rng.uniform(-16, 16)
+        start_y = 66 + 48 * ((2.0 * u - 1.0) ** 2)
+        end_y = rng.uniform(810, 965) if (wi % 2 == 0) else rng.uniform(620, 785)
+        sway_amp = rng.uniform(22, 42)
         sway_phase = rng.uniform(0, math.tau)
         whip_pts = []
         steps = 16
         for s in range(steps + 1):
             t = s / steps
-            wx = start_x + sway_amp * math.sin(t * 3.0 + sway_phase) * t
+            wx = start_x + 26.0 * (t ** 1.5) + sway_amp * math.sin(t * 2.6 + sway_phase) * t
             wy = start_y + (end_y - start_y) * t
             whip_pts.append((wx, wy))
-        _draw_twig(draw, whip_pts, 5, 2, (88, 118, 56))
+        _draw_twig(draw, whip_pts, 5, 2, (68, 84, 52))
 
-        is_foreground_whip = (wi % 2 == 0)
-        n_leaves = 14
+        is_fg = (wi % 2 == 0)
+        n_leaves = 11
         for li in range(n_leaves):
-            lt = (li + 0.25) / n_leaves
+            lt = (li + 0.2) / n_leaves
             idx_f = lt * steps
             i0 = min(steps - 1, int(idx_f))
             frac = idx_f - i0
@@ -338,18 +240,16 @@ def build_willow_curtain() -> Path:
             py = whip_pts[i0][1] * (1.0 - frac) + whip_pts[i0 + 1][1] * frac
             tang = math.atan2(whip_pts[i0 + 1][1] - whip_pts[i0][1], whip_pts[i0 + 1][0] - whip_pts[i0][0])
             side = -1.0 if (li % 2 == 0) else 1.0
-            ang = tang + side * rng.uniform(0.28, 0.52)
-            L = rng.uniform(118, 152) * (1.0 - 0.18 * lt)
-            W = L * 0.25
-            if is_foreground_whip:
-                col = (rng.randint(78, 102), rng.randint(138, 166), rng.randint(64, 78))
-                tip_c = (rng.randint(124, 148), rng.randint(178, 202), rng.randint(82, 96))
-                vein_c = (148, 196, 98)
+            ang = tang + side * rng.uniform(0.24, 0.46)
+            L = rng.uniform(98, 130) * (1.0 - 0.22 * lt)
+            W = L * 0.175
+            if is_fg:
+                col = (rng.randint(98, 116), rng.randint(136, 154), rng.randint(64, 76))
+                tip_c = (rng.randint(126, 146), rng.randint(162, 180), rng.randint(74, 88))
             else:
-                col = (rng.randint(42, 62), rng.randint(96, 122), rng.randint(58, 72))
-                tip_c = (rng.randint(76, 98), rng.randint(136, 158), rng.randint(68, 82))
-                vein_c = (98, 152, 82)
-            _draw_painterly_leaf(draw, (px, py), ang, L, W, col, tip_rgb=tip_c, rim_rgb=(24, 54, 44), vein_rgb=vein_c, tip_taper=1.62)
+                col = (rng.randint(58, 72), rng.randint(94, 110), rng.randint(66, 76))
+                tip_c = (rng.randint(82, 98), rng.randint(118, 134), rng.randint(66, 78))
+            _draw_sumi_leaf(draw, (px, py), ang, L, W, col, tip_rgb=tip_c, rim_rgb=(44, 72, 52), tip_taper=1.78)
 
     out_img = _bleed_rgb_into_alpha(img, iterations=24)
     path = OUT / "willow_curtain.png"
@@ -358,61 +258,51 @@ def build_willow_curtain() -> Path:
 
 
 def build_maple_tallow_bough() -> Path:
-    """Jiangnan Chinese Tallow & Trident Maple (乌桕丹枫): Teal-jade base + golden-ochre & cinnabar-red crown!"""
+    """Sunlit golden-amber & coral-apricot mountain broadleaf accent (matching Taiping warm slope highlights)."""
     sz = 1024
     img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    rng = random.Random(6403)
+    rng = random.Random(6504)
 
     branches = [
-        [(512, 998), (514, 800), (504, 565), (512, 295)],
-        [(512, 845), (345, 695), (225, 535)],
-        [(512, 835), (678, 690), (798, 530)],
-        [(506, 595), (338, 430), (242, 285)],
-        [(506, 585), (678, 425), (776, 280)],
+        [(512, 998), (506, 795), (512, 555), (504, 295)],
+        [(508, 840), (340, 690), (220, 535)],
+        [(508, 830), (680, 685), (798, 530)],
+        [(510, 585), (338, 430), (242, 285)],
+        [(510, 575), (678, 425), (776, 280)],
     ]
     for idx, br in enumerate(branches):
-        _draw_twig(draw, br, 17 if idx == 0 else 11, 4, (58, 44, 38))
+        _draw_twig(draw, br, 18 if idx == 0 else 12, 4, (62, 54, 45))
 
     bouquets = [
-        (512, 760, -math.pi * 0.50, 0.98, "jade_gold"),
-        (250, 560, -math.pi * 0.72, 0.96, "ochre"),
-        (775, 555, -math.pi * 0.28, 0.96, "jade_gold"),
-        (262, 310, -math.pi * 0.65, 1.04, "crimson"),
-        (760, 305, -math.pi * 0.35, 1.04, "ochre"),
-        (512, 235, -math.pi * 0.50, 1.08, "crimson"),
+        (512, 755, -math.pi * 0.50, 0.94, "sprout"),
+        (248, 555, -math.pi * 0.72, 0.92, "amber"),
+        (775, 550, -math.pi * 0.28, 0.92, "sprout"),
+        (262, 310, -math.pi * 0.65, 0.96, "coral"),
+        (760, 305, -math.pi * 0.35, 0.96, "amber"),
+        (512, 240, -math.pi * 0.50, 1.00, "coral"),
     ]
-
     for bx, by, c_ang, sc, tone in bouquets:
-        # Deep cool teal-umber shadow backing leaves (keeps Qinglü harmony!)
         for fi in range(4):
-            a = c_ang + (fi - 1.5) * 0.48 + rng.uniform(-0.06, 0.06)
-            L = rng.uniform(170, 205) * sc
-            col = (rng.randint(36, 52), rng.randint(62, 80), rng.randint(48, 60))
-            _draw_stylized_trilobe(draw, (bx, by + 22), a, L, L * 0.88, col, (58, 88, 58), (20, 38, 34), (72, 102, 64))
-
-        # Mid & Upper Warm Jiangnan Autumn Tallow/Maple Bouquets
+            a = c_ang + (fi - 1.5) * 0.46 + rng.uniform(-0.06, 0.06)
+            L = rng.uniform(155, 185) * sc
+            col = (rng.randint(44, 56), rng.randint(72, 86), rng.randint(66, 76))
+            _draw_sumi_leaf(draw, (bx, by + 18), a, L, L * 0.56, col, rim_rgb=(32, 54, 54))
         for fi in range(5):
             a = c_ang + (fi - 2.0) * 0.38 + rng.uniform(-0.05, 0.05)
-            ox = bx + math.cos(a) * 34
-            oy = by + math.sin(a) * 34 - 8
-            L = rng.uniform(145, 178) * sc
-            if tone == "crimson":
-                col = (rng.randint(168, 196), rng.randint(72, 94), rng.randint(52, 66))
-                tip_c = (rng.randint(208, 232), rng.randint(106, 132), rng.randint(64, 78))
-                rim_c = (68, 30, 28)
-                vein_c = (228, 148, 86)
-            elif tone == "ochre":
-                col = (rng.randint(172, 198), rng.randint(128, 152), rng.randint(54, 68))
-                tip_c = (rng.randint(214, 236), rng.randint(168, 192), rng.randint(74, 90))
-                rim_c = (62, 46, 28)
-                vein_c = (234, 198, 104)
+            ox = bx + math.cos(a) * 28
+            oy = by + math.sin(a) * 28 - 6
+            L = rng.uniform(135, 165) * sc
+            if tone == "coral":
+                col = (rng.randint(162, 180), rng.randint(98, 114), rng.randint(76, 88))
+                tip_c = (rng.randint(186, 204), rng.randint(122, 138), rng.randint(88, 100))
+            elif tone == "amber":
+                col = (rng.randint(158, 176), rng.randint(136, 152), rng.randint(68, 82))
+                tip_c = (rng.randint(184, 202), rng.randint(160, 176), rng.randint(82, 96))
             else:
-                col = (rng.randint(76, 104), rng.randint(124, 148), rng.randint(58, 72))
-                tip_c = (rng.randint(164, 190), rng.randint(146, 168), rng.randint(66, 80))
-                rim_c = (28, 54, 42)
-                vein_c = (186, 176, 88)
-            _draw_stylized_trilobe(draw, (ox, oy), a, L, L * 0.86, col, tip_c, rim_c, vein_c)
+                col = (rng.randint(88, 106), rng.randint(124, 140), rng.randint(60, 72))
+                tip_c = (rng.randint(118, 136), rng.randint(150, 166), rng.randint(72, 84))
+            _draw_sumi_leaf(draw, (ox, oy), a, L, L * 0.54, col, tip_rgb=tip_c, rim_rgb=(46, 62, 48))
 
     out_img = _bleed_rgb_into_alpha(img, iterations=24)
     path = OUT / "maple_tallow_bough.png"
@@ -421,11 +311,11 @@ def build_maple_tallow_bough() -> Path:
 
 
 def build_azalea_bough() -> Path:
-    """Stylized Jiangnan Mountain Azalea (映山红): Deep ink-emerald bouquets + vivid cinnabar blossoms."""
+    """Taiping Village foreground mountain blossom bush: lush emerald-olive leaves + creamy-ivory & soft coral blossoms!"""
     sz = 1024
     img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    rng = random.Random(6406)
+    rng = random.Random(6506)
 
     branches = [
         [(512, 998), (508, 805), (504, 580), (512, 330)],
@@ -435,7 +325,7 @@ def build_azalea_bough() -> Path:
         [(506, 605), (675, 450), (772, 310)],
     ]
     for idx, br in enumerate(branches):
-        _draw_twig(draw, br, 16 if idx == 0 else 11, 4, (62, 46, 38))
+        _draw_twig(draw, br, 16 if idx == 0 else 11, 4, (58, 54, 44))
 
     bouquets = [
         (512, 760, -math.pi * 0.50),
@@ -445,17 +335,27 @@ def build_azalea_bough() -> Path:
         (760, 330, -math.pi * 0.36),
         (512, 270, -math.pi * 0.50),
     ]
-    for bx, by, c_ang in bouquets:
+    for bi, (bx, by, c_ang) in enumerate(bouquets):
         for fi in range(5):
             a = c_ang + (fi - 2.0) * 0.42 + rng.uniform(-0.05, 0.05)
-            L = rng.uniform(145, 178)
-            col = (rng.randint(32, 48), rng.randint(78, 104), rng.randint(54, 68))
-            tip_c = (rng.randint(62, 84), rng.randint(122, 146), rng.randint(66, 80))
-            _draw_painterly_leaf(draw, (bx, by), a, L, L * 0.50, col, tip_rgb=tip_c, rim_rgb=(18, 42, 36), vein_rgb=(88, 142, 76))
+            L = rng.uniform(140, 172)
+            col = (rng.randint(58, 74), rng.randint(96, 114), rng.randint(58, 70))
+            tip_c = (rng.randint(86, 106), rng.randint(126, 144), rng.randint(64, 76))
+            _draw_sumi_leaf(draw, (bx, by), a, L, L * 0.48, col, tip_rgb=tip_c, rim_rgb=(34, 62, 54))
 
-        # Vivid Cinnabar-Rose blossom cluster crowning each bouquet
-        for fx_off, fy_off, fr in ((-32, -32, 54), (32, -28, 52), (0, -64, 58)):
-            _draw_azalea_flower(draw, (bx + fx_off, by + fy_off), fr, rng.uniform(0, math.tau), rng)
+        # Luminous creamy-white mountain camellia/pear blossoms + golden stamen heart (just like Taiping bottom-left!)
+        if bi >= 1:
+            is_blush = (bi == 4)
+            petal_col = (242, 198, 194, 250) if is_blush else (246, 242, 228, 252)
+            heart_col = (228, 174, 64, 255)
+            for fx_off, fy_off, fr in ((-28, -28, 36), (30, -20, 32)):
+                cx, cy = bx + fx_off, by + fy_off
+                for k in range(5):
+                    pa = k * math.tau / 5.0 + rng.uniform(-0.08, 0.08)
+                    px = cx + math.cos(pa) * fr * 0.56
+                    py = cy + math.sin(pa) * fr * 0.56
+                    draw.ellipse((px - fr * 0.44, py - fr * 0.44, px + fr * 0.44, py + fr * 0.44), fill=petal_col)
+                draw.ellipse((cx - 9, cy - 9, cx + 9, cy + 9), fill=heart_col)
 
     out_img = _bleed_rgb_into_alpha(img, iterations=24)
     path = OUT / "azalea_bough.png"
@@ -464,11 +364,11 @@ def build_azalea_bough() -> Path:
 
 
 def build_bamboo_spray() -> Path:
-    """Calligraphic Ink-Wash Moso Bamboo (潇湘翠竹) '个/介' leaf fans with razor-sharp silhouettes."""
+    """Sunlit Spring Moso Bamboo ('翠竹介字叶'): cool teal-jade backing + sunlit golden-bamboo blades."""
     sz = 1024
     img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    rng = random.Random(6404)
+    rng = random.Random(6505)
 
     stems = [
         [(512, 995), (508, 760), (502, 505), (512, 255)],
@@ -478,9 +378,8 @@ def build_bamboo_spray() -> Path:
         [(504, 555), (665, 390), (765, 240)],
     ]
     for st in stems:
-        _draw_twig(draw, st, 10, 3, (66, 104, 56))
+        _draw_twig(draw, st, 9, 3, (66, 86, 56))
 
-    # Crisp 4-blade '介' calligraphic fans at stem nodes (clean gaps, zero noisy overlap)
     fan_nodes = [
         (235, 465, -math.pi * 0.72, False),
         (785, 455, -math.pi * 0.28, False),
@@ -490,26 +389,21 @@ def build_bamboo_spray() -> Path:
         (512, 245, -math.pi * 0.50, True),
     ]
     for nx, ny, base_ang, is_sun in fan_nodes:
-        # 2 shaded jade-ink backing blades
-        for sgn in (-0.52, 0.52):
-            L = rng.uniform(235, 275)
-            col = (rng.randint(28, 42), rng.randint(72, 94), rng.randint(54, 68))
-            _draw_painterly_leaf(draw, (nx, ny + 12), base_ang + sgn, L, L * 0.17, col, rim_rgb=(16, 40, 34), tip_taper=1.72)
-
-        # 4 foreground calligraphic '介' blades
+        for sgn in (-0.50, 0.50):
+            L = rng.uniform(225, 265)
+            col = (rng.randint(38, 50), rng.randint(70, 84), rng.randint(64, 74))
+            _draw_sumi_leaf(draw, (nx, ny + 10), base_ang + sgn, L, L * 0.155, col, rim_rgb=(28, 52, 52), tip_taper=1.78)
         for fi in range(4):
             fa = base_ang + (fi - 1.5) * 0.44 + rng.uniform(-0.04, 0.04)
-            L = rng.uniform(225, 285)
-            W = L * 0.175
+            L = rng.uniform(215, 275)
+            W = L * 0.16
             if is_sun:
-                col = (rng.randint(66, 88), rng.randint(132, 158), rng.randint(68, 82))
-                tip_c = (rng.randint(112, 138), rng.randint(174, 198), rng.randint(82, 96))
-                vein_c = (142, 196, 102)
+                col = (rng.randint(88, 104), rng.randint(124, 142), rng.randint(60, 72))
+                tip_c = (rng.randint(114, 132), rng.randint(150, 168), rng.randint(70, 82))
             else:
-                col = (rng.randint(46, 66), rng.randint(106, 132), rng.randint(62, 76))
-                tip_c = (rng.randint(84, 108), rng.randint(148, 172), rng.randint(74, 88))
-                vein_c = (112, 168, 90)
-            _draw_painterly_leaf(draw, (nx, ny), fa, L, W, col, tip_rgb=tip_c, rim_rgb=(20, 48, 40), vein_rgb=vein_c, tip_taper=1.75)
+                col = (rng.randint(62, 78), rng.randint(98, 114), rng.randint(60, 70))
+                tip_c = (rng.randint(86, 102), rng.randint(122, 138), rng.randint(64, 76))
+            _draw_sumi_leaf(draw, (nx, ny), fa, L, W, col, tip_rgb=tip_c, rim_rgb=(38, 66, 50), tip_taper=1.80)
 
     out_img = _bleed_rgb_into_alpha(img, iterations=24)
     path = OUT / "bamboo_spray.png"
@@ -518,48 +412,44 @@ def build_bamboo_spray() -> Path:
 
 
 def build_bamboo_culm() -> Path:
-    """Stylized Qinglü celadon-jade Moso bamboo culm with powdery node bloom & crisp ink rings."""
+    """Sunlit spring jade-celadon Moso bamboo culm + powdery white nodal frost + crisp olive-ink rings."""
     w, h = 512, 1024
-    rng = np.random.default_rng(6405)
+    rng = np.random.default_rng(6507)
     yy, xx = np.meshgrid(np.linspace(0.0, 1.0, h, endpoint=False), np.linspace(0.0, 1.0, w, endpoint=False), indexing="ij")
 
-    fibers = 3.2 * np.sin(xx * math.tau * 28.0) + rng.normal(0.0, 1.4, size=(h, w))
+    fibers = 2.8 * np.sin(xx * math.tau * 26.0) + rng.normal(0.0, 1.2, size=(h, w))
     node_phase = (yy * 4.0) % 1.0
     dist_to_node = np.minimum(node_phase, 1.0 - node_phase)
 
-    # Subtle vertical celadon-to-warm-jade gradient within each internode
     grad = node_phase
     arr = np.zeros((h, w, 3), dtype=np.float32)
-    arr[:, :, 0] = 68.0 + 22.0 * grad + fibers * 0.6
-    arr[:, :, 1] = 116.0 + 24.0 * grad + fibers * 0.8
-    arr[:, :, 2] = 74.0 + 10.0 * grad + fibers * 0.5
+    arr[:, :, 0] = 96.0 + 18.0 * grad + fibers * 0.5
+    arr[:, :, 1] = 128.0 + 20.0 * grad + fibers * 0.6
+    arr[:, :, 2] = 82.0 + 14.0 * grad + fibers * 0.5
 
-    # Powdery white-jade waxy bloom right below each node ring (竹节白霜)
-    bloom = np.exp(-((node_phase - 0.045) / 0.030) ** 2) * 0.42
-    arr = arr * (1.0 - bloom[:, :, None]) + np.array([182.0, 204.0, 180.0])[None, None, :] * bloom[:, :, None]
+    bloom = np.exp(-((node_phase - 0.042) / 0.028) ** 2) * 0.48
+    arr = arr * (1.0 - bloom[:, :, None]) + np.array([206.0, 218.0, 198.0])[None, None, :] * bloom[:, :, None]
 
-    # Crisp dark ink-green nodal line + warm highlight lip
-    dark_ring = np.exp(-(dist_to_node / 0.010) ** 2) * 0.76
-    arr = arr * (1.0 - dark_ring[:, :, None]) + np.array([26.0, 48.0, 36.0])[None, None, :] * dark_ring[:, :, None]
+    dark_ring = np.exp(-(dist_to_node / 0.010) ** 2) * 0.78
+    arr = arr * (1.0 - dark_ring[:, :, None]) + np.array([38.0, 54.0, 42.0])[None, None, :] * dark_ring[:, :, None]
 
-    ridge = np.exp(-((node_phase - 0.982) / 0.009) ** 2) * 0.40
-    arr = arr * (1.0 - ridge[:, :, None]) + np.array([148.0, 176.0, 116.0])[None, None, :] * ridge[:, :, None]
-
-    img = Image.fromarray(np.clip(arr, 16, 236).astype(np.uint8), mode="RGB")
+    img = Image.fromarray(np.clip(arr, 22, 235).astype(np.uint8), mode="RGB")
     path = OUT / "bamboo_culm.png"
     img.filter(ImageFilter.GaussianBlur(radius=0.30)).save(path)
     return path
 
 
 def _stage_bark_diffuse(src: Path, dst: Path, mul_rgb: tuple[float, float, float]) -> None:
-    """Soften high-frequency bark noise slightly and tint toward warm-cool Qinglü mountain bark."""
+    """Warm natural sunlit mountain bark (never pitch-black charcoal!)."""
     im = Image.open(src).convert("RGB").resize((512, 512), Image.Resampling.LANCZOS)
     im = im.filter(ImageFilter.GaussianBlur(radius=0.45))
     arr = np.array(im, dtype=np.float32)
+    lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    arr = lum[:, :, None] * 0.45 + arr * 0.55
     arr[:, :, 0] *= mul_rgb[0]
     arr[:, :, 1] *= mul_rgb[1]
     arr[:, :, 2] *= mul_rgb[2]
-    Image.fromarray(np.clip(arr, 16, 230).astype(np.uint8), mode="RGB").save(dst, quality=90, optimize=True)
+    Image.fromarray(np.clip(arr, 26, 205).astype(np.uint8), mode="RGB").save(dst, quality=90, optimize=True)
 
 
 if __name__ == "__main__":
@@ -569,9 +459,9 @@ if __name__ == "__main__":
     staged = []
     if dl_ph.exists():
         bark_tones = {
-            "japanese_camphor_bark": (0.52, 0.50, 0.48),
-            "bark_willow": (0.60, 0.60, 0.56),
-            "trident_maple_bark": (0.58, 0.54, 0.52),
+            "japanese_camphor_bark": (0.58, 0.53, 0.46),
+            "bark_willow": (0.60, 0.56, 0.48),
+            "trident_maple_bark": (0.62, 0.55, 0.48),
         }
         for bark, tone in bark_tones.items():
             src_d = dl_ph / f"{bark}_diffuse.jpg"
@@ -584,18 +474,9 @@ if __name__ == "__main__":
                 dst_n = OUT / f"{bark}_norm_512.jpg"
                 Image.open(src_n).convert("RGB").resize((512, 512), Image.Resampling.LANCZOS).save(dst_n, quality=88, optimize=True)
                 staged.append(dst_n.name)
-        for ch, dst_name in (
-            ("diffuse", "river_pebbles_color.jpg"),
-            ("nor_gl", "river_pebbles_normal.jpg"),
-            ("rough", "river_pebbles_rough.jpg"),
-        ):
-            src = dl_ph / f"river_small_rocks_{ch}.jpg"
-            if src.exists():
-                dst = slice_dir / dst_name
-                Image.open(src).convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS).save(dst, quality=88, optimize=True)
-                staged.append(dst_name)
 
     paths = [
+        build_camphor_ink_dab(),
         build_camphor_bough(),
         build_willow_curtain(),
         build_maple_tallow_bough(),
@@ -603,4 +484,4 @@ if __name__ == "__main__":
         build_bamboo_spray(),
         build_bamboo_culm(),
     ]
-    print("Generated v0.6.4 Qinglu botanical textures:", [p.name for p in paths], "staged PBR:", staged)
+    print("Generated Taiping-style Jiangnan botanical textures:", [p.name for p in paths], "staged bark:", staged)

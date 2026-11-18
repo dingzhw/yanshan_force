@@ -323,36 +323,70 @@ def build_berry_fern() -> bpy.types.Object:
     return join_parts("flora_berry_fern", parts)
 
 
+def auto_box_uv_and_vcol(bm: bmesh.types.BMesh, h_max: float = 3.8, scale: float = 0.55) -> None:
+    uv_lay = bm.loops.layers.uv.verify()
+    col_lay = bm.loops.layers.color.new("Color") if "Color" not in bm.loops.layers.color else bm.loops.layers.color["Color"]
+    for f in bm.faces:
+        n = f.normal
+        ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+        for lp in f.loops:
+            co = lp.vert.co
+            if az >= ax and az >= ay:
+                lp[uv_lay].uv = (co.x * scale, co.y * scale)
+            elif ax >= ay:
+                lp[uv_lay].uv = (co.y * scale, co.z * scale)
+            else:
+                lp[uv_lay].uv = (co.x * scale, co.z * scale)
+            hr = max(0.0, min(1.0, co.z / max(0.25, h_max)))
+            lp[col_lay] = (hr, 0.82 + 0.18 * hr, 0.85, 1.0)
+
+
 def build_horizon_farmhouse() -> bpy.types.Object:
-    m_wall = make_mat("Mat_WhitePlaster", (0.55, 0.54, 0.49), roughness=0.92)
-    m_base = make_mat("Mat_StonePlinth", (0.28, 0.29, 0.26), roughness=0.95)
-    m_roof = make_mat("Mat_DarkTileRoof", (0.17, 0.20, 0.23), roughness=0.78)
-    m_timber = make_mat("Mat_CottageTimber", (0.30, 0.21, 0.14), roughness=0.84)
-    m_window = make_mat("Mat_ShadedWindow", (0.25, 0.28, 0.27), roughness=0.45)
+    """Authentic Hui-style Taiping Village cottage ('太平村粉墙黛瓦·马头墙民居')."""
+    m_wall = make_mat("Mat_WhitePlaster", (0.88, 0.86, 0.81), roughness=0.90)
+    m_base = make_mat("Mat_StonePlinth", (0.34, 0.37, 0.38), roughness=0.92)
+    m_roof = make_mat("Mat_DarkTileRoof", (0.20, 0.25, 0.29), roughness=0.68)
+    m_timber = make_mat("Mat_CottageTimber", (0.38, 0.27, 0.18), roughness=0.82)
+    m_window = make_mat("Mat_ShadedWindow", (0.22, 0.27, 0.30), roughness=0.42)
 
     parts = []
     bm_w = bmesh.new()
-    add_box(bm_w, (0.0, 1.50, 0.0), (5.1, 2.30, 3.7))
+    add_box(bm_w, (0.0, 1.52, 0.0), (5.10, 2.34, 3.72))
+    # Stepped Hui-style Matouqiang ('三级马头墙') on -X and +X gable ends rising above the roof!
+    for sx in (-2.56, 2.56):
+        add_box(bm_w, (sx, 3.06, 0.0), (0.22, 0.88, 3.84))
+        add_box(bm_w, (sx, 3.64, 0.0), (0.22, 0.64, 2.48))
+        add_box(bm_w, (sx, 4.06, 0.0), (0.22, 0.44, 1.24))
+    auto_box_uv_and_vcol(bm_w, h_max=4.3, scale=0.45)
     parts.append(create_part("HouseWalls", bm_w, m_wall, smooth=False))
 
     bm_b = bmesh.new()
-    add_box(bm_b, (0.0, 0.18, 0.0), (5.35, 0.56, 3.95))
+    add_box(bm_b, (0.0, 0.20, 0.0), (5.38, 0.58, 4.00))
+    auto_box_uv_and_vcol(bm_b, h_max=0.6, scale=0.55)
     parts.append(create_part("HousePlinth", bm_b, m_base, smooth=False))
 
     bm_r = bmesh.new()
-    # Two-slope pitched Jiangnan dark roof + ridge beam + deep overhanging eaves
-    add_box(bm_r, (0.0, 3.12, 1.05), (5.95, 0.26, 2.60), (26, 0, 0))
-    add_box(bm_r, (0.0, 3.12, -1.05), (5.95, 0.26, 2.60), (-26, 0, 0))
-    add_box(bm_r, (0.0, 3.72, 0.0), (6.10, 0.24, 0.30))
+    # Two-slope pitched Jiangnan dark roof + ridge beam + Matouqiang stepped tile copings!
+    add_box(bm_r, (0.0, 3.10, 1.04), (5.02, 0.22, 2.58), (26, 0, 0))
+    add_box(bm_r, (0.0, 3.10, -1.04), (5.02, 0.22, 2.58), (-26, 0, 0))
+    add_box(bm_r, (0.0, 3.70, 0.0), (5.06, 0.22, 0.30))
+    for sx in (-2.56, 2.56):
+        for gz, gw, gy in ((0.0, 4.02, 3.53), (0.0, 2.66, 3.99), (0.0, 1.42, 4.31)):
+            add_box(bm_r, (sx, gy, gz), (0.30, 0.09, gw))
+        for ez in (-1.98, 1.98):
+            add_box(bm_r, (sx, 3.62, ez), (0.28, 0.16, 0.18))
+    auto_box_uv_and_vcol(bm_r, h_max=4.4, scale=0.60)
     parts.append(create_part("HouseRoof", bm_r, m_roof, smooth=False))
 
     bm_t = bmesh.new()
-    add_box(bm_t, (0.0, 0.92, 1.90), (1.02, 1.78, 0.12))  # front wooden door
+    add_box(bm_t, (0.0, 0.94, 1.90), (1.04, 1.80, 0.12))
+    auto_box_uv_and_vcol(bm_t, h_max=2.0, scale=0.65)
     parts.append(create_part("HouseDoor", bm_t, m_timber, smooth=False))
 
     bm_g = bmesh.new()
     for sx in (-1.45, 1.45):
-        add_box(bm_g, (sx, 1.52, 1.88), (0.74, 0.60, 0.08))
+        add_box(bm_g, (sx, 1.54, 1.88), (0.76, 0.62, 0.08))
+    auto_box_uv_and_vcol(bm_g, h_max=2.2, scale=0.65)
     parts.append(create_part("HouseWindows", bm_g, m_window, smooth=False))
 
     return join_parts("horizon_farmhouse", parts)

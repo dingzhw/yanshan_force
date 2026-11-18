@@ -1,41 +1,41 @@
 {
   "bundle": "game/assets/slice/v061_nature_wildlife.glb",
-  "total_triangles": 22874,
-  "file_size_bytes": 3371004,
+  "total_triangles": 22032,
+  "file_size_bytes": 3152920,
   "assets": {
     "tree_camphor": {
-      "triangles": 1360,
+      "triangles": 828,
       "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
-          -4.899,
-          4.805
+          -3.027,
+          2.969
         ],
         "y": [
           -0.548,
-          7.594
+          6.574
         ],
         "z": [
-          -4.612,
-          4.11
+          -2.831,
+          2.281
         ]
       }
     },
     "tree_willow": {
-      "triangles": 1028,
+      "triangles": 718,
       "has_vertex_colors": true,
       "godot_bounds_m": {
         "x": [
-          -2.986,
-          3.479
+          -1.95,
+          3.866
         ],
         "y": [
-          -0.538,
-          6.662
+          -0.56,
+          5.655
         ],
         "z": [
-          -3.236,
-          3.12
+          -2.501,
+          3.121
         ]
       }
     },

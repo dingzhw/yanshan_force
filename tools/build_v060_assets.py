@@ -177,21 +177,52 @@ def add_uv_quad_gd(
         loop[uv_layer].uv = uv
 
 
+def auto_box_uv(bm: bmesh.types.BMesh, uv_scale: float = 0.62) -> None:
+    """Assign clean world/object-scale box-projected UVs in Godot meter space."""
+    uv_layer = bm.loops.layers.uv.verify()
+    bm.normal_update()
+    for f in bm.faces:
+        n = f.normal
+        ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+        for lp in f.loops:
+            # Blender coords: x = gd_x, y = -gd_z, z = gd_y (height)
+            co = lp.vert.co
+            if az >= ax and az >= ay:
+                lp[uv_layer].uv = (co.x * uv_scale, -co.y * uv_scale)
+            elif ax >= ay:
+                lp[uv_layer].uv = (-co.y * uv_scale, co.z * uv_scale)
+            else:
+                lp[uv_layer].uv = (co.x * uv_scale, co.z * uv_scale)
+
+
 def create_part(
     name: str,
     bm: bmesh.types.BMesh,
     mat: bpy.types.Material,
     smooth: bool = False,
     recalc_normals: bool = True,
+    uv_scale: float | None = 0.62,
 ) -> bpy.types.Object:
     if recalc_normals and len(bm.faces) > 0:
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if uv_scale is not None and len(bm.faces) > 0:
+        auto_box_uv(bm, uv_scale=uv_scale)
     mesh = bpy.data.meshes.new(name + "_Mesh")
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(mat)
     for poly in mesh.polygons:
         poly.use_smooth = smooth
+    if len(mesh.vertices) > 0 and mesh.color_attributes.get("Color") is None:
+        ca = mesh.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+        zs = [v.co.z for v in mesh.vertices]
+        z_min, z_max = min(zs), max(zs)
+        z_span = max(0.25, z_max - z_min)
+        for vi, v in enumerate(mesh.vertices):
+            # R: height normalized (0 at plinth base -> 1 under roof eave), G: grounding AO
+            h_norm = max(0.0, min(1.0, (v.co.z - z_min) / z_span))
+            ao = 0.72 + 0.28 * min(1.0, max(0.0, (v.co.z + 0.15) / 0.85))
+            ca.data[vi].color = (h_norm, ao, 1.0, 1.0)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     return obj
@@ -421,7 +452,7 @@ def build_wangdao_pavilion() -> bpy.types.Object:
     parts.append(create_part("WangdaoPlaster", bm_plaster, m_plaster))
     parts.append(create_part("WangdaoGold", bm_gold, m_gold, smooth=True))
     parts.append(create_part("WangdaoTea", bm_tea, m_porcelain, smooth=True))
-    parts.append(create_part("WangdaoPlaque", bm_plaque, m_plaque, recalc_normals=False))
+    parts.append(create_part("WangdaoPlaque", bm_plaque, m_plaque, recalc_normals=False, uv_scale=None))
     return join_parts("wangdao_pavilion", parts)
 
 
@@ -544,7 +575,7 @@ def build_boundary_stele() -> bpy.types.Object:
         "boundary_stele",
         [
             create_part("BoundarySteleBody", bm_base, m_base),
-            create_part("BoundarySteleFace", bm_face, m_face, recalc_normals=False),
+            create_part("BoundarySteleFace", bm_face, m_face, recalc_normals=False, uv_scale=None),
         ],
     )
 
@@ -603,7 +634,7 @@ def build_poem_stele_pavilion() -> bpy.types.Object:
             create_part("PoemWood", bm_w, m_wood),
             create_part("PoemTile", bm_t, m_tile),
             create_part("PoemPlaster", bm_p, m_plaster),
-            create_part("PoemFace", bm_f, m_face, recalc_normals=False),
+            create_part("PoemFace", bm_f, m_face, recalc_normals=False, uv_scale=None),
         ],
     )
 
@@ -612,10 +643,10 @@ def build_ancient_camphor() -> bpy.types.Object:
     gen61 = ROOT / "tools" / "generated_v061"
     bark_diff = gen61 / "japanese_camphor_bark_diff_512.jpg"
     bark_norm = gen61 / "japanese_camphor_bark_norm_512.jpg"
-    bough_rgba = gen61 / "camphor_bough.png"
+    dab_rgba = gen61 / "camphor_ink_dab.png"
 
     if bark_diff.exists():
-        m_bark = make_tex_mat("Mat_CamphorBark", bark_diff, roughness=0.90)
+        m_bark = make_tex_mat("Mat_CamphorBark", bark_diff, roughness=0.92)
         if bark_norm.exists():
             nt = m_bark.node_tree
             bsdf = nt.nodes.get("Principled BSDF")
@@ -627,17 +658,17 @@ def build_ancient_camphor() -> bpy.types.Object:
             nt.links.new(tn.outputs["Color"], nm.inputs["Color"])
             nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
     else:
-        m_bark = make_mat("Mat_CamphorBark", (0.24, 0.18, 0.14), roughness=0.92)
+        m_bark = make_mat("Mat_CamphorBark", (0.18, 0.18, 0.17), roughness=0.92)
 
-    m_leaf = bpy.data.materials.new(name="Mat_AncientCamphorLeaf")
+    m_leaf = bpy.data.materials.new(name="Mat_SumiDabLeaf")
     m_leaf.use_nodes = True
     m_leaf.use_backface_culling = False
     nt_l = m_leaf.node_tree
     bsdf_l = nt_l.nodes.get("Principled BSDF")
-    bsdf_l.inputs["Roughness"].default_value = 0.58
-    if bough_rgba.exists():
+    bsdf_l.inputs["Roughness"].default_value = 0.92
+    if dab_rgba.exists():
         tl = nt_l.nodes.new("ShaderNodeTexImage")
-        tl.image = bpy.data.images.load(str(bough_rgba))
+        tl.image = bpy.data.images.load(str(dab_rgba))
         nt_l.links.new(tl.outputs["Color"], bsdf_l.inputs["Base Color"])
         gt = nt_l.nodes.new("ShaderNodeMath")
         gt.operation = "GREATER_THAN"
@@ -645,7 +676,7 @@ def build_ancient_camphor() -> bpy.types.Object:
         nt_l.links.new(tl.outputs["Alpha"], gt.inputs[0])
         nt_l.links.new(gt.outputs["Value"], bsdf_l.inputs["Alpha"])
 
-    m_silk = make_mat("Mat_BlessingRibbon", (0.78, 0.14, 0.14), roughness=0.58)
+    m_silk = make_mat("Mat_BlessingRibbon", (0.62, 0.20, 0.18), roughness=0.72)
 
     bm_bark = bmesh.new()
     bm_leaf = bmesh.new()
@@ -675,166 +706,177 @@ def build_ancient_camphor() -> bpy.types.Object:
                 for lp, uv in zip(f.loops, [(s / segs, vcs[i]), ((s + 1) / segs, vcs[i]), ((s + 1) / segs, vcs[i + 1]), (s / segs, vcs[i + 1])]):
                     lp[uv_bark].uv = uv
 
-    def _bough_cluster(anc_gd, dir_gd, width, length, roll_deg):
-        a = Vector(anc_gd)
-        fwd = Vector(dir_gd).normalized()
-        up_ref = Vector((0.0, 1.0, 0.0)) if abs(fwd.y) < 0.92 else Vector((1.0, 0.0, 0.0))
-        r0 = fwd.cross(up_ref).normalized()
-        u0 = r0.cross(fwd).normalized()
-        for ang_deg in (roll_deg, roll_deg + 62.0):
-            ang = math.radians(ang_deg)
-            rv = r0 * math.cos(ang) + u0 * math.sin(ang)
-            uv_v = -r0 * math.sin(ang) + u0 * math.cos(ang)
-            gv = []
-            for iv in range(3):
-                vt = iv / 2.0
-                row = []
-                for iu in range(3):
-                    ut = iu / 2.0
-                    lat = (ut - 0.5) * width
-                    arch = 0.19 * width * (1.0 - (2.0 * ut - 1.0) ** 2) * math.sin(math.pi * min(1.0, vt * 0.85 + 0.15))
-                    drop = 0.20 * length * (vt ** 1.7)
-                    row.append(bm_leaf.verts.new(gd_to_bl(a + fwd * (vt * length) + rv * lat + uv_v * arch - Vector((0.0, drop, 0.0)))))
-                gv.append(row)
-            for iv in range(2):
-                for iu in range(2):
-                    f = bm_leaf.faces.new([gv[iv][iu], gv[iv][iu + 1], gv[iv + 1][iu + 1], gv[iv + 1][iu]])
-                    for lp, uv in zip(f.loops, [(iu / 2.0, iv / 2.0), ((iu + 1) / 2.0, iv / 2.0), ((iu + 1) / 2.0, (iv + 1) / 2.0), (iu / 2.0, (iv + 1) / 2.0)]):
-                        lp[uv_leaf].uv = uv
+    dab_meta: list[tuple[float, float]] = []
 
-    # Ancient gnarled multi-buttress root base (-0.52m skirt) + thick century camphor trunk
+    def _add_camera_dab(center_gd: tuple[float, float, float], size_m: float, rot_rad: float):
+        """Non-degenerate 2mm seed quad expanded in vertex shader parallel to camera plane!"""
+        c = Vector(center_gd)
+        eps = 0.002
+        corners = [
+            c + Vector((-eps, -eps, 0.0)),
+            c + Vector((eps, -eps, 0.0)),
+            c + Vector((eps, eps, 0.0)),
+            c + Vector((-eps, eps, 0.0)),
+        ]
+        # Note: Blender image UV (0,0) = bottom-left -> glTF UV (0,1); (1,1) = top-right -> glTF UV (1,0)
+        uvs = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        vs = [bm_leaf.verts.new(gd_to_bl(p)) for p in corners]
+        f = bm_leaf.faces.new(vs)
+        for lp, uv in zip(f.loops, uvs):
+            lp[uv_leaf].uv = uv
+        dab_meta.append((size_m, rot_rad))
+
+    # Gnarled multi-buttress root base + thick sumi-ink century camphor trunk
     for i in range(6):
         ang = i * math.tau / 6.0 + 0.18
         ca, sa = math.cos(ang), math.sin(ang)
-        _tube_uv([(ca * 1.38, -0.52, sa * 1.38), (ca * 0.72, -0.02, sa * 0.72), (ca * 0.34, 0.72, sa * 0.34)], [0.14, 0.22, 0.18], segs=6)
-    _tube_uv([(0.0, -0.52, 0.0), (0.08, 1.25, -0.05), (-0.06, 2.75, 0.06)], [0.58, 0.46, 0.38], segs=10)
+        _tube_uv([(ca * 1.38, -0.52, sa * 1.38), (ca * 0.72, -0.02, sa * 0.72), (ca * 0.34, 0.75, sa * 0.34)], [0.15, 0.24, 0.19], segs=6)
+    _tube_uv([(0.0, -0.52, 0.0), (0.12, 1.30, -0.08), (-0.10, 2.85, 0.09)], [0.60, 0.47, 0.38], segs=10)
 
+    # Expressive calligraphy-like crooked dark limbs visibly exposed beneath & between airy leaf dabs ('疏可走马')
     boughs = [
-        [(-0.06, 2.45, 0.06), (0.95, 3.25, 0.58), (2.08, 4.02, 1.25), (2.88, 4.55, 1.72)],
-        [(-0.06, 2.55, 0.06), (-1.02, 3.32, 0.46), (-2.18, 4.12, 1.05), (-2.95, 4.65, 1.42)],
-        [(-0.06, 2.50, 0.06), (0.78, 3.35, -0.86), (1.72, 4.18, -1.78), (2.42, 4.72, -2.42)],
-        [(-0.06, 2.48, 0.06), (-0.86, 3.28, -0.82), (-1.82, 4.05, -1.68), (-2.48, 4.58, -2.28)],
-        [(-0.02, 2.62, 0.04), (0.32, 3.95, 0.22), (0.68, 5.25, 0.48), (0.92, 6.15, 0.65)],
-        [(-0.02, 2.62, 0.04), (-0.34, 4.00, -0.25), (-0.70, 5.32, -0.52), (-0.94, 6.22, -0.70)],
+        [(-0.08, 2.50, 0.08), (1.05, 3.25, 0.62), (2.25, 3.95, 1.35), (3.15, 4.55, 1.85)],
+        [(-0.08, 2.60, 0.08), (-1.12, 3.35, 0.50), (-2.38, 4.10, 1.12), (-3.22, 4.68, 1.52)],
+        [(-0.08, 2.55, 0.08), (0.86, 3.40, -0.92), (1.92, 4.22, -1.92), (2.68, 4.78, -2.62)],
+        [(-0.08, 2.52, 0.08), (-0.95, 3.30, -0.88), (-2.02, 4.08, -1.82), (-2.75, 4.62, -2.48)],
+        [(-0.04, 2.72, 0.05), (0.42, 4.05, 0.28), (0.88, 5.35, 0.58), (1.22, 6.28, 0.78)],
+        [(-0.04, 2.72, 0.05), (-0.44, 4.10, -0.32), (-0.92, 5.42, -0.65), (-1.25, 6.35, -0.86)],
     ]
+    rng_c = random.Random(6510)
     for idx, pts in enumerate(boughs):
-        _tube_uv(pts, [0.25, 0.19, 0.12, 0.055], segs=7)
-        pl = Vector(pts[1])
+        _tube_uv(pts, [0.27, 0.20, 0.13, 0.058], segs=7)
         pm = Vector(pts[2])
         pt = Vector(pts[3])
-        bd = (pt - pl).normalized()
-        _bough_cluster(tuple(pl * 0.96 + Vector((0, 0.16, 0))), tuple((bd + Vector((0, 0.55, 0))).normalized()), 2.75, 2.60, idx * 31.0)
-        _bough_cluster(tuple(pm), tuple((bd + Vector((0, 0.40, 0))).normalized()), 2.95, 2.80, idx * 37.0)
-        _bough_cluster(tuple(pt * 0.88), tuple((bd + Vector((0, 0.18, 0))).normalized()), 3.05, 2.88, idx * 37.0 + 44.0)
+        bd = (pt - Vector(pts[1])).normalized()
+        _add_camera_dab(tuple(pm + Vector((0, 0.42, 0))), rng_c.uniform(2.15, 2.45), rng_c.uniform(-0.35, 0.35))
+        _add_camera_dab(tuple(pt + Vector((0, 0.22, 0))), rng_c.uniform(2.25, 2.60), rng_c.uniform(-0.35, 0.35))
         for sgn in (-1.0, 1.0):
-            lat = Vector((-bd.z * sgn, 0.24, bd.x * sgn)).normalized()
-            sd = (bd * 0.72 + lat * 0.68).normalized()
-            stip = pm + sd * 1.50
-            _tube_uv([tuple(pm), tuple(stip)], [0.10, 0.042], segs=5)
-            _bough_cluster(tuple(stip * 0.88), tuple((sd + Vector((0, 0.16, 0))).normalized()), 2.75, 2.58, idx * 29.0 + sgn * 35.0)
+            lat = Vector((-bd.z * sgn, 0.26, bd.x * sgn)).normalized()
+            sd = (bd * 0.70 + lat * 0.70).normalized()
+            stip = pm + sd * 1.65
+            _tube_uv([tuple(pm), tuple((pm + stip) * 0.5 + Vector((0, 0.12, 0))), tuple(stip)], [0.11, 0.072, 0.036], segs=5)
+            _add_camera_dab(tuple(stip + Vector((0, 0.18, 0))), rng_c.uniform(2.05, 2.38), rng_c.uniform(-0.40, 0.40))
 
-    for k, (anc, dv) in enumerate([
-        ((0.0, 3.85, 0.0), (0.16, 0.96, 0.10)),
-        ((0.0, 4.85, 0.0), (-0.12, 0.98, 0.08)),
-        ((0.65, 5.65, 0.40), (0.35, 0.88, 0.22)),
-        ((-0.65, 5.70, -0.40), (-0.35, 0.88, -0.22)),
-        ((0.40, 5.55, -0.58), (0.25, 0.88, -0.38)),
-        ((-0.40, 5.55, 0.58), (-0.25, 0.88, 0.38)),
-        ((0.0, 6.25, 0.0), (0.0, 1.0, 0.05)),
-    ]):
-        _bough_cluster(anc, dv, 3.15, 2.85, k * 51.0)
+    # Airy tiered upper dome brushstroke clouds (leaving visible gaps for gnarled dark branches!)
+    upper_dabs = [
+        ((0.0, 4.65, 0.0), 2.55),
+        ((1.15, 5.25, 0.85), 2.40),
+        ((-1.20, 5.30, 0.78), 2.40),
+        ((1.05, 5.35, -0.95), 2.35),
+        ((-1.10, 5.28, -0.92), 2.35),
+        ((0.48, 6.18, 0.35), 2.45),
+        ((-0.52, 6.24, -0.38), 2.45),
+        ((0.0, 6.62, 0.0), 2.50),
+    ]
+    for pos_d, sz_d in upper_dabs:
+        _add_camera_dab(pos_d, sz_d, rng_c.uniform(-0.32, 0.32))
 
-    # Iconic rural Jiangnan crimson prayer silk ribbon tied around trunk waist & low branch
-    add_cyl(bm_silk, (0.0, 2.12, 0.0), (0.02, 2.26, 0.02), 0.42, 0.42, segs=12)
-    add_box(bm_silk, (0.38, 1.88, 0.20), (0.06, 0.56, 0.14), (-8.0, 18.0, 12.0))
-    add_box(bm_silk, (0.30, 1.94, -0.28), (0.06, 0.48, 0.12), (10.0, -24.0, -8.0))
-    # Hanging red prayer ribbons from lower East bough too!
-    add_box(bm_silk, (1.45, 3.35, 0.90), (0.04, 0.68, 0.10), (4.0, 15.0, -6.0))
-    add_box(bm_silk, (-1.45, 3.45, 0.72), (0.04, 0.62, 0.10), (-5.0, -18.0, 5.0))
+    # Restrained antique cinnabar prayer silk ribbon ('1% 朱砂点睛')
+    add_cyl(bm_silk, (0.0, 2.12, 0.0), (0.02, 2.24, 0.02), 0.43, 0.43, segs=12)
+    add_box(bm_silk, (0.39, 1.88, 0.20), (0.05, 0.54, 0.12), (-8.0, 18.0, 12.0))
+    add_box(bm_silk, (1.45, 3.30, 0.90), (0.035, 0.64, 0.09), (4.0, 15.0, -6.0))
 
-    p_bark = create_part("CamphorBark", bm_bark, m_bark, smooth=True)
-    p_leaf = create_part("CamphorLeaves", bm_leaf, m_leaf, smooth=True, recalc_normals=False)
+    p_bark = create_part("CamphorBark", bm_bark, m_bark, smooth=True, uv_scale=None)
+    p_leaf = create_part("CamphorLeaves", bm_leaf, m_leaf, smooth=True, recalc_normals=False, uv_scale=None)
     p_silk = create_part("CamphorSilk", bm_silk, m_silk)
 
-    # Bake 3D volumetric Qinglü canopy AO & cluster variation onto Ancient Camphor + neutral AO on bark/silk
-    c_bl = gd_to_bl(Vector((0.0, 5.2, 0.0)))
+    # Pure 100% outward spherical canopy normal transfer + dab size/rotation packed into COLOR_0!
+    c_bl = gd_to_bl(Vector((0.0, 4.95, 0.0)))
     l_zs = [v.co.z for v in p_leaf.data.vertices]
     lz_min, lz_max = min(l_zs), max(l_zs)
     lz_span = max(0.3, lz_max - lz_min)
     l_rads = [(v.co - c_bl).length for v in p_leaf.data.vertices]
     l_max_r = max(0.4, max(l_rads))
-    ca_leaf = p_leaf.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+    ca_leaf = p_leaf.data.color_attributes.get("Color") or p_leaf.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
     vnorms = []
     for vi, v in enumerate(p_leaf.data.vertices):
-        ov = v.co - c_bl + Vector((0.0, 0.0, 0.50))
+        dab_idx = vi // 4
+        sz_m, rot_r = dab_meta[min(dab_idx, len(dab_meta) - 1)]
+        ov = v.co - c_bl + Vector((0.0, 0.0, 0.55))
         ov = ov.normalized() if ov.length > 1e-4 else Vector((0.0, 0.0, 1.0))
-        vnorms.append((Vector(v.normal) * 0.48 + ov * 0.52).normalized())
+        vnorms.append(ov)  # 100% pure smooth spherical canopy normal!
         rad_t = min(1.0, l_rads[vi] / l_max_r)
         h_t = max(0.0, min(1.0, (v.co.z - lz_min) / lz_span))
-        ao = max(0.22, min(1.0, 0.22 + 0.54 * (rad_t ** 0.85) + 0.28 * h_t))
-        c_var = 0.5 + 0.5 * math.sin((vi // 9) * 12.9898 + 2.3)
-        ca_leaf.data[vi].color = (ao, h_t, c_var, 1.0)
+        ao = max(0.18, min(1.0, 0.18 + 0.54 * (rad_t ** 0.85) + 0.28 * h_t))
+        sz_enc = max(0.0, min(1.0, (sz_m - 1.2) / 2.2))  # decoded as 1.2 + COLOR.b * 2.2
+        rot_enc = max(0.0, min(1.0, 0.5 + rot_r / 1.6))
+        ca_leaf.data[vi].color = (ao, h_t, sz_enc, rot_enc)
     p_leaf.data.normals_split_custom_set_from_vertices(vnorms)
 
-    ca_bark = p_bark.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
+    ca_bark = p_bark.data.color_attributes.get("Color") or p_bark.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
     for vi, v in enumerate(p_bark.data.vertices):
-        ao_b = 0.62 + 0.38 * min(1.0, max(0.0, (v.co.z + 0.20) / 1.0))
+        ao_b = 0.58 + 0.42 * min(1.0, max(0.0, (v.co.z + 0.20) / 1.1))
         ca_bark.data[vi].color = (ao_b, ao_b, ao_b, 1.0)
-    ca_silk = p_silk.data.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="POINT")
-    for vi in range(len(p_silk.data.vertices)):
-        ca_silk.data[vi].color = (1.0, 1.0, 1.0, 1.0)
 
     return join_parts("ancient_camphor", [p_bark, p_leaf, p_silk])
 
 
 def build_wayside_shrine() -> bpy.types.Object:
-    m_stone = make_mat("Mat_ShrineStone", (0.40, 0.42, 0.39), roughness=0.88)
-    m_brick = make_mat("Mat_ShrineGreyBrick", (0.34, 0.36, 0.37), roughness=0.86)
-    m_tile = make_mat("Mat_ShrineTile", (0.14, 0.16, 0.18), roughness=0.72)
-    m_dark = make_mat("Mat_ShrineNiche", (0.10, 0.09, 0.09), roughness=0.92)
-    m_figure = make_mat("Mat_ShrineIdol", (0.58, 0.54, 0.46), roughness=0.78)
-    m_candle = make_mat("Mat_ShrineCandle", (0.88, 0.24, 0.18), roughness=0.52)
-    m_flame = make_mat("Mat_ShrineFlame", (1.0, 0.78, 0.30), roughness=0.25, emission_srgb=(1.0, 0.66, 0.22), emission_strength=2.2)
+    """Authentic Hui/Jiangnan '粉墙黛瓦 · 马头墙压顶' Wayside Earth Shrine (土地石龛)."""
+    m_stone = make_mat("Mat_ShrineBluestone", (0.34, 0.36, 0.35), roughness=0.78)
+    m_plaster = make_mat("Mat_HuiPlasterWall", (0.85, 0.83, 0.78), roughness=0.90)
+    m_tile = make_mat("Mat_JiangnanTile", (0.14, 0.16, 0.17), roughness=0.68)
+    m_wood = make_mat("Mat_ShrineDarkTimber", (0.19, 0.15, 0.12), roughness=0.76)
+    m_dark = make_mat("Mat_ShrineNiche", (0.09, 0.09, 0.09), roughness=0.94)
+    m_figure = make_mat("Mat_ShrineIdol", (0.50, 0.48, 0.44), roughness=0.84)
+    m_candle = make_mat("Mat_ShrineCandle", (0.72, 0.22, 0.18), roughness=0.58)
+    m_flame = make_mat("Mat_ShrineFlame", (1.0, 0.76, 0.34), roughness=0.25, emission_srgb=(1.0, 0.64, 0.22), emission_strength=2.0)
 
     bm_s = bmesh.new()
-    bm_b = bmesh.new()
+    bm_p = bmesh.new()
     bm_t = bmesh.new()
+    bm_w = bmesh.new()
     bm_d = bmesh.new()
     bm_fig = bmesh.new()
     bm_c = bmesh.new()
     bm_fl = bmesh.new()
 
-    # Grounded mossy stone plinth (-0.28m skirt)
-    add_box(bm_s, (0.0, -0.06, 0.0), (1.56, 0.44, 1.32))
-    add_box(bm_s, (0.0, 0.24, 0.14), (1.38, 0.16, 1.18))  # protruding altar apron
-    # Grey-brick niche walls (back, left, right, upper lintel)
-    add_box(bm_b, (0.0, 0.78, -0.26), (1.16, 0.94, 0.24))
-    add_box(bm_b, (-0.48, 0.78, 0.06), (0.20, 0.94, 0.58))
-    add_box(bm_b, (0.48, 0.78, 0.06), (0.20, 0.94, 0.58))
-    add_box(bm_s, (0.0, 1.24, 0.06), (1.24, 0.16, 0.66))
-    add_box(bm_d, (0.0, 0.74, 0.02), (0.74, 0.80, 0.34))  # darkened inner niche backing
+    # Wet carved bluestone Sumidero plinth (-0.28m skirt)
+    add_box(bm_s, (0.0, -0.06, 0.0), (1.62, 0.44, 1.38))
+    add_box(bm_s, (0.0, 0.24, 0.12), (1.44, 0.14, 1.24))
 
-    # Miniature pitched grey-tile Jiangnan shrine gable roof
-    _build_jiangnan_roof_into_bms(bm_t, bm_s, bm_t, 0.86, 1.32, 1.86, 0.12, grid_n=4, thickness=0.055)
-    add_ellipsoid(bm_s, (0.0, 1.92, 0.0), (0.08, 0.09, 0.08), subdiv=1)
+    # Whitewashed Hui-style plaster walls ('粉墙') with stepped side wing-walls ('马头墙阶梯山墙')!
+    add_box(bm_p, (0.0, 0.84, -0.30), (1.24, 1.08, 0.22))  # Back whitewashed wall
+    # Stepped side horse-head walls (3 tiers rising toward the ridge + dark-tile copings!)
+    for sx in (-0.54, 0.54):
+        # Tier 1 (front lower step)
+        add_box(bm_p, (sx, 0.76, 0.24), (0.16, 0.92, 0.34))
+        add_box(bm_t, (sx, 1.25, 0.25), (0.21, 0.065, 0.40))  # Dark tile马头墙 coping + upturned tip
+        add_box(bm_t, (sx, 1.29, 0.44), (0.19, 0.055, 0.07), (-18.0, 0.0, 0.0))
+        # Tier 2 (mid step)
+        add_box(bm_p, (sx, 0.92, -0.04), (0.16, 1.24, 0.32))
+        add_box(bm_t, (sx, 1.57, -0.03), (0.21, 0.065, 0.38))
+        # Tier 3 (rear high gable step)
+        add_box(bm_p, (sx, 1.04, -0.28), (0.16, 1.48, 0.24))
+        add_box(bm_t, (sx, 1.81, -0.28), (0.21, 0.065, 0.30))
 
-    # Rustic sculpted Earth-God & Goddess (土地公/婆) in inner niche + altar incense bowl & candles
+    # Dark timber lintel frame around niche opening & recessed shadowy inner chamber
+    add_box(bm_w, (-0.38, 0.78, 0.16), (0.08, 0.88, 0.08))
+    add_box(bm_w, (0.38, 0.78, 0.16), (0.08, 0.88, 0.08))
+    add_box(bm_w, (0.0, 1.24, 0.16), (0.92, 0.10, 0.10))
+    add_box(bm_d, (0.0, 0.76, -0.02), (0.76, 0.84, 0.34))
+
+    # Sweeping dark-tile Jiangnan flying-eave roof ('黛瓦飞檐')
+    _build_jiangnan_roof_into_bms(bm_t, bm_p, bm_t, 0.92, 1.36, 1.94, 0.15, grid_n=6, thickness=0.058)
+    add_box(bm_t, (0.0, 1.96, 0.0), (0.42, 0.08, 0.12))  # Central main ridge spine (正脊)
+
+    # Weathered stone Earth-God & Goddess statues + carved bluestone tripod incense burner (NO neon purple!)
     for sx in (-0.16, 0.16):
-        add_cyl(bm_fig, (sx, 0.34, 0.10), (sx, 0.74, 0.10), 0.11, 0.09, segs=8)
-        add_ellipsoid(bm_fig, (sx, 0.82, 0.10), (0.075, 0.085, 0.075), subdiv=1)
-        add_box(bm_fig, (sx, 0.90, 0.10), (0.14, 0.05, 0.12))  # official scholar cap
-    # Carved stone incense bowl + 2 glowing red candles
-    add_cyl(bm_s, (0.0, 0.32, 0.48), (0.0, 0.48, 0.48), 0.10, 0.12, segs=8)
-    for cx in (-0.34, 0.34):
-        add_cyl(bm_c, (cx, 0.32, 0.46), (cx, 0.46, 0.46), 0.026, 0.024, segs=6)
-        add_ellipsoid(bm_fl, (cx, 0.485, 0.46), (0.018, 0.032, 0.018), subdiv=1)
+        add_cyl(bm_fig, (sx, 0.34, 0.02), (sx, 0.74, 0.02), 0.105, 0.085, segs=8)
+        add_ellipsoid(bm_fig, (sx, 0.82, 0.02), (0.072, 0.082, 0.072), subdiv=1)
+        add_box(bm_fig, (sx, 0.90, 0.02), (0.13, 0.048, 0.11))
+    add_cyl(bm_s, (0.0, 0.31, 0.44), (0.0, 0.46, 0.44), 0.11, 0.13, segs=10)
+    for cx in (-0.30, 0.30):
+        add_cyl(bm_c, (cx, 0.31, 0.44), (cx, 0.45, 0.44), 0.024, 0.022, segs=6)
+        add_ellipsoid(bm_fl, (cx, 0.475, 0.44), (0.016, 0.030, 0.016), subdiv=1)
 
     return join_parts(
         "wayside_shrine",
         [
             create_part("ShrineStone", bm_s, m_stone),
-            create_part("ShrineBrick", bm_b, m_brick),
+            create_part("ShrinePlaster", bm_p, m_plaster),
             create_part("ShrineTile", bm_t, m_tile),
+            create_part("ShrineWood", bm_w, m_wood),
             create_part("ShrineNiche", bm_d, m_dark),
             create_part("ShrineIdol", bm_fig, m_figure),
             create_part("ShrineCandle", bm_c, m_candle),

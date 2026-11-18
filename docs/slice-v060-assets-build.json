@@ -1,6 +1,6 @@
 {
   "output": "game/assets/slice/v060_jiangnan_assets.glb",
-  "total_triangles": 16412,
+  "total_triangles": 16300,
   "assets": {
     "wangdao_pavilion": {
       "triangles": 7160,
@@ -71,36 +71,36 @@
       }
     },
     "ancient_camphor": {
-      "triangles": 1240,
+      "triangles": 808,
       "godot_bounds_m": {
         "x": [
-          -5.782,
-          5.646
+          -3.708,
+          3.632
         ],
         "y": [
-          -0.631,
-          8.604
+          -0.639,
+          6.997
         ],
         "z": [
-          -5.556,
-          5.038
+          -3.353,
+          2.759
         ]
       }
     },
     "wayside_shrine": {
-      "triangles": 3052,
+      "triangles": 3372,
       "godot_bounds_m": {
         "x": [
-          -0.912,
-          0.912
+          -0.974,
+          0.974
         ],
         "y": [
           -0.28,
-          2.01
+          2.078
         ],
         "z": [
-          -0.911,
-          0.911
+          -0.974,
+          0.974
         ]
       }
     },

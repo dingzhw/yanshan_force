@@ -284,6 +284,7 @@ def finalize_part(
     mat: bpy.types.Material,
     smooth: bool = True,
     canopy_center_gd: tuple[float, float, float] | None = None,
+    dab_meta: list[tuple[float, float]] | None = None,
 ) -> bpy.types.Object:
     mesh = bpy.data.meshes.new(name + "_Mesh")
     bm.normal_update()
@@ -306,20 +307,29 @@ def finalize_part(
             max_rad = max(0.35, max(rads))
             vert_normals = []
             for vi, v in enumerate(mesh.vertices):
-                out_v = v.co - center_bl + Vector((0.0, 0.0, 0.45))
+                out_v = v.co - center_bl + Vector((0.0, 0.0, 0.50))
                 if out_v.length < 1e-4:
                     out_v = Vector((0.0, 0.0, 1.0))
                 else:
                     out_v.normalize()
-                # Preserve 48% bough curvature + 52% crown volume so individual bough bouquets separate cleanly!
-                blended = (Vector(v.normal) * 0.48 + out_v * 0.52).normalized()
-                vert_normals.append(blended)
+                if dab_meta is not None:
+                    vert_normals.append(out_v)
+                else:
+                    blended = (Vector(v.normal) * 0.14 + out_v * 0.86).normalized()
+                    vert_normals.append(blended)
 
                 rad_t = min(1.0, rads[vi] / max_rad)
                 h_t = max(0.0, min(1.0, (v.co.z - z_min) / z_span))
-                canopy_ao = max(0.22, min(1.0, 0.22 + 0.54 * (rad_t ** 0.85) + 0.28 * h_t))
-                cluster_var = 0.5 + 0.5 * math.sin((vi // 9) * 12.9898 + 1.7)
-                ca.data[vi].color = (canopy_ao, h_t, cluster_var, 1.0)
+                canopy_ao = max(0.20, min(1.0, 0.20 + 0.52 * (rad_t ** 0.85) + 0.28 * h_t))
+                if dab_meta is not None:
+                    d_idx = min(vi // 4, len(dab_meta) - 1)
+                    sz_m, rot_r = dab_meta[d_idx]
+                    sz_enc = max(0.0, min(1.0, (sz_m - 1.2) / 2.2))
+                    rot_enc = max(0.0, min(1.0, 0.5 + rot_r / 1.6))
+                    ca.data[vi].color = (canopy_ao, h_t, sz_enc, rot_enc)
+                else:
+                    cluster_var = 0.5 + 0.5 * math.sin((vi // 9) * 12.9898 + 1.7)
+                    ca.data[vi].color = (canopy_ao, h_t, cluster_var, 1.0)
             mesh.normals_split_custom_set_from_vertices(vert_normals)
         else:
             # Bark / culm grounding & under-canopy ambient occlusion
@@ -349,101 +359,98 @@ def join_objects(target_name: str, parts: list[bpy.types.Object]) -> bpy.types.O
 
 
 def build_tree_camphor(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
-    """Authentic Jiangnan Camphor Tree (香樟): gnarled forked trunk + domed glossy leaf crown."""
+    """Authentic Ink-Wash Jiangnan Camphor (水墨香樟): gnarled dark sumi-ink limbs + airy camera-facing brush dabs."""
     bm_bark = bmesh.new()
     bm_leaf = bmesh.new()
+    uv_leaf = bm_leaf.loops.layers.uv.verify()
     rng = random.Random(6110)
 
-    # Flared buttress roots down to y=-0.50m + slightly sinuous camphor trunk
     for i in range(5):
         ang = i * math.tau / 5.0 + 0.25
         ca, sa = math.cos(ang), math.sin(ang)
         add_tapered_tube_uv(
             bm_bark,
-            [(ca * 0.88, -0.48, sa * 0.88), (ca * 0.45, -0.02, sa * 0.45), (ca * 0.20, 0.55, sa * 0.20)],
-            [0.10, 0.15, 0.12],
+            [(ca * 0.88, -0.48, sa * 0.88), (ca * 0.45, -0.02, sa * 0.45), (ca * 0.20, 0.58, sa * 0.20)],
+            [0.10, 0.16, 0.12],
             segs=6,
             cap_tip=False,
         )
     add_tapered_tube_uv(
         bm_bark,
-        [(0.0, -0.50, 0.0), (0.05, 0.85, -0.03), (-0.04, 1.95, 0.04), (0.02, 2.75, 0.0)],
-        [0.42, 0.33, 0.28, 0.23],
+        [(0.0, -0.50, 0.0), (0.09, 0.92, -0.05), (-0.08, 2.05, 0.06), (0.04, 2.85, -0.02)],
+        [0.42, 0.33, 0.27, 0.22],
         segs=9,
         cap_tip=False,
     )
 
-    # 6 wide-spreading curved primary boughs + 12 secondary forked limbs
     bough_specs = [
-        [(0.02, 2.45, 0.0), (0.72, 3.25, 0.42), (1.68, 3.98, 1.05), (2.42, 4.48, 1.48)],
-        [(0.02, 2.50, 0.0), (-0.78, 3.32, 0.36), (-1.78, 4.08, 0.96), (-2.48, 4.58, 1.28)],
-        [(0.02, 2.48, 0.0), (0.58, 3.30, -0.68), (1.46, 4.05, -1.52), (2.10, 4.58, -2.12)],
-        [(0.02, 2.42, 0.0), (-0.64, 3.22, -0.62), (-1.52, 3.96, -1.42), (-2.16, 4.48, -1.98)],
-        [(0.02, 2.58, 0.0), (0.28, 3.85, 0.22), (0.62, 5.05, 0.48), (0.86, 5.88, 0.62)],
-        [(0.02, 2.58, 0.0), (-0.26, 3.90, -0.24), (-0.58, 5.12, -0.52), (-0.76, 5.95, -0.68)],
+        [(0.04, 2.50, -0.02), (0.82, 3.25, 0.48), (1.82, 3.98, 1.12), (2.62, 4.52, 1.62)],
+        [(0.04, 2.56, -0.02), (-0.88, 3.32, 0.42), (-1.92, 4.08, 1.02), (-2.68, 4.62, 1.38)],
+        [(0.04, 2.52, -0.02), (0.68, 3.35, -0.75), (1.62, 4.12, -1.65), (2.28, 4.68, -2.28)],
+        [(0.04, 2.46, -0.02), (-0.74, 3.25, -0.68), (-1.68, 4.02, -1.52), (-2.35, 4.55, -2.12)],
+        [(0.04, 2.66, -0.02), (0.34, 3.95, 0.26), (0.72, 5.15, 0.52), (0.98, 5.98, 0.68)],
+        [(0.04, 2.66, -0.02), (-0.32, 4.00, -0.28), (-0.68, 5.22, -0.56), (-0.92, 6.05, -0.74)],
     ]
 
-    foliage_anchors: list[tuple[Vector, Vector, float, float]] = []
+    dab_meta: list[tuple[float, float]] = []
+
+    def _add_dab(c_gd: tuple[float, float, float], sz_m: float, rot_r: float):
+        c = Vector(c_gd)
+        eps = 0.002
+        vs = [
+            bm_leaf.verts.new(gd_to_bl(c + Vector((-eps, -eps, 0.0)))),
+            bm_leaf.verts.new(gd_to_bl(c + Vector((eps, -eps, 0.0)))),
+            bm_leaf.verts.new(gd_to_bl(c + Vector((eps, eps, 0.0)))),
+            bm_leaf.verts.new(gd_to_bl(c + Vector((-eps, eps, 0.0)))),
+        ]
+        f = bm_leaf.faces.new(vs)
+        for lp, uv in zip(f.loops, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]):
+            lp[uv_leaf].uv = uv
+        dab_meta.append((sz_m, rot_r))
+
     for idx, pts in enumerate(bough_specs):
-        add_tapered_tube_uv(bm_bark, pts, [0.18, 0.135, 0.092, 0.046], segs=7)
-        p_low = Vector(pts[1])
+        add_tapered_tube_uv(bm_bark, pts, [0.18, 0.135, 0.088, 0.042], segs=7)
         p_mid = Vector(pts[2])
         p_tip = Vector(pts[3])
-        b_dir = (p_tip - p_low).normalized()
-        foliage_anchors.append((p_low * 0.96 + Vector((0.0, 0.15, 0.0)), (b_dir + Vector((0.0, 0.55, 0.0))).normalized(), 2.30, 2.20))
-        foliage_anchors.append((p_mid, (b_dir + Vector((0.0, 0.42, 0.0))).normalized(), 2.50, 2.38))
-        foliage_anchors.append((p_tip * 0.90, (b_dir + Vector((0.0, 0.18, 0.0))).normalized(), 2.60, 2.48))
+        b_dir = (p_tip - Vector(pts[1])).normalized()
+        _add_dab(tuple(p_mid + Vector((0.0, 0.34, 0.0))), rng.uniform(1.88, 2.18), rng.uniform(-0.36, 0.36))
+        _add_dab(tuple(p_tip + Vector((0.0, 0.16, 0.0))), rng.uniform(1.98, 2.28), rng.uniform(-0.36, 0.36))
 
-        # Two secondary forks per primary bough
         for sgn in (-1.0, 1.0):
-            lat = Vector((-b_dir.z * sgn, 0.24, b_dir.x * sgn)).normalized()
+            lat = Vector((-b_dir.z * sgn, 0.25, b_dir.x * sgn)).normalized()
             sub_dir = (b_dir * 0.72 + lat * 0.68).normalized()
-            sub_tip = p_mid + sub_dir * 1.32
+            sub_tip = p_mid + sub_dir * 1.38
             add_tapered_tube_uv(
                 bm_bark,
-                [tuple(p_mid), tuple((p_mid + sub_tip) * 0.5 + Vector((0, 0.08, 0))), tuple(sub_tip)],
-                [0.085, 0.056, 0.030],
+                [tuple(p_mid), tuple((p_mid + sub_tip) * 0.5 + Vector((0, 0.10, 0))), tuple(sub_tip)],
+                [0.085, 0.054, 0.028],
                 segs=5,
             )
-            foliage_anchors.append((sub_tip * 0.88, (sub_dir + Vector((0.0, 0.16, 0.0))).normalized(), 2.35, 2.22))
+            _add_dab(tuple(sub_tip + Vector((0.0, 0.15, 0.0))), rng.uniform(1.78, 2.08), rng.uniform(-0.40, 0.40))
 
-    # Central mid & upper crown dome clusters so silhouette is a full Jiangnan camphor umbrella ("香樟如盖")
-    crown_tops = [
-        (Vector((0.0, 3.65, 0.0)), Vector((0.18, 0.96, 0.12)), 2.85, 2.65),
-        (Vector((0.0, 4.55, 0.0)), Vector((-0.14, 0.98, 0.10)), 2.90, 2.65),
-        (Vector((0.55, 5.25, 0.35)), Vector((0.38, 0.88, 0.25)), 2.55, 2.35),
-        (Vector((-0.55, 5.30, -0.35)), Vector((-0.38, 0.88, -0.25)), 2.55, 2.35),
-        (Vector((0.35, 5.15, -0.55)), Vector((0.25, 0.88, -0.38)), 2.45, 2.25),
-        (Vector((-0.35, 5.15, 0.55)), Vector((-0.25, 0.88, 0.38)), 2.45, 2.25),
-        (Vector((0.0, 5.75, 0.0)), Vector((0.0, 1.0, 0.08)), 2.50, 2.20),
-    ]
-    foliage_anchors.extend(crown_tops)
-
-    for k, (anc, dvec, w, L) in enumerate(foliage_anchors):
-        add_domed_bough_cluster(
-            bm_leaf,
-            tuple(anc),
-            tuple(dvec),
-            width=w * rng.uniform(0.94, 1.08),
-            length=L * rng.uniform(0.94, 1.06),
-            droop=0.20,
-            cup=0.19,
-            roll_deg=(k * 37.0) % 180.0,
-        )
+    for pos_d, sz_d in [
+        ((0.0, 4.45, 0.0), 2.25),
+        ((0.88, 5.05, 0.58), 2.10),
+        ((-0.92, 5.10, 0.52), 2.10),
+        ((0.78, 5.12, -0.72), 2.08),
+        ((-0.82, 5.08, -0.68), 2.08),
+        ((0.0, 6.18, 0.0), 2.22),
+    ]:
+        _add_dab(pos_d, sz_d, rng.uniform(-0.32, 0.32))
 
     p_bark = finalize_part("CamphorTreeBark", bm_bark, mats["camphor_bark"], smooth=True)
-    p_leaf = finalize_part("CamphorTreeLeaves", bm_leaf, mats["camphor_leaf"], smooth=True, canopy_center_gd=(0.0, 4.8, 0.0))
+    p_leaf = finalize_part("CamphorTreeLeaves", bm_leaf, mats["sumi_dab"], smooth=True, canopy_center_gd=(0.0, 4.65, 0.0), dab_meta=dab_meta)
     return join_objects("tree_camphor", [p_bark, p_leaf])
 
 
 def build_tree_willow(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
-    """Authentic Jiangnan Weeping Willow (垂柳): leaning willow trunk + cascading frond curtains."""
+    """Xia Gui《西湖柳艇图》Weeping Willow: poetic waterside leaning dark-ink trunk & exposed arching boughs + airy silk wisps."""
     bm_bark = bmesh.new()
     bm_crown = bmesh.new()
     bm_drape = bmesh.new()
+    uv_crown = bm_crown.loops.layers.uv.verify()
     rng = random.Random(6111)
 
-    # Slightly leaning waterside willow trunk with flared roots
     for i in range(5):
         ang = i * math.tau / 5.0 + 0.4
         ca, sa = math.cos(ang), math.sin(ang)
@@ -454,75 +461,72 @@ def build_tree_willow(mats: dict[str, bpy.types.Material]) -> bpy.types.Object:
             segs=6,
             cap_tip=False,
         )
+    # Graceful waterside S-lean ('临水斜倚曲干')
     add_tapered_tube_uv(
         bm_bark,
-        [(0.0, -0.50, 0.0), (0.14, 0.95, 0.06), (0.26, 2.05, 0.10), (0.22, 2.85, 0.08)],
-        [0.38, 0.30, 0.25, 0.21],
+        [(0.0, -0.50, 0.0), (0.24, 1.05, 0.10), (0.58, 2.22, 0.22), (0.72, 3.12, 0.26)],
+        [0.38, 0.29, 0.23, 0.18],
         segs=9,
         cap_tip=False,
     )
 
-    # 7 arching umbrella willow boughs rising to y=5.7m then gracefully drooping at outer rim
+    dab_meta_w: list[tuple[float, float]] = []
+
+    def _add_crown_dab(c_gd: tuple[float, float, float], sz_m: float):
+        c = Vector(c_gd)
+        eps = 0.002
+        vs = [
+            bm_crown.verts.new(gd_to_bl(c + Vector((-eps, -eps, 0.0)))),
+            bm_crown.verts.new(gd_to_bl(c + Vector((eps, -eps, 0.0)))),
+            bm_crown.verts.new(gd_to_bl(c + Vector((eps, eps, 0.0)))),
+            bm_crown.verts.new(gd_to_bl(c + Vector((-eps, eps, 0.0)))),
+        ]
+        f = bm_crown.faces.new(vs)
+        for lp, uv in zip(f.loops, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]):
+            lp[uv_crown].uv = uv
+        dab_meta_w.append((sz_m, rng.uniform(-0.3, 0.3)))
+
+    # 7 arching dark-ink limbs clearly visible against the misty sky ('浓墨曲枝露骨')!
     n_boughs = 7
     for i in range(n_boughs):
         ang = i * math.tau / n_boughs + 0.18
         ca, sa = math.cos(ang), math.sin(ang)
+        reach = 2.75 if ca > 0.0 else 2.25
         pts = [
-            (0.22, 2.70, 0.08),
-            (0.22 + ca * 0.95, 4.15, 0.08 + sa * 0.95),
-            (0.22 + ca * 1.95, 5.45, 0.08 + sa * 1.95),
-            (0.22 + ca * 2.65, 5.05, 0.08 + sa * 2.65),
+            (0.70, 2.95, 0.25),
+            (0.72 + ca * 0.95, 4.25, 0.26 + sa * 0.95),
+            (0.72 + ca * (reach * 0.74), 5.38 + (0.22 if i % 2 == 0 else -0.14), 0.26 + sa * (reach * 0.74)),
+            (0.72 + ca * reach, 4.78, 0.26 + sa * reach),
         ]
-        add_tapered_tube_uv(bm_bark, pts, [0.15, 0.11, 0.072, 0.036], segs=6)
-        # Upper leafy cap along the arch so looking up from under the willow feels full
-        add_domed_bough_cluster(
-            bm_crown,
-            (0.22 + ca * 0.85, 4.35, 0.08 + sa * 0.85),
-            (ca * 0.68, 0.65, sa * 0.68),
-            width=2.15,
-            length=2.05,
-            droop=0.32,
-            cup=0.18,
-            roll_deg=i * 29.0,
-        )
+        add_tapered_tube_uv(bm_bark, pts, [0.14, 0.095, 0.058, 0.026], segs=6)
+        if i % 2 == 0:
+            _add_crown_dab((0.72 + ca * 1.15, 5.15, 0.26 + sa * 1.15), 1.65)
 
-        # Outer weeping curtain + mid-ring weeping curtain per bough
+        # Airy, staggered silk-brush weeping drapes (never forming a solid car-wash wall!)
         add_willow_curtain_drape(
             bm_drape,
-            (0.22 + ca * 2.38, 5.42 + rng.uniform(-0.18, 0.18), 0.08 + sa * 2.38),
+            (0.72 + ca * (reach * 0.88), 5.12 + rng.uniform(-0.20, 0.20), 0.26 + sa * (reach * 0.88)),
             (ca, 0.0, sa),
-            width=2.25,
-            drop_height=rng.uniform(3.45, 3.85),
-            curve_out=0.34,
+            width=1.88,
+            drop_height=rng.uniform(3.15, 3.65),
+            curve_out=0.28,
         )
-        mid_ang = ang + (math.pi / n_boughs)
-        mca, msa = math.cos(mid_ang), math.sin(mid_ang)
-        add_willow_curtain_drape(
-            bm_drape,
-            (0.22 + mca * 1.48, 5.75 + rng.uniform(-0.15, 0.15), 0.08 + msa * 1.48),
-            (mca, 0.0, msa),
-            width=2.05,
-            drop_height=rng.uniform(3.15, 3.55),
-            curve_out=0.26,
-        )
+        if i % 2 == 1:
+            mid_ang = ang + (math.pi / n_boughs)
+            mca, msa = math.cos(mid_ang), math.sin(mid_ang)
+            add_willow_curtain_drape(
+                bm_drape,
+                (0.72 + mca * 1.45, 5.55, 0.26 + msa * 1.45),
+                (mca, 0.0, msa),
+                width=1.72,
+                drop_height=rng.uniform(2.85, 3.25),
+                curve_out=0.22,
+            )
 
-    # Top central willow crown dome + 4 high inner drapes
-    add_domed_bough_cluster(bm_crown, (0.22, 5.15, 0.08), (0.0, 1.0, 0.0), width=2.45, length=2.10, droop=0.28, roll_deg=15.0)
-    for k in range(4):
-        ang = k * math.pi * 0.5 + 0.45
-        ca, sa = math.cos(ang), math.sin(ang)
-        add_willow_curtain_drape(
-            bm_drape,
-            (0.22 + ca * 0.82, 6.05, 0.08 + sa * 0.82),
-            (ca, 0.0, sa),
-            width=1.85,
-            drop_height=2.95,
-            curve_out=0.20,
-        )
-
+    _add_crown_dab((0.72, 5.55, 0.26), 1.78)
     p_bark = finalize_part("WillowBark", bm_bark, mats["willow_bark"], smooth=True)
-    p_crown = finalize_part("WillowCrown", bm_crown, mats["camphor_leaf"], smooth=True, canopy_center_gd=(0.2, 4.9, 0.1))
-    p_drape = finalize_part("WillowDrapes", bm_drape, mats["willow_curtain"], smooth=True, canopy_center_gd=(0.2, 4.2, 0.1))
+    p_crown = finalize_part("WillowCrown", bm_crown, mats["sumi_dab"], smooth=True, canopy_center_gd=(0.72, 4.9, 0.26), dab_meta=dab_meta_w)
+    p_drape = finalize_part("WillowDrapes", bm_drape, mats["willow_curtain"], smooth=True, canopy_center_gd=(0.72, 4.2, 0.26))
     return join_objects("tree_willow", [p_bark, p_crown, p_drape])
 
 
@@ -1029,8 +1033,9 @@ def build_all() -> None:
         "camphor_bark": make_bark_mat("Mat_V061_CamphorBark", staged["japanese_camphor_bark_diff"], staged["japanese_camphor_bark_norm"], roughness=0.90),
         "willow_bark": make_bark_mat("Mat_V061_WillowBark", staged["bark_willow_diff"], staged["bark_willow_norm"], roughness=0.88),
         "maple_bark": make_bark_mat("Mat_V061_MapleBark", staged["trident_maple_bark_diff"], staged["trident_maple_bark_norm"], roughness=0.88),
-        "camphor_leaf": make_cutout_foliage_mat("Mat_V061_CamphorLeaf", GEN_DIR / "camphor_bough.png", roughness=0.58, alpha_cutoff=0.40),
-        "willow_curtain": make_cutout_foliage_mat("Mat_V061_WillowCurtain", GEN_DIR / "willow_curtain.png", roughness=0.64, alpha_cutoff=0.38),
+        "camphor_leaf": make_cutout_foliage_mat("Mat_V061_CamphorLeaf", GEN_DIR / "camphor_bough.png", roughness=0.78, alpha_cutoff=0.40),
+        "sumi_dab": make_cutout_foliage_mat("Mat_SumiDabLeaf", GEN_DIR / "camphor_ink_dab.png", roughness=0.88, alpha_cutoff=0.38),
+        "willow_curtain": make_cutout_foliage_mat("Mat_V061_WillowCurtain", GEN_DIR / "willow_curtain.png", roughness=0.78, alpha_cutoff=0.35),
         "maple_leaf": make_cutout_foliage_mat("Mat_V061_MapleLeaf", GEN_DIR / "maple_tallow_bough.png", roughness=0.64, alpha_cutoff=0.40),
         "azalea_leaf": make_cutout_foliage_mat("Mat_V061_AzaleaLeaf", GEN_DIR / "azalea_bough.png", roughness=0.62, alpha_cutoff=0.40),
         "bamboo_culm": make_bark_mat("Mat_V061_BambooCulm", GEN_DIR / "bamboo_culm.png", None, roughness=0.52),

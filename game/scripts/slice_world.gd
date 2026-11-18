@@ -30,70 +30,325 @@ func setup(g):
 	_landmarks()
 	_boundary()
 
+var world_env_ref: Environment = null
+var fog_volumes: Array[Node3D] = []
+var ink_post_quad: MeshInstance3D = null
+var drizzle_particles: CPUParticles3D = null
+var ink_arch_mat_cache: Dictionary = {}
+
 func _init_structure_materials():
 	var bark_tex = load("res://assets/slice/tree_bark.jpg")
+	var tile_tex = load("res://assets/slice/ink_jiangnan/tile_albedo.jpg")
+	var tile_nrm = load("res://assets/slice/ink_jiangnan/tile_normal.jpg")
 	wood_post_mat = StandardMaterial3D.new()
-	wood_post_mat.albedo_color = Color("7b684e")
+	wood_post_mat.albedo_color = Color("463f38")
 	wood_post_mat.albedo_texture = bark_tex
 	wood_post_mat.uv1_scale = Vector3(1, 3, 1)
-	wood_post_mat.roughness = 0.88
+	wood_post_mat.roughness = 0.90
+	wood_post_mat.metallic_specular = 0.05
 
 	wood_plank_mat = StandardMaterial3D.new()
-	wood_plank_mat.albedo_color = Color("8c7759")
+	wood_plank_mat.albedo_color = Color("524a41")
 	wood_plank_mat.albedo_texture = bark_tex
 	wood_plank_mat.uv1_scale = Vector3(2, 1, 1)
-	wood_plank_mat.roughness = 0.84
+	wood_plank_mat.roughness = 0.88
+	wood_plank_mat.metallic_specular = 0.05
 
 	roof_slate_mat = StandardMaterial3D.new()
-	roof_slate_mat.albedo_color = Color("4a5748")
-	roof_slate_mat.albedo_texture = bark_tex
-	roof_slate_mat.uv1_scale = Vector3(3, 1, 1)
-	roof_slate_mat.metallic = 0.18
-	roof_slate_mat.roughness = 0.68
+	roof_slate_mat.albedo_color = Color("2b3033")
+	roof_slate_mat.albedo_texture = tile_tex
+	roof_slate_mat.normal_enabled = true
+	roof_slate_mat.normal_texture = tile_nrm
+	roof_slate_mat.normal_scale = 0.75
+	roof_slate_mat.uv1_scale = Vector3(2.4, 2.4, 1)
+	roof_slate_mat.metallic = 0.04
+	roof_slate_mat.metallic_specular = 0.16
+	roof_slate_mat.roughness = 0.52
+
+func _is_forward_plus() -> bool:
+	return RenderingServer.get_current_rendering_method() == "forward_plus"
 
 func _lighting():
 	var env = WorldEnvironment.new()
 	var e = Environment.new()
+	world_env_ref = e
 	var sky = Sky.new()
-	var s = ProceduralSkyMaterial.new()
-	s.sky_top_color = Color("588496")
-	s.sky_horizon_color = Color("c5d4c8")
-	s.ground_bottom_color = Color("3c4f44")
-	s.ground_horizon_color = Color("aec0b4")
-	s.sun_angle_max = 30.0
-	s.sun_curve = 0.13
-	sky.sky_material = s
+	# Taiping-Village ('太平村·江南云海梯田山境') Custom Painterly Sky & Towering Golden Cumulus Cloud Sea!
+	var sky_sh := Shader.new()
+	sky_sh.code = """shader_type sky;
+
+float hash2(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(
+		mix(hash2(i), hash2(i + vec2(1.0, 0.0)), u.x),
+		mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), u.x),
+		u.y
+	);
+}
+
+float fbm_cloud(vec2 p) {
+	float v = 0.0;
+	float a = 0.52;
+	mat2 rot = mat2(vec2(0.80, 0.60), vec2(-0.60, 0.80));
+	for (int i = 0; i < 4; i++) {
+		v += a * vnoise(p);
+		p = rot * p * 2.06 + vec2(11.3, 7.7);
+		a *= 0.50;
+	}
+	return v;
+}
+
+void sky() {
+	vec3 dir = normalize(EYEDIR);
+	vec3 sun_d = LIGHT0_ENABLED ? normalize(LIGHT0_DIRECTION) : normalize(vec3(0.42, 0.62, 0.66));
+	float y = clamp(dir.y, 0.0, 1.0);
+	float sun_dot = max(dot(dir, sun_d), 0.0);
+
+	// 1) Deep vibrant Taiping Village cobalt-cerulean sky visible right down to low FPS elevation angles!
+	vec3 zenith_col = vec3(0.025, 0.175, 0.445);
+	vec3 mid_sky = vec3(0.095, 0.345, 0.635);
+	vec3 low_sky = vec3(0.24, 0.52, 0.76);
+	vec3 horiz_cool = vec3(0.74, 0.85, 0.92);
+	vec3 horiz_warm = vec3(1.02, 0.88, 0.68);
+	vec3 horiz_col = mix(horiz_cool, horiz_warm, pow(sun_dot, 1.5) * 0.82 + 0.15);
+
+	vec3 sky_col = mix(horiz_col, low_sky, smoothstep(0.0, 0.065, y));
+	sky_col = mix(sky_col, mid_sky, smoothstep(0.05, 0.18, y));
+	sky_col = mix(sky_col, zenith_col, smoothstep(0.16, 0.48, y));
+	// Warm golden solar aureole
+	sky_col += vec3(1.0, 0.84, 0.55) * pow(sun_dot, 9.0) * 0.30;
+	sky_col += vec3(1.0, 0.95, 0.82) * smoothstep(0.9985, 0.9997, dot(dir, sun_d)) * 1.4;
+
+	if (dir.y > -0.02) {
+		// 2) Crisp cauliflower-sculpted towering cumulus clouds ('晴空暖金立体云朵', leaving 55%+ open blue sky!)
+		vec2 dome_uv = dir.xz / max(0.18, dir.y + 0.14);
+		vec2 drift = vec2(TIME * 0.0035, TIME * 0.0018);
+		float n_macro = fbm_cloud(dome_uv * 0.85 + drift);
+		float n_billow = abs(vnoise(dome_uv * 2.6 - drift * 1.3) * 2.0 - 1.0);
+		float n_detail = fbm_cloud(dome_uv * 4.8 + vec2(3.7, 8.2));
+		float cauliflower = n_macro * 0.66 + (1.0 - n_billow) * 0.22 + n_detail * 0.12;
+		float band = (1.0 - smoothstep(0.28, 0.62, y)) * smoothstep(0.00, 0.06, dir.y);
+		float cloud_field = cauliflower + band * 0.08;
+		float density = smoothstep(0.56, 0.66, cloud_field) * smoothstep(-0.005, 0.045, dir.y);
+
+		// Crisp directional sunlit golden-ivory crown vs cool sky-blue shadow belly
+		vec2 sun_step = sun_d.xz * 0.14;
+		float n_sun = fbm_cloud((dome_uv + sun_step) * 0.85 + drift) * 0.68 + fbm_cloud((dome_uv + sun_step) * 4.8 + vec2(3.7, 8.2)) * 0.32;
+		float self_lit = clamp(0.54 + (cauliflower - n_sun) * 3.2 + y * 0.24 + sun_dot * 0.26, 0.0, 1.0);
+
+		vec3 cloud_shadow = vec3(0.44, 0.62, 0.80);
+		vec3 cloud_mid = vec3(0.88, 0.92, 0.96);
+		vec3 cloud_sunlit = mix(vec3(1.00, 0.97, 0.91), vec3(1.08, 0.92, 0.72), 0.55 + 0.45 * sun_dot);
+		vec3 cloud_col = mix(cloud_shadow, cloud_mid, smoothstep(0.18, 0.54, self_lit));
+		cloud_col = mix(cloud_col, cloud_sunlit, smoothstep(0.50, 0.86, self_lit));
+
+		sky_col = mix(sky_col, cloud_col, density * (1.0 - smoothstep(0.52, 0.78, y)));
+	} else {
+		sky_col = mix(horiz_col, vec3(0.28, 0.42, 0.26), smoothstep(0.0, 0.45, -dir.y));
+	}
+	COLOR = sky_col;
+}
+"""
+	var sky_mat := ShaderMaterial.new()
+	sky_mat.shader = sky_sh
+	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_sky_contribution = 0.76
-	e.ambient_light_energy = 0.42
+	e.ambient_light_sky_contribution = 0.72
+	e.ambient_light_energy = 0.52
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 1.02
-	e.tonemap_white = 1.42
+	e.tonemap_exposure = 1.04
+	e.tonemap_white = 1.38
+
+	# Crystal-clear mountain air (0..72m 100% vibrant clarity) + distant valley sea-of-clouds aerial perspective!
 	e.fog_enabled = true
-	e.fog_density = 0.0028
-	e.fog_light_color = Color("b6cabf")
-	e.fog_sky_affect = 0.18
+	e.fog_mode = Environment.FOG_MODE_DEPTH
+	e.fog_light_color = Color("d8e8f3")
+	e.fog_sun_scatter = 0.26
+	e.fog_depth_begin = 72.0
+	e.fog_depth_end = 385.0
+	e.fog_depth_curve = 1.45
+	e.fog_aerial_perspective = 0.38
+	e.fog_sky_affect = 0.0
+	e.fog_height_density = 0.0
+
+	low_quality = "--low-quality" in OS.get_cmdline_user_args()
+	var use_modern_fx := _is_forward_plus() and not low_quality
+	e.ssao_enabled = use_modern_fx
+	e.ssao_radius = 1.10
+	e.ssao_intensity = 1.05
+	e.ssao_power = 1.25
+	e.volumetric_fog_enabled = use_modern_fx
+	e.volumetric_fog_density = 0.0005
+	e.volumetric_fog_albedo = Color("eaf2f8")
+	e.volumetric_fog_emission = Color("dce8f2")
+	e.volumetric_fog_emission_energy = 0.06
+	e.volumetric_fog_length = 125.0
 	env.environment = e
 	add_child(env)
 
+	# Warm golden-ivory morning sunlight ('云开日出暖金阳') contrasting with cool cerulean sky shadows!
 	var sun = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-47, -38, 0)
-	sun.light_color = Color("faefd8")
-	sun.light_energy = 0.94
-	low_quality = "--low-quality" in OS.get_cmdline_user_args()
+	sun.rotation_degrees = Vector3(-40, -42, 0)
+	sun.light_color = Color("ffecc4")
+	sun.light_energy = 1.34
 	sun.shadow_enabled = not low_quality
-	sun.directional_shadow_max_distance = 42
+	sun.shadow_blur = 1.45
+	sun.directional_shadow_max_distance = 52
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.shadow_bias = 0.05
 	add_child(sun)
+
+	_setup_valley_fog_volumes(use_modern_fx)
+	_setup_ink_contour_and_drizzle(not low_quality)
+
+func _setup_valley_fog_volumes(active_now: bool):
+	fog_volumes.clear()
+	if not _is_forward_plus():
+		return
+	var fog_sh := Shader.new()
+	fog_sh.code = """shader_type fog;
+void fog() {
+	vec3 p = WORLD_POSITION * vec3(0.042, 0.24, 0.042) + vec3(TIME * 0.028, 0.0, TIME * 0.018);
+	float n1 = sin(p.x * 2.1 + cos(p.z * 1.8) * 1.4);
+	float n2 = cos(p.z * 3.3 - sin(p.x * 2.7) * 1.2);
+	float wisp = smoothstep(-0.12, 0.72, 0.5 * n1 + 0.5 * n2);
+	float edge_fade = 1.0 - smoothstep(0.46, 1.0, length(UVW * 2.0 - 1.0));
+	DENSITY = 0.028 * wisp * edge_fade;
+	ALBEDO = vec3(0.94, 0.96, 0.98);
+	EMISSION = vec3(0.90, 0.93, 0.96) * 0.20;
+}
+"""
+	var fmat := ShaderMaterial.new()
+	fmat.shader = fog_sh
+	# Billowing Taiping-style valley sea-of-clouds framing the sunlit village & paddies along mountain flanks!
+	var mist_spots := [
+		[Vector3(-64.0, -3.5, 76.0), Vector3(68.0, 10.5, 62.0)],
+		[Vector3(72.0, -3.5, 82.0), Vector3(68.0, 10.5, 62.0)],
+		[Vector3(8.0, -2.5, 162.0), Vector3(175.0, 12.0, 58.0)],
+		[Vector3(96.0, -4.0, -14.0), Vector3(58.0, 9.5, 88.0)],
+		[Vector3(-96.0, -4.0, -10.0), Vector3(58.0, 9.5, 88.0)],
+	]
+	for sp in mist_spots:
+		var fv := FogVolume.new()
+		fv.position = sp[0]
+		fv.size = sp[1]
+		fv.material = fmat
+		fv.visible = active_now
+		add_child(fv)
+		fog_volumes.append(fv)
+
+func _setup_ink_contour_and_drizzle(enable_drizzle: bool):
+	# Zero-backbuffer-copy 3D Painterly Silhouette Contour ('远淡近浓青黛飞白轻勾线', ZERO slope banding!)
+	ink_post_quad = MeshInstance3D.new()
+	ink_post_quad.name = "InkContourAndPaperOverlay"
+	var qm := QuadMesh.new()
+	qm.size = Vector2(2.0, 2.0)
+	ink_post_quad.mesh = qm
+	ink_post_quad.extra_cull_margin = 16384.0
+	ink_post_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var psh := Shader.new()
+	psh.code = """shader_type spatial;
+render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_disabled, fog_disabled;
+uniform sampler2D depth_tex : hint_depth_texture, repeat_disable, filter_nearest;
+uniform sampler2D paper_tex : source_color, filter_linear, repeat_enable;
+
+float linear_depth(vec2 uv, mat4 inv_proj) {
+	float d = texture(depth_tex, uv).r;
+	vec3 ndc = vec3(uv * 2.0 - 1.0, d);
+	vec4 view = inv_proj * vec4(ndc, 1.0);
+	view.xyz /= max(0.00001, view.w);
+	return -view.z;
+}
+
+void vertex() {
+	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
+}
+
+void fragment() {
+	vec2 px = 1.0 / max(VIEWPORT_SIZE, vec2(1280.0, 720.0));
+	float dc = linear_depth(SCREEN_UV, INV_PROJECTION_MATRIX);
+	float dl = linear_depth(SCREEN_UV - vec2(px.x * 1.25, 0.0), INV_PROJECTION_MATRIX);
+	float dr = linear_depth(SCREEN_UV + vec2(px.x * 1.25, 0.0), INV_PROJECTION_MATRIX);
+	float du = linear_depth(SCREEN_UV - vec2(0.0, px.y * 1.25), INV_PROJECTION_MATRIX);
+	float dd = linear_depth(SCREEN_UV + vec2(0.0, px.y * 1.25), INV_PROJECTION_MATRIX);
+
+	float silhouette_jump = max(max(dl - dc, dr - dc), max(du - dc, dd - dc));
+	float thresh = max(0.44, dc * 0.088);
+	float edge = smoothstep(thresh, thresh * 2.2, silhouette_jump);
+
+	float near_guard = smoothstep(1.05, 1.65, dc);
+	float mist_fade = 1.0 - smoothstep(18.0, 38.0, dc);
+	float paper = texture(paper_tex, SCREEN_UV * vec2(3.0, 1.7)).r;
+	float dry_brush = smoothstep(0.68, 0.98, paper);
+	float ink_line = edge * near_guard * mist_fade * mix(0.14, 0.26, dry_brush);
+
+	float paper_grain = clamp((0.92 - paper) * 0.08, 0.0, 0.012);
+
+	ALBEDO = vec3(0.11, 0.20, 0.24);
+	ALPHA = clamp(ink_line + paper_grain, 0.0, 0.28);
+}
+"""
+	var pmat := ShaderMaterial.new()
+	pmat.shader = psh
+	pmat.render_priority = -4
+	pmat.set_shader_parameter("paper_tex", load("res://assets/slice/ink_jiangnan/xuan_paper_grain.jpg"))
+	ink_post_quad.material_override = pmat
+	add_child(ink_post_quad)
+
+	# Delicate sunlit mountain breeze motes ('山间晴岚暖金微尘') floating gently in morning sunbeams!
+	drizzle_particles = CPUParticles3D.new()
+	drizzle_particles.name = "JiangnanMistyDrizzle"
+	drizzle_particles.position = Vector3(8.0, 6.5, -14.0)
+	drizzle_particles.amount = 110
+	drizzle_particles.lifetime = 4.5
+	drizzle_particles.preprocess = 2.5
+	drizzle_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	drizzle_particles.emission_box_extents = Vector3(32.0, 5.0, 32.0)
+	drizzle_particles.direction = Vector3(0.65, 0.25, 0.45).normalized()
+	drizzle_particles.spread = 35.0
+	drizzle_particles.gravity = Vector3(0.0, 0.04, 0.0)
+	drizzle_particles.initial_velocity_min = 0.35
+	drizzle_particles.initial_velocity_max = 0.85
+	var mote_quad := QuadMesh.new()
+	mote_quad.size = Vector2(0.038, 0.038)
+	var rmat := StandardMaterial3D.new()
+	rmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rmat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	rmat.albedo_color = Color(1.0, 0.95, 0.82, 0.28)
+	mote_quad.material = rmat
+	drizzle_particles.mesh = mote_quad
+	drizzle_particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	drizzle_particles.emitting = enable_drizzle
+	drizzle_particles.visible = enable_drizzle
+	add_child(drizzle_particles)
 
 func set_low_quality(value: bool):
 	low_quality = value
 	for child in get_children():
 		if child is DirectionalLight3D:
 			child.shadow_enabled = not low_quality
+	var use_modern_fx := _is_forward_plus() and not low_quality
+	if world_env_ref != null:
+		world_env_ref.ssao_enabled = use_modern_fx
+		world_env_ref.volumetric_fog_enabled = use_modern_fx
+	for fv in fog_volumes:
+		if is_instance_valid(fv):
+			fv.visible = use_modern_fx
+	if is_instance_valid(drizzle_particles):
+		drizzle_particles.visible = not low_quality
+		drizzle_particles.emitting = not low_quality
+	if get_viewport() != null:
+		get_viewport().scaling_3d_scale = 0.90 if low_quality else 1.0
 
 func _ground_vis_y(x: float, z: float) -> float:
 	var h := float(game.terrain_height(x, z))
@@ -105,6 +360,14 @@ func _ground_vis_y(x: float, z: float) -> float:
 		var wz := (1.0 - smoothstep(-58.3, -57.6, z)) * (1.0 - smoothstep(-69.2, -70.1, z))
 		h -= 0.50 * wx * wz
 	return h
+
+func _smooth_vis_normal(x: float, z: float) -> Vector3:
+	var eps := 0.55
+	var hx0 := _ground_vis_y(x - eps, z)
+	var hx1 := _ground_vis_y(x + eps, z)
+	var hz0 := _ground_vis_y(x, z - eps)
+	var hz1 := _ground_vis_y(x, z + eps)
+	return Vector3(hx0 - hx1, 2.0 * eps, hz0 - hz1).normalized()
 
 func _ground():
 	var verts = PackedVector3Array()
@@ -119,14 +382,19 @@ func _ground():
 				Vector3(x + 1, _ground_vis_y(x + 1, z), z),
 				Vector3(x + 1, _ground_vis_y(x + 1, z + 1), z + 1)
 			]
+			var nrms = [
+				_smooth_vis_normal(x, z),
+				_smooth_vis_normal(x, z + 1),
+				_smooth_vis_normal(x + 1, z),
+				_smooth_vis_normal(x + 1, z + 1)
+			]
 			for tri in [[0, 2, 1], [2, 3, 1]]:
-				var normal = (p[tri[2]] - p[tri[0]]).cross(p[tri[1]] - p[tri[0]]).normalized()
 				for i in tri:
 					verts.append(p[i])
-					normals.append(normal)
-					uvs.append(Vector2(p[i].x, p[i].z) * 0.28)
+					normals.append(nrms[i])
+					uvs.append(Vector2(p[i].x, p[i].z) * 0.24)
 					var r_t := clampf(game.Layout.road_distance(p[i].x, p[i].z) / 4.5, 0, 1)
-					var s_t := clampf(game.Layout.stream_distance(p[i].x, p[i].z) / 3.6, 0, 1)
+					var s_t := clampf(game.Layout.stream_distance(p[i].x, p[i].z) / 3.8, 0, 1)
 					colors.append(Color(r_t, s_t, 0))
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -143,25 +411,48 @@ func _ground():
 	shader.code = """shader_type spatial;
 uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mud_cobble : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mud_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 varying vec3 pos;
 void vertex(){pos=VERTEX;}
 void fragment(){
- vec3 tex=texture(soil,UV).rgb;
- float edge=smoothstep(0.36,0.94,COLOR.r);
- float stream_bank=1.0-smoothstep(0.45,0.98,COLOR.g);
- float patch=0.5+0.5*sin(pos.x*0.24+sin(pos.z*0.19)*2.1);
- float micro_band=smoothstep(0.32,0.68,patch);
- vec3 greenery=mix(vec3(0.21,0.34,0.23),vec3(0.37,0.46,0.27),micro_band);
- vec3 bed=mix(tex*vec3(0.54,0.49,0.39),tex*greenery*1.44,edge);
- vec3 wet_stone=tex*vec3(0.30,0.36,0.32);
- ALBEDO=mix(bed,wet_stone,stream_bank*0.78);
- NORMAL_MAP=texture(soil_normal,UV).rgb; NORMAL_MAP_DEPTH=0.46; ROUGHNESS=mix(0.96,0.68,stream_bank); SPECULAR=0.03;
+ // Multi-scale UV blend eliminates 2002-style tiled grass repetition!
+ vec3 tex_near = texture(soil, UV).rgb;
+ vec3 tex_macro = texture(soil, UV * 0.23 + vec2(0.37, 0.19)).rgb;
+ float lum = dot(mix(tex_near, tex_macro, 0.55), vec3(0.299, 0.587, 0.114));
+ float tex_tone = mix(0.84, 1.14, clamp(lum * 1.45, 0.0, 1.0));
+
+ float road_edge = smoothstep(0.32, 0.92, COLOR.r);
+ float stream_bank = 1.0 - smoothstep(0.32, 0.98, COLOR.g);
+
+ // Warm sunlit golden-olive spring meadow & cool emerald shaded patches (Taiping Village hillside harmony!)
+ float wash1 = 0.5 + 0.5 * sin(pos.x * 0.13 + sin(pos.z * 0.11) * 2.2);
+ float wash2 = 0.5 + 0.5 * cos(pos.z * 0.27 - cos(pos.x * 0.23) * 1.7);
+ float ink_wash = smoothstep(0.25, 0.78, wash1 * 0.65 + wash2 * 0.35);
+
+ vec3 damp_moss = mix(vec3(0.11, 0.25, 0.14), vec3(0.26, 0.39, 0.13), ink_wash);
+ vec3 trail_earth = vec3(0.36, 0.32, 0.24);
+ vec3 slope_col = mix(trail_earth, damp_moss, road_edge) * tex_tone;
+
+ // Natural CC0 mud-and-cobble feathering along creek banks
+ vec2 bank_uv = pos.xz * 0.42;
+ vec3 mc_rgb = texture(mud_cobble, bank_uv).rgb;
+ float mc_lum = dot(mc_rgb, vec3(0.299, 0.587, 0.114));
+ vec3 wet_bank = vec3(0.24, 0.26, 0.23) * mix(0.76, 1.24, mc_lum);
+
+ ALBEDO = mix(slope_col, wet_bank, stream_bank * 0.88);
+ NORMAL_MAP = mix(texture(soil_normal, UV * 0.65).rgb, texture(mud_normal, bank_uv).rgb, stream_bank);
+ NORMAL_MAP_DEPTH = mix(0.24, 0.62, stream_bank);
+ ROUGHNESS = mix(0.95, 0.56, stream_bank);
+ SPECULAR = 0.04;
 }
 """
 	var mat = ShaderMaterial.new()
 	mat.shader = shader
 	mat.set_shader_parameter("soil", load("res://assets/slice/ground_color.jpg"))
 	mat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
+	mat.set_shader_parameter("mud_cobble", load("res://assets/slice/ink_jiangnan/mud_cobble_albedo.jpg"))
+	mat.set_shader_parameter("mud_normal", load("res://assets/slice/ink_jiangnan/mud_cobble_normal.jpg"))
 	ground.material_override = mat
 	add_child(ground)
 
@@ -189,25 +480,42 @@ func _get_qinglu_foliage_material(tex: Texture2D, mat_key: String, has_vcol: boo
 render_mode cull_disabled, specular_disabled;
 
 uniform sampler2D leaf_tex : source_color, filter_linear_mipmap;
-uniform float alpha_cut = 0.40;
-uniform float sway_amp = 0.045;
+uniform float alpha_cut = 0.38;
+uniform float sway_amp = 0.042;
 uniform float use_baked_ao = 1.0;
 uniform float warm_autumn = 0.0;
+uniform float camera_dab = 0.0;
 
 varying vec3 v_world_nrm;
 varying vec3 v_vcol;
 varying float v_instance_var;
 
 void vertex() {
-	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_world_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	v_vcol = mix(vec3(0.78, clamp(VERTEX.y / 5.5, 0.0, 1.0), 0.5), COLOR.rgb, use_baked_ao);
+	v_vcol = mix(vec3(0.75, clamp(VERTEX.y / 5.5, 0.0, 1.0), 0.45), COLOR.rgb, use_baked_ao);
 	vec3 origin_w = MODEL_MATRIX[3].xyz;
 	v_instance_var = fract(sin(dot(origin_w.xz, vec2(12.9898, 78.233))) * 43758.5453);
 
-	// Gentle mountain breeze sway weighted toward outer/upper bough tips
+	// Camera-facing painterly sumi-e dab expansion (zero X-card paper edges from ANY view angle!)
+	if (camera_dab > 0.5) {
+		float dab_sz = 1.20 + COLOR.b * 2.20;
+		float rot_ang = (COLOR.a - 0.5) * 1.60 + (v_instance_var - 0.5) * 0.45;
+		vec2 q = vec2(UV.x - 0.5, 0.5 - UV.y) * dab_sz;
+		float cr = cos(rot_ang);
+		float sr = sin(rot_ang);
+		vec2 qr = vec2(q.x * cr - q.y * sr, q.x * sr + q.y * cr);
+		vec3 w_right = INV_VIEW_MATRIX[0].xyz;
+		vec3 w_up = INV_VIEW_MATRIX[1].xyz;
+		mat3 world_to_local = transpose(mat3(
+			normalize(MODEL_MATRIX[0].xyz),
+			normalize(MODEL_MATRIX[1].xyz),
+			normalize(MODEL_MATRIX[2].xyz)
+		));
+		VERTEX += world_to_local * (w_right * qr.x + w_up * qr.y);
+	}
+
 	float flex = clamp(v_vcol.g * 0.72 + (1.0 - UV.y) * 0.28, 0.0, 1.0);
-	float phase = TIME * 1.55 + origin_w.x * 0.37 + origin_w.z * 0.29 + VERTEX.y * 0.35;
+	float phase = TIME * 1.35 + origin_w.x * 0.37 + origin_w.z * 0.29 + VERTEX.y * 0.32;
 	VERTEX.x += sin(phase) * sway_amp * flex;
 	VERTEX.z += cos(phase * 0.85) * sway_amp * 0.65 * flex;
 }
@@ -217,18 +525,17 @@ void fragment() {
 	ALPHA = tex.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 
-	// Lock view-space normal to the smooth outward canopy normal (never flip on backfaces -> zero harsh X-card seams!)
+	// Lock normal to smooth 3D spherical canopy normal
 	NORMAL = normalize((VIEW_MATRIX * vec4(v_world_nrm, 0.0)).xyz);
 
-	// 3D Volumetric Qinglü core-to-crown gradient: Deep Qingdai Ink-Jade interior -> Sunlit Tea-Gold exterior!
-	float core_ao = clamp(v_vcol.r, 0.20, 1.0);
+	// Taiping Village Cool-to-Warm Hue Shift: cool cerulean-teal sky shadow -> warm golden-sprout sunlit crown!
+	float core_ao = clamp(v_vcol.r, 0.24, 1.0);
 	float crown_h = clamp(v_vcol.g, 0.0, 1.0);
-	float vol_t = smoothstep(0.22, 0.94, core_ao * 0.74 + crown_h * 0.26);
+	float vol_t = smoothstep(0.18, 0.94, core_ao * 0.70 + crown_h * 0.30);
 
-	vec3 shadow_tint = mix(vec3(0.42, 0.60, 0.62), vec3(0.56, 0.50, 0.52), warm_autumn);
-	vec3 crown_tint = mix(vec3(1.12, 1.10, 0.94), vec3(1.16, 1.04, 0.90), warm_autumn);
-	// Subtle per-tree & per-bouquet organic shift so neighboring trees never merge into one flat mass
-	vec3 var_tint = mix(vec3(0.93, 1.03, 1.02), vec3(1.06, 0.99, 0.92), clamp(v_instance_var * 0.65 + v_vcol.b * 0.35, 0.0, 1.0));
+	vec3 shadow_tint = mix(vec3(0.56, 0.78, 0.82), vec3(0.72, 0.70, 0.68), warm_autumn);
+	vec3 crown_tint = mix(vec3(1.06, 1.10, 0.86), vec3(1.12, 1.02, 0.88), warm_autumn);
+	vec3 var_tint = mix(vec3(0.94, 0.99, 0.96), vec3(1.06, 1.02, 0.90), v_instance_var);
 
 	ALBEDO = tex.rgb * mix(shadow_tint, crown_tint, vol_t) * var_tint;
 	ROUGHNESS = 1.0;
@@ -237,15 +544,12 @@ void fragment() {
 }
 
 void light() {
+	// Painterly Half-Lambert + golden morning sun-rim translucency on outer canopy!
 	float half_nl = dot(NORMAL, LIGHT) * 0.5 + 0.5;
-	float lit = clamp(half_nl * (0.46 + 0.68 * v_vcol.r), 0.0, 1.0);
-	// Soft 2-step Qinglü painterly cel-band (clean sunlit crowns vs cool mineral-jade shade, zero plastic shine!)
-	float cel = mix(smoothstep(0.30, 0.56, lit) * 0.56 + smoothstep(0.58, 0.86, lit) * 0.44, lit, 0.32);
-	vec3 cool_shade = vec3(0.14, 0.24, 0.26);
-	vec3 warm_sun = (LIGHT_COLOR / 3.14159) * vec3(1.02, 0.98, 0.84);
-	// Translucent spring-leaf rim glow when looking toward the sun
-	float back_rim = pow(clamp(dot(-VIEW, LIGHT), 0.0, 1.0), 3.0) * smoothstep(0.52, 1.0, v_vcol.r) * 0.26;
-	DIFFUSE_LIGHT += (mix(cool_shade, warm_sun, cel) + vec3(0.24, 0.28, 0.14) * back_rim) * ATTENUATION;
+	float lit = clamp(half_nl * (0.40 + 0.68 * v_vcol.r), 0.0, 1.0);
+	float ink_step = mix(smoothstep(0.24, 0.66, lit), lit, 0.48);
+	float back_rim = pow(clamp(dot(-VIEW, LIGHT), 0.0, 1.0), 3.0) * clamp(v_vcol.g, 0.15, 1.0) * 0.26;
+	DIFFUSE_LIGHT += (LIGHT_COLOR / 3.14159) * (0.30 + 0.86 * ink_step + back_rim) * ATTENUATION;
 }
 """
 	var sm := ShaderMaterial.new()
@@ -255,12 +559,125 @@ void light() {
 	var is_willow := "Willow" in mat_key
 	var is_maple := "Maple" in mat_key
 	var is_azalea := "Azalea" in mat_key
-	sm.set_shader_parameter("alpha_cut", 0.36 if is_willow else 0.40)
-	sm.set_shader_parameter("sway_amp", 0.075 if is_willow else (0.022 if is_azalea else 0.045))
+	var is_dab := "SumiDab" in mat_key
+	sm.set_shader_parameter("alpha_cut", 0.34 if is_willow else (0.38 if is_dab else 0.40))
+	sm.set_shader_parameter("sway_amp", 0.085 if is_willow else (0.022 if is_azalea else 0.040))
 	sm.set_shader_parameter("use_baked_ao", 1.0 if has_vcol else 0.0)
-	sm.set_shader_parameter("warm_autumn", 0.65 if is_maple else 0.0)
+	sm.set_shader_parameter("warm_autumn", 0.70 if is_maple else 0.0)
+	sm.set_shader_parameter("camera_dab", 1.0 if is_dab else 0.0)
 	qinglu_foliage_cache[cache_id] = sm
 	return sm
+
+func _get_ink_arch_material(kind: String) -> Material:
+	if ink_arch_mat_cache.has(kind):
+		return ink_arch_mat_cache[kind]
+	var mat: Material = null
+	if kind == "plaster":
+		# Authentic Hui/Jiangnan '粉墙': weathered whitewashed lime plaster + automatic eave rain-drip ink streaks & plinth moss!
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+uniform sampler2D plaster_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D plaster_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D weathered_tex : source_color, filter_linear_mipmap, repeat_enable;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	vec3 p_col = texture(plaster_tex, UV * 1.15).rgb;
+	vec3 w_col = texture(weathered_tex, UV * 0.75 + vec2(0.23, 0.41)).rgb;
+	float w_lum = dot(w_col, vec3(0.299, 0.587, 0.114));
+	vec3 base_wall = mix(vec3(0.86, 0.85, 0.81), vec3(0.94, 0.92, 0.88), clamp(p_col.r, 0.0, 1.0));
+
+	// Subtle eave rain-wash streaks & spring moss plinth
+	float streak_freq = sin(wpos.x * 19.0 + sin(wpos.z * 17.0) * 1.8) * 0.5 + 0.5;
+	float streak_fine = sin(wpos.x * 43.0 - wpos.z * 37.0) * 0.5 + 0.5;
+	float streak_mask = smoothstep(0.35, 0.88, streak_freq * 0.65 + streak_fine * 0.35);
+	float top_drip = smoothstep(0.55, 0.96, COLOR.r) * streak_mask * 0.36;
+	float age_patch = smoothstep(0.58, 0.26, w_lum) * 0.24;
+	float base_moss = (1.0 - smoothstep(0.04, 0.26, COLOR.r)) * (0.40 + 0.40 * streak_freq);
+
+	vec3 col = mix(base_wall, vec3(0.42, 0.46, 0.47), clamp(top_drip + age_patch, 0.0, 0.52));
+	col = mix(col, vec3(0.26, 0.38, 0.26), clamp(base_moss, 0.0, 0.62));
+
+	ALBEDO = col;
+	NORMAL_MAP = texture(plaster_nrm, UV * 1.15).rgb;
+	NORMAL_MAP_DEPTH = 0.65;
+	ROUGHNESS = 0.92;
+	SPECULAR = 0.04;
+}
+"""
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("plaster_tex", load("res://assets/slice/ink_jiangnan/plaster_albedo.jpg"))
+		sm.set_shader_parameter("plaster_nrm", load("res://assets/slice/ink_jiangnan/plaster_normal.jpg"))
+		sm.set_shader_parameter("weathered_tex", load("res://assets/slice/ink_jiangnan/plaster_weathered_albedo.jpg"))
+		mat = sm
+	elif kind == "tile":
+		# Authentic Jiangnan '青黛小青瓦' slate-blue roof tiles catching clear cerulean sky
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = Color("2d3842")
+		sm.albedo_texture = load("res://assets/slice/ink_jiangnan/tile_albedo.jpg")
+		sm.normal_enabled = true
+		sm.normal_texture = load("res://assets/slice/ink_jiangnan/tile_normal.jpg")
+		sm.normal_scale = 0.85
+		sm.uv1_scale = Vector3(1.8, 1.8, 1.0)
+		sm.roughness = 0.52
+		sm.metallic = 0.04
+		sm.metallic_specular = 0.18
+		mat = sm
+	elif kind == "bluestone":
+		# Sunlit carved Jiangnan bluestone with spring moss crevices
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+uniform sampler2D stone_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D stone_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D moss_tex : source_color, filter_linear_mipmap, repeat_enable;
+varying vec3 w_nrm;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	w_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec3 st = texture(stone_tex, UV * 0.95).rgb;
+	vec3 ms = texture(moss_tex, wpos.xz * 0.45).rgb;
+	float lum = dot(st, vec3(0.299, 0.587, 0.114));
+	vec3 slate = mix(vec3(0.28, 0.32, 0.34), vec3(0.46, 0.50, 0.50), clamp(lum * 1.35, 0.0, 1.0));
+	float moss_amt = (1.0 - smoothstep(0.05, 0.36, COLOR.r)) * 0.45 + smoothstep(0.55, 0.92, sin(wpos.x * 1.4 + wpos.z * 1.7) * 0.5 + 0.5) * 0.22;
+	vec3 damp_moss = vec3(0.24, 0.36, 0.23) * (0.8 + 0.4 * ms.g);
+	ALBEDO = mix(slate, damp_moss, clamp(moss_amt, 0.0, 0.52)) * clamp(COLOR.g, 0.72, 1.0);
+	NORMAL_MAP = texture(stone_nrm, UV * 0.95).rgb;
+	NORMAL_MAP_DEPTH = 0.72;
+	float top_wet = smoothstep(0.55, 0.95, w_nrm.y);
+	ROUGHNESS = mix(0.84, 0.48, top_wet);
+	SPECULAR = mix(0.08, 0.22, top_wet);
+}
+"""
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("stone_tex", load("res://assets/slice/ink_jiangnan/bluestone_albedo.jpg"))
+		sm.set_shader_parameter("stone_nrm", load("res://assets/slice/ink_jiangnan/bluestone_normal.jpg"))
+		sm.set_shader_parameter("moss_tex", load("res://assets/slice/ink_jiangnan/moss_rock_albedo.jpg"))
+		mat = sm
+	elif kind == "undergrowth":
+		# Lush sunlit spring meadow grass tufts, ferns & creek reeds!
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+render_mode cull_disabled, specular_disabled;
+void fragment() {
+	float lum = dot(COLOR.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 natural = mix(vec3(lum), COLOR.rgb, 0.52);
+	ALBEDO = natural * vec3(0.70, 0.88, 0.52);
+	ROUGHNESS = 0.94;
+	SPECULAR = 0.0;
+}
+"""
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		mat = sm
+	ink_arch_mat_cache[kind] = mat
+	return mat
 
 func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 	if src_mesh == null:
@@ -276,6 +693,18 @@ func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 			if smat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and smat.albedo_texture != null:
 				mesh.surface_set_material(s, _get_qinglu_foliage_material(smat.albedo_texture, mname, has_vcol))
 				continue
+			if "UndergrowthVCol" in mname:
+				mesh.surface_set_material(s, _get_ink_arch_material("undergrowth"))
+				continue
+			if ("Plaster" in mname or "WhiteWall" in mname) and smat.albedo_texture == null:
+				mesh.surface_set_material(s, _get_ink_arch_material("plaster"))
+				continue
+			if "Tile" in mname and smat.albedo_texture == null:
+				mesh.surface_set_material(s, _get_ink_arch_material("tile"))
+				continue
+			if ("Bluestone" in mname or "Granite" in mname or "Flagstone" in mname or "ShrineStone" in mname or "StonePlinth" in mname or "BridgeMoss" in mname or "PoemPlinth" in mname or "PoemCarvedStone" in mname) and smat.albedo_texture == null:
+				mesh.surface_set_material(s, _get_ink_arch_material("bluestone"))
+				continue
 		var bmat: BaseMaterial3D = null
 		if mat is BaseMaterial3D:
 			bmat = mat.duplicate() as BaseMaterial3D
@@ -283,7 +712,7 @@ func _polish_mesh_materials(src_mesh: Mesh) -> Mesh:
 			bmat = StandardMaterial3D.new()
 			bmat.roughness = 0.88
 		if bmat != null:
-			if has_vcol:
+			if has_vcol and bmat.albedo_texture == null:
 				bmat.vertex_color_use_as_albedo = true
 			if bmat.metallic < 0.35:
 				bmat.metallic = 0.0
@@ -660,7 +1089,7 @@ func _outer_valley_y(x: float, z: float) -> float:
 	rural_y = lerpf(rural_y, north_h, north_w * smoothstep(6.0, 38.0, d))
 	var center_dist := Vector2(x, z + 44.0).length()
 	var foothill_w := _outer_foothill_weight(x, z)
-	var foothill_h := 6.0 + 18.0 * smoothstep(170.0, 280.0, center_dist) + 8.5 * sin(x * 0.027 - z * 0.021) + 5.5 * cos(x * 0.016 + z * 0.031)
+	var foothill_h := 2.0 + 7.5 * smoothstep(185.0, 285.0, center_dist) + 3.2 * sin(x * 0.027 - z * 0.021) + 2.2 * cos(x * 0.016 + z * 0.031)
 	var land_y := lerpf(rural_y, foothill_h, foothill_w)
 	# Continuous recessed riverbed & bank lips extending seamlessly South from z = 36.0 into the rural rice valley
 	if z >= 36.0 and z <= 172.0:
@@ -788,30 +1217,29 @@ void vertex(){
  foothill_f = COLOR.b;
 }
 void fragment(){
- vec2 soil_uv = wpos.xz * 0.28;
+ vec2 soil_uv = wpos.xz * 0.24;
  vec3 s_tex = texture(soil, soil_uv).rgb;
- float patch_n = 0.5 + 0.5 * sin(wpos.x * 0.27 + sin(wpos.z * 0.21) * 2.0);
- vec3 greenery = mix(vec3(0.28, 0.35, 0.19), vec3(0.42, 0.44, 0.27), patch_n);
- vec3 near_grass = s_tex * greenery * 1.42;
+ float lum = dot(s_tex, vec3(0.299, 0.587, 0.114));
+ float patch_n = 0.5 + 0.5 * sin(wpos.x * 0.13 + sin(wpos.z * 0.11) * 2.2);
+ vec3 near_moss = mix(vec3(0.22, 0.34, 0.21), vec3(0.34, 0.46, 0.23), patch_n) * mix(0.84, 1.14, clamp(lum * 1.45, 0.0, 1.0));
 
- // Natural textured foothill forest canopy matching foreground mountain green reflectance
- vec3 canopy_tex = texture(soil, wpos.xz * 0.048).rgb;
- float forest_n = 0.5 + 0.5 * sin(wpos.x * 0.065 + cos(wpos.z * 0.055) * 2.2);
- float ridge_var = 0.5 + 0.5 * sin(wpos.x * 0.025 - wpos.z * 0.029);
- vec3 lush_hill = mix(vec3(0.14, 0.22, 0.12), vec3(0.24, 0.31, 0.18), forest_n);
- vec3 far_hill_col = mix(s_tex, canopy_tex, 0.62) * lush_hill * mix(1.00, 1.24, ridge_var);
- vec3 slope_col = mix(near_grass, far_hill_col, smoothstep(10.0, 56.0, edge_d));
+ // Taiping Village cloud-wrapped teal-emerald foothills ('青黛叠嶂 · 云海缠腰')
+ float crest_lift = clamp((wpos.y + 4.0) / 22.0, 0.0, 1.0);
+ vec3 valley_mist = vec3(0.85, 0.90, 0.93);
+ vec3 ink_ridge = mix(vec3(0.32, 0.52, 0.56), vec3(0.22, 0.42, 0.44), crest_lift);
+ vec3 far_hill_col = mix(valley_mist, ink_ridge, smoothstep(0.05, 0.85, crest_lift));
+ vec3 slope_col = mix(near_moss, far_hill_col, smoothstep(14.0, 72.0, edge_d));
 
  vec3 p_tex = texture(paddy_tex, UV).rgb;
- float macro_dapple = 0.88 + 0.14 * sin(wpos.x * 0.022 + wpos.z * 0.018);
- vec3 paddy_col = p_tex * macro_dapple * 0.62;
+ float macro_dapple = 0.94 + 0.10 * sin(wpos.x * 0.022 + wpos.z * 0.018);
+ vec3 paddy_col = p_tex * macro_dapple * 1.02;
 
  float paddy_t = clamp(COLOR.r, 0.0, 1.0) * (1.0 - foothill_f * 0.96);
  ALBEDO = mix(slope_col, paddy_col, paddy_t);
  NORMAL_MAP = texture(soil_normal, soil_uv).rgb;
- NORMAL_MAP_DEPTH = mix(0.50, 0.12, smoothstep(10.0, 75.0, edge_d));
- ROUGHNESS = mix(0.95, 0.90, paddy_t);
- SPECULAR = 0.02;
+ NORMAL_MAP_DEPTH = mix(0.28, 0.06, smoothstep(10.0, 75.0, edge_d));
+ ROUGHNESS = mix(0.94, 0.38, paddy_t);
+ SPECULAR = mix(0.03, 0.22, paddy_t);
 }
 """
 	var pmat = ShaderMaterial.new()
@@ -910,19 +1338,19 @@ void fragment(){
 	# 3) 360-degree distant misty mountain range panorama cylinder harmonizing with sun azimuth & valley mist
 	if ResourceLoader.exists("res://assets/slice/horizon_mountains.png"):
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 278.0
-		cyl.bottom_radius = 278.0
-		cyl.height = 112.0
-		cyl.radial_segments = 48
+		cyl.top_radius = 262.0
+		cyl.bottom_radius = 262.0
+		cyl.height = 118.0
+		cyl.radial_segments = 64
 		cyl.cap_top = false
 		cyl.cap_bottom = false
 		var sky_ring := MeshInstance3D.new()
 		sky_ring.name = "HorizonMountainsSkirt"
 		sky_ring.mesh = cyl
-		sky_ring.position = Vector3(0, 22.0, -44.0)
+		sky_ring.position = Vector3(0, 28.0, -44.0)
 		var ring_shader := Shader.new()
 		ring_shader.code = """shader_type spatial;
-render_mode unshaded, cull_disabled, blend_mix;
+render_mode unshaded, cull_disabled, blend_mix, fog_disabled;
 uniform sampler2D pano : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 sun_dir = vec3(0.42, 0.73, -0.54);
 varying vec3 wpos;
@@ -932,14 +1360,11 @@ void vertex(){
 void fragment(){
  vec2 uv = vec2(UV.x * 2.0, UV.y);
  vec4 t = texture(pano, uv);
- vec3 view_xz = normalize(vec3(wpos.x, 0.0, wpos.z + 44.0));
- vec3 sun_xz = normalize(vec3(sun_dir.x, 0.0, sun_dir.z));
- float sun_align = 0.5 + 0.5 * dot(view_xz, sun_xz);
- vec3 ridge_col = t.rgb * mix(0.86, 1.04, sun_align);
- float bottom_mist = smoothstep(0.66, 0.90, UV.y);
- ridge_col = mix(ridge_col, vec3(0.44, 0.54, 0.47), bottom_mist * 0.55);
+ float bottom_mist = smoothstep(0.70, 0.95, UV.y);
+ vec3 mist_white = vec3(0.86, 0.91, 0.94);
+ vec3 ridge_col = mix(t.rgb, mist_white, bottom_mist * 0.86);
  ALBEDO = ridge_col;
- ALPHA = t.a;
+ ALPHA = t.a * (1.0 - smoothstep(0.86, 0.98, UV.y));
 }
 """
 		var rmat := ShaderMaterial.new()
@@ -1229,8 +1654,9 @@ func _stream():
 			var wet := 1.0 - smoothstep(wy - 0.02, wy + 0.30, py)
 			var grass_blend := maxf(smoothstep(1.74, 2.28, absf(norm_off)), end_fade)
 			var r_t := clampf(float(game.Layout.road_distance(px, zc)) / 4.5, 0.0, 1.0) if zc <= 36.0 else 1.0
-			var s_t := clampf(absf(off) / 3.6, 0.0, 1.0)
-			row.append([Vector3(px, py, zc), Vector2(px * 0.56, zc * 0.56), Color(wet, grass_blend, r_t, s_t)])
+			var s_t := clampf(absf(off) / 3.8, 0.0, 1.0)
+			var nrm_v := _smooth_vis_normal(px, zc) if zc <= 36.0 else _outer_valley_normal(px, zc)
+			row.append([Vector3(px, py, zc), Vector2(px * 0.56, zc * 0.56), Color(wet, grass_blend, r_t, s_t), nrm_v])
 		bed_rows.append(row)
 		bz_cur += 0.75
 
@@ -1245,12 +1671,10 @@ func _stream():
 			var qv: Array[Vector3] = [a0[0] as Vector3, a1[0] as Vector3, b0[0] as Vector3, b1[0] as Vector3]
 			var qu: Array[Vector2] = [a0[1] as Vector2, a1[1] as Vector2, b0[1] as Vector2, b1[1] as Vector2]
 			var qc: Array[Color] = [a0[2] as Color, a1[2] as Color, b0[2] as Color, b1[2] as Color]
-			var nrm: Vector3 = (qv[1] - qv[0]).cross(qv[2] - qv[0]).normalized()
-			if nrm.y < 0.0:
-				nrm = -nrm
+			var qn: Array[Vector3] = [a0[3] as Vector3, a1[3] as Vector3, b0[3] as Vector3, b1[3] as Vector3]
 			for k in [0, 1, 2, 1, 3, 2]:
 				bed_verts.append(qv[k])
-				bed_normals.append(nrm)
+				bed_normals.append(qn[k])
 				bed_uvs.append(qu[k])
 				bed_colors.append(qc[k])
 
@@ -1270,8 +1694,8 @@ func _stream():
 uniform sampler2D pebbles : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pebbles_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pebbles_rough : filter_linear_mipmap, repeat_enable;
-uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mud_cobble : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mud_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 varying vec3 wpos;
 void vertex(){
  wpos = VERTEX;
@@ -1280,28 +1704,24 @@ void fragment(){
  float wet = clamp(COLOR.r, 0.0, 1.0);
  float grass_t = clamp(COLOR.g, 0.0, 1.0);
  vec3 p_col = texture(pebbles, UV).rgb;
+ float p_lum = dot(p_col, vec3(0.299, 0.587, 0.114));
  float p_rough = texture(pebbles_rough, UV).r;
- float moss_n = 0.5 + 0.5 * sin(wpos.x * 2.3 + cos(wpos.z * 1.9) * 2.1);
- vec3 dry_cobble = mix(p_col * vec3(0.68, 0.68, 0.62), p_col * vec3(0.40, 0.50, 0.32), moss_n * 0.52 * (1.0 - wet));
- vec3 wet_pebble = p_col * vec3(0.42, 0.46, 0.40);
+ float moss_n = 0.5 + 0.5 * sin(wpos.x * 2.1 + cos(wpos.z * 1.8) * 2.0);
+
+ vec3 dry_cobble = mix(vec3(0.28, 0.30, 0.29), vec3(0.21, 0.26, 0.22), moss_n * 0.55 * (1.0 - wet)) * mix(0.76, 1.24, p_lum);
+ vec3 wet_pebble = vec3(0.18, 0.21, 0.20) * mix(0.75, 1.25, p_lum);
  vec3 channel_col = mix(dry_cobble, wet_pebble, wet);
 
- vec2 soil_uv = wpos.xz * 0.28;
- vec3 s_tex = texture(soil, soil_uv).rgb;
- float edge = smoothstep(0.36, 0.94, COLOR.b);
- float stream_bank = 1.0 - smoothstep(0.45, 0.98, COLOR.a);
- float patch_n = 0.5 + 0.5 * sin(wpos.x * 0.27 + sin(wpos.z * 0.21) * 2.0);
- vec3 greenery = mix(vec3(0.28, 0.35, 0.19), vec3(0.42, 0.44, 0.27), patch_n);
- vec3 bed_soil = mix(s_tex * vec3(0.56, 0.50, 0.37), s_tex * greenery * 1.42, edge);
- vec3 wet_stone = s_tex * vec3(0.32, 0.36, 0.30);
- vec3 grass_col = mix(bed_soil, wet_stone, stream_bank * 0.78);
- float bank_rough = mix(0.94, 0.62, stream_bank);
+ vec2 bank_uv = wpos.xz * 0.42;
+ vec3 mc = texture(mud_cobble, bank_uv).rgb;
+ float mc_lum = dot(mc, vec3(0.299, 0.587, 0.114));
+ vec3 wet_bank = vec3(0.22, 0.24, 0.23) * mix(0.75, 1.25, mc_lum);
 
- ALBEDO = mix(channel_col, grass_col, grass_t);
- NORMAL_MAP = mix(texture(pebbles_normal, UV).rgb, texture(soil_normal, soil_uv).rgb, grass_t);
- NORMAL_MAP_DEPTH = mix(0.88, 0.52, grass_t);
- ROUGHNESS = mix(mix(clamp(p_rough * 0.92, 0.55, 0.92), 0.22, wet), bank_rough, grass_t);
- SPECULAR = mix(mix(0.16, 0.52, wet), 0.5, grass_t);
+ ALBEDO = mix(channel_col, wet_bank, grass_t);
+ NORMAL_MAP = mix(texture(pebbles_normal, UV).rgb, texture(mud_normal, bank_uv).rgb, grass_t);
+ NORMAL_MAP_DEPTH = mix(0.82, 0.62, grass_t);
+ ROUGHNESS = mix(mix(clamp(p_rough * 0.88, 0.48, 0.86), 0.24, wet), 0.56, grass_t);
+ SPECULAR = mix(0.24, 0.06, grass_t);
 }
 """
 	var bed_mat := ShaderMaterial.new()
@@ -1309,8 +1729,8 @@ void fragment(){
 	bed_mat.set_shader_parameter("pebbles", load("res://assets/slice/river_pebbles_color.jpg"))
 	bed_mat.set_shader_parameter("pebbles_normal", load("res://assets/slice/river_pebbles_normal.jpg"))
 	bed_mat.set_shader_parameter("pebbles_rough", load("res://assets/slice/river_pebbles_rough.jpg"))
-	bed_mat.set_shader_parameter("soil", load("res://assets/slice/ground_color.jpg"))
-	bed_mat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
+	bed_mat.set_shader_parameter("mud_cobble", load("res://assets/slice/ink_jiangnan/mud_cobble_albedo.jpg"))
+	bed_mat.set_shader_parameter("mud_normal", load("res://assets/slice/ink_jiangnan/mud_cobble_normal.jpg"))
 	bed_inst.material_override = bed_mat
 	bed_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(bed_inst)
@@ -1372,27 +1792,59 @@ render_mode blend_mix, cull_disabled;
 varying float edge_t;
 varying float tail_a;
 varying vec3 wpos;
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float raindrop_rings(vec2 p, float t) {
+	float acc = 0.0;
+	for (int layer = 0; layer < 2; layer++) {
+		vec2 uv_g = p * (1.55 + float(layer) * 0.85) + vec2(float(layer) * 13.7, float(layer) * 7.3);
+		vec2 id = floor(uv_g);
+		vec2 f = fract(uv_g) - 0.5;
+		float h = hash21(id);
+		vec2 jit = vec2(fract(h * 17.3) - 0.5, fract(h * 31.7) - 0.5) * 0.42;
+		float life = fract(t * 0.68 + h);
+		float d = length(f - jit);
+		float rad = life * 0.44;
+		float ring = exp(-abs(d - rad) * 34.0) * (1.0 - life) * smoothstep(0.02, 0.12, life);
+		acc += ring;
+	}
+	return clamp(acc, 0.0, 1.0);
+}
+
 void vertex(){
  edge_t = COLOR.r;
  tail_a = COLOR.g;
  wpos = VERTEX;
- float rip = sin(TIME * 2.4 + VERTEX.z * 1.7 + sin(VERTEX.x * 2.3) * 1.4) * 0.011;
+ float rip = sin(TIME * 1.8 + VERTEX.z * 1.5 + sin(VERTEX.x * 2.1) * 1.2) * 0.006;
  VERTEX.y += rip * (1.0 - edge_t * 0.75);
 }
 void fragment(){
- float w1 = sin(UV.y * 9.5 - TIME * 2.6 + sin(UV.x * 7.2 + TIME * 0.9) * 1.15);
- float w2 = cos(UV.y * 15.3 - TIME * 3.4 - cos(wpos.x * 2.9 - TIME * 1.1) * 1.25);
- float ripple = 0.5 + 0.28 * w1 + 0.22 * w2;
- float glint = smoothstep(0.76, 0.98, ripple) * (1.0 - edge_t * 0.55);
- float bank_foam = smoothstep(0.76, 0.95, edge_t + 0.06 * w1) * (1.0 - smoothstep(0.95, 1.0, edge_t));
- vec3 deep_jade = vec3(0.09, 0.22, 0.20);
- vec3 shallow_olive = vec3(0.16, 0.30, 0.25);
- vec3 col = mix(deep_jade, shallow_olive, clamp(edge_t * 0.72 + ripple * 0.28, 0.0, 1.0));
- col = mix(col, vec3(0.78, 0.86, 0.82), max(bank_foam * 0.55, glint * 0.32));
+ // Gentle current + authentic Jiangnan misty raindrop concentric rings ('雨打溪面同心圆涟漪')
+ float w1 = sin(UV.y * 8.0 - TIME * 1.9 + sin(UV.x * 6.5 + TIME * 0.7) * 1.1);
+ float w2 = cos(UV.y * 13.5 - TIME * 2.4 - cos(wpos.x * 2.6 - TIME * 0.8) * 1.1);
+ float drop_ring = raindrop_rings(wpos.xz, TIME);
+
+ // Fresnel sky-water unity ('水天一色'): dark damp ink-olive straight down -> pale Xuan-paper sky mirror at grazing angles!
+ vec3 w_view_up = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+ float ndotv = clamp(abs(dot(w_view_up, VIEW)), 0.0, 1.0);
+ float fresnel = pow(1.0 - ndotv, 2.35);
+
+ vec3 deep_ink_water = vec3(0.11, 0.25, 0.28);
+ vec3 bank_canopy_refl = vec3(0.15, 0.28, 0.24);
+ vec3 misty_sky_mirror = vec3(0.50, 0.72, 0.85);
+
+ vec3 base_water = mix(deep_ink_water, bank_canopy_refl, smoothstep(0.35, 0.88, edge_t));
+ vec3 col = mix(base_water, misty_sky_mirror, clamp(0.16 + fresnel * 0.46 - edge_t * 0.20, 0.0, 0.65));
+ // Sparkling sky-blue & ivory water ripple rings
+ col = mix(col, vec3(0.88, 0.93, 0.96), drop_ring * 0.52 * (1.0 - edge_t * 0.50));
+
  ALBEDO = col;
- NORMAL = normalize(vec3((w1 - w2) * 0.07, 1.0, (w1 + w2) * 0.07));
- ROUGHNESS = 0.12;
- SPECULAR = 0.68;
+ NORMAL = normalize((VIEW_MATRIX * vec4(normalize(vec3((w1 - w2) * 0.035, 1.0, (w1 + w2) * 0.035)), 0.0)).xyz);
+ ROUGHNESS = 0.18;
+ SPECULAR = 0.26;
  float shore_alpha = mix(0.62, 0.06, smoothstep(0.68, 0.99, edge_t));
  ALPHA = shore_alpha * tail_a;
 }

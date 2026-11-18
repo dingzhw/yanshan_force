@@ -11,7 +11,7 @@ const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
-const VERSION = "0.6.4"
+const VERSION = "0.6.5"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -625,7 +625,7 @@ func _build_ui():
 	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hitmarker_label.hide()
 
-	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [F]搜刮/交互  [B]背包  [I]3D检视  [X]读音  [1/2/V]枪刀  [H/G/T]道具", Vector2(310, 682), Vector2(668, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [F]搜刮/交互  [B]背包  [I]检视  [X]读音  [1/2/V]枪刀  [H/G/T]道具  [F6]画质", Vector2(296, 682), Vector2(696, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -684,7 +684,7 @@ func _build_ui():
 	)
 	_style_tactical_button(compendium_button, Color("481f28"), Color("ff5c6c"), Color("ffe8cf"))
 
-	var brief_lbl = _text(menu, "【v0.6.4 青绿烟山 · 美术、建模与第一人称动作重塑】\n• 双手持刀与锁肩骨骼：重做双肩封口与正向肘腕解算，左右双手战术戒备 + 青锋刀光残影，告别“独臂悬空”！\n• 江南青绿水墨树竹：团簇写意枝叶 + 内黛青/外嫩茗体积着色器 + 乌桕丹枫点缀，零树影开销下彻底消除绿团塑料感！\n• 枪刀分件与风物精雕：YS-04 苍青护木/错金机匣、伞绳青锋短刃、须弥青石案、盘枝鸟窝与飞檐甲词卫全面换新！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
+	var brief_lbl = _text(menu, "【v0.6.5 晴云烟山 · 太平村云海梯田美学全图统合 & 波次休整修复】\n• 太平村晴空云海色彩：晴朗钴蓝天幕、暖金立体云海积云、冷青暗部→暖金春芽树冠色相推移、金绿稻浪水镜梯田与山茶白花！\n• 全图徽派粉墙黛瓦与 Forward+ 双档画质：全图民居/土地石龛升级三级马头墙与 CC0 青砖瓦石，按 [F6] 一键切换核显流畅档！\n• 据点波次休整修复：清完一轮 5 兵后留足 8.5 秒空营搜刮间隔 + 增援就位后 14 秒休整免战期，从容摸金不连轴挨追！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
 	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 
 	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory

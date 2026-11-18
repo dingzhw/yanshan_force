@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.4 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.6.5" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.5 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -485,7 +485,7 @@ func run():
 	var env_ok := false
 	if not world_envs.is_empty() and (world_envs[0] as WorldEnvironment).environment != null:
 		var env_cfg: Environment = (world_envs[0] as WorldEnvironment).environment
-		env_ok = env_cfg.tonemap_mode == Environment.TONE_MAPPER_FILMIC and env_cfg.ambient_light_source == Environment.AMBIENT_SOURCE_SKY and env_cfg.fog_enabled
+		env_ok = (env_cfg.tonemap_mode == Environment.TONE_MAPPER_FILMIC or env_cfg.tonemap_mode == Environment.TONE_MAPPER_AGX) and env_cfg.ambient_light_source == Environment.AMBIENT_SOURCE_SKY and env_cfg.fog_enabled
 	verify(env_ok, "v0.5.6 landscape configures Filmic tonemapping, sky ambient lighting, and atmospheric horizon fog")
 	var vmesh: MeshInstance3D = valley_node as MeshInstance3D
 	verify(vmesh != null and vmesh.mesh != null and vmesh.mesh.get_surface_count() > 0, "OuterRiceValley renders unified terraced paddies and 3D outer foothills")

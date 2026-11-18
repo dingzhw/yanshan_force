@@ -12,6 +12,8 @@ enum Stage { OFF, FIELD }
 const MAX_HEALTH = 100
 const SQUAD_SIZE = 5
 const WAVES_PER_CAMP = 3
+const WAVE_REINFORCE_DELAY = 8.5
+const WAVE_TRUCE_GRACE = 14.0
 const WRONG_DAMAGE_STEP = 0.25
 const MAX_WRONG_STACKS = 4
 const STILL_HIT_CHANCE = 0.78
@@ -43,6 +45,7 @@ var waves_target = {}
 var zone_cleared = {}
 var zone_engaged = {}
 var zone_respawn_grace = {}
+var zone_reinforce_left = {}
 var smoke_zones = []
 var danger_rings = []
 var active_attacker = null
@@ -97,6 +100,7 @@ func stop():
 	zone_cleared.clear()
 	zone_engaged.clear()
 	zone_respawn_grace.clear()
+	zone_reinforce_left.clear()
 	if is_instance_valid(arena):
 		arena.hide()
 		for body in arena.find_children("*", "CollisionObject3D", true, false):
@@ -211,20 +215,34 @@ func _build_tactical_cover(at: Vector3, index: int):
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
 	arena.add_child(root)
-	var crate_mat = StandardMaterial3D.new()
-	crate_mat.albedo_color = Color("4c5646") if index % 2 == 0 else Color("594e3f")
-	crate_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
-	crate_mat.roughness = 0.88
+	# Hui-style whitewashed plaster & bluestone tactical low wall ('粉墙青瓦战术矮垣')
+	var wall_mat = StandardMaterial3D.new()
+	wall_mat.albedo_color = Color("dedad0") if index % 2 == 0 else Color("d4d0c5")
+	wall_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/plaster_albedo.jpg")
+	wall_mat.normal_enabled = true
+	wall_mat.normal_texture = load("res://assets/slice/ink_jiangnan/plaster_normal.jpg")
+	wall_mat.normal_scale = 0.60
+	wall_mat.roughness = 0.90
+	wall_mat.metallic_specular = 0.05
 	var main_block = game._mesh_box(root, Vector3(0, box_h * 0.5, 0), Vector3(1.56, box_h, 0.94), Color.WHITE, true)
-	main_block.material_override = crate_mat
+	main_block.material_override = wall_mat
+	var plinth_mat = StandardMaterial3D.new()
+	plinth_mat.albedo_color = Color("9aa3a6")
+	plinth_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/bluestone_albedo.jpg")
+	plinth_mat.roughness = 0.86
+	var plinth = game._mesh_box(root, Vector3(0, 0.28, 0), Vector3(1.62, 0.56, 1.00), Color.WHITE)
+	plinth.material_override = plinth_mat
 	var cap_mat = StandardMaterial3D.new()
-	cap_mat.albedo_color = Color("2d3638")
-	cap_mat.metallic = 0.45
-	cap_mat.roughness = 0.50
-	var top_trim = game._mesh_box(root, Vector3(0, box_h + 0.03, 0), Vector3(1.62, 0.12, 1.00), Color.WHITE)
+	cap_mat.albedo_color = Color("6e7d8a")
+	cap_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/tile_albedo.jpg")
+	cap_mat.normal_enabled = true
+	cap_mat.normal_texture = load("res://assets/slice/ink_jiangnan/tile_normal.jpg")
+	cap_mat.roughness = 0.55
+	cap_mat.metallic_specular = 0.15
+	var top_trim = game._mesh_box(root, Vector3(0, box_h + 0.04, 0), Vector3(1.68, 0.14, 1.06), Color.WHITE)
 	top_trim.material_override = cap_mat
-	var stripe = game._mesh_box(root, Vector3(0, box_h - 0.52, 0), Vector3(1.59, 0.10, 0.96), Color("c49a45"))
-	stripe.material_override.roughness = 0.7
+	var stripe = game._mesh_box(root, Vector3(0, box_h - 0.12, 0), Vector3(1.60, 0.07, 0.97), Color("52463a"))
+	stripe.material_override.roughness = 0.82
 
 func _pick_seed_word() -> Dictionary:
 	if game.question_queue.is_empty():
@@ -288,6 +306,7 @@ func _deploy():
 		zone_cleared[z_idx] = false
 		zone_engaged[z_idx] = false
 		zone_respawn_grace[z_idx] = 0.0
+		zone_reinforce_left[z_idx] = 0.0
 		var covers := []
 		for i in SQUAD_SIZE:
 			var offset_x := (float(i) - 2.0) * 2.55
@@ -328,9 +347,17 @@ func _select_next_wave_prompt(z_idx: int) -> bool:
 		game.speak_english(game.question.english)
 	return true
 
+func spawn_pending_wave_now(z_idx: int):
+	if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0 and not zone_cleared.get(z_idx, false):
+		zone_reinforce_left[z_idx] = 0.0
+		_spawn_camp_wave(z_idx)
+		zone_respawn_grace[z_idx] = WAVE_TRUCE_GRACE
+
 func engage_camp(z_idx: int):
 	if z_idx < 0 or z_idx >= game.Layout.COMBAT_ZONES.size() or zone_cleared.get(z_idx, false):
 		return
+	if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
+		spawn_pending_wave_now(z_idx)
 	var alive := living_soldiers(z_idx)
 	if alive.is_empty():
 		return
@@ -408,10 +435,37 @@ func update(delta: float):
 	for z_i in zone_respawn_grace.keys():
 		var g_left := float(zone_respawn_grace[z_i])
 		if g_left > 0.0:
-			if _camp_pull_distance(int(z_i)) > zone_aggro(int(z_i)) + 1.2:
+			var prev_g := int(ceilf(g_left))
+			# Keep full truce countdown while player loots/reloads near camp; only reset once player has fully left (> aggro + 10m)
+			if _camp_pull_distance(int(z_i)) > zone_aggro(int(z_i)) + 10.0:
 				zone_respawn_grace[z_i] = 0.0
+				if zone < 0:
+					show_question()
 			else:
-				zone_respawn_grace[z_i] = maxf(0.0, g_left - delta)
+				var next_g := maxf(0.0, g_left - delta)
+				zone_respawn_grace[z_i] = next_g
+				if zone < 0 and int(ceilf(next_g)) != prev_g:
+					show_question()
+
+	for z_i in zone_reinforce_left.keys():
+		var r_left := float(zone_reinforce_left[z_i])
+		if r_left > 0.0 and not zone_cleared.get(int(z_i), false):
+			var prev_sec := int(ceilf(r_left))
+			r_left = maxf(0.0, r_left - delta)
+			zone_reinforce_left[z_i] = r_left
+			if r_left <= 0.0:
+				_spawn_camp_wave(int(z_i))
+				zone_respawn_grace[int(z_i)] = WAVE_TRUCE_GRACE
+				game._sync_question()
+				var zi := int(z_i)
+				var w_next := int(waves_done.get(zi, 0)) + 1
+				var w_tot := int(waves_target.get(zi, WAVES_PER_CAMP))
+				if _camp_pull_distance(zi) <= zone_aggro(zi) + 8.0:
+					game._notice("⚑【%s】第 %d/%d 波增援已在掩体就位待命（14秒休整内不主动开火，搜完物资可离开或开枪迎战）！" % [
+						zone_info(zi).title, w_next, w_tot
+					], game.GOLD)
+			elif zone < 0 and int(ceilf(r_left)) != prev_sec:
+				show_question()
 
 	for i in range(smoke_zones.size() - 1, -1, -1):
 		var sz = smoke_zones[i]
@@ -475,6 +529,8 @@ func update(delta: float):
 	for z_idx in game.Layout.COMBAT_ZONES.size():
 		if zone_cleared.get(z_idx, false):
 			continue
+		if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
+			continue
 		if float(zone_respawn_grace.get(z_idx, 0.0)) > 0.0:
 			continue
 		if living_soldiers(z_idx).is_empty():
@@ -490,9 +546,22 @@ func show_question():
 	if zone < 0 or not is_zone_engaged(zone):
 		if game.active_station == 0:
 			return
+		var rest_hint := "清完追兵后留足休整间隔再刷下波  |  "
+		if is_instance_valid(game.player):
+			for z_i in game.Layout.COMBAT_ZONES.size():
+				if zone_cleared.get(z_i, false):
+					continue
+				var r_l := float(zone_reinforce_left.get(z_i, 0.0))
+				var g_l := float(zone_respawn_grace.get(z_i, 0.0))
+				if (r_l > 0.0 or g_l > 0.0) and _camp_pull_distance(z_i) <= zone_aggro(z_i) + 8.0:
+					if r_l > 0.0:
+						rest_hint = "⏳【%s】下波增援 %.0f 秒后抵达（安心搜刮战利品）  |  " % [zone_info(z_i).title, ceilf(r_l)]
+					else:
+						rest_hint = "🕊【%s】增援休整 %.0f 秒不主动追击（可离开或开枪迎战）  |  " % [zone_info(z_i).title, ceilf(g_l)]
+					break
 		game.question_label.text = "前往敌军营地触发波次仇恨（每营 3 波）"
-		game.unit_label.text = "清完追兵后下波回出生地待命  |  已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
-			game.rules.outposts_cleared, 1 if game.rules.boss_defeated else 0
+		game.unit_label.text = "%s已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
+			rest_hint, game.rules.outposts_cleared, 1 if game.rules.boss_defeated else 0
 		]
 		return
 
@@ -633,16 +702,21 @@ func _complete_current_wave(z_idx: int):
 	if done_now >= total_w:
 		_mark_zone_cleared(z_idx)
 		return
-	# Reward clearing a wave and spawn the next 5-bot wave in STANDBY back at the camp's spawn origin!
+	# Reward clearing a wave and schedule an 8.5s empty-camp reinforcement interval + 14s arrival truce!
+	if troops.has(z_idx):
+		for old_s in troops[z_idx]:
+			if is_instance_valid(old_s):
+				old_s.collision_layer = 0
+				old_s.queue_free()
+		troops[z_idx] = []
 	game.rules.score += 10
 	game.player.add_reserve_ammo(6)
-	var dist_now := _camp_pull_distance(z_idx)
-	zone_respawn_grace[z_idx] = 3.2 if dist_now <= zone_aggro(z_idx) else 0.0
-	_spawn_camp_wave(z_idx)
+	zone_reinforce_left[z_idx] = WAVE_REINFORCE_DELAY
+	zone_respawn_grace[z_idx] = WAVE_TRUCE_GRACE
 	game._sync_question()
 	var drop_tag := "【精英无瑕战利品箱】" if flawless_wave else "【词兵战术掉落包】"
-	game._notice("★【%s】第 %d/%d 波已全歼！战场掉落%s（按[F]放大镜搜刮），下波已在营地刷新待命！" % [
-		zone_info(z_idx).title, done_now, total_w, drop_tag
+	game._notice("★【%s】第 %d/%d 波已全歼！掉落%s，下波 %.0f 秒后就位且休整免战！" % [
+		zone_info(z_idx).title, done_now, total_w, drop_tag, WAVE_REINFORCE_DELAY
 	], game.MINT)
 
 func _advance_wave_after_kill(z_idx: int):
