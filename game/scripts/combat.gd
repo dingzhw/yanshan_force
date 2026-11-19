@@ -35,6 +35,8 @@ var field_answers: int = 0
 var rage_left: float = 0.0
 var wave_wrong_stacks: int = 0
 var wrong_attempts_on_current: int = 0
+var prompt_choice_count := 0
+var first_choice_recorded := false
 var health: int = MAX_HEALTH
 var shield: float = 30.0
 var shield_delay: float = 0.0
@@ -237,13 +239,15 @@ func _squad_archetypes(z_idx: int, wave_idx: int, count: int = 4) -> Array:
 		out.append(template[i % template.size()])
 	return out
 
-func _build_tactical_cover(at: Vector3, index: int):
+func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
 	var base_y: float = game.Layout.min_ground_height(at.x, at.z, 0.9) - 0.12
 	var uphill_y: float = maxf(at.y, maxf(game.Layout.height(at.x - 1.0, at.z - 1.2), game.Layout.height(at.x + 1.0, at.z - 1.2)))
 	# Castellated stepped Jiangnan parapet ('高低错落垛口战术矮垣'):
 	# - Center solid merlon (~1.84m, 1.04m wide) blocks shots during full shelter;
 	# - Left/right low firing wings (~0.72m) shield legs while keeping 100% of the chest English Word Shield unobstructed!
 	var merlon_h: float = maxf(1.84, (uphill_y - base_y) + 1.80)
+	if low_front:
+		merlon_h = maxf(1.0, at.y - base_y + 0.78)
 	var wing_h: float = maxf(0.72, (at.y - base_y) + 0.68)
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
@@ -367,7 +371,7 @@ func _deploy():
 		for i in CAMP_COVER_COUNT:
 			var off2: Vector2 = cover_offsets[i]
 			var barrier: Vector3 = game.Layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
-			_build_tactical_cover(barrier, i)
+			_build_tactical_cover(barrier, i, z_idx == 0 and i > 0 and i < CAMP_COVER_COUNT - 1)
 			covers.append(barrier)
 		camp_covers[z_idx] = covers
 		# Collect nearby natural tree trunks (12m..30m from camp) as out-of-camp small-pursuit cover anchors!
@@ -404,6 +408,9 @@ func _select_next_wave_prompt(z_idx: int) -> bool:
 	game.answer_index = chosen.option
 	game.question = chosen.assigned_word
 	wrong_attempts_on_current = 0
+	prompt_choice_count = candidates.size()
+	first_choice_recorded = false
+	game.question_help_used = false
 	game.listening_mode = (game.tts_voice_id != "" and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
 	game.rules.open_question()
 	game.next_question_left = 0.0
@@ -609,7 +616,10 @@ func update(delta: float):
 		engage_camp(pull_idx)
 
 func show_question():
-	if zone < 0 or not is_zone_engaged(zone):
+	var fighting := zone >= 0 and is_zone_engaged(zone)
+	for station in game.stations:
+		station.terminal_label.visible = not fighting
+	if not fighting:
 		if game.active_station == 0:
 			return
 		var rest_hint := "清完追兵后留足休整间隔再刷下波  |  "
@@ -667,6 +677,14 @@ func _resolve_soldier_node(collider):
 		cur = cur.get_parent()
 	return null
 
+func _record_first_choice(is_correct: bool):
+	if first_choice_recorded or game.question.is_empty():
+		return
+	first_choice_recorded = true
+	game.rules.learning.record_recognition(str(game.question.id), is_correct, prompt_choice_count, game.question_help_used)
+	if (not is_correct or game.question_help_used) and game.question not in game.wrong_words:
+		game.wrong_words.append(game.question)
+
 func _apply_wrong_target_penalty(soldier):
 	# Wrong word soldier takes ZERO HP and ZERO shield damage, and buffs remaining wave attack power!
 	soldier.on_wrong_hit_flash()
@@ -677,11 +695,7 @@ func _apply_wrong_target_penalty(soldier):
 	field_answers += 1
 	game.rules.answered += 1
 	game.rules.streak = 0
-	var q_id := str(game.question.get("id", ""))
-	if q_id != "":
-		game.rules.record_word_result(q_id, false)
-	if not game.question.is_empty() and game.question not in game.wrong_words:
-		game.wrong_words.append(game.question)
+	_record_first_choice(false)
 
 	game.hitmarker_left = 0.24
 	game.hitmarker_label.text = "✕"
@@ -709,7 +723,7 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 	if not game.rules.question_open:
 		game.rules.open_question()
 	var w_entry: Dictionary = soldier.assigned_word if not soldier.assigned_word.is_empty() else game.question
-	game.rules.answer(true, str(w_entry.get("id", "")))
+	game.rules.answer(true)
 	var gained: int = game.rules.score - prev_score
 	if grant_bullet_ammo:
 		game.player.add_reserve_ammo(5)
@@ -828,6 +842,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 		_apply_wrong_target_penalty(soldier)
 		return true
 
+	_record_first_choice(true)
 	# Correct soldier hit -> 1-shot Headshot OR 2-shot Word Shield/Torso!
 	var is_head: bool = (collider == soldier.head_area) or (collider is Object and str(collider.get_meta("hit_zone", "")) == "head")
 	if soldier.archetype == Soldier.Archetype.BOSS_WARDEN:
@@ -923,6 +938,7 @@ func melee_strike(camera: Camera3D) -> bool:
 		_apply_wrong_target_penalty(best_soldier)
 		return true
 
+	_record_first_choice(true)
 	var mag_gain: int = game.rules.magazine()
 	game.play_sfx("knife_hit", -8)
 	game.player.add_reserve_ammo(mag_gain)

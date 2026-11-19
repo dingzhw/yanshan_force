@@ -1,0 +1,393 @@
+{
+  "version": "0.6.7",
+  "baseline": "v0.6.6 / bdd0308",
+  "date": "2026-11-19",
+  "target_vega8_validated": false,
+  "student_run_validated": false,
+  "delayed_recall_validated": false,
+  "local_machine": {
+    "cpu": "AMD Ryzen 9 5900X 12-Core Processor",
+    "gpu": "AMD Radeon RX 6600",
+    "viewport": "(1280.0, 720.0)"
+  },
+  "source_parity": {
+    "height_m": 0.0,
+    "points": 22797,
+    "road_m": 0.0,
+    "stream_center_m": 0.0
+  },
+  "legacy_save": {
+    "imported": true,
+    "legacy_score_preserved_without_new_credit": true,
+    "old_file_unchanged": true,
+    "wrote_separate_profile": true
+  },
+  "examined_sentence_sources": {
+    "textbook_verbatim": 13,
+    "phrase_extension": 3
+  },
+  "headless_regression": {
+    "suites": {
+      "learning": 23,
+      "combat": 57,
+      "economy": 32,
+      "smoke": 33,
+      "movement": 27,
+      "navigation": 13,
+      "physics": 18,
+      "challenges": 12,
+      "slice": 165
+    },
+    "passed": 380,
+    "packaged_resources": 18
+  },
+  "headless_startup_baseline": {
+    "menu_frame_ms": 43490,
+    "renderer": "forward_plus",
+    "stages_ms": {
+      "backdrop": 16790,
+      "boundary": 10,
+      "camp": 316,
+      "exploration_wildlife": 100,
+      "flora_meadows": 143,
+      "font_voice_profile": 59,
+      "ground": 22843,
+      "init_structure_materials": 29,
+      "landmarks": 17,
+      "lighting": 9,
+      "loot_and_menu": 46,
+      "player_ui": 121,
+      "ready_total": 42672,
+      "stream": 1921,
+      "vegetation": 17058,
+      "world_total": 42346
+    },
+    "version": "0.6.6"
+  },
+  "headless_startup_final": {
+    "menu_frame_ms": 3567,
+    "renderer": "forward_plus",
+    "stages_ms": {
+      "backdrop": 485,
+      "boundary": 2,
+      "camp": 240,
+      "exploration_wildlife": 60,
+      "flora_meadows": 21,
+      "font_voice_profile": 77,
+      "ground": 1097,
+      "init_structure_materials": 31,
+      "landmarks": 12,
+      "lighting": 11,
+      "loot_and_menu": 49,
+      "player_ui": 88,
+      "ready_total": 2953,
+      "stream": 589,
+      "vegetation": 676,
+      "world_total": 2679
+    },
+    "version": "0.6.7"
+  },
+  "first_graphics_launch_candidate": {
+    "standard": {
+      "menu_frame_ms": 11338,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 522,
+        "boundary": 3,
+        "camp": 564,
+        "exploration_wildlife": 86,
+        "flora_meadows": 55,
+        "font_voice_profile": 172,
+        "ground": 738,
+        "init_structure_materials": 31,
+        "landmarks": 20,
+        "lighting": 24,
+        "loot_and_menu": 75,
+        "player_ui": 266,
+        "ready_total": 4053,
+        "stream": 1188,
+        "vegetation": 831,
+        "world_total": 3454
+      },
+      "version": "0.6.7",
+      "process_wall_s": 19.7,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 4078,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 403,
+        "boundary": 1,
+        "camp": 342,
+        "exploration_wildlife": 53,
+        "flora_meadows": 27,
+        "font_voice_profile": 64,
+        "ground": 730,
+        "init_structure_materials": 29,
+        "landmarks": 19,
+        "lighting": 19,
+        "loot_and_menu": 63,
+        "player_ui": 113,
+        "ready_total": 2801,
+        "stream": 712,
+        "vegetation": 628,
+        "world_total": 2508
+      },
+      "version": "0.6.7",
+      "process_wall_s": 4.39,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 16584,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 356,
+        "boundary": 2,
+        "camp": 253,
+        "exploration_wildlife": 53,
+        "flora_meadows": 25,
+        "font_voice_profile": 71,
+        "ground": 700,
+        "init_structure_materials": 25,
+        "landmarks": 13,
+        "lighting": 6,
+        "loot_and_menu": 55,
+        "player_ui": 84,
+        "ready_total": 2380,
+        "stream": 541,
+        "vegetation": 552,
+        "world_total": 2117
+      },
+      "version": "0.6.7",
+      "process_wall_s": 16.9,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "repeat_graphics_launch_final": {
+    "standard": {
+      "menu_frame_ms": 4280,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 432,
+        "boundary": 1,
+        "camp": 344,
+        "exploration_wildlife": 56,
+        "flora_meadows": 27,
+        "font_voice_profile": 156,
+        "ground": 754,
+        "init_structure_materials": 28,
+        "landmarks": 19,
+        "lighting": 20,
+        "loot_and_menu": 67,
+        "player_ui": 116,
+        "ready_total": 2974,
+        "stream": 727,
+        "vegetation": 659,
+        "world_total": 2579
+      },
+      "version": "0.6.7",
+      "process_wall_s": 4.701,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 4040,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 423,
+        "boundary": 2,
+        "camp": 345,
+        "exploration_wildlife": 53,
+        "flora_meadows": 27,
+        "font_voice_profile": 66,
+        "ground": 751,
+        "init_structure_materials": 29,
+        "landmarks": 18,
+        "lighting": 20,
+        "loot_and_menu": 65,
+        "player_ui": 114,
+        "ready_total": 2865,
+        "stream": 726,
+        "vegetation": 648,
+        "world_total": 2567
+      },
+      "version": "0.6.7",
+      "process_wall_s": 4.308,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 6661,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 378,
+        "boundary": 2,
+        "camp": 243,
+        "exploration_wildlife": 50,
+        "flora_meadows": 24,
+        "font_voice_profile": 63,
+        "ground": 732,
+        "init_structure_materials": 25,
+        "landmarks": 12,
+        "lighting": 6,
+        "loot_and_menu": 53,
+        "player_ui": 80,
+        "ready_total": 2418,
+        "stream": 555,
+        "vegetation": 573,
+        "world_total": 2172
+      },
+      "version": "0.6.7",
+      "process_wall_s": 6.981,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "gl_packaged_tour_final": {
+    "average_fps": 312.211879574277,
+    "blocked_at": "",
+    "cpu": "AMD Ryzen 9 5900X 12-Core Processor",
+    "driver": "opengl3",
+    "duration_seconds": 62.122,
+    "gpu": "AMD Radeon RX 6600",
+    "low_quality": true,
+    "max_frame_ms": 419.474,
+    "normal_b_outpost": {
+      "average_fps": 283.986699956218,
+      "max_frame_ms": 8.413,
+      "p95_frame_ms": 6.374,
+      "p95_meets_30fps_budget": true,
+      "render_frames": 1704,
+      "sample_completed": true,
+      "squad_size": 3,
+      "zone": "bamboo"
+    },
+    "normal_first_camp": {
+      "average_fps": 241.900380055338,
+      "max_frame_ms": 7.814,
+      "p95_frame_ms": 5.622,
+      "p95_meets_30fps_budget": true,
+      "render_frames": 1451,
+      "sample_completed": true,
+      "squad_size": 3,
+      "zone": "forest"
+    },
+    "opened_crates": 1,
+    "optional_discoveries": 3,
+    "os": "Windows",
+    "p95_frame_ms": 4.149,
+    "p95_meets_30fps_budget": true,
+    "profile_saved": false,
+    "render_frames": 19393,
+    "renderer": "gl_compatibility",
+    "route_and_extraction_passed": true,
+    "scaling_3d_scale": 0.899999976158142,
+    "score": 345,
+    "startup_menu_frame_ms": 3553,
+    "startup_stages_ms": {
+      "backdrop": 374,
+      "boundary": 2,
+      "camp": 244,
+      "exploration_wildlife": 50,
+      "flora_meadows": 25,
+      "font_voice_profile": 48,
+      "ground": 746,
+      "init_structure_materials": 25,
+      "landmarks": 12,
+      "lighting": 6,
+      "loot_and_menu": 54,
+      "player_ui": 80,
+      "ready_total": 2413,
+      "stream": 550,
+      "vegetation": 571,
+      "world_total": 2181
+    },
+    "version": "0.6.7",
+    "viewport": "(1280.0, 720.0)",
+    "vsync_disabled": true
+  },
+  "captures": [
+    {
+      "file": "menu-v067.png",
+      "label_hidden": false,
+      "pose": "(0.0, 0.15, 4.5)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.6.7",
+      "sha256": "122d3ac4123de60942e93fe99fe459a1ea4889350f1d23b324ebeba9e99f8df3"
+    },
+    {
+      "file": "first-camp-standard.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.6.7",
+      "sha256": "b19f302766e6054ce79ad4bd99a1b94ae924fc2cafa74f85c2dc80f8125a6da0"
+    },
+    {
+      "file": "first-camp-f6.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 0.899999976158142,
+      "version": "0.6.7",
+      "sha256": "f1c15fe9759533b3f56db6d7634896d7e9e499d0f99b5c3907e1ab5373b15974"
+    },
+    {
+      "file": "first-camp-flank.png",
+      "label_hidden": true,
+      "pose": "(-16.0, 3.64253, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 0.899999976158142,
+      "version": "0.6.7",
+      "sha256": "7ce7aca8e220652fc7dd612d27132c7b46b01aa12e76feccbf03c6773b14f0af"
+    },
+    {
+      "file": "first-camp-gl.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "gl_compatibility",
+      "scale": 0.899999976158142,
+      "version": "0.6.7",
+      "sha256": "2747846b0755048259dedc2d7b910a2fe124f3800a3122897dd0242fcab2d3cf"
+    }
+  ],
+  "release": {
+    "version": "0.6.7",
+    "source_checkpoint": "docs\\checkpoints\\source-0.6.7.zip",
+    "files": [
+      {
+        "path": "playtest\\windows-v0.6.7\\YanshanBase.exe",
+        "bytes": 109268480,
+        "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+      },
+      {
+        "path": "playtest\\windows-v0.6.7\\YanshanBase.pck",
+        "bytes": 72320260,
+        "sha256": "0dec9042fd8c7731f6c9d39a1b51d8df27fb4daead2dbda50f9ad612f86cf8c1"
+      },
+      {
+        "path": "playtest\\烟山基地试玩_v0.6.7_Windows.zip",
+        "bytes": 110895787,
+        "sha256": "21f23441f8c8405c1c67554754b66db0f7bce3b7b8c57e149c771e767cc6dc58"
+      }
+    ]
+  }
+}

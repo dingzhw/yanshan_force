@@ -5,7 +5,11 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.6.6-teal.svg)
+![Version](https://img.shields.io/badge/Version-v0.6.7-teal.svg)
+
+## v0.6.7 试玩
+
+双击项目根目录的「开始烟山试玩.cmd」或验收包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility。按 F6 可在当前后端内切换低画质。此版缩短启动等待、改善首营英文词盾的可读性，并在失败结算时保存学习记录。目标 Vega 8 与家庭试玩分别按验收单记录。[试玩说明](docs/v0.6.7-试玩说明.txt) · [阶段计划](docs/review-v066/C团队_v0.6.7推进计划.md)
 
 ---
 
@@ -117,7 +121,7 @@
 - **`v0.6.2` ~ `v0.6.2.1` 秘境探索与双行动分级**（✅ 已发布）：竹石交错的「迷踪竹石阵」（含 `[C]` 矮拱潜行捷径与摩崖石刻）、带无框先民岩凿壁画《烟山耕读》与一线天寒潭茶灶遗迹的纵深「烟霞古洞」，以及「普通行动 / 机密行动」双难度摸金体系；
 - **`v0.6.3` 真摸金大红重塑与烟山双语奇珍图鉴**（✅ 已发布）：6 阶稀有度与「旷世·大红」奇迹池、放大镜逐格悬念鉴定、露天 3D 刷货/掏鸟窝/波次掉落包、`[B]` 摸金背包、`[I]` 3D 旋转宝物检视台与营地双语奇珍馆；
 - **`v0.6.4` 青绿烟山美术、建模与第一人称动作重塑**（✅ 已发布）：锁肩双骨 IK 与双手武术持刀+青瓷金锋刀光（根除挥刀断臂穿帮）、团簇青绿水墨树竹与乌桕丹枫立体体积着色器（零树影开销消除绿团塑料感）、6 分件苍青错金 `YS-04` 卡宾枪、伞绳短刀、八角须弥石案、盘枝鸟窝与飞檐机关词卫；
-- **下一阶段 · 学战融合与搜打撤闭环升级（`v0.7.0+`）**：重心全面聚焦英语艾宾浩斯靶向巩固、战备起装/安全箱博弈与多元撤离挑战。
+- **下一阶段**：用 Vega 8 与家庭首局记录确定 v0.7.0 的重点，优先落实跨局错词和间隔复习。安全箱与委托排在学战闭环之后。
 
 ---
 
@@ -143,9 +147,9 @@
 ## 运行与二次开发 · Quick Start & Modding
 
 ### 1. 从源码直接运行（无需联网）
-1. 下载并安装 **Godot 4.7.2 Standard**（推荐 `GL Compatibility` 渲染方式，低配核显如 Vega 8 也能流畅运行）。
+1. 开发使用 **Godot 4.7.2 Standard**。试玩包可直接运行。Windows 标准入口默认 Forward+，GL Compatibility 低档通过启动脚本选择。
 2. 克隆本仓库后，用 Godot 打开 [`game/project.godot`](game/project.godot)，点击运行即可进入游戏。
-3. 局内存档保存在系统用户目录：`%APPDATA%\Godot\app_userdata\烟山基地 · 英语搜撤试玩\profile-v01.json`。
+3. v0.6.7 首次运行可读取旧版学习与战备记录，后续写入 `%APPDATA%\Godot\app_userdata\烟山基地 · 英语搜撤试玩\profile-v067.json`。
 
 ### 2. 零代码替换/扩展你的专属词库
 想换成**人教版 / 译林版其他年级词汇、KET / PET 词库，或语文/科学单词卡**？
@@ -167,7 +171,7 @@
 ### 4. 自动化回归验证
 本机安装 Godot 4.7.2 后，可将运行时路径填入 `docs/runtime-local.json`（参考 [`docs/runtime-local.example.json`](docs/runtime-local.example.json)），运行：
 ```bash
-python -X utf8 tools/check_slice.py --stage --ver 0.6.4 slice learning smoke navigation movement combat economy
+python -X utf8 tools/check_slice.py --stage --ver 0.6.7 smoke learning economy movement navigation physics challenges combat slice
 ```
 
 ---

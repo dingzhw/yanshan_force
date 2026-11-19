@@ -20,15 +20,15 @@ var low_quality = false
 func setup(g):
 	game = g
 	rng.seed = 20261107
-	_init_structure_materials()
-	_lighting()
-	_ground()
-	_stream()
-	_vegetation()
-	_flora_meadows()
-	_camp()
-	_landmarks()
-	_boundary()
+	low_quality = "--low-quality" in OS.get_cmdline_user_args()
+	for part in [
+		_init_structure_materials, _lighting, _ground, _stream, _vegetation,
+		_flora_meadows, _camp, _landmarks, _boundary
+	]:
+		var began := Time.get_ticks_msec()
+		part.call()
+		game.startup_ms[str(part.get_method()).trim_prefix("_")] = Time.get_ticks_msec() - began
+	set_low_quality(low_quality)
 
 var world_env_ref: Environment = null
 var fog_volumes: Array[Node3D] = []
@@ -152,7 +152,11 @@ void sky() {
 	} else {
 		sky_col = mix(horiz_col, vec3(0.28, 0.42, 0.26), smoothstep(0.0, 0.45, -dir.y));
 	}
-	COLOR = sky_col;
+	#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+		COLOR = pow(max(sky_col, vec3(0.0)), vec3(0.74));
+	#else
+		COLOR = sky_col;
+	#endif
 }
 """
 	var sky_mat := ShaderMaterial.new()
@@ -164,6 +168,8 @@ void sky() {
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_sky_contribution = 0.72
 	e.ambient_light_energy = 0.52
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		e.ambient_light_energy = 0.66
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.tonemap_exposure = 1.04
 	e.tonemap_white = 1.38
@@ -180,7 +186,6 @@ void sky() {
 	e.fog_sky_affect = 0.0
 	e.fog_height_density = 0.0
 
-	low_quality = "--low-quality" in OS.get_cmdline_user_args()
 	var use_modern_fx := _is_forward_plus() and not low_quality
 	e.ssao_enabled = use_modern_fx
 	e.ssao_radius = 1.10
@@ -263,6 +268,9 @@ uniform sampler2D paper_tex : source_color, filter_linear, repeat_enable;
 
 float linear_depth(vec2 uv, mat4 inv_proj) {
 	float d = texture(depth_tex, uv).r;
+	#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+		d = d * 2.0 - 1.0;
+	#endif
 	vec3 ndc = vec3(uv * 2.0 - 1.0, d);
 	vec4 view = inv_proj * vec4(ndc, 1.0);
 	view.xyz /= max(0.00001, view.w);
@@ -349,6 +357,8 @@ func set_low_quality(value: bool):
 		drizzle_particles.emitting = not low_quality
 	if get_viewport() != null:
 		get_viewport().scaling_3d_scale = 0.90 if low_quality else 1.0
+		if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 
 func _ground_vis_y(x: float, z: float) -> float:
 	var h := float(game.terrain_height(x, z))
@@ -374,34 +384,29 @@ func _ground():
 	var normals = PackedVector3Array()
 	var uvs = PackedVector2Array()
 	var colors = PackedColorArray()
-	for z in range(-120, 36):
-		for x in range(-60, 60):
-			var p = [
-				Vector3(x, _ground_vis_y(x, z), z),
-				Vector3(x, _ground_vis_y(x, z + 1), z + 1),
-				Vector3(x + 1, _ground_vis_y(x + 1, z), z),
-				Vector3(x + 1, _ground_vis_y(x + 1, z + 1), z + 1)
-			]
-			var nrms = [
-				_smooth_vis_normal(x, z),
-				_smooth_vis_normal(x, z + 1),
-				_smooth_vis_normal(x + 1, z),
-				_smooth_vis_normal(x + 1, z + 1)
-			]
-			for tri in [[0, 2, 1], [2, 3, 1]]:
-				for i in tri:
-					verts.append(p[i])
-					normals.append(nrms[i])
-					uvs.append(Vector2(p[i].x, p[i].z) * 0.24)
-					var r_t := clampf(game.Layout.road_distance(p[i].x, p[i].z) / 4.5, 0, 1)
-					var s_t := clampf(game.Layout.stream_distance(p[i].x, p[i].z) / 3.8, 0, 1)
-					colors.append(Color(r_t, s_t, 0))
+	var indices := PackedInt32Array()
+	const WIDTH := 121
+	const DEPTH := 157
+	for z in range(-120, 37):
+		for x in range(-60, 61):
+			verts.append(Vector3(x, _ground_vis_y(x, z), z))
+			normals.append(_smooth_vis_normal(x, z))
+			uvs.append(Vector2(x, z) * 0.24)
+			var road := clampf(game.Layout.road_distance(x, z, 4.5) / 4.5, 0, 1)
+			var stream := clampf(game.Layout.stream_distance(x, z) / 3.8, 0, 1)
+			colors.append(Color(road, stream, 0))
+	for z in DEPTH - 1:
+		for x in WIDTH - 1:
+			var top := z * WIDTH + x
+			var bottom := top + WIDTH
+			indices.append_array([top, top + 1, bottom, top + 1, bottom + 1, bottom])
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var ground = MeshInstance3D.new()
@@ -441,6 +446,9 @@ void fragment(){
  vec3 wet_bank = vec3(0.24, 0.26, 0.23) * mix(0.76, 1.24, mc_lum);
 
  ALBEDO = mix(slope_col, wet_bank, stream_bank * 0.88);
+ #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+  ALBEDO = pow(ALBEDO, vec3(0.88));
+ #endif
  NORMAL_MAP = mix(texture(soil_normal, UV * 0.65).rgb, texture(mud_normal, bank_uv).rgb, stream_bank);
  NORMAL_MAP_DEPTH = mix(0.24, 0.62, stream_bank);
  ROUGHNESS = mix(0.95, 0.56, stream_bank);
@@ -457,8 +465,8 @@ void fragment(){
 	add_child(ground)
 
 	var shape = HeightMapShape3D.new()
-	shape.map_width = 121
-	shape.map_depth = 157
+	shape.map_width = WIDTH
+	shape.map_depth = DEPTH
 	var heights = PackedFloat32Array()
 	for z in range(-120, 37):
 		for x in range(-60, 61):
@@ -918,7 +926,9 @@ func _vegetation():
 			rock(Vector3(x, 0, z), rng.randf_range(1.0, 3.3), i)
 	for info in [[Vector3(-22, 0, -18), 2.1], [Vector3(-46.5, 0, -21.0), 2.8], [Vector3(5, 0, -34), 2.9], [Vector3(-9.5, 0, -71), 3.4], [Vector3(24, 0, -91), 4.2]]:
 		rock(info[0], info[1], int(absf(info[0].z)))
+	var backdrop_begin := Time.get_ticks_msec()
 	_backdrop()
+	game.startup_ms["backdrop"] = Time.get_ticks_msec() - backdrop_begin
 
 func _trees():
 	var v061_path := "res://assets/slice/v061_nature_wildlife.glb"
@@ -941,7 +951,7 @@ func _trees():
 		var wz: float = creek_willow_specs[idx][0]
 		var woff: float = creek_willow_specs[idx][1]
 		var wx := _outer_stream_x(wz) + woff
-		if (game.Layout.road_distance(wx, wz) < 4.2 or _is_near_bridge(wz, 3.8)) and wz <= 25.0:
+		if (game.Layout.road_distance(wx, wz, 4.2) < 4.2 or _is_near_bridge(wz, 3.8)) and wz <= 25.0:
 			continue
 		var wy := _surface_height_any(wx, wz) - 0.08
 		var wsc := 0.96 + float(idx % 4) * 0.10
@@ -1077,7 +1087,6 @@ func _outer_valley_y(x: float, z: float) -> float:
 	var d := sqrt(dx * dx + dz * dz)
 	if d < 0.001:
 		return _ground_vis_y(ix, iz)
-	var edge_land := float(game.Layout.land_edge_height(ix, iz))
 	var north_w := smoothstep(-114.0, -146.0, z) * (1.0 - smoothstep(56.0, 98.0, absf(x)))
 	var north_h := _hill_height(x, z)
 	# Broad terraced lowland rice paddies surrounding East, West & South hillsides
@@ -1085,7 +1094,9 @@ func _outer_valley_y(x: float, z: float) -> float:
 	var quantized := floorf((raw_terrace + 13.0) / 2.2) * 2.2 - 13.0
 	var valley_floor := lerpf(raw_terrace, quantized, 0.56)
 	var down_t := smoothstep(0.0, 30.0, d)
-	var rural_y := lerpf(edge_land, valley_floor, down_t)
+	var rural_y := valley_floor
+	if down_t < 1.0:
+		rural_y = lerpf(game.Layout.land_edge_height(ix, iz), valley_floor, down_t)
 	rural_y = lerpf(rural_y, north_h, north_w * smoothstep(6.0, 38.0, d))
 	var center_dist := Vector2(x, z + 44.0).length()
 	var foothill_w := _outer_foothill_weight(x, z)
@@ -1157,26 +1168,28 @@ func _valley_stitched_vert(ix: int, iz: int, outer_box: Array, coarse_step: int)
 				return [(va[0] as Vector3).lerp(vb[0] as Vector3, tx), ((va[1] as Vector3).lerp(vb[1] as Vector3, tx)).normalized(), (va[2] as Vector2).lerp(vb[2] as Vector2, tx), (va[3] as Color).lerp(vb[3] as Color, tx)]
 	return _valley_raw_vert(float(ix), float(iz))
 
-func _append_valley_ring(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, colors: PackedColorArray, inner_box: Array, outer_box: Array, step: int, next_step: int):
+func _append_valley_ring(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array, inner_box: Array, outer_box: Array, step: int, next_step: int):
 	var ix0: int = inner_box[0]
 	var ix1: int = inner_box[1]
 	var iz0: int = inner_box[2]
 	var iz1: int = inner_box[3]
+	var ring_vertices := {}
 	for z in range(int(outer_box[2]), int(outer_box[3]), step):
 		for x in range(int(outer_box[0]), int(outer_box[1]), step):
 			if x >= ix0 and x < ix1 and z >= iz0 and z < iz1:
 				continue
-			var v0 := _valley_stitched_vert(x, z, outer_box, next_step)
-			var v1 := _valley_stitched_vert(x, z + step, outer_box, next_step)
-			var v2 := _valley_stitched_vert(x + step, z, outer_box, next_step)
-			var v3 := _valley_stitched_vert(x + step, z + step, outer_box, next_step)
-			var cell := [v0, v1, v2, v3]
-			for k in [0, 2, 1, 2, 3, 1]:
-				var vd: Array = cell[k]
+			var cell := [Vector2i(x, z), Vector2i(x, z + step), Vector2i(x + step, z), Vector2i(x + step, z + step)]
+			for corner: Vector2i in cell:
+				if ring_vertices.has(corner):
+					continue
+				var vd := _valley_stitched_vert(corner.x, corner.y, outer_box, next_step)
+				ring_vertices[corner] = vertices.size()
 				vertices.append(vd[0])
 				normals.append(vd[1])
 				uvs.append(vd[2])
 				colors.append(vd[3])
+			for k in [0, 2, 1, 2, 3, 1]:
+				indices.append(ring_vertices[cell[k]])
 
 func _backdrop():
 	# 1) Watertight 3-ring terraced rural rice-paddy valley seamlessly stitched to ContinuousGround [-60..60] x [-120..36]
@@ -1184,13 +1197,14 @@ func _backdrop():
 	var normals = PackedVector3Array()
 	var uvs = PackedVector2Array()
 	var colors = PackedColorArray()
+	var indices := PackedInt32Array()
 	var box0 := [-60, 60, -120, 36]
 	var box1 := [-64, 64, -124, 44]
 	var box2 := [-96, 96, -152, 88]
 	var box3 := [-288, 288, -336, 248]
-	_append_valley_ring(vertices, normals, uvs, colors, box0, box1, 1, 2)
-	_append_valley_ring(vertices, normals, uvs, colors, box1, box2, 2, 8)
-	_append_valley_ring(vertices, normals, uvs, colors, box2, box3, 8, 1)
+	_append_valley_ring(vertices, normals, uvs, colors, indices, box0, box1, 1, 2)
+	_append_valley_ring(vertices, normals, uvs, colors, indices, box1, box2, 2, 8)
+	_append_valley_ring(vertices, normals, uvs, colors, indices, box2, box3, 8, 1)
 
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -1198,6 +1212,7 @@ func _backdrop():
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var valley = MeshInstance3D.new()
@@ -1653,7 +1668,7 @@ func _stream():
 			var py := base_h + lip_taper
 			var wet := 1.0 - smoothstep(wy - 0.02, wy + 0.30, py)
 			var grass_blend := maxf(smoothstep(1.74, 2.28, absf(norm_off)), end_fade)
-			var r_t := clampf(float(game.Layout.road_distance(px, zc)) / 4.5, 0.0, 1.0) if zc <= 36.0 else 1.0
+			var r_t := clampf(float(game.Layout.road_distance(px, zc, 4.5)) / 4.5, 0.0, 1.0) if zc <= 36.0 else 1.0
 			var s_t := clampf(absf(off) / 3.8, 0.0, 1.0)
 			var nrm_v := _smooth_vis_normal(px, zc) if zc <= 36.0 else _outer_valley_normal(px, zc)
 			row.append([Vector3(px, py, zc), Vector2(px * 0.56, zc * 0.56), Color(wet, grass_blend, r_t, s_t), nrm_v])
@@ -2652,7 +2667,7 @@ func _flora_meadows():
 		# Bias half of grass tufts toward outer slopes & fence margins so perimeter meadows feel rich and natural
 		if g_i % 2 == 0 and absf(gx) < 32.0 and gz > -98.0 and gz < 15.0:
 			gx = (1.0 if g_i % 4 == 0 else -1.0) * rng.randf_range(32.0, 55.0)
-		if game.Layout.road_distance(gx, gz) < 2.9 or absf(gx - _outer_stream_x(gz)) < 2.25 or game.Layout.is_in_bamboo_cave_zone(gx, gz, 0.35):
+		if game.Layout.road_distance(gx, gz, 2.9) < 2.9 or absf(gx - _outer_stream_x(gz)) < 2.25 or game.Layout.is_in_bamboo_cave_zone(gx, gz, 0.35):
 			continue
 		var gy := _surface_height_any(gx, gz) - 0.02
 		var gsc := rng.randf_range(0.95, 1.68)

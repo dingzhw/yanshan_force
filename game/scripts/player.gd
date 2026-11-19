@@ -448,6 +448,8 @@ func _physics_process(delta):
 	var progress = clampf(reload_left / RELOAD_SECONDS, 0, 1) if weapon_slot == 0 else 0.0
 	# Align optic reticle (y = 0.234) straight with camera optical axis when aiming; keep Knife rig torso-centered so shoulders stay behind lens!
 	var target_pose = Vector3(0.0, -0.234, -0.46) if ads_active else (Vector3(0.0, -0.145, -0.35) if weapon_slot == 1 else Vector3(0.21, -0.245, -0.58))
+	if not ads_active and weapon_slot == 0 and is_instance_valid(game.combat) and game.combat.zone == 0:
+		target_pose.y -= 0.075
 	target_pose.y -= sin(progress * PI) * 0.042
 	target_pose.x -= sin(progress * PI) * 0.035
 	target_pose.z += recoil * 0.055

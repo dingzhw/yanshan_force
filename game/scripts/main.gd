@@ -11,7 +11,8 @@ const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
-const VERSION = "0.6.6"
+const LearningStore = preload("res://scripts/learning_store.gd")
+const VERSION = "0.6.7"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -26,6 +27,7 @@ var rules = Rules.new()
 var font: Font
 var player
 var words = []
+var sentences: Array = []
 var pool = []
 var question_queue = []
 var question = {}
@@ -49,6 +51,9 @@ var sound_cache = {}
 var sfx_cache = {}
 var tts_voice_id = ""
 var listening_mode = false
+var question_help_used := false
+var run_started_ms := -1
+var profile_read_failed := false
 var distractor_rng := RandomNumberGenerator.new()
 
 var ui: Control
@@ -62,6 +67,9 @@ var start_button: Button
 var confidential_button: Button
 var terminal_title_label: Label
 var sell_button: Button
+var armory_panel: Control
+var armory_progress: Label
+var retest_button: Button
 var shop_buttons = {}
 var unit_picker: OptionButton
 var include_extra: CheckBox
@@ -112,9 +120,14 @@ var loot_ui
 var world_loot
 var landscape
 var minimap
+var startup_ms := {}
+var startup_menu_frame_ms := 0
 
 func _ready():
+	var startup_begin := Time.get_ticks_msec()
+	var step_begin := startup_begin
 	qa_mode = "--qa" in OS.get_cmdline_user_args() or "--hardware-check" in OS.get_cmdline_user_args()
+	get_tree().auto_accept_quit = false
 	distractor_rng.randomize()
 	var variable_font = FontVariation.new()
 	variable_font.base_font = load("res://assets/font/NotoSansSC.ttf")
@@ -122,8 +135,13 @@ func _ready():
 	font = variable_font
 	_init_tts()
 	_load_words()
+	sentences = LearningStore.load_sentences()
 	_load_profile()
+	startup_ms["font_voice_profile"] = Time.get_ticks_msec() - step_begin
+	step_begin = Time.get_ticks_msec()
 	_build_world()
+	startup_ms["world_total"] = Time.get_ticks_msec() - step_begin
+	step_begin = Time.get_ticks_msec()
 	player = Player.new()
 	player.game = self
 	add_child(player)
@@ -132,12 +150,16 @@ func _ready():
 	combat.game = self
 	add_child(combat)
 	_build_ui()
+	startup_ms["player_ui"] = Time.get_ticks_msec() - step_begin
+	step_begin = Time.get_ticks_msec()
 	exploration = Exploration.new()
 	add_child(exploration)
 	exploration.setup(self)
 	wildlife = Wildlife.new()
 	add_child(wildlife)
 	wildlife.setup(self)
+	startup_ms["exploration_wildlife"] = Time.get_ticks_msec() - step_begin
+	step_begin = Time.get_ticks_msec()
 	world_loot = WorldLoot.new()
 	add_child(world_loot)
 	world_loot.setup(self)
@@ -149,6 +171,21 @@ func _ready():
 	loot_ui.setup(self)
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	startup_ms["loot_and_menu"] = Time.get_ticks_msec() - step_begin
+	startup_ms["ready_total"] = Time.get_ticks_msec() - startup_begin
+	var args := OS.get_cmdline_user_args()
+	if "--startup-check" in args or "--hardware-check" in args:
+		await get_tree().process_frame
+		if DisplayServer.get_name() != "headless":
+			await RenderingServer.frame_post_draw
+		startup_menu_frame_ms = Time.get_ticks_msec()
+		print("STARTUP_REPORT ", JSON.stringify({
+			"version": VERSION, "renderer": RenderingServer.get_current_rendering_method(),
+			"menu_frame_ms": startup_menu_frame_ms, "stages_ms": startup_ms
+		}))
+		if "--startup-check" in args:
+			get_tree().quit()
+			return
 	if "--hardware-check" in OS.get_cmdline_user_args():
 		var tour = PerformanceTour.new()
 		tour.game = self
@@ -191,6 +228,8 @@ func replay_question_audio():
 	if question.is_empty():
 		return
 	if tts_voice_id != "":
+		if not listening_mode:
+			question_help_used = true
 		speak_english(question.english)
 		_notice("🔊 正在朗读英文发音", MINT)
 	else:
@@ -207,12 +246,21 @@ func _load_words():
 func _save_path() -> String:
 	if profile_path_override != "":
 		return profile_path_override
-	return "user://qa-profile.json" if qa_mode else "user://profile-v01.json"
+	return "user://qa-profile.json" if qa_mode else "user://profile-v067.json"
 
 func _load_profile():
-	if (qa_mode and profile_path_override == "") or not FileAccess.file_exists(_save_path()):
+	if qa_mode and profile_path_override == "":
 		return
-	var data = JSON.parse_string(FileAccess.get_file_as_string(_save_path()))
+	var path := _save_path()
+	if not FileAccess.file_exists(path):
+		if profile_path_override != "" or not FileAccess.file_exists("user://profile-v01.json"):
+			return
+		path = "user://profile-v01.json"
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (data is Dictionary):
+		profile_read_failed = true
+		push_warning("Cannot read save profile: " + path)
+		return
 	if data is Dictionary:
 		for key in rules.profile:
 			if data.has(key) and typeof(data[key]) == typeof(rules.profile[key]):
@@ -236,14 +284,33 @@ func _load_profile():
 	rules.migrate_legacy_items()
 	rules.ensure_equipped()
 
-func _save():
+func _save() -> bool:
 	if qa_mode and profile_path_override == "":
-		return
-	var file = FileAccess.open(_save_path() + ".tmp", FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(rules.profile, "\t"))
-		file.close()
-		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
+		return true
+	if profile_read_failed:
+		return false
+	var path := _save_path()
+	var temp := path + ".tmp"
+	var file := FileAccess.open(temp, FileAccess.WRITE)
+	if file == null:
+		push_warning("Cannot create temporary save: " + temp)
+		return false
+	file.store_string(JSON.stringify(rules.profile, "\t"))
+	var write_error := file.get_error()
+	file.close()
+	if write_error != OK or DirAccess.rename_absolute(temp, path) != OK:
+		push_warning("Cannot replace save profile: " + path)
+		return false
+	return true
+
+func _notification(what: int):
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_instance_valid(menu):
+		_quit_game()
+
+func _quit_game():
+	if rules.phase in ["active", "extracting"]:
+		_end_run(false, "退出行动")
+	get_tree().quit()
 
 func terrain_height(x: float, z: float) -> float:
 	return Layout.height(x, z)
@@ -641,24 +708,24 @@ func _build_ui():
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.color = Color(0.03, 0.065, 0.08, 0.62)
 	menu.add_child(veil)
-	_panel(menu, Rect2(86, 56, 1108, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
+	_panel(menu, Rect2(86, 56, 534, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
 
-	menu_title = _text(menu, "烟山基地", Vector2(120, 82), Vector2(950, 52), 32, MINT)
+	menu_title = _text(menu, "烟山基地", Vector2(120, 82), Vector2(390, 52), 28, MINT)
 	menu_title.clip_text = true
-	_text(menu, "英语战术搜撤行动  ·  VERSION " + VERSION, Vector2(122, 142), Vector2(460, 28), 17, GOLD)
-	_button(menu, "退出", Rect2(1098, 84, 68, 36), func(): get_tree().quit())
-	abandon_button = _button(menu, "放弃本局", Rect2(956, 84, 130, 36), func(): _end_run(false))
+	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 142), Vector2(460, 28), 17, GOLD)
+	_button(menu, "退出", Rect2(518, 86, 64, 36), _quit_game)
+	abandon_button = _button(menu, "放弃本局", Rect2(406, 86, 104, 36), func(): _end_run(false, "放弃本局"))
 	abandon_button.hide()
 
 	menu_summary = _text(menu, "", Vector2(122, 186), Vector2(460, 126), 16)
 	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	review_button = _button(menu, "查看本局错词本（含页码）", Rect2(122, 316, 456, 30), _show_review)
+	review_button = _button(menu, "查看本局错词与提示（含页码）", Rect2(122, 316, 456, 30), _show_review)
 	review_button.hide()
 
 	unit_picker = OptionButton.new()
 	unit_picker.position = Vector2(122, 354)
 	unit_picker.size = Vector2(290, 38)
-	unit_picker.add_item("全部单元 · 175 条词汇")
+	unit_picker.add_item("全部单元 · %d 条词汇" % words.size())
 	for i in range(1, 9):
 		unit_picker.add_item("Unit " + str(i))
 	menu.add_child(unit_picker)
@@ -669,39 +736,47 @@ func _build_ui():
 	include_extra.button_pressed = true
 	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
+	unit_picker.item_selected.connect(func(_index): _refresh_progress())
+	include_extra.toggled.connect(func(_on): _refresh_progress())
 
-	start_button = _button(menu, "普通行动 · 常规", Rect2(122, 404, 154, 50), func():
+	start_button = _button(menu, "开始普通行动", Rect2(122, 404, 154, 50), func():
 		var in_active: bool = rules.phase in ["active", "extracting"]
 		start_action(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
 	, true)
-	confidential_button = _button(menu, "机密行动 · 高危", Rect2(284, 404, 154, 50), func(): start_action(true, "confidential"))
+	confidential_button = _button(menu, "机密行动", Rect2(284, 404, 154, 50), func(): start_action(true, "confidential"))
 	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
 	practice_button = _button(menu, "自由靶场", Rect2(446, 404, 132, 50), func(): start_action(false, "normal"))
 
-	compendium_button = _button(menu, "🏆 烟山奇珍图鉴 · 摸金大红与江南风物双语馆", Rect2(122, 462, 456, 38), func():
+	_button(menu, "战备与改装", Rect2(122, 462, 154, 38), func():
+		armory_panel.visible = not armory_panel.visible
+	)
+	compendium_button = _button(menu, "奇珍图鉴", Rect2(284, 462, 294, 38), func():
 		if is_instance_valid(loot_ui):
 			loot_ui.open_compendium()
 	)
-	_style_tactical_button(compendium_button, Color("481f28"), Color("ff5c6c"), Color("ffe8cf"))
+	retest_button = _button(menu, "无提示复测", Rect2(122, 510, 456, 38), _open_retest)
+	menu_finance = _text(menu, "", Vector2(122, 558), Vector2(460, 54), 15, GOLD)
+	menu_status = _text(menu, "", Vector2(122, 619), Vector2(460, 37), 14, Color("a9c4b6"))
+	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	var brief_lbl = _text(menu, "【v0.6.6 智战烟山 · 词兵谨慎掩体战术 AI、动态随机兵力与 30 秒休整窗口】\n• 谨慎掩体战术 AI：词兵告别无脑贴脸，依托宽距高低垛口矮垣闪身探射，换掩体与破盾时边机动疾跑边压制点射！\n• 动态随机兵力与追击分级：普通行动每波 3~4 兵谨慎周旋+小范围出营追击；机密行动 3~6 兵随机伏击与交替跃进！\n• 30 秒从容摸金窗口：清波后留足 15 秒空营刷新间隔 + 增援就位后 15 秒免战保护，安心搜刮换弹不连轴挨追！", Vector2(122, 508), Vector2(462, 138), 12, Color("b4ccbe"))
-	brief_lbl.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-
-	# Right Column: Progress, Warehouse & 3-Column 15-Item Gunsmith Armory
-	menu_finance = _text(menu, "", Vector2(616, 134), Vector2(548, 72), 17, GOLD)
-	_text(menu, "枪 匠 改 装 台 与 战 备 仓 库", Vector2(616, 214), Vector2(380, 28), 20, MINT)
-	sell_button = _button(menu, "出售仓库物资", Rect2(616, 248, 548, 38), _sell, true)
+	armory_panel = Control.new()
+	armory_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	armory_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.add_child(armory_panel)
+	_panel(armory_panel, Rect2(634, 56, 560, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
+	_text(armory_panel, "战备仓库与改装", Vector2(662, 134), Vector2(374, 35), 24, MINT)
+	armory_progress = _text(armory_panel, "", Vector2(662, 176), Vector2(500, 24), 15, GOLD)
+	_button(armory_panel, "收起", Rect2(1104, 86, 64, 36), func(): armory_panel.hide())
+	sell_button = _button(armory_panel, "出售仓库物资", Rect2(658, 204, 512, 42), _sell, true)
 
 	for idx in Rules.GUNSMITH_ORDER.size():
 		var id: String = Rules.GUNSMITH_ORDER[idx]
 		var col = idx % 3
 		var row = int(idx / 3)
-		var rect = Rect2(616 + col * 186, 294 + row * 50, 176, 42)
-		shop_buttons[id] = _button(menu, "", rect, _buy.bind(id))
+		var rect = Rect2(658 + col * 172, 262 + row * 57, 164, 46)
+		shop_buttons[id] = _button(armory_panel, "", rect, _buy.bind(id))
 		shop_buttons[id].add_theme_font_size_override("font_size", 13)
-
-	menu_status = _text(menu, "五上词库 175 条 · 离线标准英文读音 · 点击已购配件可换装/卸下", Vector2(616, 594), Vector2(548, 48), 14, Color("a9c4b6"))
-	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	armory_panel.hide()
 
 	# Review Overlay
 	review_overlay = Control.new()
@@ -738,20 +813,31 @@ func _warehouse_total_value() -> int:
 		sum += int(item.get("value", 0))
 	return sum
 
+func _pending_retest() -> Array:
+	return rules.learning.pending(words + sentences, unit_picker.selected, include_extra.button_pressed)
+
+func _open_retest():
+	if rules.phase not in ["active", "extracting"]:
+		cipher_terminal.open_retest(_pending_retest().slice(0, 3))
+
+func _refresh_progress():
+	var pending := _pending_retest().size()
+	retest_button.text = "无提示复测 · %d 题待练" % pending
+	retest_button.disabled = pending == 0 or rules.phase in ["active", "extracting"]
+	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d\n货币 %d · 家长奖励券 %d 张" % [
+		rules.learning.mastered_count(words), words.size(), rules.learning.mastered_count(sentences),
+		sentences.size(), rules.profile.coins, rules.profile.points
+	]
+
 func _refresh_menu(result = ""):
-	var mastered = rules.mastered_count()
+	_refresh_progress()
 	var collected = rules.profile.collection.size()
 	var total_collectibles = Rules.total_collectible_count()
-	var red_cnt = int(rules.profile.get("red_extracted", 0))
-	menu_finance.text = "Lv.%d（%d/120 XP） · 货币 %d 币 · 家长奖励券 %d 张\n掌握词条：%d / %d 词   |   奇珍图鉴：%d / %d 件（旷世大红 %d 件）" % [
-		rules.level(), rules.profile.xp % 120, rules.profile.coins, rules.profile.points,
-		mastered, words.size(), collected, total_collectibles, red_cnt
-	]
-	if is_instance_valid(compendium_button):
-		compendium_button.text = "🏆 烟山奇珍图鉴 · 摸金大红与双语风物馆（已点亮 %d/%d）" % [collected, total_collectibles]
+	compendium_button.text = "奇珍图鉴 · %d/%d" % [collected, total_collectibles]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "可选【普通行动（单兵轮攻+半命中）】或【机密行动（5兵围剿+估值×1.35）】！\n搜刮物资箱、露天石案、树丫鸟窝与词兵掉落包，冲击【传说·大金】与【旷世·大红】！\n满 260 分 + 攻克至少 2 处营地 + 击败 B 区统领夺密钥即可撤离入库！"
+		menu_summary.text = "认词、搜物、带着战利品撤离。\n刚开始玩？先到自由靶场练习。"
+		menu_status.text = "掌握数按本版独立答对至少两次统计。"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -762,6 +848,9 @@ func _refresh_menu(result = ""):
 	var eq_muzzle: String = rules.active_muzzle()
 	var eq_grip: String = rules.active_grip()
 	var in_run: bool = rules.phase in ["active", "extracting"]
+	armory_progress.text = "等级 %d · %d/120 XP · 带回大红 %d 件" % [
+		rules.level(), rules.profile.xp % 120, rules.profile.red_extracted
+	]
 
 	for id in shop_buttons:
 		var item = Rules.ITEMS[id]
@@ -794,7 +883,7 @@ func _refresh_menu(result = ""):
 			can_click = not in_run and not owned and not prereq_missing and rules.profile.coins >= item.cost
 		shop_buttons[id].disabled = not can_click
 
-	start_button.text = ("继续%s  →" % rules.mode_label()) if in_run else "普通行动 · 常规"
+	start_button.text = ("继续%s" % rules.mode_label()) if in_run else "开始普通行动"
 	start_button.size = Vector2(274 if in_run else 154, 54)
 	if is_instance_valid(confidential_button):
 		confidential_button.visible = not in_run
@@ -855,8 +944,12 @@ func _refresh_terminal_title():
 func start_action(as_combat = false, op_tier: String = "normal"):
 	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == bool(as_combat)) and (rules.operation_tier == op_tier)
 	if not same_active_run:
+		if rules.phase in ["active", "extracting"]:
+			_end_run(false, "切换行动")
+		run_started_ms = Time.get_ticks_msec()
 		review_button.hide()
 		review_overlay.hide()
+		armory_panel.hide()
 		tutorial_moved = false
 		_leave_station()
 		rules.start_run(as_combat, op_tier)
@@ -973,6 +1066,7 @@ func _pick_smart_distractors(target: Dictionary, desired_count: int = 4) -> Arra
 	return picked
 
 func _next_question():
+	question_help_used = false
 	if question_queue.is_empty():
 		question_queue = _build_weighted_queue()
 	question = question_queue.pop_back()
@@ -1135,7 +1229,7 @@ func resolve_answer(index: int, mobile = false):
 		return
 	var correct = index == answer_index
 	var prev_score = rules.score
-	if not rules.answer(correct, str(question.get("id", ""))):
+	if not rules.answer(correct, str(question.get("id", "")), choices.size(), question_help_used):
 		return
 	# Block Camp Station 0 farming during real field combat runs!
 	var camp_warmup_in_combat: bool = (not mobile and combat.in_field())
@@ -1508,6 +1602,8 @@ func interact():
 	cipher_terminal.open_for_supply(closest_interaction)
 
 func _end_run(success: bool, title = ""):
+	if rules.phase not in ["active", "extracting"]:
+		return
 	var pre_wh = rules.profile.warehouse.size()
 	var carried_value = rules.bag_value()
 	var defeated_boss: bool = rules.boss_defeated
@@ -1515,9 +1611,14 @@ func _end_run(success: bool, title = ""):
 		if not rules.finish_extraction():
 			return
 		play_sfx("loot_epic", -10)
-		_save()
 	else:
 		rules.abandon()
+	var duration := maxf(0.0, (Time.get_ticks_msec() - run_started_ms) / 1000.0) if run_started_ms >= 0 else 0.0
+	run_started_ms = -1
+	rules.profile.last_run = {
+		"wall_clock_seconds": duration, "mode": rules.mode_label(), "extracted": success
+	}
+	var saved := _save()
 	var banked_count = rules.profile.warehouse.size() - pre_wh
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
@@ -1537,14 +1638,17 @@ func _end_run(success: bool, title = ""):
 	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
 	]
+	menu_summary.text += "实际用时 %d 分 %02d 秒\n" % [int(duration) / 60, int(duration) % 60]
 	var eco_count: int = wildlife.eco_discoveries_total() if is_instance_valid(wildlife) else 0
 	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6 · 古迹 %d/3 · 生态 %d/12\n" % [
 		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), exploration.heritage_completed(), eco_count
 	]
 	if wrong_words.size() > 0:
-		menu_summary.text += "本局记录 %d 个待巩固词汇，点下方按钮复盘。" % wrong_words.size()
+		menu_status.text = "本局有 %d 条错词或借助提示的题目。" % wrong_words.size()
 	else:
-		menu_summary.text += "零错词完成行动！可在右侧出售物资兑换新装备。"
+		menu_status.text = ""
+	if not saved:
+		menu_status.text = "本局记录暂未写入存档。请检查存档位置。"
 
 func _input(event):
 	if event is InputEventKey and event.pressed and not event.echo:

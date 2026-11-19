@@ -55,6 +55,7 @@ func setup(game, data: Dictionary):
 	clear()
 
 func enable_boards(enabled: bool):
+	terminal_label.visible = true
 	for board in boards:
 		board.visible = enabled
 		board.collision_layer = 3 if enabled else 0

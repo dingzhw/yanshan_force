@@ -99,44 +99,97 @@ static func base_height(x: float, z: float) -> float:
 static func stream_center_x(z: float) -> float:
 	if z <= STREAM_POINTS[0][0]:
 		return STREAM_POINTS[0][1]
-	for i in STREAM_POINTS.size() - 1:
-		var z0 := float(STREAM_POINTS[i][0])
-		var x0 := float(STREAM_POINTS[i][1])
-		var z1 := float(STREAM_POINTS[i + 1][0])
-		var x1 := float(STREAM_POINTS[i + 1][1])
-		if z <= z1:
-			var t := clampf((z - z0) / (z1 - z0), 0.0, 1.0)
-			var s := t * t * (3.0 - 2.0 * t)
-			return lerpf(x0, x1, s)
-	return float(STREAM_POINTS[-1][1])
+	var left := 0
+	var right := STREAM_POINTS.size() - 1
+	if z >= STREAM_POINTS[right][0]:
+		return STREAM_POINTS[right][1]
+	while right - left > 1:
+		var mid := (left + right) / 2
+		if z <= STREAM_POINTS[mid][0]:
+			right = mid
+		else:
+			left = mid
+	var z0 := float(STREAM_POINTS[left][0])
+	var z1 := float(STREAM_POINTS[right][0])
+	var t := clampf((z - z0) / (z1 - z0), 0.0, 1.0)
+	var blend := t * t * (3.0 - 2.0 * t)
+	return lerpf(STREAM_POINTS[left][1], STREAM_POINTS[right][1], blend)
 
 static func stream_distance(x: float, z: float) -> float:
 	if z < STREAM_Z_MIN - 1.5 or z > STREAM_Z_MAX + 1.0:
 		return INF
 	return absf(x - stream_center_x(z))
 
-static func _land_height(x: float, z: float) -> float:
-	var key = Vector2(x, z)
-	var result = base_height(x, z)
-	for station in STATIONS:
-		var at = station.at
-		var blend = 1.0 - smoothstep(10.0, 15.0, Vector2(x - at.x, z - at.z).length())
-		result = lerpf(result, base_height(at.x, at.z), blend)
-	for at in [EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, WEST_CAMP, EAST_CAMP, NW_CAMP, PARKOUR_CONTAINERS, CAVE_GROTTO, EAST_OVERLOOK, RECON_RADIO, SE_BAMBOO_CACHE, AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE, Vector3(10.75, 0, -21.55)]:
-		var blend = 1.0 - smoothstep(4.5, 11.0, Vector2(x - at.x, z - at.z).length())
-		result = lerpf(result, anchor_height(at), blend)
-	var nearest = INF
-	var bed = result
+const LAND_ANCHORS = [
+	EXIT, POEM, MATH, CLUE, CLUE_LOOT, PASS_OUTPOST, WEST_CAMP, EAST_CAMP, NW_CAMP,
+	PARKOUR_CONTAINERS, CAVE_GROTTO, EAST_OVERLOOK, RECON_RADIO, SE_BAMBOO_CACHE,
+	AIRDROP_BEACON, WATCHTOWER, SHELTER_BAMBOO, WANGDAO_PAVILION, CAMPHOR_SHRINE,
+	Vector3(10.75, 0, -21.55)
+]
+const ROAD_BLEND_RADIUS := 7.6
+const ROAD_CELL_SIZE := 8.0
+
+class RoadSegment:
+	var start: Vector2
+	var direction: Vector2
+	var length_squared: float
+	var start_height: float
+	var end_height: float
+
+static var road_segments: Array[RoadSegment] = []
+static var road_cells: Dictionary = {}
+
+static func _prepare_road_segments():
+	if not road_segments.is_empty():
+		return
 	for path in [ROUTE] + BRANCHES:
 		for i in path.size() - 1:
-			var a = Vector2(path[i].x, path[i].z)
-			var b = Vector2(path[i + 1].x, path[i + 1].z)
-			var t = clampf((key - a).dot(b - a) / (b - a).length_squared(), 0, 1)
-			var distance = key.distance_to(a + (b - a) * t)
-			if distance < nearest:
-				nearest = distance
-				bed = lerpf(anchor_height(path[i]), anchor_height(path[i + 1]), t)
-	var road_t := 1.0 - smoothstep(2.8, 7.6, nearest)
+			var a: Vector3 = path[i]
+			var b: Vector3 = path[i + 1]
+			var segment := RoadSegment.new()
+			segment.start = Vector2(a.x, a.z)
+			segment.direction = Vector2(b.x, b.z) - segment.start
+			segment.length_squared = segment.direction.length_squared()
+			if segment.length_squared == 0.0:
+				continue
+			segment.start_height = anchor_height(a)
+			segment.end_height = anchor_height(b)
+			road_segments.append(segment)
+			# Only these cells can be affected by the segment's height blend.
+			var x0 := floori((minf(a.x, b.x) - ROAD_BLEND_RADIUS) / ROAD_CELL_SIZE)
+			var x1 := floori((maxf(a.x, b.x) + ROAD_BLEND_RADIUS) / ROAD_CELL_SIZE)
+			var z0 := floori((minf(a.z, b.z) - ROAD_BLEND_RADIUS) / ROAD_CELL_SIZE)
+			var z1 := floori((maxf(a.z, b.z) + ROAD_BLEND_RADIUS) / ROAD_CELL_SIZE)
+			for iz in range(z0, z1 + 1):
+				for ix in range(x0, x1 + 1):
+					var cell := Vector2i(ix, iz)
+					if not road_cells.has(cell):
+						road_cells[cell] = []
+					road_cells[cell].append(segment)
+
+static func _land_height(x: float, z: float) -> float:
+	_prepare_road_segments()
+	var key := Vector2(x, z)
+	var result := base_height(x, z)
+	for station in STATIONS:
+		var at: Vector3 = station.at
+		var distance := Vector2(x - at.x, z - at.z).length()
+		if distance < 15.0:
+			result = lerpf(result, base_height(at.x, at.z), 1.0 - smoothstep(10.0, 15.0, distance))
+	for at in LAND_ANCHORS:
+		var distance := Vector2(x - at.x, z - at.z).length()
+		if distance < 11.0:
+			result = lerpf(result, anchor_height(at), 1.0 - smoothstep(4.5, 11.0, distance))
+	var nearest := ROAD_BLEND_RADIUS
+	var bed := result
+	var cell := Vector2i(floori(x / ROAD_CELL_SIZE), floori(z / ROAD_CELL_SIZE))
+	for segment: RoadSegment in road_cells.get(cell, []):
+		var t := clampf((key - segment.start).dot(segment.direction) / segment.length_squared, 0, 1)
+		var distance := key.distance_to(segment.start + segment.direction * t)
+		if distance < nearest:
+			nearest = distance
+			bed = lerpf(segment.start_height, segment.end_height, t)
+	var road_t := 1.0 - smoothstep(2.8, ROAD_BLEND_RADIUS, nearest)
 	result = lerpf(result, bed, road_t)
 	var pav_pad := 1.0 - smoothstep(5.4, 10.5, Vector2(x - WANGDAO_PAVILION.x, z - WANGDAO_PAVILION.z).length())
 	result = lerpf(result, anchor_height(WANGDAO_PAVILION), pav_pad)
@@ -147,8 +200,10 @@ static func _land_height(x: float, z: float) -> float:
 		var terrace_y := lerpf(5.85, 6.50, smoothstep(36.5, 55.8, -z))
 		result = lerpf(result, terrace_y, maze_wx * maze_wz)
 	for bz in STREAM_BRIDGES:
+		if absf(z - float(bz)) >= 8.5:
+			continue
 		var bcx := stream_center_x(float(bz))
-		if absf(x - bcx) < 16.5 and absf(z - float(bz)) < 8.5:
+		if absf(x - bcx) < 16.5:
 			var wh := base_height(bcx - 5.2, float(bz))
 			var eh := base_height(bcx + 5.2, float(bz))
 			var saddle := lerpf(wh, eh, 0.38)
@@ -170,8 +225,10 @@ static func _ensure_stream_profile():
 	for i in count:
 		var z := float(z_start + i)
 		var cx := stream_center_x(z)
-		var low_bank := minf(_land_height(cx - 3.6, z), _land_height(cx + 3.6, z))
-		var avg_bank := (_land_height(cx - 3.6, z) + _land_height(cx + 3.6, z)) * 0.5
+		var left_bank := _land_height(cx - 3.6, z)
+		var right_bank := _land_height(cx + 3.6, z)
+		var low_bank := minf(left_bank, right_bank)
+		var avg_bank := (left_bank + right_bank) * 0.5
 		var bank_ref := lerpf(low_bank, avg_bank, 0.35) - 0.36
 		var wy := bank_ref if i == 0 else minf(prev - 0.017, bank_ref)
 		stream_water_heights[i] = wy
@@ -285,10 +342,16 @@ static func path_distance(x: float, z: float, points: Array) -> float:
 		distance = minf(distance, point.distance_to(a + (b - a) * fraction))
 	return distance
 
-static func road_distance(x: float, z: float) -> float:
-	var result = path_distance(x, z, ROUTE)
-	for branch in BRANCHES:
-		result = minf(result, path_distance(x, z, branch))
+static func road_distance(x: float, z: float, limit := INF) -> float:
+	_prepare_road_segments()
+	var point := Vector2(x, z)
+	var segments: Array = road_segments
+	if limit <= ROAD_BLEND_RADIUS:
+		segments = road_cells.get(Vector2i(floori(x / ROAD_CELL_SIZE), floori(z / ROAD_CELL_SIZE)), [])
+	var result: float = limit
+	for segment: RoadSegment in segments:
+		var fraction := clampf((point - segment.start).dot(segment.direction) / segment.length_squared, 0, 1)
+		result = minf(result, point.distance_to(segment.start + segment.direction * fraction))
 	return result
 
 static func is_in_bamboo_cave_zone(x: float, z: float, padding: float = 0.0) -> bool:
@@ -297,7 +360,7 @@ static func is_in_bamboo_cave_zone(x: float, z: float, padding: float = 0.0) -> 
 static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 	if is_in_bamboo_cave_zone(x, z, float(padding)):
 		return true
-	if road_distance(x, z) < 4.5 + padding:
+	if road_distance(x, z, 4.5 + padding) < 4.5 + padding:
 		return true
 	if stream_distance(x, z) < 3.1 + padding:
 		return true

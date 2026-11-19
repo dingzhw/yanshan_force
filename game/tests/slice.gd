@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.6.6" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.6 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.6.7" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.6.7 slice uses 175-entry word pack and 6 tiered vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:

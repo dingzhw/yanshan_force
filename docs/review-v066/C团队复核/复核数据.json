@@ -1,0 +1,338 @@
+{
+  "review_team": "C",
+  "date": "2026-11-19",
+  "tag": "v0.6.6",
+  "commit": "bdd0308",
+  "release_files": [
+    {
+      "path": "playtest/windows-v0.6.6/YanshanBase.exe",
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562",
+      "bytes": 109268480
+    },
+    {
+      "path": "playtest/windows-v0.6.6/YanshanBase.pck",
+      "sha256": "7f7209e09c1dd0a191e5dc2e91db58227e41d86dd65c1726a74800081526df82",
+      "bytes": 72584040
+    },
+    {
+      "path": "playtest/烟山基地试玩_v0.6.6_Windows.zip",
+      "sha256": "ee4e03b2c21627d02465403b921b0626dd28d01f6645b65dddd29ee0cded88e8",
+      "bytes": 111162151
+    }
+  ],
+  "headless_pck": {
+    "engine": "4.7.2.stable.official.ed1daf0bf",
+    "wordpack_sha256": "9d5c03b58d61aae8a30659a9de904dfe80900645f3f2fdcfe2990b14548928c6",
+    "resource_checks_passed": 17,
+    "resource_checks_failed": 0,
+    "suite_counts": {
+      "learning": 10,
+      "economy": 32,
+      "smoke": 33,
+      "combat": 56,
+      "movement": 27,
+      "navigation": 13,
+      "physics": 18,
+      "challenges": 12,
+      "slice": 165
+    },
+    "suite_total": 366,
+    "all_suite_exits": 0,
+    "mode": "sequential launches using --main-pack, external scripts from v0.6.6, isolated QA; GPU capture excluded"
+  },
+  "learning_probes": {
+    "failed_run": {
+      "in_session": true,
+      "on_disk": false,
+      "visible_review": true
+    },
+    "sentence_counter": {
+      "counter": {
+        "correct": 2,
+        "seen": 0,
+        "spelled": 2,
+        "wrong": 0
+      },
+      "id": "s_u1_1",
+      "in_pack": false,
+      "mastery_delta": 1,
+      "pack_size": 175
+    }
+  },
+  "textbook": {
+    "pdf_source": "../江苏教材-五上教材电子版/26秋 五上英语(江苏教材2026).pdf",
+    "sha256": "2d58523f8f0d45700ac9367a8f470310748b89a2701194f58547a2d26e355dae",
+    "unit_index_equal_nonproper_entries": 162,
+    "alphabetical_index_equal_pack": 175,
+    "core_nonproper": 119,
+    "match_rule": "casefold, whitespace and apostrophe normalization; retain punctuation; test for contiguous string in cited page text layer; printed 17/59 checked visually",
+    "sentence_bank": [
+      {
+        "id": "s_u1_1",
+        "prompt": "It's your turn.",
+        "printed_page": 17,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u1_2",
+        "prompt": "Listen carefully in class.",
+        "printed_page": 8,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u1_3",
+        "prompt": "Wait a minute.",
+        "printed_page": 11,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u2_1",
+        "prompt": "Well done!",
+        "printed_page": 23,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u2_2",
+        "prompt": "Never give up.",
+        "printed_page": 26,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u2_3",
+        "prompt": "We study hard.",
+        "printed_page": 28,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u3_1",
+        "prompt": "I don't think so.",
+        "printed_page": 35,
+        "contiguous_match_on_cited_page": true
+      },
+      {
+        "id": "s_u3_2",
+        "prompt": "Look at the gift over there.",
+        "printed_page": 38,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u4_1",
+        "prompt": "Keep to the right.",
+        "printed_page": 49,
+        "contiguous_match_on_cited_page": true
+      },
+      {
+        "id": "s_u4_2",
+        "prompt": "Please walk slowly.",
+        "printed_page": 50,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u4_3",
+        "prompt": "We should warm up.",
+        "printed_page": 44,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u5_1",
+        "prompt": "I often play the piano.",
+        "printed_page": 59,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u5_2",
+        "prompt": "Let's have a picnic.",
+        "printed_page": 61,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u6_1",
+        "prompt": "Please do your homework.",
+        "printed_page": 79,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u7_1",
+        "prompt": "How about this sweater?",
+        "printed_page": 85,
+        "contiguous_match_on_cited_page": false
+      },
+      {
+        "id": "s_u8_1",
+        "prompt": "We have a good time.",
+        "printed_page": 99,
+        "contiguous_match_on_cited_page": false
+      }
+    ]
+  },
+  "graphics": {
+    "method": "Godot console runtime + release PCK; VSync off; stationary first normal camp with live actors; 1.5 s settle plus 5 s wall-clock sample per segment; one trial; actual renderer and viewport queried",
+    "modes": {
+      "standard": {
+        "exit_code": 0,
+        "engine_header": [
+          "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+          "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+        ],
+        "warnings": [],
+        "measurement": {
+          "gpu": "AMD Radeon RX 6600",
+          "normal_setup_ms": 114,
+          "qa": false,
+          "renderer": "forward_plus",
+          "scene_build_ms": 38778,
+          "segments": [
+            {
+              "fps": 251.056195011497,
+              "frames": 1256,
+              "low": false,
+              "max_ms": 16.889,
+              "p95_ms": 5.333,
+              "phase": "camp",
+              "scale": 1.0,
+              "scene": "menu",
+              "seconds": 5.002864,
+              "zone": -1
+            },
+            {
+              "fps": 168.250828815172,
+              "frames": 842,
+              "low": false,
+              "max_ms": 10.813,
+              "p95_ms": 8.222,
+              "phase": "active",
+              "scale": 1.0,
+              "scene": "normal_first_camp",
+              "seconds": 5.004433,
+              "zone": 0
+            },
+            {
+              "fps": 215.562017972433,
+              "frames": 1078,
+              "low": true,
+              "max_ms": 8.7,
+              "p95_ms": 6.61,
+              "phase": "active",
+              "scale": 0.899999976158142,
+              "scene": "same_camp_F6",
+              "seconds": 5.000881,
+              "zone": 0
+            }
+          ],
+          "squad": 3,
+          "version": "0.6.6",
+          "viewport": "(1280.0, 720.0)",
+          "voice": true
+        }
+      },
+      "package_low": {
+        "exit_code": 0,
+        "engine_header": [
+          "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+          "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+        ],
+        "warnings": [],
+        "measurement": {
+          "gpu": "AMD Radeon RX 6600",
+          "normal_setup_ms": 111,
+          "qa": false,
+          "renderer": "forward_plus",
+          "scene_build_ms": 37988,
+          "segments": [
+            {
+              "fps": 338.65688360099,
+              "frames": 1694,
+              "low": true,
+              "max_ms": 4.653,
+              "p95_ms": 3.492,
+              "phase": "camp",
+              "scale": 1.0,
+              "scene": "menu",
+              "seconds": 5.002113,
+              "zone": -1
+            },
+            {
+              "fps": 191.990116404746,
+              "frames": 961,
+              "low": true,
+              "max_ms": 11.489,
+              "p95_ms": 7.263,
+              "phase": "active",
+              "scale": 1.0,
+              "scene": "normal_first_camp",
+              "seconds": 5.005466,
+              "zone": 0
+            }
+          ],
+          "squad": 3,
+          "version": "0.6.6",
+          "viewport": "(1280.0, 720.0)",
+          "voice": true
+        }
+      },
+      "root_gl_low": {
+        "exit_code": 0,
+        "engine_header": [
+          "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+          "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+        ],
+        "warnings": [
+          "WARNING: Screen-space AA is only available when using the Forward+ or Mobile renderer."
+        ],
+        "measurement": {
+          "gpu": "AMD Radeon RX 6600",
+          "normal_setup_ms": 80,
+          "qa": false,
+          "renderer": "gl_compatibility",
+          "scene_build_ms": 37546,
+          "segments": [
+            {
+              "fps": 292.07808660665,
+              "frames": 1461,
+              "low": true,
+              "max_ms": 16.372,
+              "p95_ms": 5.036,
+              "phase": "camp",
+              "scale": 1.0,
+              "scene": "menu",
+              "seconds": 5.002087,
+              "zone": -1
+            },
+            {
+              "fps": 207.651363154254,
+              "frames": 1039,
+              "low": true,
+              "max_ms": 9.096,
+              "p95_ms": 6.662,
+              "phase": "active",
+              "scale": 1.0,
+              "scene": "normal_first_camp",
+              "seconds": 5.003579,
+              "zone": 0
+            }
+          ],
+          "squad": 4,
+          "version": "0.6.6",
+          "viewport": "(1280.0, 720.0)",
+          "voice": true
+        }
+      }
+    },
+    "exported_exe": {
+      "exit": 0,
+      "first_combat_png_seconds": 34.87,
+      "process_wall_seconds": 38.015,
+      "render_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ],
+      "preset": "standard EXE, QA preview-combat with scheduled 0.7 s wait and auto-quit 3 s later"
+    }
+  },
+  "evidence_files": {
+    "field_probe.gd": "db3f82d4ac95c8ef8735040ec1e141080cf2475b7ac66994024912b3d5af9f25",
+    "learning_probe.gd": "d2cdc5dcfe2d9b8826c470a50a0792e9987e0729b7a306c12f5e0de966cfd64e",
+    "普通首营_GL低负载.png": "c30d56977ad1f93088ec915cc5492f436e5d2d92ef31ae868569e5557ad2a915",
+    "普通首营_标准画质.png": "9ad8b17cb3a0557f6dabfb7df05a624a0217bc18b583b422435c31b61e18e55b"
+  }
+}

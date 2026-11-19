@@ -162,19 +162,26 @@ func run():
 		"Normal Operation keeps strictly 1 active attacker while cautious teammates hold camp covers (>5m stand-off, zero face-hug)"
 	)
 
-	var sheltered = false
+	var returned_to_cover = false
 	if is_instance_valid(first_attacker):
 		for i in 180:
 			await physics_frame
-			if first_attacker.action == Soldier.Action.COVER and first_attacker.position.distance_to(first_attacker.cover_goal) < 0.75 and not game.combat.clear_shot(first_attacker.position):
-				sheltered = true
+			if first_attacker.action == Soldier.Action.COVER and first_attacker.position.distance_to(first_attacker.cover_goal) < 0.75:
+				returned_to_cover = true
 				break
-	verify(sheltered, "attacker retreats behind solid cover after firing")
+	verify(returned_to_cover, "attacker returns to a cover position after firing")
 	if is_instance_valid(first_attacker):
+		# The first camp has low frontal walls and tall flanks. Sample the latter for full cover.
+		var original_position: Vector3 = first_attacker.position
+		var flank: Vector3 = game.combat.camp_covers[0][0]
+		game.player.position = game.Layout.on_ground(flank + Vector3(0, 0, 5.0))
+		first_attacker.position = game.Layout.on_ground(flank - Vector3(0, 0, 1.42))
 		var cover_sh = game.combat.shield
 		var rng_state: int = game.combat.shot_rng.state
+		verify(not game.combat.clear_shot(first_attacker.position), "tall first-camp flank fully blocks line of sight")
 		game.combat.strike(first_attacker)
-		verify(is_equal_approx(game.combat.shield, cover_sh) and game.combat.shot_rng.state == rng_state, "solid cover cancels enemy shot before rolling accuracy")
+		verify(is_equal_approx(game.combat.shield, cover_sh) and game.combat.shot_rng.state == rng_state, "solid flank cover cancels enemy shot before rolling accuracy")
+		first_attacker.position = original_position
 
 	# 4. High-slope rear lock retention + Small-range out-of-camp pursuit (~28m) + Cautious disengage (>44m) + Medkit [H]
 	var rear_slope_pos: Vector3 = game.Layout.on_ground(center0 + Vector3(-2.5, 0.0, -9.2)) + Vector3(0.0, 0.12, 0.0)

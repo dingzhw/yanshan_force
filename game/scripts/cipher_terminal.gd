@@ -6,24 +6,7 @@ extends Node
 
 const LootUI = preload("res://scripts/loot_ui.gd")
 
-const SENTENCE_BANK = [
-	{"id": "s_u1_1", "unit": 1, "textbook_page": 17, "kind": "sentence", "english": "It's your turn.", "chinese": "轮到你了。"},
-	{"id": "s_u1_2", "unit": 1, "textbook_page": 8, "kind": "sentence", "english": "Listen carefully in class.", "chinese": "在课堂上仔细听讲。"},
-	{"id": "s_u1_3", "unit": 1, "textbook_page": 11, "kind": "sentence", "english": "Wait a minute.", "chinese": "等一会儿。"},
-	{"id": "s_u2_1", "unit": 2, "textbook_page": 23, "kind": "sentence", "english": "Well done!", "chinese": "干得好！"},
-	{"id": "s_u2_2", "unit": 2, "textbook_page": 26, "kind": "sentence", "english": "Never give up.", "chinese": "永不放弃。"},
-	{"id": "s_u2_3", "unit": 2, "textbook_page": 28, "kind": "sentence", "english": "We study hard.", "chinese": "我们努力学习。"},
-	{"id": "s_u3_1", "unit": 3, "textbook_page": 35, "kind": "sentence", "english": "I don't think so.", "chinese": "我不这么认为。"},
-	{"id": "s_u3_2", "unit": 3, "textbook_page": 38, "kind": "sentence", "english": "Look at the gift over there.", "chinese": "看那里的礼物。"},
-	{"id": "s_u4_1", "unit": 4, "textbook_page": 49, "kind": "sentence", "english": "Keep to the right.", "chinese": "靠右边走。"},
-	{"id": "s_u4_2", "unit": 4, "textbook_page": 50, "kind": "sentence", "english": "Please walk slowly.", "chinese": "请慢点走。"},
-	{"id": "s_u4_3", "unit": 4, "textbook_page": 44, "kind": "sentence", "english": "We should warm up.", "chinese": "我们应该先热身。"},
-	{"id": "s_u5_1", "unit": 5, "textbook_page": 59, "kind": "sentence", "english": "I often play the piano.", "chinese": "我经常弹钢琴。"},
-	{"id": "s_u5_2", "unit": 5, "textbook_page": 61, "kind": "sentence", "english": "Let's have a picnic.", "chinese": "我们去野餐吧。"},
-	{"id": "s_u6_1", "unit": 6, "textbook_page": 79, "kind": "sentence", "english": "Please do your homework.", "chinese": "请做你的家庭作业。"},
-	{"id": "s_u7_1", "unit": 7, "textbook_page": 85, "kind": "sentence", "english": "How about this sweater?", "chinese": "这件毛衣怎么样？"},
-	{"id": "s_u8_1", "unit": 8, "textbook_page": 99, "kind": "sentence", "english": "We have a good time.", "chinese": "我们过得很愉快。"}
-]
+const LearningStore = preload("res://scripts/learning_store.gd")
 
 var game
 var busy = false
@@ -33,6 +16,7 @@ var stages: Array = []
 var stage_index = 0
 var target_word: Dictionary = {}
 var attempts = 0
+var spelling_help_used := false
 var all_stages_perfect = true
 var unlocked = false
 var perfect_crack = false
@@ -49,6 +33,7 @@ var input_box: LineEdit
 var status_label: Label
 var submit_button: Button
 var speak_button: Button
+var hint_button: Button
 var close_button: Button
 var swap_button: Button
 var loot_container: HBoxContainer
@@ -109,6 +94,8 @@ func _build_ui():
 
 	speak_button = game._button(overlay, "🔊 发音 [Tab]", Rect2(822, 308, 154, 52), _speak_hint)
 	submit_button = game._button(overlay, "验证破译 [Enter]", Rect2(304, 372, 316, 46), submit, true)
+	hint_button = game._button(overlay, "查看字母提示", Rect2(636, 372, 340, 46), _show_spelling_hint)
+	hint_button.hide()
 	swap_button = game._button(overlay, "替换背包最低值物资", Rect2(636, 372, 340, 46), _swap_lowest)
 	swap_button.hide()
 
@@ -123,12 +110,12 @@ func _build_ui():
 	loot_container.add_theme_constant_override("separation", 12)
 	overlay.add_child(loot_container)
 
-	game._text(overlay, "破译期间暂停敌袭 · 完美拼写大幅提升【传说·大金】与【旷世·大红】爆率！（按 Space 可跳过放大镜搜索动画）", Vector2(232, 598), Vector2(628, 30), 12, Color("8fb2a4"))
+	game._text(overlay, "开箱后可按 Space 跳过物资搜索。", Vector2(232, 598), Vector2(628, 30), 12, Color("8fb2a4"))
 	close_button = game._button(overlay, "关闭返回 [Esc]", Rect2(868, 590, 174, 38), close)
 	overlay.hide()
 
 func _input(event):
-	if not busy:
+	if not busy or mode == "retest":
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code = event.physical_keycode if event.physical_keycode != 0 else event.keycode
@@ -209,19 +196,15 @@ func _pick_phrase_entry() -> Dictionary:
 
 func _pick_sentence_entry(prefer_short: bool) -> Dictionary:
 	var sel_u := _selected_unit()
-	var candidates := []
-	for pass_idx in 2:
-		for s in SENTENCE_BANK:
-			var word_cnt := str(s.english).split(" ", false).size()
-			if prefer_short and word_cnt > 4 and pass_idx == 0:
-				continue
-			if not prefer_short and word_cnt < 4 and pass_idx == 0:
-				continue
-			if pass_idx == 0 and sel_u > 0 and int(s.unit) != sel_u:
-				continue
-			candidates.append(s)
-		if not candidates.is_empty():
-			break
+	var candidates: Array = game.sentences.filter(func(s): return sel_u <= 0 or int(s.unit) == sel_u)
+	if candidates.is_empty():
+		candidates = game.sentences
+	var by_length := candidates.filter(func(s):
+		var word_count := str(s.english).split(" ", false).size()
+		return word_count <= 4 if prefer_short else word_count >= 4
+	)
+	if not by_length.is_empty():
+		candidates = by_length
 	var picked: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)].duplicate(true)
 	picked["challenge_tag"] = "教材短句锁" if prefer_short else "整句声纹锁"
 	return picked
@@ -272,11 +255,14 @@ func _enter_modal():
 	game.player.clear_movement_input()
 	game.hud.hide()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	hint_button.hide()
+	speak_button.show()
 	overlay.show()
 
 func _refresh_stage_ui():
 	target_word = stages[stage_index]
 	attempts = 0
+	spelling_help_used = false
 	var total := stages.size()
 	var dots := []
 	for i in total:
@@ -290,10 +276,16 @@ func _refresh_stage_ui():
 	var kind := str(target_word.get("kind", "word"))
 	var prefix := "中文句意" if kind == "sentence" else ("词组释义" if kind == "phrase" else "单词释义")
 	prompt_label.text = "%s：【 %s 】" % [prefix, target_word.chinese]
-	mask_label.text = _build_mask(target_word, false)
+	mask_label.text = ""
 
 	var unit_str := "Unit %d · 课本第 %d 页" % [int(target_word.get("unit", 1)), int(target_word.get("textbook_page", 1))]
-	if mode == "supply":
+	match str(target_word.get("source_kind", "")):
+		"textbook_verbatim": unit_str += " · 课文原句"
+		"phrase_extension": unit_str += " · 教材词组拓展"
+	if mode == "retest":
+		stage_label.text = "复测 %d / %d" % [stage_index + 1, total]
+		meta_label.text = unit_str
+	elif mode == "supply":
 		var is_over: bool = is_instance_valid(active_crate) and active_crate.has_meta("overcharged")
 		var box_tag: String = "⚡ 高能异动物资箱（大金/大红爆率×2.8！）" if is_over else "常规野外物资箱（完美拼写可触发奇迹大金/大红！）"
 		meta_label.text = "%s  |  %s" % [box_tag, unit_str]
@@ -308,10 +300,31 @@ func _refresh_stage_ui():
 
 	input_box.editable = true
 	input_box.text = ""
+	speak_button.visible = mode != "retest"
+	hint_button.visible = mode != "retest"
 	submit_button.disabled = false
 	submit_button.text = ("验证下一关 [Enter]" if stage_index + 1 < total else "破译开箱 [Enter]")
+	if mode == "retest":
+		submit_button.text = "提交复测 [Enter]"
 	close_button.text = "关闭返回 [Esc]"
 	input_box.grab_focus()
+
+func open_retest(entries: Array):
+	if busy or entries.is_empty():
+		return
+	mode = "retest"
+	stages = entries
+	stage_index = 0
+	active_crate = null
+	unlocked = false
+	busy = true
+	_clear_loot_cards()
+	swap_button.hide()
+	overlay.show()
+	title_label.text = "单词与句型复测"
+	status_label.text = "根据中文写出英文。每题提交一次。"
+	status_label.add_theme_color_override("font_color", game.CREAM)
+	_refresh_stage_ui()
 
 func open_for_supply(pickup_node: Node3D):
 	if not is_instance_valid(pickup_node) or not pickup_node.visible:
@@ -462,8 +475,15 @@ func open_for_crate(crate_node: Node3D):
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func _speak_hint():
-	if not target_word.is_empty():
+	if busy and not unlocked and mode != "retest" and not target_word.is_empty() and game.tts_voice_id != "":
+		spelling_help_used = true
 		game.speak_english(str(target_word.english))
+
+func _show_spelling_hint():
+	if busy and not unlocked and mode != "retest":
+		spelling_help_used = true
+		mask_label.text = _build_mask(target_word, false)
+		input_box.grab_focus()
 
 func _canonical(s: String) -> String:
 	var t := s.replace("’", "'").replace("‘", "'").to_lower().strip_edges()
@@ -552,18 +572,26 @@ func _update_swap_button():
 	swap_button.show()
 
 func submit():
-	if not busy or unlocked or not is_instance_valid(active_crate):
+	if not busy or unlocked or (mode != "retest" and not is_instance_valid(active_crate)):
 		return
 	var raw_typed := input_box.text.strip_edges()
 	if raw_typed == "":
 		status_label.text = "输入不能为空，请输入对应的英文内容！"
 		return
 	attempts += 1
+	if mode == "retest":
+		_submit_retest(raw_typed)
+		return
 	if _is_match(raw_typed, target_word):
+		var outcome := LearningStore.INDEPENDENT
 		if attempts > 2:
-			all_stages_perfect = false
-		else:
-			game.rules.record_word_spelled(str(target_word.get("id", "")))
+			outcome = LearningStore.COPIED
+		elif attempts > 1 or spelling_help_used:
+			outcome = LearningStore.HINTED
+		all_stages_perfect = all_stages_perfect and outcome == LearningStore.INDEPENDENT
+		game.rules.learning.record_spelling(str(target_word.id), outcome)
+		if outcome != LearningStore.INDEPENDENT and target_word not in game.wrong_words:
+			game.wrong_words.append(target_word)
 		game.speak_english(str(target_word.english))
 
 		# Multi-stage advance!
@@ -581,6 +609,7 @@ func submit():
 		perfect_crack = all_stages_perfect
 		input_box.editable = false
 		submit_button.disabled = true
+		hint_button.hide()
 		stage_label.text = ("★ 完美破译（爆率加成已激活）· 正在逐格搜索鉴定..." if perfect_crack else "✓ 电子锁已解除 · 正在逐格搜索鉴定...")
 
 		if mode == "supply":
@@ -639,6 +668,9 @@ func submit():
 			else:
 				break
 		if attempts == 1:
+			game.rules.learning.record_spelling(str(target_word.id), LearningStore.INCORRECT)
+			if target_word not in game.wrong_words:
+				game.wrong_words.append(target_word)
 			status_label.text = "输入有误（前 %d 个字符匹配）。可按 [Tab] 听发音提示再试一次！" % matched
 			status_label.add_theme_color_override("font_color", Color("f5b971"))
 			input_box.select_all()
@@ -649,12 +681,24 @@ func submit():
 			game.speak_english(str(target_word.english))
 			status_label.text = "已展示正确英文参考，请对照上方完整输入一遍即可通过本关！"
 			status_label.add_theme_color_override("font_color", Color("ff9e7d"))
-			if target_word.has("id") and str(target_word.id).begins_with("js5a") and target_word not in game.wrong_words:
-				game.wrong_words.append(target_word)
-			if target_word.has("id") and str(target_word.id).begins_with("js5a"):
-				game.rules.record_word_result(str(target_word.id), false)
+			hint_button.hide()
 			input_box.select_all()
 			input_box.grab_focus()
+
+func _submit_retest(typed: String):
+	var is_correct := _is_match(typed, target_word)
+	game.rules.learning.record_spelling(str(target_word.id), LearningStore.INDEPENDENT if is_correct else LearningStore.INCORRECT, true)
+	game._save()
+	var feedback := "写对了。" if is_correct else "已留待下次复测。参考答案：%s" % target_word.english
+	if stage_index + 1 < stages.size():
+		stage_index += 1
+		_refresh_stage_ui()
+	else:
+		unlocked = true
+		input_box.editable = false
+		submit_button.disabled = true
+		stage_label.text = "本次复测结束"
+	status_label.text = feedback
 
 func _swap_lowest():
 	if not busy or not unlocked or pending_loot.is_empty() or game.rules.bag.is_empty():
@@ -872,6 +916,11 @@ func _process(delta: float):
 
 func close():
 	if not busy:
+		return
+	if mode == "retest":
+		busy = false
+		overlay.hide()
+		game._refresh_progress()
 		return
 	reveal_all_immediately()
 	# Surface HUD jackpot toast for the best high-rarity item pulled from this container!

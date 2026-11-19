@@ -12,6 +12,8 @@ func run():
 	print("PACKAGED_WORDPACK_SHA256 ",FileAccess.get_sha256("res://data/wordpacks/jiangsu-5a-2026.json"))
 	var learning=JSON.parse_string(FileAccess.get_file_as_string("res://data/exploration/grade5a.json"))
 	verify(learning is Dictionary and learning.has("math") and learning.has("poem"),"standalone PCK includes the new exploration question data")
+	var sentences = JSON.parse_string(FileAccess.get_file_as_string("res://data/learning/jiangsu-5a-sentences.json"))
+	verify(sentences is Dictionary and sentences.get("entries", []).size() == 16, "standalone PCK includes all 16 sourced sentence entries")
 	for name in ["rifle","crate","rock_0","rock_1","rock_2","rock_3","rock_4","rock_5"]:
 		verify(ResourceLoader.exists("res://assets/slice/"+name+".glb"),"packaged model "+name)
 	for name in ["ground_color","ground_normal","tree_bark","tree_needles","tree_alpha"]:

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source_sha256": "2d58523f8f0d45700ac9367a8f470310748b89a2701194f58547a2d26e355dae",
+  "entries": [
+    {"id":"s_u1_turn_now","unit":1,"textbook_page":17,"kind":"sentence","english":"It's your turn now.","chinese":"现在轮到你了。","source_kind":"textbook_verbatim"},
+    {"id":"s_u1_2","unit":1,"textbook_page":8,"kind":"sentence","english":"Listen carefully in class.","chinese":"在课堂上仔细听讲。","source_kind":"phrase_extension","source_phrase":"listen carefully"},
+    {"id":"s_u1_3","unit":1,"textbook_page":11,"kind":"sentence","english":"Wait a minute!","chinese":"等一会儿！","source_kind":"textbook_verbatim"},
+    {"id":"s_u2_well_done_bobby","unit":2,"textbook_page":23,"kind":"sentence","english":"Well done, Bobby!","chinese":"干得好，博比！","source_kind":"textbook_verbatim"},
+    {"id":"s_u2_sullivan","unit":2,"textbook_page":26,"kind":"sentence","english":"Miss Sullivan does not give up.","chinese":"沙利文老师没有放弃。","source_kind":"textbook_verbatim"},
+    {"id":"s_u2_feels_worried","unit":2,"textbook_page":28,"kind":"sentence","english":"He feels worried.","chinese":"他感到担心。","source_kind":"textbook_verbatim"},
+    {"id":"s_u3_no_think_so","unit":3,"textbook_page":35,"kind":"sentence","english":"No, I don't think so.","chinese":"不，我不这么认为。","source_kind":"textbook_verbatim"},
+    {"id":"s_u3_ping_pong","unit":3,"textbook_page":38,"kind":"sentence","english":"He likes playing ping-pong.","chinese":"他喜欢打乒乓球。","source_kind":"textbook_verbatim"},
+    {"id":"s_u4_keep_right","unit":4,"textbook_page":49,"kind":"sentence","english":"We should also keep to the right.","chinese":"我们也应该靠右走。","source_kind":"textbook_verbatim"},
+    {"id":"s_u4_walk_slowly","unit":4,"textbook_page":50,"kind":"sentence","english":"Let's walk slowly.","chinese":"我们慢慢走吧。","source_kind":"textbook_verbatim"},
+    {"id":"s_u4_3","unit":4,"textbook_page":53,"kind":"sentence","english":"We should warm up.","chinese":"我们应该热身。","source_kind":"textbook_verbatim"},
+    {"id":"s_u5_1","unit":5,"textbook_page":59,"kind":"sentence","english":"I often play the piano.","chinese":"我经常弹钢琴。","source_kind":"phrase_extension","source_phrase":"play the piano"},
+    {"id":"s_u5_picnic_billy","unit":5,"textbook_page":61,"kind":"sentence","english":"Let's go and have a picnic, Billy.","chinese":"比利，我们去野餐吧。","source_kind":"textbook_verbatim"},
+    {"id":"s_u6_1","unit":6,"textbook_page":79,"kind":"sentence","english":"Please do your homework.","chinese":"请做你的家庭作业。","source_kind":"phrase_extension","source_phrase":"do your homework"},
+    {"id":"s_u7_twenty_yuan","unit":7,"textbook_page":85,"kind":"sentence","english":"How about twenty yuan?","chinese":"二十元怎么样？","source_kind":"textbook_verbatim"},
+    {"id":"s_u8_festival","unit":8,"textbook_page":99,"kind":"sentence","english":"We all have a good time at this festival.","chinese":"我们在这个节日里都过得很愉快。","source_kind":"textbook_verbatim"}
+  ]
+}

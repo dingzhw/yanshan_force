@@ -271,6 +271,8 @@ func _build_model():
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
 	var shield_y := 1.56 if archetype == Archetype.BOSS_WARDEN else (1.22 if archetype == Archetype.SNIPER_GUARD else (1.20 if archetype == Archetype.SCOUT_DRONE else 1.16))
+	if zone == 0:
+		shield_y += 0.18
 	shield_area.position = Vector3(0, shield_y, 0.66 if archetype == Archetype.BOSS_WARDEN else 0.46)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0

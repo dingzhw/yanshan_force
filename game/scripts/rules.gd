@@ -1,5 +1,7 @@
 extends RefCounted
 
+const LearningStore = preload("res://scripts/learning_store.gd")
+
 const EXTRACTION_SCORE = 260
 const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
@@ -142,6 +144,8 @@ var profile = {
 	"equipped": {"optic": "", "muzzle": "", "grip": ""},
 	"extractions": 0,
 	"mastery": {},
+	"review_due": {},
+	"last_run": {},
 	"collection": [],
 	"red_extracted": 0,
 	"gold_extracted": 0,
@@ -149,6 +153,8 @@ var profile = {
 	"best_item_title": "",
 	"best_item_value": 0
 }
+
+var learning := LearningStore.new(profile)
 
 func _init():
 	loot_rng.randomize()
@@ -286,7 +292,7 @@ func start_run(as_combat = false, tier: String = "normal"):
 func open_question():
 	question_open = phase == "active"
 
-func answer(is_correct: bool, word_id: String = "") -> bool:
+func answer(is_correct: bool, word_id: String = "", choice_count := 4, used_help := false) -> bool:
 	if phase != "active" or not question_open:
 		return false
 	question_open = false
@@ -300,35 +306,12 @@ func answer(is_correct: bool, word_id: String = "") -> bool:
 	else:
 		streak = 0
 	if word_id != "":
-		record_word_result(word_id, is_correct)
+		learning.record_recognition(word_id, is_correct, choice_count, used_help)
 	return true
 
-func record_word_result(word_id: String, is_correct: bool):
-	var entry = profile.mastery.get(word_id, {"seen": 0, "correct": 0, "wrong": 0, "spelled": 0})
-	entry["seen"] = int(entry.get("seen", 0)) + 1
-	if is_correct:
-		entry["correct"] = int(entry.get("correct", 0)) + 1
-	else:
-		entry["wrong"] = int(entry.get("wrong", 0)) + 1
-	profile.mastery[word_id] = entry
-
-func record_word_spelled(word_id: String):
-	if word_id == "":
-		return
-	var entry = profile.mastery.get(word_id, {"seen": 0, "correct": 0, "wrong": 0, "spelled": 0})
-	entry["spelled"] = int(entry.get("spelled", 0)) + 1
-	entry["correct"] = int(entry.get("correct", 0)) + 1
-	profile.mastery[word_id] = entry
-
-func mastered_count() -> int:
-	var count = 0
-	for word_id in profile.mastery:
-		var m = profile.mastery[word_id]
-		if m is Dictionary and int(m.get("correct", 0)) >= 2 and int(m.get("correct", 0)) > int(m.get("wrong", 0)):
-			count += 1
-	return count
-
 func word_priority(word_id: String) -> float:
+	if profile.review_due.has(word_id):
+		return 4.0
 	if not profile.mastery.has(word_id):
 		return 2.2
 	var m = profile.mastery[word_id]
