@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-20",
-  "stage": "v0.7.2 · 烟山奇珍博物大翻新（32件独立PBR 3D藏品建模 + 影棚2D图鉴图标 + 360°交互检视台）",
+  "stage": "v0.8.0 · 摸金经济重塑、64 件博物藏品、收藏库/安全箱/3D展台与清爽山水",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -20,7 +20,7 @@
     "prompt": "屏幕显示中文提示或播放离线英文语音，射击对应英文全息护盾得分（基础15分，3连击+5分）",
     "supply_crates": "常规物资箱单字拼写；三级密码箱采用单词、词组或句型组合。借助提示或参考答案仍可开箱，并进入复测。",
     "extraction": "普通和机密行动：260 分，攻克至少 2 处营地并击败 B 区首领取钥，信标圈内按 F 坚守 5 秒。靶场只需 260 分。",
-    "loot": "六级稀有度物资、首领黄金核心与研发图纸，出售换币后可解锁配件、携行装具与家长奖励券。",
+    "loot": "七级稀有度（增设第5级「珍品·小金」）共64件独立PBR藏品与离线美式语音、普通/机密校准爆率、盲盒去剧透与14处超隐蔽秘藏；营地收藏库支持单件出售、🔒锁存、一键售杂物与4槽3D展台，局内含2格加密安全箱。",
     "word_combat": {
       "warmup_seconds": 0,
       "optional_camp_range": true,
@@ -81,11 +81,11 @@
   "technical_direction": {
     "engine": "Godot 4.7.2 Standard Windows x86_64",
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
-    "initial_platform": "Windows 单人离线（内置 247 条美式自然女声离线 OGG 语音包 + Windows 系统 TTS 兜底）",
+    "initial_platform": "Windows 单人离线（内置 279 条美式自然女声离线 OGG 语音包 + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，开发基线 v0.6.7 / 4c3931d（承接 v0.7.0 本地验收包）"
+    "version_control": "Git，开发基线 v0.7.2 / b921072（承接 v0.8.0 本地验收包）"
   },
-  "playtest": "playtest/windows-v0.7.2/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.8.0/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

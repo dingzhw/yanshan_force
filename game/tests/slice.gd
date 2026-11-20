@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(false)
 	await frames(3)
-	verify(game.VERSION == "0.7.2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.7.2 slice uses 175-entry word pack and 6 tiered vault crates")
+	verify(game.VERSION == "0.8.0" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.0 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -635,16 +635,36 @@ func run():
 		bag_titles.append(str(b_item.get("title", "")))
 	verify("烟山先民竹简" in bag_titles and "烟霞岩画残拓" in bag_titles, "Yanxia rock petroglyph & hearth award Epic & Legendary heritage collectibles into raid bag")
 
-	# 4) v0.6.3 World Looting ('露天刷货', '掏鸟窝', '高能异动箱', '词兵掉落包'), [B] Backpack, [I] 3D Turntable & Compendium Checks
+	# 4) v0.8.0 World Looting (14 ultra-hidden nooks, zero open-road Gold/Red, blind-box crates, clean wildlife tags), [B] Backpack+SafeBox, [I] 3D Turntable, Warehouse Vault & Compendium
 	var active_loose := 0
+	var open_high_loose := 0
 	for lnode in game.world_loot.loose_nodes:
 		if lnode.visible and lnode.has_meta("loot_item"):
 			active_loose += 1
+			if int(lnode.get_meta("loot_item").get("rarity", 1)) >= 5:
+				open_high_loose += 1
 	var overcharged_cnt := 0
 	for pnode in game.pickup_nodes:
 		if pnode.has_meta("overcharged"):
 			overcharged_cnt += 1
-	verify(active_loose == 7 and game.world_loot.nest_nodes.size() == 6 and overcharged_cnt == 2, "Normal/Practice run spawns 7 randomized 3D loose relics, 6 bird nests/crevices, and 2 overcharged supply caches")
+	verify(active_loose == 7 and open_high_loose == 0 and game.world_loot.nest_nodes.size() == 14 and overcharged_cnt == 2 and game.world_loot.overcharged_halos.is_empty(), "v0.8.0 spawns 7 modest open-road relics (0 Gold/Red), 14 ultra-hidden nooks, and 2 spoiler-free blind-box caches")
+	var spoiler_crates := 0
+	for cnode in game.crate_nodes:
+		for cl in cnode.find_children("*", "Label3D", true, false):
+			var ct := str((cl as Label3D).text)
+			if "大金" in ct or "大红" in ct or "史诗" in ct:
+				spoiler_crates += 1
+	verify(spoiler_crates == 0, "v0.8.0 blind-box vault crates carry zero rarity-spoiler text on 3D tags")
+	# v0.8.0 #14: Wildlife & flora overhead tags hidden by default for clean scenic landscape
+	game.wildlife.reset()
+	var visible_eco_labels := 0
+	for wa in game.wildlife.animals:
+		if wa.label.visible:
+			visible_eco_labels += 1
+	for wf in game.wildlife.flora_nodes:
+		if (wf.get_meta("label_node") as Label3D).visible:
+			visible_eco_labels += 1
+	verify(visible_eco_labels == 0, "v0.8.0 hides all permanent wildlife and flora overhead labels by default for clean mountain scenery")
 
 	# Pickup open-world 3D loose relic at Camp Tent Table (loose_nodes[0] is guaranteed active!)
 	var tent_loose: Node3D = game.world_loot.loose_nodes[0]

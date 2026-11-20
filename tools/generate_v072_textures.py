@@ -412,6 +412,176 @@ def make_ganoderma_cap():
     add_grain(img, 4, 99).save(OUT / "tex_ganoderma_cap.png")
 
 
+def make_bamboo_ruler():
+    w, h = 512, 128
+    img = Image.new("RGB", (w, h), (196, 158, 92))
+    draw = ImageDraw.Draw(img)
+    rng = random.Random(101)
+    for y in range(0, h, 2):
+        d = rng.randint(-8, 8)
+        draw.line([(0, y), (w, y)], fill=(192 + d, 154 + d, 88 + d), width=2)
+    draw.rectangle((0, 0, w - 1, h - 1), outline=(108, 76, 36), width=4)
+    f = get_font(22)
+    for i in range(1, 32):
+        x = int(i * (w - 32) / 32.0) + 16
+        tick_h = 44 if i % 5 == 0 else 24
+        draw.line([(x, 4), (x, 4 + tick_h)], fill=(46, 32, 18), width=3 if i % 5 == 0 else 2)
+        if i % 5 == 0:
+            draw.text((x - 10, 52), str(i), fill=(46, 32, 18), font=f)
+    draw.text((170, 86), "烟山老竹尺 · 1尺", fill=(78, 50, 24), font=get_font(24))
+    add_grain(img, 4, 102).save(OUT / "tex_bamboo_ruler.png")
+
+
+def make_blue_porcelain():
+    w, h = 512, 256
+    img = Image.new("RGB", (w, h), (232, 236, 242))
+    draw = ImageDraw.Draw(img)
+    cobalt = (34, 72, 152)
+    cobalt_lt = (74, 118, 194)
+    draw.rectangle((0, 10, w, 24), fill=cobalt)
+    draw.rectangle((0, 32, w, 38), fill=cobalt_lt)
+    draw.rectangle((0, h - 24, w, h - 10), fill=cobalt)
+    # Continuous cobalt lotus-vine scroll around cup body
+    for k in range(6):
+        cx = 42 + k * 84
+        cy = 128
+        draw.ellipse((cx - 26, cy - 26, cx + 26, cy + 26), outline=cobalt, width=5)
+        draw.ellipse((cx - 12, cy - 12, cx + 12, cy + 12), fill=cobalt_lt)
+        draw.arc((cx + 22, cy - 42, cx + 70, cy + 42), 110, 290, fill=cobalt, width=4)
+        for dy in (-38, 38):
+            draw.ellipse((cx - 8, cy + dy - 8, cx + 8, cy + dy + 8), fill=cobalt)
+    add_grain(img, 3, 103).save(OUT / "tex_blue_porcelain.png")
+
+
+def make_herb_specimen():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (222, 212, 184))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((16, 16, w - 16, h - 16), outline=(112, 86, 52), width=8)
+    # Pressed Jiangnan fern & ginkgo specimen leaf
+    draw.line([(256, 440), (256, 84)], fill=(54, 92, 46), width=8)
+    for i in range(9):
+        y = 112 + i * 34
+        span = 118 - abs(i - 4) * 18
+        draw.polygon([(256, y), (256 - span, y - 18), (256 - int(span * 0.7), y + 10)], fill=(62, 114, 52))
+        draw.polygon([(256, y), (256 + span, y - 18), (256 + int(span * 0.7), y + 10)], fill=(72, 126, 58))
+    draw.rectangle((312, 396, 474, 474), fill=(238, 232, 212), outline=(92, 74, 50), width=3)
+    draw.text((326, 412), "烟山草本", fill=(46, 56, 38), font=get_font(28))
+    draw.text((326, 444), "HERB #08", fill=(96, 80, 54), font=get_font(20))
+    add_grain(img, 5, 104).save(OUT / "tex_herb_specimen.png")
+
+
+def make_pocket_watch():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (232, 224, 202))
+    draw = ImageDraw.Draw(img)
+    cx, cy = 256, 256
+    draw.ellipse((14, 14, w - 14, h - 14), fill=(234, 226, 204), outline=(172, 134, 56), width=12)
+    draw.ellipse((44, 44, w - 44, h - 44), outline=(52, 44, 34), width=3)
+    romans = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"]
+    f = get_font(34)
+    for i, rm in enumerate(romans):
+        a = math.radians(i * 30 - 90)
+        x = int(cx + 164 * math.cos(a))
+        y = int(cy + 164 * math.sin(a))
+        draw.text((x - 16, y - 18), rm, fill=(36, 30, 24), font=f)
+        draw.line(
+            [(cx + 202 * math.cos(a), cy + 202 * math.sin(a)), (cx + 220 * math.cos(a), cy + 220 * math.sin(a))],
+            fill=(44, 38, 30), width=4
+        )
+    # Ornate blued-steel clock hands (10:10)
+    draw.line([(cx, cy), (cx - 88, cy - 56)], fill=(28, 42, 74), width=10)
+    draw.line([(cx, cy), (cx + 116, cy - 68)], fill=(28, 42, 74), width=7)
+    draw.ellipse((cx - 14, cy - 14, cx + 14, cy + 14), fill=(192, 150, 58))
+    add_grain(img, 3, 105).save(OUT / "tex_pocket_watch.png")
+
+
+def make_bronze_mirror():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (108, 102, 78))
+    draw = ImageDraw.Draw(img)
+    cx, cy = 256, 256
+    for rad, col in ((244, (132, 120, 82)), (214, (86, 82, 62)), (164, (124, 114, 78)), (118, (76, 72, 54)), (60, (176, 152, 88))):
+        draw.ellipse((cx - rad, cy - rad, cx + rad, cy + rad), fill=col, outline=(218, 212, 194), width=5)
+    # Tang grapevine & silver-inlaid bosses around ring
+    for i in range(16):
+        a = 2.0 * math.pi * i / 16.0
+        for rr, br in ((188, 10), (140, 8), (88, 7)):
+            px, py = int(cx + rr * math.cos(a)), int(cy + rr * math.sin(a))
+            draw.ellipse((px - br, py - br, px + br, py + br), fill=(214, 222, 226), outline=(58, 54, 42), width=2)
+    add_grain(img, 4, 106).save(OUT / "tex_bronze_mirror.png")
+
+
+def make_pencil_tin():
+    w, h = 512, 256
+    img = Image.new("RGB", (w, h), (54, 116, 118))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle((12, 12, w - 12, h - 12), radius=24, fill=(62, 128, 128), outline=(228, 198, 124), width=8)
+    draw.rectangle((36, 44, w - 36, h - 44), fill=(236, 228, 204), outline=(182, 140, 62), width=4)
+    draw.text((88, 66), "烟山小学 · 文具盒", fill=(42, 74, 72), font=get_font(42))
+    draw.text((112, 134), "GOOD STUDY · DAY DAY UP", fill=(168, 64, 48), font=get_font(24))
+    add_grain(img, 5, 107).save(OUT / "tex_pencil_tin.png")
+
+
+def make_suzhou_silk():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (26, 98, 86))
+    draw = ImageDraw.Draw(img)
+    gold = (228, 190, 92)
+    for y in range(32, h, 64):
+        for x in range(32, w, 64):
+            draw.polygon([(x, y - 22), (x + 22, y), (x, y + 22), (x - 22, y)], outline=gold, width=3)
+            draw.ellipse((x - 6, y - 6, x + 6, y + 6), fill=(242, 212, 126))
+    draw.ellipse((156, 156, 356, 356), fill=(18, 72, 64), outline=gold, width=8)
+    draw.text((206, 224), "苏绣", fill=(244, 214, 122), font=get_font(54))
+    add_grain(img, 4, 108).save(OUT / "tex_suzhou_silk.png")
+
+
+def make_crypto_drive():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (38, 46, 54))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((18, 18, w - 18, h - 18), fill=(46, 56, 66), outline=(222, 180, 74), width=10)
+    draw.rectangle((48, 56, w - 48, 146), fill=(26, 32, 38), outline=(242, 198, 82), width=4)
+    draw.text((68, 78), "AES-512 VAULT", fill=(248, 206, 92), font=get_font(44))
+    draw.text((76, 184), "YANSHAN SECURE SSD", fill=(188, 220, 212), font=get_font(30))
+    # Fingerprint scanner ring
+    cx, cy = 256, 344
+    for r in (68, 52, 36, 20):
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(92, 232, 214), width=4)
+    add_grain(img, 4, 109).save(OUT / "tex_crypto_drive.png")
+
+
+def make_imperial_bowl():
+    w, h = 512, 256
+    img = Image.new("RGB", (w, h), (238, 240, 244))
+    draw = ImageDraw.Draw(img)
+    cobalt = (22, 56, 144)
+    gold = (216, 174, 68)
+    draw.rectangle((0, 0, w, 16), fill=gold)
+    draw.rectangle((0, 20, w, 34), fill=cobalt)
+    draw.rectangle((0, h - 26, w, h - 12), fill=cobalt)
+    # Intricate imperial blue-and-white cloud & ruyi petals
+    for k in range(8):
+        cx = 32 + k * 64
+        draw.arc((cx - 28, 42, cx + 28, 104), 0, 180, fill=cobalt, width=5)
+        draw.ellipse((cx - 18, 112, cx + 18, 148), outline=cobalt, width=5)
+        draw.ellipse((cx - 7, 123, cx + 7, 137), fill=cobalt)
+        draw.arc((cx - 30, 152, cx + 30, 224), 180, 360, fill=(56, 98, 184), width=4)
+    add_grain(img, 2, 110).save(OUT / "tex_imperial_bowl.png")
+
+
+def make_inkstone_carving():
+    w, h = 512, 512
+    img = Image.new("RGB", (w, h), (54, 46, 58))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle((22, 22, w - 22, h - 22), radius=36, fill=(62, 52, 68), outline=(104, 88, 112), width=10)
+    # Recessed ink grinding surface & deep crescent ink well at top
+    draw.rounded_rectangle((64, 168, w - 64, h - 64), radius=24, fill=(40, 34, 46), outline=(92, 78, 98), width=4)
+    draw.ellipse((96, 62, w - 96, 174), fill=(24, 22, 30), outline=(118, 98, 124), width=5)
+    add_grain(img, 4, 111).save(OUT / "tex_inkstone_carving.png")
+
+
 def main():
     make_fan_painting()
     make_rubbing_scroll()
@@ -428,8 +598,18 @@ def main():
     make_battery_wrap()
     make_blackbox_label()
     make_ganoderma_cap()
+    make_bamboo_ruler()
+    make_blue_porcelain()
+    make_herb_specimen()
+    make_pocket_watch()
+    make_bronze_mirror()
+    make_pencil_tin()
+    make_suzhou_silk()
+    make_crypto_drive()
+    make_imperial_bowl()
+    make_inkstone_carving()
     files = sorted(OUT.glob("tex_*.png"))
-    print(f"GENERATED_V072_TEXTURES={len(files)}")
+    print(f"GENERATED_V080_TEXTURES={len(files)}")
     for f in files:
         print(f"  {f.name}: {f.stat().st_size} bytes")
 

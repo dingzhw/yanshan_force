@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import sys
 from pathlib import Path
 
 import bmesh
@@ -28,8 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TEX_DIR = ROOT / "tools" / "generated_v072"
 GLB_OUT = ROOT / "game" / "assets" / "slice" / "v072_collectibles.glb"
 ICON_DIR = ROOT / "game" / "assets" / "icons" / "loot"
-REVIEW_DIR = ROOT / "docs" / "v072-review"
-REPORT_OUT = ROOT / "docs" / "slice-v072-collectibles.json"
+REVIEW_DIR = ROOT / "docs" / "v080-review"
+REPORT_OUT = ROOT / "docs" / "slice-v080-collectibles.json"
 
 ICON_DIR.mkdir(parents=True, exist_ok=True)
 REVIEW_DIR.mkdir(parents=True, exist_ok=True)
@@ -574,6 +575,31 @@ def mats():
         "moss": make_mat("m_moss", "4a7840", metallic=0.0, roughness=0.88),
         "led_warm": make_mat("m_led_warm", "fff3c4", metallic=0.1, roughness=0.1, emission="ffe8a0", emission_strength=2.2),
         "red_led": make_mat("m_red_led", "ff3838", metallic=0.1, roughness=0.1, emission="ff3030", emission_strength=1.8),
+        # v0.8.0 additional materials for 32 new collectibles (total 64!)
+        "clay_stone": make_mat("m_clay_stone", "a69884", metallic=0.0, roughness=0.72),
+        "cobalt_blue": make_mat("m_cobalt_blue", "22469c", metallic=0.1, roughness=0.16, coat=0.75),
+        "walnut_shell": make_mat("m_walnut_shell", "7a5230", metallic=0.0, roughness=0.68),
+        "osmanthus_gold": make_mat("m_osmanthus_gold", "d8a836", metallic=0.05, roughness=0.58),
+        "olive_metal": make_mat("m_olive_metal", "4b5c42", metallic=0.45, roughness=0.42),
+        "lacquer_red": make_mat("m_lacquer_red", "9e1b1e", metallic=0.08, roughness=0.12, coat=0.92),
+        "zisha_clay": make_mat("m_zisha_clay", "8c422c", metallic=0.04, roughness=0.52, coat=0.22),
+        "imperial_jade": make_mat("m_imperial_jade", "249e68", metallic=0.06, roughness=0.10, emission="1a8a56", emission_strength=0.18, coat=0.88),
+        "kingfisher": make_mat("m_kingfisher", "1ba4c4", metallic=0.25, roughness=0.14, emission="1cc4e8", emission_strength=0.24, coat=0.82),
+        "purple_slate": make_mat("m_purple_slate", "443a4c", metallic=0.06, roughness=0.48),
+        "yellow_rugged": make_mat("m_yellow_rugged", "dba624", metallic=0.08, roughness=0.44),
+        "rope_orange": make_mat("m_rope_orange", "cf5f26", metallic=0.0, roughness=0.78),
+        "leather_dark": make_mat("m_leather_dark", "2a221c", metallic=0.04, roughness=0.62),
+        "germanium": make_mat("m_germanium", "d87a24", metallic=0.65, roughness=0.08, emission="ff9230", emission_strength=0.42, coat=0.9),
+        "tex_ruler": make_mat("m_tex_ruler", "ffffff", metallic=0.0, roughness=0.48, tex_name="tex_bamboo_ruler.png"),
+        "tex_blue_cup": make_mat("m_tex_blue_cup", "ffffff", metallic=0.04, roughness=0.10, tex_name="tex_blue_porcelain.png", coat=0.88),
+        "tex_herb": make_mat("m_tex_herb", "ffffff", metallic=0.0, roughness=0.35, tex_name="tex_herb_specimen.png", coat=0.45),
+        "tex_watch": make_mat("m_tex_watch", "ffffff", metallic=0.05, roughness=0.22, tex_name="tex_pocket_watch.png"),
+        "tex_mirror": make_mat("m_tex_mirror", "ffffff", metallic=0.72, roughness=0.24, tex_name="tex_bronze_mirror.png"),
+        "tex_pencil_tin": make_mat("m_tex_pencil_tin", "ffffff", metallic=0.32, roughness=0.32, tex_name="tex_pencil_tin.png"),
+        "tex_silk": make_mat("m_tex_silk", "ffffff", metallic=0.08, roughness=0.44, tex_name="tex_suzhou_silk.png"),
+        "tex_crypto": make_mat("m_tex_crypto", "ffffff", metallic=0.45, roughness=0.26, tex_name="tex_crypto_drive.png", emission_strength=0.20),
+        "tex_imperial_bowl": make_mat("m_tex_imperial_bowl", "ffffff", metallic=0.05, roughness=0.08, tex_name="tex_imperial_bowl.png", coat=0.95),
+        "tex_inkstone": make_mat("m_tex_inkstone", "ffffff", metallic=0.08, roughness=0.36, tex_name="tex_inkstone_carving.png", coat=0.25),
     }
 
 
@@ -1399,46 +1425,562 @@ def build_seal(M):
     return b.finalize(0.38)
 
 
-# Master ordered registry matching rules.gd LOOT_TABLE (T1 -> T6, 32 unique items!)
+# ---------------------------------------------------------------------------
+# v0.8.0: 32 BRAND-NEW SCULPTED PBR COLLECTIBLES (TOTAL = 64!)
+# ---------------------------------------------------------------------------
+def build_rice_bowl(M):
+    b = PartBuilder("loot_rice_bowl")
+    b.lathe(
+        [(0.058, 0.0), (0.062, 0.024), (0.105, 0.062), (0.142, 0.118), (0.150, 0.156), (0.136, 0.158), (0.125, 0.115), (0.088, 0.060), (0.004, 0.040)],
+        segs=36, mat=M["clay_stone"]
+    )
+    b.torus(0.146, 0.006, 36, 10, (0, 0, 0.152), (0, 0, 0), M["cobalt_blue"])
+    b.torus(0.126, 0.005, 36, 8, (0, 0, 0.095), (0, 0, 0), M["cobalt_blue"])
+    # Pair of bamboo chopsticks resting across the bowl rim
+    for dy in (-0.014, 0.014):
+        b.cyl(0.005, 0.003, 0.30, 10, (0.0, dy, 0.162), (0, 90, 12), M["bamboo_aged"])
+    return b.finalize(0.33)
+
+
+def build_walnut(M):
+    b = PartBuilder("loot_walnut")
+    # Pair of grooved Jiangnan wild mountain walnuts on a tiny leaf tray
+    b.lathe([(0.02, 0.0), (0.135, 0.008), (0.148, 0.024), (0.125, 0.026)], segs=24, mat=M["wood_warm"])
+    for pos, rot in (((-0.052, -0.01, 0.072), (14, 18, 20)), ((0.054, 0.015, 0.068), (-18, -14, -28))):
+        b.lathe(
+            [(0.004, -0.058), (0.044, -0.036), (0.056, 0.0), (0.042, 0.038), (0.004, 0.060)],
+            segs=24, flute_lobes=8, flute_amp=0.09, pos=pos, rot=rot, mat=M["walnut_shell"]
+        )
+        b.torus(0.054, 0.006, 20, 8, pos, (rot[0], rot[1] + 90, rot[2]), M["wood_warm"])
+    return b.finalize(0.32)
+
+
+def build_abacus(M):
+    b = PartBuilder("loot_abacus")
+    tilt = (-26, 0, 0)
+    rot_m = Euler(tuple(math.radians(a) for a in tilt), "XYZ").to_matrix()
+    ctr = Vector((0, 0, 0.125))
+    # Rosewood rectangular frame + horizontal divider beam
+    b.box((0.26, 0.026, 0.020), tuple(ctr + rot_m @ Vector((0, 0, 0.088))), tilt, M["rosewood"], bevel=0.003)
+    b.box((0.26, 0.026, 0.020), tuple(ctr + rot_m @ Vector((0, 0, -0.088))), tilt, M["rosewood"], bevel=0.003)
+    b.box((0.24, 0.022, 0.014), tuple(ctr + rot_m @ Vector((0, 0, 0.024))), tilt, M["rosewood"], bevel=0.002)
+    for sx in (-0.122, 0.122):
+        b.box((0.020, 0.026, 0.190), tuple(ctr + rot_m @ Vector((sx, 0, 0))), tilt, M["rosewood"], bevel=0.003)
+    # 7 vertical brass rods with bi-conical abacus beads!
+    for ci in range(7):
+        lx = -0.090 + ci * 0.030
+        b.cyl(0.0035, 0.0035, 0.165, 8, tuple(ctr + rot_m @ Vector((lx, 0, 0))), tilt, M["brass"])
+        # Upper bead (heaven deck) + 3 lower beads (earth deck)
+        z_hi = 0.056 if ci % 2 == 0 else 0.044
+        b.sphere((0.013, 0.013, 0.008), tuple(ctr + rot_m @ Vector((lx, 0, z_hi))), tilt, M["bamboo_aged"])
+        for bi in range(3):
+            z_lo = -0.066 + bi * 0.018 + (0.014 if (ci + bi) % 3 == 0 else 0.0)
+            b.sphere((0.013, 0.013, 0.008), tuple(ctr + rot_m @ Vector((lx, 0, z_lo))), tilt, M["wood_warm"])
+    return b.finalize(0.34)
+
+
+def build_pencil_tin(M):
+    b = PartBuilder("loot_pencil_tin")
+    b.box((0.26, 0.115, 0.042), (0, 0, 0.022), (0, 0, 0), M["olive_metal"], bevel=0.006, bevel_segs=2)
+    b.quad_card(0.245, 0.100, (0, 0, 0.044), (90, 0, 0), M["tex_pencil_tin"], thickness=0.004)
+    b.box((0.036, 0.012, 0.014), (0, -0.060, 0.028), (0, 0, 0), M["brass"], bevel=0.002)
+    # Yellow hexagonal pencil + eraser resting diagonally on top!
+    b.cyl(0.008, 0.008, 0.21, 6, (0.01, -0.01, 0.056), (0, 90, 14), M["yellow_rugged"], smooth=False)
+    b.cyl(0.008, 0.001, 0.026, 6, (0.125, 0.018, 0.056), (0, 90, 14), M["bamboo_aged"], smooth=False)
+    b.cyl(0.0085, 0.0085, 0.020, 12, (-0.102, -0.038, 0.056), (0, 90, 14), M["silk_red"])
+    return b.finalize(0.34)
+
+
+def build_bamboo_ruler(M):
+    b = PartBuilder("loot_bamboo_ruler")
+    tilt = (-24, 0, 12)
+    b.box((0.30, 0.068, 0.012), (0, 0, 0.055), tilt, M["bamboo_aged"], bevel=0.002)
+    b.quad_card(0.292, 0.062, (0, -0.003, 0.062), (66, 0, 12), M["tex_ruler"], thickness=0.003)
+    # Brass hanging eyelet + red tassel at end
+    b.torus(0.012, 0.0035, 16, 8, (0.128, 0.025, 0.058), (66, 0, 12), M["brass"])
+    b.tube_path([(0.138, 0.028, 0.058), (0.168, 0.012, 0.032), (0.174, -0.015, 0.014)], 0.0045, 8, M["silk_red"])
+    return b.finalize(0.34)
+
+
+def build_osmanthus_pack(M):
+    b = PartBuilder("loot_osmanthus_pack")
+    # Plump golden embroidered osmanthus fragrance sachet tied at neck
+    b.lathe(
+        [(0.01, 0.0), (0.072, 0.016), (0.105, 0.068), (0.095, 0.135), (0.036, 0.182), (0.064, 0.228), (0.048, 0.232), (0.026, 0.185)],
+        segs=28, flute_lobes=8, flute_amp=0.055, mat=M["osmanthus_gold"]
+    )
+    b.torus(0.040, 0.009, 24, 10, (0, 0, 0.180), (0, 0, 0), M["silk_red"])
+    # Hanging red cord & tiny brass bell
+    b.tube_path([(0.038, -0.01, 0.180), (0.088, -0.04, 0.125), (0.098, -0.04, 0.065)], 0.005, 8, M["silk_red"])
+    b.sphere(0.016, (0.098, -0.04, 0.054), (0, 0, 0), M["brass"])
+    b.sphere(0.018, (0, -0.098, 0.095), (0, 0, 0), M["silk_red"])
+    return b.finalize(0.32)
+
+
+def build_key_ring(M):
+    b = PartBuilder("loot_key_ring")
+    # Antique brass split ring with 3 distinct notched vintage keys fanned out
+    b.torus(0.052, 0.008, 28, 10, (0, 0, 0.185), (78, 0, 0), M["brass"])
+    key_specs = [(-38, M["brass"], 0.155), (0, M["gold"], 0.175), (36, M["bronze_dark"], 0.145)]
+    for ang_y, mat_k, length in key_specs:
+        rad = math.radians(ang_y)
+        dx, dz = math.sin(rad), -math.cos(rad)
+        mid = (dx * (length * 0.5 + 0.045), 0.008 * (1 if ang_y == 0 else -1), 0.178 + dz * (length * 0.5 + 0.045))
+        b.cyl(0.007, 0.006, length, 12, mid, (0, -ang_y, 0), mat_k)
+        # Key bow ring at top + bit teeth at bottom
+        top_p = (dx * 0.042, mid[1], 0.178 + dz * 0.042)
+        b.torus(0.022, 0.006, 18, 8, top_p, (78, -ang_y, 0), mat_k)
+        tip_p = (dx * (length + 0.025), mid[1], 0.178 + dz * (length + 0.025))
+        b.box((0.032, 0.007, 0.028), (tip_p[0] + 0.014 * math.cos(rad), tip_p[1], tip_p[2] + 0.014 * math.sin(rad)), (0, -ang_y, 0), mat_k, bevel=0.001)
+    return b.finalize(0.34)
+
+
+def build_canteen(M):
+    b = PartBuilder("loot_canteen")
+    # Classic flattened oval olive military canteen with canvas strap & chained cap
+    b.sphere((0.118, 0.056, 0.128), (0, 0, 0.132), (0, 0, 0), M["olive_metal"])
+    b.cyl(0.028, 0.026, 0.050, 20, (0, 0, 0.268), (0, 0, 0), M["gunmetal"])
+    b.cyl(0.032, 0.032, 0.024, 20, (0, 0, 0.296), (0, 0, 0), M["matte_black"])
+    # Canvas harness wrap band + chained cap tether
+    b.torus(0.118, 0.010, 28, 10, (0, 0, 0.132), (0, 90, 0), M["hemp"], scale_vec=(1.05, 0.55, 1.0))
+    b.box((0.244, 0.022, 0.034), (0, 0, 0.132), (0, 0, 0), M["hemp"], bevel=0.004)
+    b.tube_path([(0.032, 0, 0.295), (0.068, -0.01, 0.270), (0.055, 0, 0.235)], 0.0045, 8, M["silver"])
+    return b.finalize(0.35)
+
+
+def build_rope_coil(M):
+    b = PartBuilder("loot_rope_coil")
+    # Neatly bundled alpine climbing rope coils + brushed steel D-carabiner
+    for i in range(6):
+        off_y = -0.036 + i * 0.0145
+        b.torus(0.105, 0.0125, 28, 10, (0, off_y, 0.125), (90, 0, 0), M["rope_orange"], scale_vec=(0.78, 1.12, 1.0))
+    # Central lashing strap + silver/black carabiner clipped to top
+    b.box((0.19, 0.115, 0.042), (0, 0, 0.125), (0, 0, 0), M["matte_black"], bevel=0.006)
+    b.torus(0.044, 0.009, 24, 10, (0.055, -0.015, 0.245), (84, 18, 0), M["silver"], scale_vec=(0.72, 1.15, 1.0))
+    b.cyl(0.011, 0.011, 0.042, 12, (0.084, -0.015, 0.242), (0, 18, 0), M["brass"])
+    return b.finalize(0.34)
+
+
+def build_lacquer_box(M):
+    b = PartBuilder("loot_lacquer_box")
+    # Glossy cinnabar-red Jiangnan lacquer trinket chest with brass corners & lock hasp
+    b.box((0.24, 0.165, 0.118), (0, 0, 0.068), (0, 0, 0), M["lacquer_red"], bevel=0.008, bevel_segs=2)
+    b.box((0.252, 0.175, 0.036), (0, 0, 0.132), (0, 0, 0), M["lacquer_red"], bevel=0.008, bevel_segs=2)
+    # Brass corner brackets & front cloud lock plate
+    for sx in (-0.118, 0.118):
+        for sy in (-0.080, 0.080):
+            b.box((0.026, 0.026, 0.026), (sx, sy, 0.020), (0, 0, 0), M["gold"], bevel=0.003)
+            b.box((0.026, 0.026, 0.026), (sx, sy, 0.142), (0, 0, 0), M["gold"], bevel=0.003)
+    b.cyl(0.032, 0.032, 0.010, 24, (0, -0.088, 0.110), (90, 0, 0), M["gold"])
+    b.box((0.016, 0.014, 0.042), (0, -0.092, 0.102), (0, 0, 0), M["gold_deep"], bevel=0.002)
+    # 4 short carved feet
+    for sx in (-0.095, 0.095):
+        for sy in (-0.058, 0.058):
+            b.box((0.024, 0.024, 0.018), (sx, sy, 0.009), (0, 0, 0), M["rosewood"])
+    return b.finalize(0.34)
+
+
+def build_blue_teacup(M):
+    b = PartBuilder("loot_blue_teacup")
+    b.lathe(
+        [(0.048, 0.0), (0.052, 0.022), (0.088, 0.052), (0.118, 0.115), (0.128, 0.168), (0.118, 0.170), (0.108, 0.115), (0.075, 0.052), (0.004, 0.034)],
+        segs=40, mat=M["tex_blue_cup"], uv_mode="cyl"
+    )
+    b.lathe([(0.055, 0.0), (0.135, 0.0), (0.142, 0.014), (0.095, 0.018)], segs=32, pos=(0, 0, -0.014), mat=M["rosewood"])
+    return b.finalize(0.32)
+
+
+def build_folding_shovel(M):
+    b = PartBuilder("loot_folding_shovel")
+    tilt = (0, 52, -14)
+    # Pointed matte-olive steel tactical spade blade
+    bm = bmesh.new()
+    pts = [(-0.078, 0.095), (0.078, 0.095), (0.082, -0.025), (0.0, -0.135), (-0.082, -0.025)]
+    fv = [bm.verts.new((x, -0.008, z)) for x, z in pts]
+    bv = [bm.verts.new((x, 0.008, z)) for x, z in pts]
+    bm.faces.new(fv)
+    bm.faces.new(list(reversed(bv)))
+    for i in range(len(pts)):
+        inext = (i + 1) % len(pts)
+        bm.faces.new((bv[i], bv[inext], fv[inext], fv[i]))
+    xf_blade = Matrix.Translation((-0.075, 0, 0.095)) @ Euler((math.radians(12), math.radians(52), math.radians(-14)), "XYZ").to_matrix().to_4x4()
+    b._finish_bm(bm, M["olive_metal"], smooth=False, xform=xf_blade)
+    # Locking collar + shaft + triangular D-handle grip
+    b.cyl(0.018, 0.018, 0.038, 16, (0.01, 0, 0.145), tilt, M["brass"])
+    b.cyl(0.012, 0.012, 0.195, 14, (0.085, 0, 0.195), tilt, M["gunmetal"])
+    b.torus(0.044, 0.010, 20, 10, (0.175, 0, 0.252), (90, 52, -14), M["rubber"])
+    return b.finalize(0.36)
+
+
+def build_smoke_can(M):
+    b = PartBuilder("loot_smoke_can")
+    b.cyl(0.056, 0.056, 0.225, 28, (0, 0, 0.115), (0, 0, 0), M["olive_metal"])
+    b.cyl(0.058, 0.058, 0.038, 28, (0, 0, 0.165), (0, 0, 0), M["yellow_rugged"])
+    b.cyl(0.058, 0.058, 0.022, 28, (0, 0, 0.015), (0, 0, 0), M["matte_black"])
+    b.cyl(0.028, 0.024, 0.048, 20, (0, 0, 0.246), (0, 0, 0), M["gunmetal"])
+    # Safety spoon lever + silver pull-pin ring!
+    b.tube_path([(0.022, 0, 0.264), (0.068, 0, 0.245), (0.072, 0, 0.120)], 0.008, 8, M["olive_metal"])
+    b.torus(0.028, 0.0055, 20, 8, (-0.042, -0.01, 0.252), (90, 18, 0), M["silver"])
+    return b.finalize(0.34)
+
+
+def build_brush_set(M):
+    b = PartBuilder("loot_brush_set")
+    # Sculpted 5-peak celadon mountain brush rest
+    b.box((0.185, 0.032, 0.028), (0, 0, 0.014), (0, 0, 0), M["tex_celadon"], bevel=0.006)
+    for sx, h in ((-0.068, 0.052), (-0.032, 0.072), (0.0, 0.095), (0.034, 0.068), (0.068, 0.048)):
+        b.lathe([(0.022, 0.0), (0.014, h * 0.6), (0.003, h)], segs=12, pos=(sx, 0, 0.018), mat=M["tex_celadon"])
+    # Traditional Huzhou bamboo calligraphy brush resting diagonally across the peaks
+    b.cyl(0.008, 0.009, 0.26, 16, (-0.01, -0.026, 0.088), (0, 82, -10), M["bamboo_aged"])
+    b.cyl(0.011, 0.010, 0.028, 16, (0.125, -0.046, 0.070), (0, 82, -10), M["rosewood"])
+    b.lathe([(0.011, 0.0), (0.013, 0.024), (0.002, 0.066)], segs=16, pos=(0.138, -0.048, 0.068), rot=(0, 82, -10), mat=M["white_cream"])
+    return b.finalize(0.36)
+
+
+def build_morse_key(M):
+    b = PartBuilder("loot_morse_key")
+    # Dark bakelite wooden base + vintage brass straight telegraph lever & black knob
+    b.box((0.135, 0.225, 0.034), (0, 0, 0.017), (0, 0, 0), M["rosewood"], bevel=0.006)
+    b.box((0.026, 0.168, 0.018), (0, -0.008, 0.078), (6, 0, 0), M["brass"], bevel=0.003)
+    b.box((0.058, 0.042, 0.054), (0, 0.020, 0.056), (0, 0, 0), M["brass"], bevel=0.004)
+    # Tapping disc knob at front + twin copper binding posts at rear
+    b.cyl(0.036, 0.038, 0.016, 24, (0, -0.082, 0.098), (6, 0, 0), M["matte_black"])
+    b.cyl(0.012, 0.012, 0.028, 14, (0, -0.082, 0.082), (6, 0, 0), M["brass"])
+    for sx in (-0.038, 0.038):
+        b.cyl(0.013, 0.011, 0.034, 16, (sx, 0.082, 0.048), (0, 0, 0), M["copper"])
+    return b.finalize(0.34)
+
+
+def build_herb_case(M):
+    b = PartBuilder("loot_herb_case")
+    # Cedar botanical specimen display frame standing tilted on easel foot
+    tilt = (-20, 0, 0)
+    b.box((0.23, 0.034, 0.23), (0, 0, 0.132), tilt, M["wood_warm"], bevel=0.006)
+    b.quad_card(0.196, 0.196, (0, -0.018, 0.132), tilt, M["tex_herb"], thickness=0.004)
+    # Brass corner clasps & stand prop
+    for sx in (-0.110, 0.110):
+        for sz in (0.024, 0.240):
+            b.box((0.024, 0.038, 0.024), (sx, -0.002, sz), tilt, M["brass"], bevel=0.002)
+    b.box((0.06, 0.016, 0.14), (0, 0.058, 0.072), (18, 0, 0), M["wood_warm"], bevel=0.002)
+    return b.finalize(0.35)
+
+
+def build_binoculars(M):
+    b = PartBuilder("loot_binoculars")
+    # Twin rubber-armored military binoculars with emerald coated objective lenses & center focus wheel
+    for sx in (-0.066, 0.066):
+        b.lathe(
+            [(0.030, -0.105), (0.036, -0.065), (0.046, 0.025), (0.052, 0.105), (0.044, 0.105)],
+            segs=24, pos=(sx, 0, 0.062), rot=(90, 0, 0), mat=M["gunmetal"]
+        )
+        b.torus(0.049, 0.006, 24, 8, (sx, -0.102, 0.062), (90, 0, 0), M["rubber"])
+        b.sphere((0.042, 0.042, 0.014), (sx, -0.098, 0.062), (90, 0, 0), M["emerald_lens"])
+        b.cyl(0.022, 0.020, 0.022, 18, (sx, 0.112, 0.062), (90, 0, 0), M["rubber"])
+    # Central articulated hinge bridge & knurled focus wheel
+    b.box((0.125, 0.046, 0.032), (0, -0.01, 0.068), (0, 0, 0), M["matte_black"], bevel=0.005)
+    b.cyl(0.022, 0.022, 0.058, 18, (0, 0.015, 0.088), (90, 0, 0), M["brass"])
+    return b.finalize(0.34)
+
+
+def build_ink_box(M):
+    b = PartBuilder("loot_ink_box")
+    # Circular antique engraved brass scholar's ink box (lid slightly ajar revealing black ink pad!)
+    b.cyl(0.118, 0.122, 0.054, 36, (0, 0, 0.028), (0, 0, 0), M["brass"])
+    b.cyl(0.102, 0.102, 0.012, 32, (0, 0, 0.056), (0, 0, 0), M["matte_black"])
+    # Tilted resting carved brass lid leaning behind box
+    b.cyl(0.122, 0.118, 0.026, 36, (0, 0.062, 0.145), (72, 0, 0), M["brass"])
+    b.torus(0.112, 0.008, 36, 10, (0, 0.052, 0.142), (72, 0, 0), M["gold"])
+    b.sphere((0.036, 0.036, 0.016), (0, 0.044, 0.142), (72, 0, 0), M["gold"])
+    return b.finalize(0.34)
+
+
+def build_inkstick(M):
+    b = PartBuilder("loot_inkstick")
+    # Glossy jet-black octagonal Chinese Pine-Soot Inkstick with embossed gold pine relief
+    tilt = (-16, 0, 10)
+    b.box((0.072, 0.024, 0.255), (0, 0, 0.132), tilt, M["matte_black"], bevel=0.006)
+    b.box((0.056, 0.027, 0.232), (0, -0.002, 0.132), tilt, M["gold"], bevel=0.002)
+    b.box((0.046, 0.029, 0.220), (0, -0.003, 0.132), tilt, M["matte_black"], bevel=0.002)
+    # Embossed golden pine & mountain motif down the center
+    for dz, w in ((0.185, 0.030), (0.145, 0.034), (0.105, 0.026), (0.068, 0.020)):
+        b.box((w, 0.006, 0.016), (0, -0.019 + (dz - 0.132) * 0.28, dz), tilt, M["gold"], bevel=0.001)
+    # Tiny rosewood presentation stand
+    b.box((0.11, 0.068, 0.018), (0, 0.006, 0.009), (0, 0, 0), M["rosewood"], bevel=0.003)
+    return b.finalize(0.35)
+
+
+def build_silk_pouch(M):
+    b = PartBuilder("loot_silk_pouch")
+    # Emerald-gold Suzhou brocade drawstring pouch with jade bead & golden tassel!
+    b.lathe(
+        [(0.015, 0.020), (0.088, 0.042), (0.116, 0.105), (0.098, 0.172), (0.042, 0.212), (0.074, 0.258), (0.058, 0.262), (0.034, 0.215)],
+        segs=32, flute_lobes=10, flute_amp=0.045, mat=M["tex_silk"], uv_mode="cyl"
+    )
+    b.torus(0.046, 0.008, 24, 10, (0, 0, 0.212), (0, 0, 0), M["gold"])
+    b.sphere(0.018, (0, -0.052, 0.205), (0, 0, 0), M["imperial_jade"])
+    b.cyl(0.018, 0.006, 0.068, 12, (0, -0.055, 0.152), (0, 0, 0), M["gold"])
+    return b.finalize(0.35)
+
+
+def build_anemometer(M):
+    b = PartBuilder("loot_anemometer")
+    # Rugged yellow-black handheld field wind meter with 3-cup spinning rotor & LCD
+    b.box((0.105, 0.046, 0.185), (0, 0, 0.095), (0, 0, 0), M["yellow_rugged"], bevel=0.010, bevel_segs=2)
+    b.box((0.084, 0.050, 0.155), (0, 0, 0.095), (0, 0, 0), M["rubber"], bevel=0.006)
+    b.quad_card(0.072, 0.054, (0, -0.027, 0.128), (0, 0, 0), M["tex_radio_lcd"], thickness=0.003)
+    # Top stem + 3-arm wind-cup rotor assembly!
+    b.cyl(0.012, 0.010, 0.075, 16, (0, 0, 0.222), (0, 0, 0), M["silver"])
+    b.sphere(0.016, (0, 0, 0.262), (0, 0, 0), M["matte_black"])
+    for i in range(3):
+        a = math.radians(i * 120 + 20)
+        b.cyl(0.005, 0.005, 0.082, 10, (0.040 * math.cos(a), 0.040 * math.sin(a), 0.262), (0, 90, math.degrees(a)), M["silver"])
+        b.sphere((0.022, 0.022, 0.022), (0.086 * math.cos(a), 0.086 * math.sin(a), 0.262), (0, 0, math.degrees(a)), M["yellow_rugged"])
+    return b.finalize(0.36)
+
+
+def build_pocket_watch(M):
+    b = PartBuilder("loot_pocket_watch")
+    # Classic open brass pocket watch with Roman numeral dial & looped chain
+    b.cyl(0.108, 0.108, 0.032, 36, (0, 0, 0.118), (78, 0, 0), M["gold"])
+    b.torus(0.108, 0.010, 36, 10, (0, -0.015, 0.116), (78, 0, 0), M["gold_deep"])
+    b.cyl(0.096, 0.096, 0.006, 32, (0, -0.017, 0.116), (78, 0, 0), M["tex_watch"], uv_mode="planar_z")
+    # Top winding crown & bow ring
+    b.cyl(0.016, 0.016, 0.028, 16, (0, 0.008, 0.238), (-12, 0, 0), M["gold"])
+    b.torus(0.028, 0.006, 20, 8, (0, 0.012, 0.270), (78, 0, 0), M["gold"])
+    # Open hinged protective cover swung out to the left
+    b.cyl(0.104, 0.104, 0.014, 32, (-0.155, -0.036, 0.118), (78, 0, 52), M["brass"])
+    # Draped brass watch chain arc on bottom
+    b.tube_path([(0.022, 0.012, 0.262), (0.118, -0.012, 0.185), (0.132, -0.024, 0.075), (0.068, -0.022, 0.016)], 0.006, 8, M["gold"])
+    return b.finalize(0.36)
+
+
+def build_hairpin(M):
+    b = PartBuilder("loot_hairpin")
+    # Slender gilded silver hairpin topped with kingfisher-blue cloud-phoenix ornament
+    ang = (0, 62, -16)
+    b.cyl(0.006, 0.002, 0.30, 12, (-0.01, 0, 0.095), ang, M["silver"])
+    # Ornate gilded cloud-phoenix headpiece at upper-right end
+    head_p = (0.105, -0.015, 0.165)
+    b.sphere((0.044, 0.016, 0.034), head_p, (0, 22, -16), M["kingfisher"])
+    b.torus(0.046, 0.007, 24, 10, head_p, (75, 22, -16), M["gold"])
+    for dx, dz in ((-0.024, 0.028), (0.022, 0.024), (0.036, -0.012)):
+        b.sphere(0.015, (head_p[0] + dx, head_p[1] - 0.008, head_p[2] + dz), (0, 0, 0), M["kingfisher"])
+    b.sphere(0.014, (head_p[0], head_p[1] - 0.014, head_p[2]), (0, 0, 0), M["crimson_gem"])
+    # Delicate hanging pearl drop tassel
+    b.cyl(0.003, 0.003, 0.056, 8, (0.120, -0.018, 0.118), (0, 0, 0), M["gold"])
+    b.sphere(0.013, (0.120, -0.018, 0.088), (0, 0, 0), M["white_cream"])
+    return b.finalize(0.36)
+
+
+def build_water_dropper(M):
+    b = PartBuilder("loot_water_dropper")
+    # Sculpted Yue-ware celadon desk water dropper (青瓷蟾蜍水注)
+    b.sphere((0.118, 0.098, 0.074), (0, 0, 0.076), (0, 0, 0), M["tex_celadon"])
+    b.lathe([(0.036, 0.140), (0.032, 0.162), (0.042, 0.172), (0.028, 0.174)], segs=24, mat=M["tex_celadon"])
+    b.sphere(0.020, (0, 0, 0.184), (0, 0, 0), M["gold"])
+    # Sculpted spout & curved handle + 4 short curled feet
+    b.tube_path([(0.095, 0, 0.088), (0.145, 0, 0.115), (0.168, 0, 0.138)], [0.020, 0.014, 0.010], 12, M["tex_celadon"])
+    b.tube_path([(-0.085, 0, 0.112), (-0.142, 0, 0.126), (-0.136, 0, 0.068), (-0.095, 0, 0.056)], 0.011, 10, M["tex_celadon"])
+    for sx in (-0.064, 0.064):
+        for sy in (-0.054, 0.054):
+            b.sphere((0.024, 0.024, 0.018), (sx, sy, 0.018), (0, 0, 0), M["tex_celadon"])
+    return b.finalize(0.34)
+
+
+def build_optic_core(M):
+    b = PartBuilder("loot_optic_core")
+    # Precision titanium thermal/low-light prism housing with glowing amber germanium lens!
+    b.cyl(0.088, 0.094, 0.145, 8, (0, 0, 0.105), (90, 0, 22.5), M["gunmetal"], smooth=False)
+    b.torus(0.095, 0.010, 28, 10, (0, -0.072, 0.105), (90, 0, 0), M["gold"])
+    b.sphere((0.076, 0.076, 0.028), (0, -0.068, 0.105), (90, 0, 0), M["germanium"])
+    b.box((0.128, 0.110, 0.036), (0, 0.008, 0.022), (0, 0, 0), M["matte_black"], bevel=0.005)
+    b.cyl(0.022, 0.020, 0.032, 16, (0, 0.01, 0.205), (0, 0, 0), M["brass"])
+    b.cyl(0.020, 0.018, 0.032, 16, (0.102, 0.01, 0.105), (0, 90, 0), M["brass"])
+    return b.finalize(0.34)
+
+
+def build_inkstone(M):
+    b = PartBuilder("loot_inkstone")
+    # Carved purplish-slate Duanxi Scholar's Inkstone displayed upright on rosewood museum easel
+    tilt = (-26, 0, 0)
+    # Rosewood backing cradle + easel prop
+    b.box((0.214, 0.030, 0.262), (0, 0.012, 0.132), tilt, M["rosewood"], bevel=0.006)
+    b.box((0.068, 0.018, 0.145), (0, 0.068, 0.074), (20, 0, 0), M["rosewood"], bevel=0.003)
+    # Purplish-slate Duanxi inkstone slab nestled in cradle
+    b.box((0.188, 0.030, 0.236), (0, -0.003, 0.136), tilt, M["purple_slate"], bevel=0.010, bevel_segs=2)
+    # Carved ink-well & cloud relief faceplate flush on front surface (-Y normal)
+    b.quad_card(0.168, 0.216, (0, -0.018, 0.143), tilt, M["tex_inkstone"], thickness=0.004)
+    return b.finalize(0.35)
+
+
+def build_bronze_mirror(M):
+    b = PartBuilder("loot_bronze_mirror")
+    # Tier 5 Small Gold: Tang Silver-Inlaid Bronze Mirror standing in carved rosewood cradle!
+    b.box((0.18, 0.072, 0.024), (0, 0, 0.012), (0, 0, 0), M["rosewood"], bevel=0.005)
+    for sx in (-0.068, 0.068):
+        b.box((0.024, 0.052, 0.068), (sx, 0, 0.048), (0, 16 if sx < 0 else -16, 0), M["rosewood"], bevel=0.004)
+    # Circular beveled antique bronze mirror disc with silver-inlaid texture & central boss knob
+    b.cyl(0.142, 0.142, 0.022, 48, (0, 0, 0.182), (90, 0, 0), M["bronze_dark"])
+    b.torus(0.140, 0.010, 48, 12, (0, -0.008, 0.182), (90, 0, 0), M["silver"])
+    b.cyl(0.130, 0.130, 0.006, 44, (0, -0.011, 0.182), (90, 0, 0), M["tex_mirror"], uv_mode="planar_z")
+    b.sphere((0.028, 0.022, 0.028), (0, -0.018, 0.182), (0, 0, 0), M["gold"])
+    return b.finalize(0.36)
+
+
+def build_crypto_drive(M):
+    b = PartBuilder("loot_crypto_drive")
+    # Tier 5 Small Gold: Rugged titanium & gold encrypted tactical SSD vault standing tilted!
+    tilt = (-22, 0, 0)
+    # Main gunmetal titanium armored chassis (standing tall along Z, facing -Y)
+    b.box((0.172, 0.044, 0.242), (0, 0, 0.128), tilt, M["gunmetal"], bevel=0.010, bevel_segs=2)
+    # Crisp encrypted tactical faceplate flush on front surface (-Y normal)
+    b.quad_card(0.140, 0.204, (0, -0.022, 0.137), tilt, M["tex_crypto"], thickness=0.004)
+    # Solid gold shock-bumper side rails gripping both flanks
+    for sx in (-0.088, 0.088):
+        b.box((0.020, 0.052, 0.222), (sx, 0, 0.128), tilt, M["gold"], bevel=0.004)
+    # Embedded glowing cyan status LED strip flush on lower front bezel (same tilt!)
+    b.box((0.092, 0.008, 0.014), (0, -0.001, 0.052), tilt, M["cyan_glow"], bevel=0.002)
+    # Top armored connector collar + gold carabiner loop
+    b.box((0.072, 0.036, 0.024), (0, 0.046, 0.248), tilt, M["matte_black"], bevel=0.004)
+    b.torus(0.026, 0.006, 20, 8, (0, 0.054, 0.272), (68, 0, 0), M["gold"])
+    return b.finalize(0.36)
+
+
+def build_zisha_teapot(M):
+    b = PartBuilder("loot_zisha_teapot")
+    # Tier 5 Small Gold: Classic Yixing Zisha terracotta teapot (宜兴朱泥水平壶)!
+    b.lathe(
+        [(0.056, 0.0), (0.095, 0.022), (0.126, 0.078), (0.118, 0.132), (0.078, 0.165), (0.068, 0.176), (0.058, 0.172)],
+        segs=36, mat=M["zisha_clay"]
+    )
+    # Flush domed lid + classic pearl finial knob + subtle gold rim inlay
+    b.lathe([(0.066, 0.174), (0.054, 0.194), (0.016, 0.200), (0.024, 0.216), (0.004, 0.232)], segs=28, mat=M["zisha_clay"])
+    b.torus(0.069, 0.004, 32, 8, (0, 0, 0.174), (0, 0, 0), M["gold"])
+    # Elegant curved spout & balanced ear handle
+    b.tube_path([(0.102, 0, 0.078), (0.156, 0, 0.105), (0.182, 0, 0.156), (0.198, 0, 0.172)], [0.022, 0.017, 0.013, 0.011], 14, M["zisha_clay"])
+    b.tube_path([(-0.088, 0, 0.148), (-0.158, 0, 0.145), (-0.165, 0, 0.088), (-0.112, 0, 0.052)], 0.013, 12, M["zisha_clay"])
+    return b.finalize(0.35)
+
+
+def build_jade_pendant(M):
+    b = PartBuilder("loot_jade_pendant")
+    # Tier 5 Small Gold: Translucent imperial emerald carved bamboo-node jade pendant!
+    tilt = (-10, 0, 0)
+    b.cyl(0.042, 0.038, 0.076, 24, (0, 0, 0.105), tilt, M["imperial_jade"])
+    b.torus(0.044, 0.009, 24, 10, (0, -0.006, 0.142), tilt, M["imperial_jade"])
+    b.cyl(0.038, 0.034, 0.072, 24, (0, 0.012, 0.180), tilt, M["imperial_jade"])
+    b.torus(0.040, 0.009, 24, 10, (0, 0.018, 0.216), tilt, M["imperial_jade"])
+    # Carved jade bamboo leaf hugging side + gold bail + crimson Chinese knot & tassel
+    b.sphere((0.024, 0.010, 0.056), (0.042, -0.016, 0.152), (-10, 0, -28), M["imperial_jade"])
+    b.torus(0.024, 0.0055, 20, 8, (0, 0.022, 0.242), (80, 0, 0), M["gold"])
+    b.torus(0.052, 0.007, 24, 10, (0, 0.028, 0.282), (80, 0, 0), M["silk_red"], arc_deg=190.0)
+    b.sphere(0.016, (0, -0.012, 0.056), (0, 0, 0), M["gold"])
+    b.cyl(0.018, 0.006, 0.052, 12, (0, -0.014, 0.026), (0, 0, 0), M["silk_red"])
+    return b.finalize(0.36)
+
+
+def build_vintage_camera(M):
+    b = PartBuilder("loot_vintage_camera")
+    # Tier 5 Small Gold: Classic brushed-brass & dark-leather rangefinder camera!
+    b.box((0.235, 0.088, 0.128), (0, 0, 0.068), (0, 0, 0), M["leather_dark"], bevel=0.010, bevel_segs=2)
+    b.box((0.238, 0.090, 0.036), (0, 0, 0.132), (0, 0, 0), M["brass"], bevel=0.006)
+    b.box((0.238, 0.090, 0.016), (0, 0, 0.008), (0, 0, 0), M["brass"], bevel=0.004)
+    # Stepped protruding multi-ring coated optical lens barrel
+    b.lathe([(0.056, 0.0), (0.058, 0.025), (0.050, 0.030), (0.052, 0.068), (0.044, 0.072)], segs=32, pos=(0.012, -0.044, 0.068), rot=(90, 0, 0), mat=M["gunmetal"])
+    b.torus(0.054, 0.005, 32, 8, (0.012, -0.105, 0.068), (90, 0, 0), M["brass"])
+    b.sphere((0.040, 0.040, 0.014), (0.012, -0.104, 0.068), (90, 0, 0), M["sapphire_lens"])
+    # Viewfinder window + top shutter speed dials
+    b.box((0.042, 0.012, 0.024), (-0.068, -0.046, 0.132), (0, 0, 0), M["sapphire_lens"], bevel=0.002)
+    b.cyl(0.020, 0.018, 0.022, 18, (-0.072, 0, 0.160), (0, 0, 0), M["gold"])
+    b.cyl(0.016, 0.016, 0.020, 18, (0.074, 0, 0.158), (0, 0, 0), M["silver"])
+    return b.finalize(0.35)
+
+
+def build_imperial_bowl(M):
+    b = PartBuilder("loot_imperial_bowl")
+    # Tier 5 Small Gold: Imperial Ming/Qing Blue-and-White Lotus-Scroll Footed Cup with Gold Rim!
+    b.lathe(
+        [(0.054, 0.0), (0.062, 0.045), (0.042, 0.078), (0.095, 0.112), (0.142, 0.168), (0.156, 0.214), (0.146, 0.216), (0.132, 0.168), (0.082, 0.112), (0.004, 0.090)],
+        segs=48, mat=M["tex_imperial_bowl"], uv_mode="cyl"
+    )
+    b.torus(0.152, 0.0045, 48, 8, (0, 0, 0.214), (0, 0, 0), M["gold"])
+    b.torus(0.056, 0.0045, 32, 8, (0, 0, 0.004), (0, 0, 0), M["gold"])
+    return b.finalize(0.35)
+
+
+# Master ordered registry matching rules.gd 7-tier LOOT_TABLE (T1 -> T7, 64 unique items!)
 COLLECTIBLE_REGISTRY = [
-    # Tier 1
+    # Tier 1 · 常规白 (14)
     ("battery", 1, "旧巡护电池", build_battery, (0.0, 0.0, 18.0)),
     ("ration", 1, "压缩干粮", build_ration, (0.0, 0.0, 12.0)),
     ("wire", 1, "信号铜线", build_wire, (0.0, 0.0, -20.0)),
     ("tea", 1, "诚庄春茶饼", build_tea, (0.0, 0.0, 8.0)),
     ("bamboo", 1, "青竹编织哨", build_bamboo, (0.0, 0.0, 15.0)),
-    # Tier 2
+    ("rice_bowl", 1, "粗陶米碗", build_rice_bowl, (0.0, 0.0, 16.0)),
+    ("walnut", 1, "烟山野生核桃", build_walnut, (0.0, 0.0, 14.0)),
+    ("abacus", 1, "老式木算盘", build_abacus, (0.0, 0.0, 10.0)),
+    ("pencil_tin", 1, "铁皮铅笔盒", build_pencil_tin, (0.0, 0.0, 18.0)),
+    ("bamboo_ruler", 1, "老竹尺", build_bamboo_ruler, (0.0, 0.0, 8.0)),
+    ("osmanthus_pack", 1, "干桂花香包", build_osmanthus_pack, (0.0, 0.0, 12.0)),
+    ("key_ring", 1, "旧黄铜钥匙串", build_key_ring, (0.0, 0.0, 8.0)),
+    ("canteen", 1, "军绿旧水壶", build_canteen, (0.0, 0.0, 16.0)),
+    ("rope_coil", 1, "尼龙登山绳", build_rope_coil, (0.0, 0.0, 14.0)),
+    # Tier 2 · 精良绿 (12)
     ("compass", 2, "林间指北针", build_compass, (0.0, 0.0, 14.0)),
     ("torch", 2, "防水战术手电", build_torch, (0.0, 0.0, -10.0)),
     ("badge", 2, "巡护员徽章", build_badge, (0.0, 0.0, 10.0)),
     ("fan", 2, "烟山手工折扇", build_fan, (0.0, 0.0, 8.0)),
     ("gem", 2, "溪石萤光矿", build_gem, (0.0, 0.0, 18.0)),
-    # Tier 3
+    ("lacquer_box", 2, "朱漆首饰匣", build_lacquer_box, (0.0, 0.0, 20.0)),
+    ("blue_teacup", 2, "青花品茗杯", build_blue_teacup, (0.0, 0.0, 14.0)),
+    ("folding_shovel", 2, "工兵折叠铲", build_folding_shovel, (0.0, 0.0, 10.0)),
+    ("smoke_can", 2, "信号发烟罐", build_smoke_can, (0.0, 0.0, 18.0)),
+    ("brush_set", 2, "湖笔书写套组", build_brush_set, (0.0, 0.0, 10.0)),
+    ("morse_key", 2, "铜制电报发报键", build_morse_key, (0.0, 0.0, 22.0)),
+    ("herb_case", 2, "烟山草药标本匣", build_herb_case, (0.0, 0.0, 10.0)),
+    # Tier 3 · 稀有蓝 (11)
     ("radio", 3, "加密无线电台", build_radio, (0.0, 0.0, 16.0)),
     ("rangefinder", 3, "光学测距模块", build_rangefinder, (0.0, 0.0, 22.0)),
     ("amber", 3, "古树琥珀标本", build_amber, (0.0, 0.0, 14.0)),
     ("nvg_lens", 3, "军规夜视镜片", build_nvg_lens, (0.0, 0.0, 18.0)),
     ("rock", 3, "太湖透漏赏石", build_rock, (0.0, 0.0, 14.0)),
-    # Tier 4
+    ("binoculars", 3, "军用双筒望远镜", build_binoculars, (0.0, 0.0, 20.0)),
+    ("ink_box", 3, "雕花黄铜墨盒", build_ink_box, (0.0, 0.0, 12.0)),
+    ("inkstick", 3, "松烟鎏金古墨锭", build_inkstick, (0.0, 0.0, 10.0)),
+    ("silk_pouch", 3, "江南苏绣锦囊", build_silk_pouch, (0.0, 0.0, 12.0)),
+    ("anemometer", 3, "便携气象测风仪", build_anemometer, (0.0, 0.0, 16.0)),
+    ("pocket_watch", 3, "机械铜壳怀表", build_pocket_watch, (0.0, 0.0, 10.0)),
+    # Tier 4 · 史诗紫 (10)
     ("chip", 4, "无人机核心芯片", build_chip, (0.0, 0.0, 12.0)),
     ("jade_piece", 4, "竹海古玉残片", build_jade_piece, (0.0, 0.0, 10.0)),
     ("blackbox", 4, "军用黑匣子", build_blackbox, (0.0, 0.0, 22.0)),
     ("rubbing", 4, "烟霞岩画残拓", build_rubbing, (0.0, 0.0, 8.0)),
     ("silver_lock", 4, "古樟祈福银锁", build_silver_lock, (0.0, 0.0, 8.0)),
     ("kettle", 4, "先民青铜茶铫", build_kettle, (0.0, 0.0, -18.0)),
-    # Tier 5
-    ("tally", 5, "烟山古铜虎符", build_tally, (0.0, 0.0, -24.0)),
-    ("medal", 5, "特级金质勋章", build_medal, (0.0, 0.0, 10.0)),
-    ("quantum", 5, "量子词典原型机", build_quantum, (0.0, 0.0, 18.0)),
-    ("slips", 5, "烟山先民竹简", build_slips, (0.0, 0.0, 12.0)),
-    ("core", 5, "烟山统领黄金核心", build_core, (0.0, 0.0, 18.0)),
-    ("censer", 5, "望稻亭鎏金香炉", build_censer, (0.0, 0.0, 12.0)),
-    # Tier 6
-    ("celadon", 6, "越窑秘色青瓷盏", build_celadon, (0.0, 0.0, 15.0)),
-    ("ganoderma", 6, "烟山千年紫芝王", build_ganoderma, (0.0, 0.0, 12.0)),
-    ("jade_bi", 6, "诚庄先民双龙玉璧", build_jade_bi, (0.0, 0.0, 12.0)),
-    ("radar_heart", 6, "相控阵超算雷达心", build_radar_heart, (0.0, 0.0, 16.0)),
-    ("seal", 6, "烟山之心·赤金龙印", build_seal, (0.0, 0.0, 22.0)),
+    ("hairpin", 4, "鎏金点翠银簪", build_hairpin, (0.0, 0.0, 8.0)),
+    ("water_dropper", 4, "青瓷蟾蜍水注", build_water_dropper, (0.0, 0.0, -16.0)),
+    ("optic_core", 4, "微光瞄具光学核", build_optic_core, (0.0, 0.0, 20.0)),
+    ("inkstone", 4, "端溪雕云古砚", build_inkstone, (0.0, 0.0, 14.0)),
+    # Tier 5 · 珍品小金 (6)
+    ("bronze_mirror", 5, "海兽葡萄错银铜镜", build_bronze_mirror, (0.0, 0.0, 12.0)),
+    ("crypto_drive", 5, "战备量子加密硬盘", build_crypto_drive, (0.0, 0.0, 16.0)),
+    ("zisha_teapot", 5, "宜兴朱泥水平壶", build_zisha_teapot, (0.0, 0.0, -18.0)),
+    ("jade_pendant", 5, "翡翠节节高玉佩", build_jade_pendant, (0.0, 0.0, 10.0)),
+    ("vintage_camera", 5, "复古黄铜旁轴相机", build_vintage_camera, (0.0, 0.0, 20.0)),
+    ("imperial_bowl", 5, "御窑青花缠枝盏", build_imperial_bowl, (0.0, 0.0, 14.0)),
+    # Tier 6 · 传说大金 (6)
+    ("tally", 6, "烟山古铜虎符", build_tally, (0.0, 0.0, -24.0)),
+    ("medal", 6, "特级金质勋章", build_medal, (0.0, 0.0, 10.0)),
+    ("quantum", 6, "量子词典原型机", build_quantum, (0.0, 0.0, 18.0)),
+    ("slips", 6, "烟山先民竹简", build_slips, (0.0, 0.0, 12.0)),
+    ("core", 6, "烟山统领黄金核心", build_core, (0.0, 0.0, 18.0)),
+    ("censer", 6, "望稻亭鎏金香炉", build_censer, (0.0, 0.0, 12.0)),
+    # Tier 7 · 旷世大红 (5)
+    ("celadon", 7, "越窑秘色青瓷盏", build_celadon, (0.0, 0.0, 15.0)),
+    ("ganoderma", 7, "烟山千年紫芝王", build_ganoderma, (0.0, 0.0, 12.0)),
+    ("jade_bi", 7, "诚庄先民双龙玉璧", build_jade_bi, (0.0, 0.0, 12.0)),
+    ("radar_heart", 7, "相控阵超算雷达心", build_radar_heart, (0.0, 0.0, 16.0)),
+    ("seal", 7, "烟山之心·赤金龙印", build_seal, (0.0, 0.0, 22.0)),
 ]
 
 RARITY_RIM_COLORS = {
@@ -1446,8 +1988,9 @@ RARITY_RIM_COLORS = {
     2: (0.48, 0.96, 0.72),
     3: (0.42, 0.76, 1.00),
     4: (0.82, 0.56, 1.00),
-    5: (1.00, 0.84, 0.34),
-    6: (1.00, 0.34, 0.40),
+    5: (0.96, 0.82, 0.50),
+    6: (1.00, 0.80, 0.24),
+    7: (1.00, 0.34, 0.40),
 }
 
 
@@ -1605,28 +2148,32 @@ def main():
     )
     print(f"Exported unified GLB: {GLB_OUT.relative_to(ROOT)} ({GLB_OUT.stat().st_size / (1024 * 1024):.2f} MB)", flush=True)
 
-    # 2) Render 32 crisp 256x256 studio transparent icons matching each 3D model 1:1
+    # 2) Render crisp 256x256 studio transparent icons (reuse existing unless --overwrite-icons)
+    overwrite_icons = "--overwrite-icons" in sys.argv
     cam_obj, rim_data = setup_studio_render()
     for _aid, _r, _zh, obj, _rot in built_objs:
         obj.hide_render = True
 
     scene = bpy.context.scene
     total_icon_bytes = 0
+    rendered_now = 0
     for idx, (art_id, rarity, zh, obj, hero_rot) in enumerate(built_objs, 1):
-        obj.hide_render = False
-        obj.rotation_euler = Euler(tuple(math.radians(a) for a in hero_rot), "XYZ")
-        rim_data.color = RARITY_RIM_COLORS[rarity]
-        frame_camera_for_object(cam_obj, obj)
         out_icon = ICON_DIR / f"{art_id}.png"
-        scene.render.filepath = str(out_icon)
-        bpy.ops.render.render(write_still=True)
-        obj.rotation_euler = Euler((0, 0, 0), "XYZ")
-        obj.hide_render = True
+        if overwrite_icons or not out_icon.exists() or out_icon.stat().st_size < 1024:
+            obj.hide_render = False
+            obj.rotation_euler = Euler(tuple(math.radians(a) for a in hero_rot), "XYZ")
+            rim_data.color = RARITY_RIM_COLORS[rarity]
+            frame_camera_for_object(cam_obj, obj)
+            scene.render.filepath = str(out_icon)
+            bpy.ops.render.render(write_still=True)
+            obj.rotation_euler = Euler((0, 0, 0), "XYZ")
+            obj.hide_render = True
+            rendered_now += 1
         b_sz = out_icon.stat().st_size
         total_icon_bytes += b_sz
         stats[art_id]["icon_bytes"] = b_sz
-        if idx % 8 == 0 or idx == len(built_objs):
-            print(f"  Rendered icons: {idx}/{len(built_objs)}", flush=True)
+        if idx % 16 == 0 or idx == len(built_objs):
+            print(f"  Icon progress: {idx}/{len(built_objs)} (rendered_now={rendered_now})", flush=True)
 
     # 3) Remove stale legacy PNGs not in registry
     valid_names = {f"{aid}.png" for aid, *_ in COLLECTIBLE_REGISTRY}
@@ -1635,7 +2182,7 @@ def main():
             f.unlink()
 
     summary = {
-        "version": "0.7.2",
+        "version": "0.8.0",
         "glb_path": str(GLB_OUT.relative_to(ROOT)).replace("\\", "/"),
         "glb_bytes": GLB_OUT.stat().st_size,
         "icon_count": len(built_objs),

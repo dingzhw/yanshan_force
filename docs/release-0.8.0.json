@@ -1,0 +1,21 @@
+{
+  "version": "0.8.0",
+  "git_base": "b921072",
+  "files": [
+    {
+      "path": "playtest\\windows-v0.8.0\\YanshanBase.exe",
+      "bytes": 109268480,
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+    },
+    {
+      "path": "playtest\\windows-v0.8.0\\YanshanBase.pck",
+      "bytes": 86755520,
+      "sha256": "d124f39381314f1c635b1643d9696129083b26f25060189014d8317b3c2e9aca"
+    },
+    {
+      "path": "playtest\\烟山基地试玩_v0.8.0_Windows.zip",
+      "bytes": 123737029,
+      "sha256": "d65128158501b5cf64a07fc7f7f12e7635f3f8c4762914b96d760e72438a1d90"
+    }
+  ]
+}

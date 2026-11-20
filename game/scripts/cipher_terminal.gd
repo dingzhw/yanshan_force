@@ -290,15 +290,13 @@ func _refresh_stage_ui():
 		stage_label.text = "复测 %d / %d" % [stage_index + 1, total]
 		meta_label.text = unit_str
 	elif mode == "supply":
-		var is_over: bool = is_instance_valid(active_crate) and active_crate.has_meta("overcharged")
-		var box_tag: String = "⚡ 高能异动物资箱（大金/大红爆率×2.8！）" if is_over else "常规野外物资箱（完美拼写可触发奇迹大金/大红！）"
-		meta_label.text = "%s  |  %s" % [box_tag, unit_str]
+		meta_label.text = "野外加密物资盲盒（一次拼对触发幸运加成，一切品质皆有可能！）  |  %s" % unit_str
 	else:
 		var tier := int(active_crate.get_meta("tier"))
 		var tier_desc: String = [
-			"前哨补给箱（单词+词组 2连破 · 完美破译幸运×2.0 · 可出大红！）",
-			"精密金库箱（词组+短句 2连破 · 高爆史诗/大金/旷世大红！）",
-			"特级大金空投箱（3重破译 · 超高概率爆出【传说大金】与【旷世·大红】！）"
+			"前哨密码箱（单词+词组 2连破 · 未知盲盒开箱鉴定）",
+			"精密密码箱（词组+短句 2连破 · 未知盲盒多格鉴定）",
+			"深藏加密箱（词汇+词组+整句 3重破译 · 未知盲盒多格鉴定）"
 		][clampi(tier - 1, 0, 2)]
 		meta_label.text = "%s  |  %s" % [tier_desc, unit_str]
 
@@ -368,10 +366,9 @@ func open_for_supply(pickup_node: Node3D):
 	pending_loot.clear()
 
 	_enter_modal()
-	var is_over: bool = pickup_node.has_meta("overcharged")
-	title_label.text = ("%s%s · 单词拼写解锁" % ["⚡高能·" if is_over else "", str(pickup_node.get_meta("title", "常规物资箱"))])
+	title_label.text = "%s · 单词拼写解锁" % str(pickup_node.get_meta("title", "野外物资箱"))
 	_refresh_stage_ui()
-	status_label.text = "输入英文单词解锁并启动【放大镜物资鉴定】（一次拼对触发幸运加成，按 Tab 听读音）！"
+	status_label.text = "输入英文单词解锁并启动【盲盒放大镜鉴定】（一次拼对触发幸运加成，按 Tab 听读音）！"
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func open_for_drop_pouch(drop_node: Node3D):
@@ -716,8 +713,8 @@ func _swap_lowest():
 	var next_item: Dictionary = pending_loot.pop_front()
 	var removed: Dictionary = game.rules.swap_lowest_loot(next_item)
 	if not removed.is_empty():
-		var r: int = clampi(int(next_item.get("rarity", 1)), 1, 6)
-		game.play_sfx("loot_mythic_red" if r == 6 else ("loot_epic" if r >= 4 else "cipher_unlock"), -10)
+		var r: int = clampi(int(next_item.get("rarity", 1)), 1, 7)
+		game.play_sfx("loot_mythic_red" if r == 7 else ("loot_epic" if r >= 5 else "cipher_unlock"), -10)
 		status_label.text = "已将【%s（%d币）】替换为【%s】%s（%d币）！" % [
 			removed.title, int(removed.value),
 			game.Rules.RARITY_NAMES[r], next_item.title, int(next_item.value)
@@ -733,21 +730,23 @@ func _clear_loot_cards():
 		child.queue_free()
 
 func _scan_duration_for(rarity: int) -> float:
-	if rarity >= 6:
-		return 1.18
+	if rarity >= 7:
+		return 1.20
+	if rarity == 6:
+		return 0.92
 	if rarity == 5:
-		return 0.88
+		return 0.72
 	if rarity == 4:
-		return 0.58
+		return 0.52
 	if rarity == 3:
-		return 0.40
-	return 0.25
+		return 0.38
+	return 0.24
 
 func _render_loot_cards(items: Array, animate: bool = true):
 	_clear_loot_cards()
 	for idx in items.size():
 		var item: Dictionary = items[idx]
-		var r: int = clampi(int(item.get("rarity", 1)), 1, 6)
+		var r: int = clampi(int(item.get("rarity", 1)), 1, 7)
 		var r_color: Color = game.Rules.RARITY_COLORS[r]
 		var r_name: String = game.Rules.RARITY_NAMES[r]
 		var grid_tag: String = str(item.get("grid", "1×1"))
@@ -776,15 +775,15 @@ func _render_loot_cards(items: Array, animate: bool = true):
 		var ce_lbl: Label = game._text(revealed_root, "%s · [%s]" % [str(item.get("en", "Supply")), grid_tag], Vector2(60, 53), Vector2(card_w - 66, 18), 10, Color("9adbc0"))
 		ce_lbl.clip_text = true
 		ce_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		var val_lbl: Label = game._text(revealed_root, "鉴定估值  %d 币" % int(item.value), Vector2(12, 78), Vector2(card_w - 24, 22), 14, Color("ff6b7a") if r == 6 else game.GOLD)
+		var val_lbl: Label = game._text(revealed_root, "鉴定估值  %d 币" % int(item.value), Vector2(12, 78), Vector2(card_w - 24, 22), 14, Color("ff6b7a") if r == 7 else game.GOLD)
 		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 		# Unsearched Mystery Magnifying-Glass Cover Layer!
 		var cover := Control.new()
 		cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		card.add_child(cover)
-		var myst_hint: String = "🔍 大型高能反应 [%s]" % grid_tag if is_big else "🔍 搜索物资槽 [%s]" % grid_tag
-		var m_lbl: Label = game._text(cover, myst_hint, Vector2(8, 24), Vector2(card_w - 16, 26), 15, Color("ffd166") if is_big else Color("9ec4b5"))
+		var myst_hint: String = "🔍 大型物件 [%s]" % grid_tag if is_big else "🔍 搜索物资槽 [%s]" % grid_tag
+		var m_lbl: Label = game._text(cover, myst_hint, Vector2(8, 24), Vector2(card_w - 16, 26), 15, Color("9ec4b5"))
 		m_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var sub_m: Label = game._text(cover, "等待放大镜逐格鉴定...", Vector2(8, 52), Vector2(card_w - 16, 20), 12, Color("729689"))
 		sub_m.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -796,7 +795,7 @@ func _render_loot_cards(items: Array, animate: bool = true):
 		var bar_fill := ColorRect.new()
 		bar_fill.position = Vector2(16, 84)
 		bar_fill.size = Vector2(0, 7)
-		bar_fill.color = Color("ffd166") if is_big else game.MINT
+		bar_fill.color = game.MINT
 		cover.add_child(bar_fill)
 
 		# Click card anytime to instant-reveal!
@@ -833,9 +832,8 @@ func _render_loot_cards(items: Array, animate: bool = true):
 func _apply_card_mystery_style(slot: Dictionary, active_scanning: bool):
 	var card: Panel = slot.card
 	var st := StyleBoxFlat.new()
-	var is_big: bool = str(slot.item.get("grid", "1×1")).begins_with("2×")
 	st.bg_color = Color(0.08, 0.09, 0.11, 0.96) if active_scanning else Color(0.04, 0.07, 0.09, 0.92)
-	st.border_color = (Color("ffd166") if is_big else game.MINT) if active_scanning else Color(0.35, 0.56, 0.50, 0.45)
+	st.border_color = game.MINT if active_scanning else Color(0.35, 0.56, 0.50, 0.45)
 	st.set_border_width_all(2 if active_scanning else 1)
 	st.set_corner_radius_all(8)
 	card.add_theme_stylebox_override("panel", st)
@@ -843,14 +841,18 @@ func _apply_card_mystery_style(slot: Dictionary, active_scanning: bool):
 	slot.cover.show()
 	if active_scanning:
 		var r: int = int(slot.rarity)
-		if r >= 6:
-			slot.sub_m.text = "⚠ 侦测到超高能奇珍波形！！"
+		if r >= 7:
+			slot.sub_m.text = "⚠ 侦测到旷世奇珍超高能波形！！"
 			slot.sub_m.add_theme_color_override("font_color", Color("ff6b7a"))
 			slot.bar_fill.color = Color("ff4757")
+		elif r == 6:
+			slot.sub_m.text = "✦ 发现传说大金高价值信号！"
+			slot.sub_m.add_theme_color_override("font_color", Color("ff9f38"))
+			slot.bar_fill.color = Color("ff9f38")
 		elif r == 5:
-			slot.sub_m.text = "✦ 发现金色高价值信号！"
-			slot.sub_m.add_theme_color_override("font_color", Color("ffd15c"))
-			slot.bar_fill.color = Color("ffd15c")
+			slot.sub_m.text = "◆ 捕捉到温润珍品小金光芒！"
+			slot.sub_m.add_theme_color_override("font_color", Color("f6c34e"))
+			slot.bar_fill.color = Color("f6c34e")
 		else:
 			slot.sub_m.text = "🔍 放大镜鉴定中..."
 
@@ -864,7 +866,7 @@ func _reveal_single_slot(idx: int, with_audio: bool):
 	var r_col: Color = slot.color
 	var card: Panel = slot.card
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0.22, 0.04, 0.07, 0.97) if r == 6 else Color(r_col.r * 0.17, r_col.g * 0.16, r_col.b * 0.19, 0.96)
+	st.bg_color = Color(0.22, 0.04, 0.07, 0.97) if r == 7 else Color(r_col.r * 0.17, r_col.g * 0.16, r_col.b * 0.19, 0.96)
 	st.border_color = r_col
 	st.set_border_width_all(3 if r >= 5 else 2)
 	st.set_corner_radius_all(8)
@@ -873,16 +875,20 @@ func _reveal_single_slot(idx: int, with_audio: bool):
 	slot.revealed_root.show()
 
 	if with_audio:
-		card.scale = Vector2(1.09, 1.09) if r >= 5 else Vector2(1.04, 1.04)
-		if r == 6:
+		card.scale = Vector2(1.10, 1.10) if r >= 6 else (Vector2(1.06, 1.06) if r == 5 else Vector2(1.04, 1.04))
+		if r == 7:
 			game.play_sfx("loot_mythic_red", -7)
 			stage_label.text = "🔥 奇迹出大红！！开出【旷世·大红】%s（%d币）！！" % [str(slot.item.title), int(slot.item.value)]
 			stage_label.add_theme_color_override("font_color", Color("ff5c6c"))
 			game.speak_english(str(slot.item.get("en", "")))
+		elif r == 6:
+			game.play_sfx("loot_epic", -8)
+			stage_label.text = "✦ 金光耀眼！摸出【传说·大金】%s（%d币）！" % [str(slot.item.title), int(slot.item.value)]
+			stage_label.add_theme_color_override("font_color", Color("ff9f38"))
 		elif r == 5:
-			game.play_sfx("loot_epic", -9)
-			stage_label.text = "✦ 金光闪烁！摸出【传说·大金】%s（%d币）！" % [str(slot.item.title), int(slot.item.value)]
-			stage_label.add_theme_color_override("font_color", Color("ffd15c"))
+			game.play_sfx("loot_epic", -11)
+			stage_label.text = "◆ 珍品闪耀！摸出【珍品·小金】%s（%d币）！" % [str(slot.item.title), int(slot.item.value)]
+			stage_label.add_theme_color_override("font_color", Color("f6c34e"))
 		elif r >= 3:
 			game.play_sfx("loot_reveal_rare", -11)
 		else:

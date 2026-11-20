@@ -21,7 +21,7 @@ func run():
 	verify(ResourceLoader.exists("res://scripts/srs_scheduler.gd") and ResourceLoader.exists("res://scripts/learning_store.gd"), "standalone PCK includes SRS scheduler and learning store modules")
 	verify(bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)), "exported project enables audio/general/text_to_speech for OS TTS fallback")
 	var voice_manifest = JSON.parse_string(FileAccess.get_file_as_string("res://data/learning/voice_manifest.json"))
-	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 240)
+	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 275)
 	var missing_ogg: int = 0
 	if voice_ok:
 		for k in voice_manifest.entries.keys():
@@ -40,8 +40,8 @@ func run():
 			missing_col_mesh += 1
 		if loot_ui_cls.load_collectible_icon(aid) == null:
 			missing_col_icon += 1
-	verify(art_ids.size() == 32 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 32 sculpted PBR collectible meshes in v072_collectibles.glb")
-	verify(art_ids.size() == 32 and missing_col_icon == 0, "standalone PCK contains all 32 studio-rendered collectible 2D icons")
+	verify(art_ids.size() == 64 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 64 sculpted PBR collectible meshes in v072_collectibles.glb")
+	verify(art_ids.size() == 64 and missing_col_icon == 0, "standalone PCK contains all 64 studio-rendered collectible 2D icons")
 	for name in ["rifle","crate","rock_0","rock_1","rock_2","rock_3","rock_4","rock_5"]:
 		verify(ResourceLoader.exists("res://assets/slice/"+name+".glb"),"packaged model "+name)
 	for name in ["ground_color","ground_normal","tree_bark","tree_needles","tree_alpha"]:

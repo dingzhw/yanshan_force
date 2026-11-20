@@ -1,0 +1,47 @@
+{
+  "version": "0.8.0",
+  "date": "2026-11-20",
+  "git_base": "b921072",
+  "collectibles": {
+    "total_catalog_count": 64,
+    "high_tier_collectible_count": 27,
+    "rarity_tiers": 7,
+    "new_tier_5_small_gold": 6,
+    "unique_3d_meshes": 64,
+    "unique_2d_icons": 64,
+    "glb_bytes": 8095000,
+    "voice_pack_clips": 279
+  },
+  "regression": {
+    "total_checks": 418,
+    "total_failures": 0,
+    "suites": {
+      "learning": {"checks": 39, "failures": 0},
+      "combat": {"checks": 61, "failures": 0},
+      "economy": {"checks": 48, "failures": 0},
+      "smoke": {"checks": 33, "failures": 0},
+      "movement": {"checks": 27, "failures": 0},
+      "navigation": {"checks": 13, "failures": 0},
+      "physics": {"checks": 18, "failures": 0},
+      "challenges": {"checks": 12, "failures": 0},
+      "slice": {"checks": 167, "failures": 0}
+    }
+  },
+  "packaged_verification": {
+    "verify_packaged_checks": 24,
+    "verify_packaged_failures": 0,
+    "exe_startup_version": "0.8.0",
+    "exe_renderer": "forward_plus",
+    "exe_ready_total_ms": 3388,
+    "exe_menu_frame_ms": 5280,
+    "tts_setting_enabled": true,
+    "voice_pack_count": 279,
+    "voice_sample_playable": true,
+    "privacy_hits": 0
+  },
+  "external_gates": {
+    "target_vega8_validated": false,
+    "human_duration_validated": false,
+    "human_delayed_recall_validated": false
+  }
+}

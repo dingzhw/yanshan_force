@@ -16,22 +16,28 @@ const NORMAL_HIT_SCALE = 0.50
 const CONFIDENTIAL_VALUE_MULT = 1.35
 const CONFIDENTIAL_CRATE_BONUS = 0.12
 
+const SAFE_BOX_SLOTS = 2
+const MAX_DISPLAY_STAND = 4
+const MAX_RARITY = 7
+
 const RARITY_NAMES = {
-	1: "普通",
+	1: "常规",
 	2: "精良",
 	3: "稀有",
 	4: "史诗",
-	5: "传说·大金",
-	6: "旷世·大红"
+	5: "珍品·小金",
+	6: "传说·大金",
+	7: "旷世·大红"
 }
 
 const RARITY_COLORS = {
-	1: Color("cad4cf"),
+	1: Color("d2dbd6"),
 	2: Color("6be39b"),
 	3: Color("5cb8ff"),
 	4: Color("cf82ff"),
-	5: Color("ffd15c"),
-	6: Color("ff4757")
+	5: Color("f6c34e"),
+	6: Color("ff9f38"),
+	7: Color("ff4757")
 }
 
 const CONDITION_TIERS = [
@@ -47,21 +53,43 @@ const LOOT_TABLE = {
 		{"title": "压缩干粮", "en": "Field Ration", "value": 30, "rarity": 1, "grid": "1×1", "icon": "ration", "lore": "真空密封的高热量麦香压缩饼干。"},
 		{"title": "信号铜线", "en": "Copper Wire", "value": 32, "rarity": 1, "grid": "1×1", "icon": "wire", "lore": "抢修山岭侦察电台所需的纯铜导线。"},
 		{"title": "诚庄春茶饼", "en": "Spring Tea Cake", "value": 34, "rarity": 1, "grid": "1×1", "icon": "tea", "lore": "诚庄村民采摘烟山明前嫩芽压制的小茶饼，清香回甘。"},
-		{"title": "青竹编织哨", "en": "Bamboo Whistle", "value": 36, "rarity": 1, "grid": "1×1", "icon": "bamboo", "lore": "江南山里孩子用苦竹削成的清脆竹哨。"}
+		{"title": "青竹编织哨", "en": "Bamboo Whistle", "value": 36, "rarity": 1, "grid": "1×1", "icon": "bamboo", "lore": "江南山里孩子用苦竹削成的清脆竹哨。"},
+		{"title": "粗陶米碗", "en": "Clay Rice Bowl", "value": 22, "rarity": 1, "grid": "1×1", "icon": "rice_bowl", "lore": "江南山村手绘蓝纹粗陶碗，配着一双原木竹筷。"},
+		{"title": "烟山野生核桃", "en": "Mountain Walnut", "value": 24, "rarity": 1, "grid": "1×1", "icon": "walnut", "lore": "林间秋风吹落的饱满山核桃，香脆补体力。"},
+		{"title": "老式木算盘", "en": "Wooden Abacus", "value": 26, "rarity": 1, "grid": "1×2", "icon": "abacus", "lore": "供销社旧柜台留下的老紫木七珠算盘，珠粒圆润。"},
+		{"title": "铁皮铅笔盒", "en": "Tin Pencil Case", "value": 27, "rarity": 1, "grid": "1×2", "icon": "pencil_tin", "lore": "印有山水线条的怀旧绿漆铁皮文具盒。"},
+		{"title": "老竹尺", "en": "Bamboo Ruler", "value": 29, "rarity": 1, "grid": "1×1", "icon": "bamboo_ruler", "lore": "烟山老裁缝与木匠常用的刻度毛竹直尺。"},
+		{"title": "干桂花香包", "en": "Osmanthus Sachet", "value": 31, "rarity": 1, "grid": "1×1", "icon": "osmanthus_pack", "lore": "装满金秋干桂花的明黄束口小香囊，幽香扑鼻。"},
+		{"title": "旧黄铜钥匙串", "en": "Brass Key Ring", "value": 33, "rarity": 1, "grid": "1×1", "icon": "key_ring", "lore": "系在铜环上的三把老仓库黄铜钥匙，敲击清脆。"},
+		{"title": "军绿旧水壶", "en": "Field Canteen", "value": 35, "rarity": 1, "grid": "1×2", "icon": "canteen", "lore": "装满清甜山泉水的帆布背带铝制野外水壶。"},
+		{"title": "尼龙登山绳", "en": "Climbing Rope", "value": 37, "rarity": 1, "grid": "1×2", "icon": "rope_coil", "lore": "配有金属快挂扣的橙色高强度山崖攀登绳索。"}
 	],
 	2: [
 		{"title": "林间指北针", "en": "Forest Compass", "value": 48, "rarity": 2, "grid": "1×1", "icon": "compass", "lore": "夜光表盘金属指北针，在竹石迷阵中辨位极准。"},
 		{"title": "防水战术手电", "en": "Tactical Flashlight", "value": 54, "rarity": 2, "grid": "1×1", "icon": "torch", "lore": "探索烟霞古洞幽暗石室的高流明铝合金手电。"},
 		{"title": "巡护员徽章", "en": "Ranger Badge", "value": 58, "rarity": 2, "grid": "1×1", "icon": "badge", "lore": "镌有香樟叶与山溪纹样的烟山护林纪念章。"},
 		{"title": "烟山手工折扇", "en": "Bamboo Folding Fan", "value": 62, "rarity": 2, "grid": "1×1", "icon": "fan", "lore": "取烟山老毛竹做扇骨、题有山水小楷的江南折扇。"},
-		{"title": "溪石萤光矿", "en": "Stream Fluorite", "value": 66, "rarity": 2, "grid": "1×1", "icon": "gem", "lore": "鹅卵石山溪冲刷出的淡青色天然萤石原矿。"}
+		{"title": "溪石萤光矿", "en": "Stream Fluorite", "value": 66, "rarity": 2, "grid": "1×1", "icon": "gem", "lore": "鹅卵石山溪冲刷出的淡青色天然萤石原矿。"},
+		{"title": "朱漆首饰匣", "en": "Red Lacquer Box", "value": 46, "rarity": 2, "grid": "1×2", "icon": "lacquer_box", "lore": "镶着黄铜包角与蝶形暗扣的江南朱红漆木匣。"},
+		{"title": "青花品茗杯", "en": "Blue Porcelain Cup", "value": 50, "rarity": 2, "grid": "1×1", "icon": "blue_teacup", "lore": "配花梨木杯托的手绘缠枝青花细瓷品茗杯。"},
+		{"title": "工兵折叠铲", "en": "Folding Shovel", "value": 55, "rarity": 2, "grid": "1×2", "icon": "folding_shovel", "lore": "可快速锁紧折叠的锰钢战术工兵铲，掘土破障两用。"},
+		{"title": "信号发烟罐", "en": "Signal Smoke Can", "value": 59, "rarity": 2, "grid": "1×1", "icon": "smoke_can", "lore": "用于标定撤离信标与掩护转移的战术拉环烟雾罐。"},
+		{"title": "湖笔书写套组", "en": "Calligraphy Brush", "value": 63, "rarity": 2, "grid": "1×2", "icon": "brush_set", "lore": "青瓷五峰笔山配兼毫湖笔，书房案头清雅文具。"},
+		{"title": "铜制电报发报键", "en": "Telegraph Key", "value": 68, "rarity": 2, "grid": "1×2", "icon": "morse_key", "lore": "底座厚重的经典黄铜摩斯电码发报手键，回弹清脆。"},
+		{"title": "烟山草药标本匣", "en": "Herb Specimen Box", "value": 72, "rarity": 2, "grid": "1×2", "icon": "herb_case", "lore": "封存珍稀烟山蕨类压花与英文拉丁注记的木框标本。"}
 	],
 	3: [
 		{"title": "加密无线电台", "en": "Encrypted Radio", "value": 82, "rarity": 3, "grid": "1×2", "icon": "radio", "lore": "双频抗干扰战术步话机，可截获词兵调动信号。"},
 		{"title": "光学测距模块", "en": "Laser Rangefinder", "value": 90, "rarity": 3, "grid": "1×2", "icon": "rangefinder", "lore": "高精度红外测距仪，精密镜片完好无损。"},
 		{"title": "古树琥珀标本", "en": "Ancient Amber", "value": 96, "rarity": 3, "grid": "1×1", "icon": "amber", "lore": "凝结着远古松针与小虫的金透树脂琥珀。"},
 		{"title": "军规夜视镜片", "en": "Night Vision Lens", "value": 106, "rarity": 3, "grid": "1×2", "icon": "nvg_lens", "lore": "镀有翠绿增透膜的微光夜视仪核心光学组件。"},
-		{"title": "太湖透漏赏石", "en": "Taihu Scholar Rock", "value": 115, "rarity": 3, "grid": "1×2", "icon": "rock", "lore": "迷踪竹石阵中历经山泉溶蚀、瘦皱漏透的案头奇石。"}
+		{"title": "太湖透漏赏石", "en": "Taihu Scholar Rock", "value": 115, "rarity": 3, "grid": "1×2", "icon": "rock", "lore": "迷踪竹石阵中历经山泉溶蚀、瘦皱漏透的案头奇石。"},
+		{"title": "军用双筒望远镜", "en": "Field Binoculars", "value": 86, "rarity": 3, "grid": "1×2", "icon": "binoculars", "lore": "覆有防滑胶皮与绿膜物镜的侦察兵高倍望远镜。"},
+		{"title": "雕花黄铜墨盒", "en": "Carved Ink Box", "value": 94, "rarity": 3, "grid": "1×1", "icon": "ink_box", "lore": "翻盖浮雕祥云的精工老铜墨盒，墨丝依然润泽。"},
+		{"title": "松烟鎏金古墨锭", "en": "Pine Soot Inkstick", "value": 102, "rarity": 3, "grid": "1×1", "icon": "inkstick", "lore": "描金松烟八角徽墨，置于花梨小座上，历久弥香。"},
+		{"title": "江南苏绣锦囊", "en": "Suzhou Silk Pouch", "value": 108, "rarity": 3, "grid": "1×1", "icon": "silk_pouch", "lore": "以金线翠缎精绣云水菱纹并缀翡翠珠的江南锦囊。"},
+		{"title": "便携气象测风仪", "en": "Wind Meter", "value": 114, "rarity": 3, "grid": "1×2", "icon": "anemometer", "lore": "带三杯风速转子的山地侦察气象测风终端。"},
+		{"title": "机械铜壳怀表", "en": "Brass Pocket Watch", "value": 122, "rarity": 3, "grid": "1×1", "icon": "pocket_watch", "lore": "翻盖罗马字面机械铜怀表，齿轮滴答走时精准。"}
 	],
 	4: [
 		{"title": "无人机核心芯片", "en": "Drone AI Chip", "value": 145, "rarity": 4, "grid": "1×1", "icon": "chip", "lore": "迅捷侦察机搭载的高算力飞控与词库阵列芯片。"},
@@ -69,22 +97,34 @@ const LOOT_TABLE = {
 		{"title": "军用黑匣子", "en": "Flight Black Box", "value": 165, "rarity": 4, "grid": "1×2", "icon": "blackbox", "lore": "防爆橙红涂装战术记录仪，存有珍贵加密航迹。"},
 		{"title": "烟霞岩画残拓", "en": "Petroglyph Rubbing", "value": 175, "rarity": 4, "grid": "1×2", "icon": "rubbing", "lore": "拓印自烟霞古洞原生石壁《烟山耕读》的宣纸墨拓。"},
 		{"title": "古樟祈福银锁", "en": "Silver Blessing Lock", "value": 188, "rarity": 4, "grid": "1×1", "icon": "silver_lock", "lore": "百年古樟石龛旁流传的江南錾花长命银锁。"},
-		{"title": "先民青铜茶铫", "en": "Bronze Tea Kettle", "value": 198, "rarity": 4, "grid": "2×2", "icon": "kettle", "lore": "古洞寒潭畔先民汲泉煮茗所用的绿锈小青铜壶。"}
+		{"title": "先民青铜茶铫", "en": "Bronze Tea Kettle", "value": 198, "rarity": 4, "grid": "2×2", "icon": "kettle", "lore": "古洞寒潭畔先民汲泉煮茗所用的绿锈小青铜壶。"},
+		{"title": "鎏金点翠银簪", "en": "Gilded Hairpin", "value": 150, "rarity": 4, "grid": "1×2", "icon": "hairpin", "lore": "点翠云凤镶珠鎏金老银簪，工艺清雅绝伦。"},
+		{"title": "青瓷蟾蜍水注", "en": "Celadon Water Dropper", "value": 162, "rarity": 4, "grid": "1×2", "icon": "water_dropper", "lore": "越窑系青绿冰裂釉造型水注，文人研墨清供雅玩。"},
+		{"title": "微光瞄具光学核", "en": "Thermal Optic Core", "value": 180, "rarity": 4, "grid": "1×2", "icon": "optic_core", "lore": "锗晶体琥珀镀膜热成像光学棱镜核心组件。"},
+		{"title": "端溪雕云古砚", "en": "Duanxi Inkstone", "value": 192, "rarity": 4, "grid": "2×2", "icon": "inkstone", "lore": "紫润细腻、带红木嵌盒的端溪老坑雕云文房名砚。"}
 	],
 	5: [
-		{"title": "烟山古铜虎符", "en": "Bronze Tiger Tally", "value": 260, "rarity": 5, "grid": "1×2", "icon": "tally", "lore": "错金铭文古铜兵符，印证烟山古道昔日戍守历史。"},
-		{"title": "特级金质勋章", "en": "Supreme Gold Medal", "value": 290, "rarity": 5, "grid": "1×1", "icon": "medal", "lore": "表彰卓越战术识词先锋的纯金浮雕荣誉勋章。"},
-		{"title": "量子词典原型机", "en": "Quantum Dictionary", "value": 320, "rarity": 5, "grid": "2×2", "icon": "quantum", "lore": "搭载全息声纹解码核心的实验级双语终端原型机。"},
-		{"title": "烟山先民竹简", "en": "Ancient Bamboo Slips", "value": 340, "rarity": 5, "grid": "2×2", "icon": "slips", "lore": "烟霞古洞石案遗留的千年墨书竹简，记载诚庄耕读往事。"},
-		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 380, "rarity": 5, "grid": "2×2", "icon": "core", "lore": "铁甲词尊胸腔卸载的高纯度聚变黄金能源核心。"},
-		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 415, "rarity": 5, "grid": "2×2", "icon": "censer", "lore": "镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
+		{"title": "海兽葡萄错银铜镜", "en": "Silver Inlaid Mirror", "value": 215, "rarity": 5, "grid": "2×2", "icon": "bronze_mirror", "lore": "【珍品·小金】唐代瑞兽葡萄纹错银青铜古镜，红木托架保存完好。"},
+		{"title": "战备量子加密硬盘", "en": "Encrypted Hard Drive", "value": 230, "rarity": 5, "grid": "1×2", "icon": "crypto_drive", "lore": "【珍品·小金】AES-512 钛金装甲防爆移动硬盘，藏有烟山密电档案。"},
+		{"title": "宜兴朱泥水平壶", "en": "Zisha Clay Teapot", "value": 245, "rarity": 5, "grid": "2×2", "icon": "zisha_teapot", "lore": "【珍品·小金】名家手抟原矿朱泥水平紫砂壶，包浆温润如玉。"},
+		{"title": "翡翠节节高玉佩", "en": "Jade Bamboo Pendant", "value": 255, "rarity": 5, "grid": "1×2", "icon": "jade_pendant", "lore": "【珍品·小金】冰种阳绿雕刻竹节平安玉佩，寓意学业步步高升。"},
+		{"title": "复古黄铜旁轴相机", "en": "Vintage Film Camera", "value": 270, "rarity": 5, "grid": "2×2", "icon": "vintage_camera", "lore": "【珍品·小金】精工露铜经典机械旁轴胶片机，记录昔日烟山风貌。"},
+		{"title": "御窑青花缠枝盏", "en": "Imperial Blue Bowl", "value": 285, "rarity": 5, "grid": "2×2", "icon": "imperial_bowl", "lore": "【珍品·小金】描金口沿高足御窑青花缠枝莲纹盏，发色浓艳明丽。"}
 	],
 	6: [
-		{"title": "越窑秘色青瓷盏", "en": "Secret Celadon Bowl", "value": 640, "rarity": 6, "grid": "2×2", "icon": "celadon", "lore": "【旷世·大红】如冰似玉、千峰翠色的唐宋越窑秘色贡瓷孤品！"},
-		{"title": "烟山千年紫芝王", "en": "Millennium Ganoderma", "value": 720, "rarity": 6, "grid": "2×2", "icon": "ganoderma", "lore": "【旷世·大红】生于烟山绝壁云雾深处、紫气莹润的千年灵芝王！"},
-		{"title": "诚庄先民双龙玉璧", "en": "Twin-Dragon Jade Disc", "value": 790, "rarity": 6, "grid": "2×2", "icon": "jade_bi", "lore": "【旷世·大红】精雕江南水云双龙纹的羊脂白玉礼璧，价值连城！"},
-		{"title": "相控阵超算雷达心", "en": "Quantum Radar Core", "value": 880, "rarity": 6, "grid": "2×3", "icon": "radar_heart", "lore": "【旷世·大红】统御全山防空与电讯阵列最高权限的超算红核！"},
-		{"title": "烟山之心·赤金龙印", "en": "Heart of Yanshan", "value": 980, "rarity": 6, "grid": "2×2", "icon": "seal", "lore": "【旷世·大红】赤金镶嵌红宝的镇山宝印——摸金行动最高荣耀象征！"}
+		{"title": "烟山古铜虎符", "en": "Bronze Tiger Tally", "value": 340, "rarity": 6, "grid": "1×2", "icon": "tally", "lore": "【传说·大金】错金铭文古铜兵符，印证烟山古道昔日戍守历史。"},
+		{"title": "特级金质勋章", "en": "Supreme Gold Medal", "value": 365, "rarity": 6, "grid": "1×1", "icon": "medal", "lore": "【传说·大金】表彰卓越战术识词先锋的纯金浮雕荣誉勋章。"},
+		{"title": "量子词典原型机", "en": "Quantum Dictionary", "value": 395, "rarity": 6, "grid": "2×2", "icon": "quantum", "lore": "【传说·大金】搭载全息声纹解码核心的实验级双语终端原型机。"},
+		{"title": "烟山先民竹简", "en": "Ancient Bamboo Slips", "value": 420, "rarity": 6, "grid": "2×2", "icon": "slips", "lore": "【传说·大金】烟霞古洞石案遗留的千年墨书竹简，记载诚庄耕读往事。"},
+		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 460, "rarity": 6, "grid": "2×2", "icon": "core", "lore": "【传说·大金】铁甲词尊胸腔卸载的高纯度聚变黄金能源核心。"},
+		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 495, "rarity": 6, "grid": "2×2", "icon": "censer", "lore": "【传说·大金】镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
+	],
+	7: [
+		{"title": "越窑秘色青瓷盏", "en": "Secret Celadon Bowl", "value": 680, "rarity": 7, "grid": "2×2", "icon": "celadon", "lore": "【旷世·大红】如冰似玉、千峰翠色的唐宋越窑秘色贡瓷孤品！"},
+		{"title": "烟山千年紫芝王", "en": "Millennium Ganoderma", "value": 760, "rarity": 7, "grid": "2×2", "icon": "ganoderma", "lore": "【旷世·大红】生于烟山绝壁云雾深处、紫气莹润的千年灵芝王！"},
+		{"title": "诚庄先民双龙玉璧", "en": "Twin-Dragon Jade Disc", "value": 840, "rarity": 7, "grid": "2×2", "icon": "jade_bi", "lore": "【旷世·大红】精雕江南水云双龙纹的羊脂白玉礼璧，价值连城！"},
+		{"title": "相控阵超算雷达心", "en": "Quantum Radar Core", "value": 920, "rarity": 7, "grid": "2×3", "icon": "radar_heart", "lore": "【旷世·大红】统御全山防空与电讯阵列最高权限的超算红核！"},
+		{"title": "烟山之心·赤金龙印", "en": "Heart of Yanshan", "value": 1050, "rarity": 7, "grid": "2×2", "icon": "seal", "lore": "【旷世·大红】赤金镶嵌红宝的镇山宝印——摸金行动最高荣耀象征！"}
 	]
 }
 
@@ -134,15 +174,19 @@ var nemesis_cleared = 0
 var boss_defeated = false
 var question_open = false
 var bag = []
+var safe_box = []
+var last_saved_safe_box_count = 0
 var crates = []
 var supplies_opened = []
 var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
+	"schema_version": 2,
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
 	"warehouse": [],
+	"display_stand": [],
 	"owned": [],
 	"equipped": {"optic": "", "muzzle": "", "grip": ""},
 	"extractions": 0,
@@ -152,6 +196,7 @@ var profile = {
 	"collection": [],
 	"red_extracted": 0,
 	"gold_extracted": 0,
+	"small_gold_extracted": 0,
 	"best_haul": 0,
 	"best_item_title": "",
 	"best_item_value": 0
@@ -252,17 +297,37 @@ func mode_label() -> String:
 	return "机密行动" if operation_tier == "confidential" else "普通行动"
 
 func migrate_legacy_items():
+	var legacy_schema: bool = int(profile.get("schema_version", 1)) < 2
 	if profile.has("collection") and profile.collection is Array:
 		for i in profile.collection.size():
 			if str(profile.collection[i]) == "烟霞丹青残拓":
 				profile.collection[i] = "烟霞岩画残拓"
 	if profile.has("warehouse") and profile.warehouse is Array:
 		for item in profile.warehouse:
-			if item is Dictionary and str(item.get("title", "")) == "烟霞丹青残拓":
-				item["title"] = "烟霞岩画残拓"
-	for int_key in ["red_extracted", "gold_extracted", "best_haul", "best_item_value"]:
+			if item is Dictionary:
+				if str(item.get("title", "")) == "烟霞丹青残拓":
+					item["title"] = "烟霞岩画残拓"
+				var meta := catalog_meta(str(item.get("title", "")))
+				if legacy_schema and not meta.is_empty():
+					item["rarity"] = int(meta.rarity)
+				else:
+					item["rarity"] = clampi(int(item.get("rarity", meta.get("rarity", 1))), 1, MAX_RARITY)
+				if not item.has("locked"):
+					item["locked"] = int(item.get("rarity", 1)) >= 6
+	for int_key in ["red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value"]:
 		profile[int_key] = maxi(0, int(profile.get(int_key, 0)))
 	profile["best_item_title"] = str(profile.get("best_item_title", ""))
+	if not profile.has("display_stand") or not (profile.display_stand is Array):
+		profile["display_stand"] = []
+	var cleaned_stand: Array = []
+	for t in profile.display_stand:
+		var ts := str(t)
+		if ts != "" and not (ts in cleaned_stand) and not catalog_meta(ts).is_empty():
+			cleaned_stand.append(ts)
+			if cleaned_stand.size() >= MAX_DISPLAY_STAND:
+				break
+	profile["display_stand"] = cleaned_stand
+	profile["schema_version"] = 2
 
 static func catalog_meta(title: String) -> Dictionary:
 	for r in LOOT_TABLE:
@@ -272,7 +337,13 @@ static func catalog_meta(title: String) -> Dictionary:
 	return {}
 
 static func total_collectible_count() -> int:
-	return LOOT_TABLE[4].size() + LOOT_TABLE[5].size() + LOOT_TABLE[6].size()
+	return LOOT_TABLE[4].size() + LOOT_TABLE[5].size() + LOOT_TABLE[6].size() + LOOT_TABLE[7].size()
+
+static func total_catalog_count() -> int:
+	var n := 0
+	for r in LOOT_TABLE:
+		n += LOOT_TABLE[r].size()
+	return n
 
 func start_run(as_combat = false, tier: String = "normal"):
 	phase = "active"
@@ -289,6 +360,8 @@ func start_run(as_combat = false, tier: String = "normal"):
 	nemesis_cleared = 0
 	boss_defeated = false
 	bag = []
+	safe_box = []
+	last_saved_safe_box_count = 0
 	crates = []
 	supplies_opened = []
 	question_open = false
@@ -344,7 +417,7 @@ func crate_ready(tier: int) -> bool:
 func _enrich_loot_dict(raw: Dictionary) -> Dictionary:
 	var title := str(raw.get("title", "物资"))
 	var meta := catalog_meta(title)
-	var r := clampi(int(raw.get("rarity", meta.get("rarity", 1))), 1, 6)
+	var r := clampi(int(raw.get("rarity", meta.get("rarity", 1))), 1, MAX_RARITY)
 	var en_s := str(raw.get("en", ""))
 	if en_s == "":
 		en_s = str(meta.get("en", "Supply Item"))
@@ -353,14 +426,14 @@ func _enrich_loot_dict(raw: Dictionary) -> Dictionary:
 		grid_s = str(meta.get("grid", "2×2" if r >= 5 else ("1×2" if r >= 3 else "1×1")))
 	var icon_s := str(raw.get("icon", ""))
 	if icon_s == "":
-		icon_s = str(meta.get("icon", "core" if r >= 5 else ("chip" if r >= 3 else "ration")))
+		icon_s = str(meta.get("icon", "core" if r >= 6 else ("bronze_mirror" if r == 5 else ("chip" if r >= 3 else "ration"))))
 	var cond_s := str(raw.get("cond", ""))
 	if cond_s == "":
 		cond_s = "标准"
 	var lore_s := str(raw.get("lore", ""))
 	if lore_s == "":
 		lore_s = str(meta.get("lore", "烟山行动搜刮物资。"))
-	return {
+	var out := {
 		"title": title,
 		"en": en_s,
 		"value": maxi(1, int(raw.get("value", meta.get("value", 25)))),
@@ -370,6 +443,9 @@ func _enrich_loot_dict(raw: Dictionary) -> Dictionary:
 		"cond": cond_s,
 		"lore": lore_s
 	}
+	if raw.has("locked"):
+		out["locked"] = bool(raw.get("locked", false))
+	return out
 
 func add_loot(title: String, value: int, rarity: int = 1, extra: Dictionary = {}) -> bool:
 	if phase != "active" or bag.size() >= capacity():
@@ -377,7 +453,7 @@ func add_loot(title: String, value: int, rarity: int = 1, extra: Dictionary = {}
 	var merged := extra.duplicate()
 	merged["title"] = title
 	merged["value"] = value
-	merged["rarity"] = clampi(rarity, 1, 6)
+	merged["rarity"] = clampi(rarity, 1, MAX_RARITY)
 	bag.append(_enrich_loot_dict(merged))
 	return true
 
@@ -394,6 +470,35 @@ func discard_bag_item(index: int) -> Dictionary:
 	bag.remove_at(index)
 	return removed
 
+func move_bag_to_safe_box(bag_index: int) -> bool:
+	if phase not in ["active", "extracting"]:
+		return false
+	if bag_index < 0 or bag_index >= bag.size() or safe_box.size() >= SAFE_BOX_SLOTS:
+		return false
+	var item: Dictionary = bag[bag_index]
+	bag.remove_at(bag_index)
+	safe_box.append(item)
+	return true
+
+func move_safe_box_to_bag(safe_index: int) -> bool:
+	if phase not in ["active", "extracting"]:
+		return false
+	if safe_index < 0 or safe_index >= safe_box.size() or bag.size() >= capacity():
+		return false
+	var item: Dictionary = safe_box[safe_index]
+	safe_box.remove_at(safe_index)
+	bag.append(item)
+	return true
+
+func safe_box_value() -> int:
+	var result := 0
+	for item in safe_box:
+		result += int(item.get("value", 0))
+	return result
+
+func total_carried_value() -> int:
+	return bag_value() + safe_box_value()
+
 func _roll_condition() -> Dictionary:
 	var p := loot_rng.randf()
 	var acc := 0.0
@@ -403,8 +508,51 @@ func _roll_condition() -> Dictionary:
 			return c
 	return CONDITION_TIERS[1]
 
+func _roll_from_weights(weights_7_to_1: Array) -> int:
+	var p := loot_rng.randf()
+	var acc := 0.0
+	for i in weights_7_to_1.size():
+		acc += float(weights_7_to_1[i])
+		if p <= acc:
+			return MAX_RARITY - i
+	return 1
+
+func roll_calibrated_rarity(mode_confidential: bool, context: String = "standard", perfect: bool = true) -> int:
+	## v0.8.0 strictly calibrated 7-tier drop curves [T7 Red, T6 Big Gold, T5 Small Gold, T4 Purple, T3 Blue, T2 Green, T1 White]:
+	## - Confidential standard: 2.0% Red / 5.0% Big Gold / 8.0% Small Gold / 14% Purple / 21% Blue / 24% Green / 26% White
+	## - Normal standard: clearly lower Big Gold/Red so Confidential Risk-Reward truly shines
+	## - Open-road loose spawns: strictly capped at T1-T4 (Confidential) / T1-T3 (Normal) — ZERO open-road Big Gold/Red!
+	if context == "loose_open":
+		if mode_confidential:
+			return _roll_from_weights([0.000, 0.000, 0.000, 0.140, 0.260, 0.300, 0.300])
+		return _roll_from_weights([0.000, 0.000, 0.000, 0.000, 0.220, 0.360, 0.420])
+	if context == "hidden_nook":
+		if mode_confidential:
+			return _roll_from_weights([0.025, 0.055, 0.090, 0.150, 0.210, 0.230, 0.240])
+		return _roll_from_weights([0.004, 0.014, 0.045, 0.127, 0.220, 0.270, 0.320])
+	if context == "crate_t1":
+		if mode_confidential:
+			return _roll_from_weights([0.015, 0.045, 0.080, 0.150, 0.220, 0.240, 0.250] if perfect else [0.008, 0.028, 0.064, 0.140, 0.230, 0.260, 0.270])
+		return _roll_from_weights([0.000, 0.008, 0.040, 0.132, 0.230, 0.280, 0.310] if perfect else [0.000, 0.004, 0.026, 0.100, 0.220, 0.300, 0.350])
+	if context == "crate_t2":
+		if mode_confidential:
+			return _roll_from_weights([0.025, 0.060, 0.100, 0.175, 0.220, 0.220, 0.200] if perfect else [0.012, 0.036, 0.072, 0.150, 0.230, 0.250, 0.250])
+		return _roll_from_weights([0.003, 0.016, 0.055, 0.156, 0.240, 0.260, 0.270] if perfect else [0.000, 0.008, 0.034, 0.118, 0.230, 0.290, 0.320])
+	if context == "crate_t3":
+		if mode_confidential:
+			return _roll_from_weights([0.040, 0.085, 0.125, 0.200, 0.230, 0.190, 0.130] if perfect else [0.020, 0.050, 0.090, 0.170, 0.230, 0.230, 0.210])
+		return _roll_from_weights([0.008, 0.028, 0.075, 0.189, 0.240, 0.240, 0.220] if perfect else [0.002, 0.012, 0.046, 0.140, 0.240, 0.270, 0.290])
+	if context == "squad_drop":
+		if mode_confidential:
+			return _roll_from_weights([0.022, 0.053, 0.085, 0.150, 0.210, 0.235, 0.245] if perfect else [0.014, 0.040, 0.076, 0.140, 0.220, 0.250, 0.260])
+		return _roll_from_weights([0.002, 0.012, 0.045, 0.131, 0.230, 0.270, 0.310] if perfect else [0.000, 0.006, 0.030, 0.114, 0.220, 0.290, 0.340])
+	# Default / standard supply blind-box
+	if mode_confidential:
+		return _roll_from_weights([0.020, 0.050, 0.080, 0.140, 0.210, 0.240, 0.260] if perfect else [0.010, 0.032, 0.068, 0.130, 0.220, 0.260, 0.280])
+	return _roll_from_weights([0.000, 0.008, 0.035, 0.117, 0.220, 0.280, 0.340] if perfect else [0.000, 0.003, 0.022, 0.095, 0.210, 0.300, 0.370])
+
 func roll_item_by_rarity(rarity: int) -> Dictionary:
-	var clamped := clampi(rarity, 1, 6)
+	var clamped := clampi(rarity, 1, MAX_RARITY)
 	var list: Array = LOOT_TABLE[clamped]
 	var item: Dictionary = list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
 	var cond := _roll_condition()
@@ -417,96 +565,26 @@ func roll_item_by_rarity(rarity: int) -> Dictionary:
 	return _enrich_loot_dict(item)
 
 func roll_field_pickup(perfect_spell: bool = true, overcharged: bool = false) -> Dictionary:
-	var roll := loot_rng.randf()
-	if is_confidential():
-		roll = maxf(0.0, roll - 0.035)
-	var r := 1
-	if overcharged:
-		# Golden Overcharged Supply Cache: guaranteed Uncommon+, real shot at Gold & Mythic Red!
-		if perfect_spell:
-			if roll < 0.045: r = 6
-			elif roll < 0.165: r = 5
-			elif roll < 0.420: r = 4
-			elif roll < 0.780: r = 3
-			else: r = 2
-		else:
-			if roll < 0.015: r = 6
-			elif roll < 0.060: r = 5
-			elif roll < 0.220: r = 4
-			elif roll < 0.560: r = 3
-			else: r = 2
-	else:
-		# Even humble field wooden boxes have true Delta-Force miracle jackpot potential!
-		if perfect_spell:
-			if roll < 0.012: r = 6
-			elif roll < 0.045: r = 5
-			elif roll < 0.145: r = 4
-			elif roll < 0.390: r = 3
-			elif roll < 0.760: r = 2
-			else: r = 1
-		else:
-			if roll < 0.003: r = 5
-			elif roll < 0.035: r = 4
-			elif roll < 0.160: r = 3
-			elif roll < 0.480: r = 2
-			else: r = 1
+	# v0.8.0 Blind-Box Supply Case: no visual spoiler; secret lucky caches gently bump odds without guaranteeing red
+	var ctx := "hidden_nook" if overcharged else "standard"
+	var r := roll_calibrated_rarity(is_confidential(), ctx, perfect_spell)
 	return roll_item_by_rarity(r)
 
-func roll_world_loose_item(high_tier_spot: bool = false) -> Dictionary:
-	var roll := loot_rng.randf()
-	if is_confidential():
-		roll = maxf(0.0, roll - 0.04)
-	var r := 1
-	if high_tier_spot:
-		if roll < 0.042: r = 6
-		elif roll < 0.155: r = 5
-		elif roll < 0.390: r = 4
-		elif roll < 0.720: r = 3
-		else: r = 2
-	else:
-		if roll < 0.016: r = 6
-		elif roll < 0.062: r = 5
-		elif roll < 0.185: r = 4
-		elif roll < 0.440: r = 3
-		elif roll < 0.780: r = 2
-		else: r = 1
+func roll_world_loose_item(_high_tier_spot: bool = false) -> Dictionary:
+	# v0.8.0 #10: Open-road table loot strictly never rolls Big Gold (T6) or Mythic Red (T7)!
+	var r := roll_calibrated_rarity(is_confidential(), "loose_open", true)
 	return roll_item_by_rarity(r)
 
 func roll_bird_nest_item() -> Dictionary:
-	## Iconic '掏鸟窝/探石缝' tactile lottery: humble twigs/fluorite or miracle '鸟窝出大红'!
-	var roll := loot_rng.randf()
-	if is_confidential():
-		roll = maxf(0.0, roll - 0.045)
-	var r := 1
-	if roll < 0.032: r = 6
-	elif roll < 0.095: r = 5
-	elif roll < 0.240: r = 4
-	elif roll < 0.520: r = 3
-	elif roll < 0.820: r = 2
-	else: r = 1
+	## Iconic '掏鸟窝 / 摸草丛 / 探桥角石缝' ultra-hidden stash lottery!
+	var r := roll_calibrated_rarity(is_confidential(), "hidden_nook", true)
 	return roll_item_by_rarity(r)
 
 func roll_squad_drop_items(flawless_wave: bool, is_boss_camp: bool = false) -> Array:
 	var count := 2 if (flawless_wave or is_boss_camp) else (2 if loot_rng.randf() < 0.45 else 1)
 	var out := []
 	for i in count:
-		var roll := loot_rng.randf()
-		if is_confidential():
-			roll = maxf(0.0, roll - 0.05)
-		if is_boss_camp:
-			roll = maxf(0.0, roll - 0.08)
-		var r := 2
-		if flawless_wave and i == 0:
-			if roll < 0.055: r = 6
-			elif roll < 0.210: r = 5
-			elif roll < 0.540: r = 4
-			else: r = 3
-		else:
-			if roll < 0.020: r = 6
-			elif roll < 0.085: r = 5
-			elif roll < 0.260: r = 4
-			elif roll < 0.600: r = 3
-			else: r = 2
+		var r := roll_calibrated_rarity(is_confidential(), "crate_t2" if (is_boss_camp and i == 0) else "squad_drop", flawless_wave or is_boss_camp)
 		out.append(roll_item_by_rarity(r))
 	return out
 
@@ -528,44 +606,8 @@ func swap_lowest_loot(item: Dictionary) -> Dictionary:
 	return removed
 
 func roll_crate_rarity(tier: int, perfect_spell: bool) -> int:
-	var roll := loot_rng.randf()
-	if is_confidential():
-		roll = maxf(0.0, roll - CONFIDENTIAL_CRATE_BONUS * 0.65)
-	if tier <= 1:
-		if perfect_spell:
-			if roll < 0.032: return 6
-			if roll < 0.145: return 5
-			if roll < 0.420: return 4
-			if roll < 0.800: return 3
-			return 2
-		else:
-			if roll < 0.030: return 5
-			if roll < 0.180: return 4
-			if roll < 0.600: return 3
-			return 2
-	elif tier == 2:
-		if perfect_spell:
-			if roll < 0.075: return 6
-			if roll < 0.300: return 5
-			if roll < 0.680: return 4
-			return 3
-		else:
-			if roll < 0.020: return 6
-			if roll < 0.105: return 5
-			if roll < 0.360: return 4
-			if roll < 0.780: return 3
-			return 2
-	else:
-		if perfect_spell:
-			if roll < 0.155: return 6
-			if roll < 0.520: return 5
-			if roll < 0.880: return 4
-			return 3
-		else:
-			if roll < 0.045: return 6
-			if roll < 0.220: return 5
-			if roll < 0.600: return 4
-			return 3
+	var ctx := "crate_t1" if tier <= 1 else ("crate_t2" if tier == 2 else "crate_t3")
+	return roll_calibrated_rarity(is_confidential(), ctx, perfect_spell)
 
 func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Array:
 	var awarded = []
@@ -621,49 +663,169 @@ func _record_extracted_item(item: Dictionary):
 	var val := int(item.get("value", 0))
 	if r >= 4 and not (item.title in profile.collection):
 		profile.collection.append(item.title)
-	if r >= 6:
+	if r >= 7:
 		profile["red_extracted"] = int(profile.get("red_extracted", 0)) + 1
-	elif r == 5:
+	elif r == 6:
 		profile["gold_extracted"] = int(profile.get("gold_extracted", 0)) + 1
+	elif r == 5:
+		profile["small_gold_extracted"] = int(profile.get("small_gold_extracted", 0)) + 1
 	if val > int(profile.get("best_item_value", 0)):
 		profile["best_item_value"] = val
 		profile["best_item_title"] = str(item.get("title", ""))
+
+func _bank_items_to_warehouse(items: Array):
+	for raw_it in items:
+		var banked: Dictionary = _enrich_loot_dict(raw_it)
+		var r: int = int(banked.get("rarity", 1))
+		if not banked.has("locked"):
+			banked["locked"] = (r >= 6)
+		_record_extracted_item(banked)
+		profile.warehouse.append(banked)
 
 func finish_extraction() -> bool:
 	if phase != "extracting":
 		return false
 	if combat_mode and outposts_cleared >= 2 and bag.size() < capacity():
-		var bonus_r := 6 if (boss_defeated and loot_rng.randf() < (0.28 if is_confidential() else 0.14)) else (5 if boss_defeated else (4 if loot_rng.randf() < 0.65 else 5))
+		var bonus_r := 4
+		if is_confidential():
+			var p_c := loot_rng.randf()
+			bonus_r = 7 if (boss_defeated and p_c < 0.06) else (6 if p_c < 0.38 else 5)
+		else:
+			var p_n := loot_rng.randf()
+			bonus_r = 6 if (boss_defeated and p_n < 0.06) else (5 if p_n < 0.40 else 4)
 		var bonus_item := roll_item_by_rarity(bonus_r)
 		bag.append(bonus_item)
-	var run_haul := bag_value()
+	var run_haul := total_carried_value()
 	if run_haul > int(profile.get("best_haul", 0)):
 		profile["best_haul"] = run_haul
-	for item in bag:
-		_record_extracted_item(item)
-	profile.warehouse.append_array(bag.duplicate(true))
+	var all_brought: Array = bag.duplicate(true)
+	all_brought.append_array(safe_box.duplicate(true))
+	last_saved_safe_box_count = safe_box.size()
+	_bank_items_to_warehouse(all_brought)
 	var gained_xp: int = int(correct) * 6 + int(outposts_cleared) * 25 + int(perfect_ciphers) * 15 + (60 if boss_defeated else 0) + 60
 	if is_confidential():
 		gained_xp = roundi(float(gained_xp) * CONFIDENTIAL_VALUE_MULT)
 	profile.xp += gained_xp
 	profile.extractions += 1
 	bag.clear()
+	safe_box.clear()
 	phase = "result"
 	return true
 
 func abandon():
+	# v0.8.0: Regular bag is lost on failed run / retreat, but Encrypted Safe Box (2 slots) ALWAYS survives!
+	last_saved_safe_box_count = safe_box.size()
+	if not safe_box.is_empty():
+		_bank_items_to_warehouse(safe_box.duplicate(true))
+		safe_box.clear()
 	bag.clear()
 	question_open = false
 	phase = "result"
 
+func is_on_display_stand(title: String) -> bool:
+	if not profile.has("display_stand") or not (profile.display_stand is Array):
+		return false
+	return title in profile.display_stand
+
+func toggle_display_stand(title: String) -> Dictionary:
+	if phase in ["active", "extracting"]:
+		return {"ok": false, "reason": "in_run"}
+	if not profile.has("display_stand") or not (profile.display_stand is Array):
+		profile["display_stand"] = []
+	var stand: Array = profile.display_stand
+	if title in stand:
+		stand.erase(title)
+		return {"ok": true, "pinned": false}
+	if stand.size() >= MAX_DISPLAY_STAND:
+		return {"ok": false, "reason": "full"}
+	stand.append(title)
+	# Auto-lock at least one matching copy in warehouse so displayed treasure is safe!
+	for it in profile.warehouse:
+		if it is Dictionary and str(it.get("title", "")) == title:
+			it["locked"] = true
+			break
+	return {"ok": true, "pinned": true}
+
+func toggle_warehouse_lock(idx: int) -> bool:
+	if phase in ["active", "extracting"] or idx < 0 or idx >= profile.warehouse.size():
+		return false
+	var item: Dictionary = profile.warehouse[idx]
+	var next_locked: bool = not bool(item.get("locked", false))
+	item["locked"] = next_locked
+	return next_locked
+
+func sell_warehouse_item(idx: int) -> int:
+	if phase in ["active", "extracting"] or idx < 0 or idx >= profile.warehouse.size():
+		return 0
+	var item: Dictionary = profile.warehouse[idx]
+	if bool(item.get("locked", false)):
+		return 0
+	var val: int = int(item.get("value", 0))
+	var sold_title: String = str(item.get("title", ""))
+	profile.coins += val
+	profile.warehouse.remove_at(idx)
+	# If last copy of a displayed item was unlocked & sold, also remove from display stand
+	var still_owned := false
+	for rem in profile.warehouse:
+		if rem is Dictionary and str(rem.get("title", "")) == sold_title:
+			still_owned = true
+			break
+	if not still_owned and is_on_display_stand(sold_title):
+		profile.display_stand.erase(sold_title)
+	return val
+
+func sell_unlocked_junk(max_rarity: int = 3) -> Dictionary:
+	if phase in ["active", "extracting"]:
+		return {"count": 0, "coins": 0}
+	var kept := []
+	var sold_count := 0
+	var sold_coins := 0
+	for item in profile.warehouse:
+		var is_locked := bool(item.get("locked", false))
+		var r := int(item.get("rarity", 1))
+		if not is_locked and r <= max_rarity:
+			sold_count += 1
+			sold_coins += int(item.get("value", 0))
+		else:
+			kept.append(item)
+	profile.warehouse = kept
+	profile.coins += sold_coins
+	return {"count": sold_count, "coins": sold_coins}
+
+func unlocked_warehouse_value() -> int:
+	var sum := 0
+	for item in profile.warehouse:
+		if not bool(item.get("locked", false)):
+			sum += int(item.get("value", 0))
+	return sum
+
+func unlocked_warehouse_count() -> int:
+	var n := 0
+	for item in profile.warehouse:
+		if not bool(item.get("locked", false)):
+			n += 1
+	return n
+
+func locked_warehouse_count() -> int:
+	var n := 0
+	for item in profile.warehouse:
+		if bool(item.get("locked", false)):
+			n += 1
+	return n
+
 func sell_all() -> int:
+	# Sells all UNLOCKED items in warehouse; locked treasures stay safely preserved!
 	if phase in ["active", "extracting"]:
 		return 0
-	var total = 0
+	var total := 0
+	var kept := []
 	for item in profile.warehouse:
-		total += int(item.value)
+		if bool(item.get("locked", false)):
+			kept.append(item)
+		else:
+			total += int(item.get("value", 0))
 	profile.coins += total
-	profile.warehouse.clear()
+	profile.warehouse = kept
 	return total
 
 func purchase(id: String) -> bool:

@@ -21,12 +21,21 @@ const LOOSE_SPOTS = [
 ]
 
 const NEST_SPOTS = [
+	# Original 6 + 8 new ultra-hidden bush, azalea, bridge-corner, reed, maze & shadow stashes (14 total!)
 	{"id": "nest_south_willow", "title": "溪畔垂柳树丫鸟窝", "at": Vector3(8.6, 0.0, 3.6), "kind": "nest"},
-	{"id": "nest_camphor", "title": "百年古樟树根鸟窝", "at": Vector3(7.4, 0.0, -13.6), "kind": "nest"},
-	{"id": "nest_azalea", "title": "西岭映山红灌丛鸟窝", "at": Vector3(-20.4, 0.0, -22.2), "kind": "nest"},
-	{"id": "nest_arch_bridge", "title": "青石拱桥芦苇鸟窝", "at": Vector3(19.6, 0.0, -21.8), "kind": "nest"},
+	{"id": "nest_camphor", "title": "百年古樟背根秘洞", "at": Vector3(11.8, 0.0, -17.9), "kind": "nest"},
+	{"id": "nest_azalea", "title": "西岭映山红花丛藏点", "at": Vector3(-20.4, 0.0, -22.2), "kind": "nest"},
+	{"id": "nest_arch_bridge", "title": "青石拱桥南墩桥角", "at": Vector3(19.6, 0.0, -21.8), "kind": "crevice"},
 	{"id": "nest_karst_cleft", "title": "竹石阵太湖石秘缝", "at": Vector3(-45.2, 0.0, -41.2), "kind": "crevice"},
-	{"id": "nest_se_bamboo", "title": "东南竹海翠竹鸟窝", "at": Vector3(28.0, 0.0, -81.8), "kind": "nest"}
+	{"id": "nest_se_bamboo", "title": "东南竹海翠竹深窝", "at": Vector3(28.0, 0.0, -81.8), "kind": "nest"},
+	{"id": "nest_south_bridge_corner", "title": "南溪木桥东墩芦苇角", "at": Vector3(21.4, 0.0, 5.4), "kind": "nest"},
+	{"id": "nest_paddy_bank", "title": "望稻梯田草埂暗窝", "at": Vector3(29.8, 0.0, 17.6), "kind": "nest"},
+	{"id": "nest_poem_steps", "title": "诗碑亭石阶灌木缝", "at": Vector3(-30.4, 0.0, -27.2), "kind": "crevice"},
+	{"id": "nest_west_thicket", "title": "西岭红花坡矮灌丛", "at": Vector3(-33.6, 0.0, -14.8), "kind": "nest"},
+	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(15.6, 0.0, -48.2), "kind": "crevice"},
+	{"id": "nest_maze_deadend", "title": "竹石迷阵西壁石隙", "at": Vector3(-48.4, 0.0, -50.6), "kind": "crevice"},
+	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-43.6, 0.0, -61.8), "kind": "crevice"},
+	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(26.8, 0.0, -71.8), "kind": "nest"}
 ]
 
 var game
@@ -102,12 +111,13 @@ func _build_static_anchors():
 
 		var spark := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.038
-		sm.height = 0.076
+		sm.radius = 0.024
+		sm.height = 0.048
 		spark.mesh = sm
 		spark.name = "Glint"
-		spark.position = Vector3(0.0, 0.40, 0.0)
+		spark.position = Vector3(0.0, 0.30, 0.0)
 		spark.material_override = glint_mat
+		spark.visibility_range_end = 5.2
 		nroot.add_child(spark)
 		nest_nodes.append(nroot)
 
@@ -168,7 +178,7 @@ func reset_for_run():
 			glint.visible = true
 		nnode.visible = true
 
-	# 3) Roll 2 (Normal) or 3 (Confidential) Overcharged Supply Boxes among field supply boxes (idx >= 2)
+	# 3) Secretly tag 2 (Normal) or 3 (Confidential) lucky blind-box supply caches (v0.8.0 #11: ZERO external spoiler halos!)
 	var candidate_supplies := []
 	for idx in range(2, game.pickup_nodes.size()):
 		var pnode: Node3D = game.pickup_nodes[idx]
@@ -179,58 +189,28 @@ func reset_for_run():
 	for k in over_count:
 		var snode: Node3D = candidate_supplies[k]
 		snode.set_meta("overcharged", true)
-		var halo := MeshInstance3D.new()
-		var t := TorusMesh.new()
-		t.inner_radius = 0.36
-		t.outer_radius = 0.43
-		halo.mesh = t
-		halo.position = Vector3(0, 0.54, 0)
-		var hmat := StandardMaterial3D.new()
-		hmat.albedo_color = Color("ffd15c")
-		hmat.emission_enabled = true
-		hmat.emission = Color("ffd15c")
-		hmat.emission_energy_multiplier = 1.6
-		halo.material_override = hmat
-		snode.add_child(halo)
-		overcharged_halos.append(halo)
 
 	game.cached_interactables.clear()
 
 func _populate_loose_visual(holder: Node3D, item: Dictionary):
-	var r: int = clampi(int(item.get("rarity", 1)), 1, 6)
+	var r: int = clampi(int(item.get("rarity", 1)), 1, 7)
 	var r_col: Color = game.Rules.RARITY_COLORS[r]
 
-	# Rarity aura ring on table/pedestal
+	# Subtle tabletop rim ring only (v0.8.0 #10: NO sky beams, NO open-road Big Gold/Red spoilers!)
 	var aura := MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = 0.22
-	tm.outer_radius = 0.27 if r >= 5 else 0.25
+	tm.inner_radius = 0.21
+	tm.outer_radius = 0.24
 	aura.mesh = tm
 	aura.position.y = 0.02
 	var amat := StandardMaterial3D.new()
 	amat.albedo_color = r_col
 	amat.emission_enabled = true
 	amat.emission = r_col
-	amat.emission_energy_multiplier = 2.0 if r == 6 else (1.35 if r == 5 else 0.7)
+	amat.emission_energy_multiplier = 0.48
 	aura.material_override = amat
+	aura.visibility_range_end = 12.0
 	holder.add_child(aura)
-
-	# Vertical light beam for Gold (5) & Mythic Red (6) so spotting open-world jackpots is pure dopamine!
-	if r >= 5:
-		var beam := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.03
-		cm.bottom_radius = 0.14
-		cm.height = 1.45 if r == 6 else 1.05
-		beam.mesh = cm
-		beam.position.y = cm.height * 0.5
-		var bmat := StandardMaterial3D.new()
-		bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		bmat.albedo_color = Color(r_col.r, r_col.g, r_col.b, 0.26 if r == 6 else 0.18)
-		beam.material_override = bmat
-		holder.add_child(beam)
 
 	var mesh_3d := LootUI.build_world_loot_mesh(item, r, r_col, 1.15)
 	mesh_3d.name = "SpinMesh"
@@ -241,7 +221,7 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 	var dnode := Node3D.new()
 	dnode.position = gp
 	dnode.set_meta("world_loot_kind", "squad_drop")
-	var quality_tag: String = "精英无瑕战利品箱" if flawless_wave else "词兵战术掉落包"
+	var quality_tag: String = "精英战术掉落包" if flawless_wave else "词兵战术掉落包"
 	dnode.set_meta("title", "%s · %s" % [camp_title, quality_tag])
 	dnode.set_meta("flawless", flawless_wave)
 	dnode.set_meta("boss_camp", is_boss_camp)
@@ -249,11 +229,8 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 	dnode.set_meta("drop_items", rolled)
 	add_child(dnode)
 
-	# Sleek armored drop case mesh + glowing beacon strip
-	var max_r: int = 2
-	for it in rolled:
-		max_r = maxi(max_r, int(it.get("rarity", 2)))
-	var strip_col: Color = game.Rules.RARITY_COLORS[clampi(max_r, 1, 6)]
+	# Uniform tactical teal-mint beacon strip (v0.8.0 #11: blind-box mystery until opened!)
+	var strip_col: Color = Color("7ed6b8")
 
 	var body := MeshInstance3D.new()
 	if drop_case_mesh != null:
@@ -275,7 +252,7 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 	st_mat.albedo_color = strip_col
 	st_mat.emission_enabled = true
 	st_mat.emission = strip_col
-	st_mat.emission_energy_multiplier = 1.5
+	st_mat.emission_energy_multiplier = 1.25
 	strip.material_override = st_mat
 	dnode.add_child(strip)
 
@@ -287,18 +264,19 @@ func prompt_for(node: Node3D) -> String:
 	var kind: String = str(node.get_meta("world_loot_kind", ""))
 	if kind == "loose":
 		var item: Dictionary = node.get_meta("loot_item", {})
-		var r: int = clampi(int(item.get("rarity", 1)), 1, 6)
+		var r: int = clampi(int(item.get("rarity", 1)), 1, 7)
 		var r_name: String = game.Rules.RARITY_NAMES[r]
 		var spot_title: String = str(node.get_meta("title", "桌面物资"))
 		if game.rules.bag.size() >= game.rules.capacity():
 			return "[F] 背包已满·置换拾取【%s】%s（%s）" % [r_name, str(item.get("title", "物资")), spot_title]
 		return "[F] 直接摸取【%s】%s · %s" % [r_name, str(item.get("title", "物资")), str(item.get("en", ""))]
 	elif kind == "nest":
-		var n_title: String = str(node.get_meta("title", "隐秘鸟窝"))
+		var n_title: String = str(node.get_meta("title", "隐蔽秘藏"))
 		if node.has_meta("unclaimed_item"):
 			var u_it: Dictionary = node.get_meta("unclaimed_item")
-			return "[F] 置换领取【%s】%s" % [game.Rules.RARITY_NAMES[int(u_it.get("rarity", 1))], str(u_it.get("title", ""))]
-		return "[F] 🔍 掏摸%s（随机出奇珍/大红！）" % n_title
+			var ur: int = clampi(int(u_it.get("rarity", 1)), 1, 7)
+			return "[F] 置换领取【%s】%s" % [game.Rules.RARITY_NAMES[ur], str(u_it.get("title", ""))]
+		return "[F] 🔍 隐秘翻找 · %s" % n_title
 	elif kind == "squad_drop":
 		var d_title: String = str(node.get_meta("title", "词兵战术掉落包"))
 		return "[F] 🔍 搜索%s（免拼写鉴定战利品）" % d_title

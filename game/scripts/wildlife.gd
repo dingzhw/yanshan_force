@@ -268,6 +268,7 @@ func _spawn_wildlife():
 		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab"] else (0.94 if kind == "boar" else 0.76)
 		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 20, Color("f2f7d4"))
 		lbl.visibility_range_end = 11.5
+		lbl.visible = false
 
 		var home := _initial_pos(spec)
 		var init_state := "ambush" if kind == "boar" else "idle"
@@ -285,6 +286,8 @@ func _spawn_wildlife():
 			"area": area,
 			"label": lbl,
 			"base_label": "%s · %s" % [spec.en, spec.zh],
+			"tag_left": 0.0,
+			"tag_shown_once": false,
 			"home": home,
 			"perch_h": float(spec.get("perch_h", 0.0)),
 			"stream_z": float(spec.get("stream_z", 0.0)),
@@ -424,12 +427,16 @@ func _spawn_flora_spots():
 		ring.mesh = tm
 		ring.position.y = 0.03
 		ring.material_override = game._material(Color("9df0b8"), true)
+		ring.visibility_range_end = 5.5
 		root.add_child(ring)
 		root.set_meta("ring_node", ring)
 
 		var lbl: Label3D = game._label3d(root, "%s · %s [F]" % [spot.en, spot.zh], Vector3(0, 0.88, 0), 18, Color("d4ffdc"))
-		lbl.visibility_range_end = 13.0
+		lbl.visibility_range_end = 10.0
+		lbl.visible = false
 		root.set_meta("label_node", lbl)
+		root.set_meta("tag_left", 0.0)
+		root.set_meta("tag_shown_once", false)
 		flora_nodes.append(root)
 
 func _place_flora_visual(parent: Node3D, kind: String) -> Node3D:
@@ -501,7 +508,9 @@ func reset():
 		a.visual.scale = Vector3.ONE * a.visual_scale
 		a.label.text = a.base_label
 		a.label.modulate = Color("f2f7d4")
-		a.label.visible = (a.state != "ambush")
+		a.label.visible = false
+		a.tag_left = 0.0
+		a.tag_shown_once = false
 		a.area.collision_layer = HIT_LAYER
 		a.area.scale = Vector3.ONE
 		_play_critter_anim(a.anim, ["Swim"] if a.kind in ["fish", "shrimp"] else ["Idle"], 1.0, float(a.idx) * 0.13)
@@ -519,8 +528,18 @@ func reset():
 		var lbl: Label3D = f.get_meta("label_node")
 		lbl.text = "%s · %s [F]" % [f.get_meta("en"), f.get_meta("zh")]
 		lbl.modulate = Color.WHITE
+		lbl.visible = false
+		f.set_meta("tag_left", 0.0)
+		f.set_meta("tag_shown_once", false)
 		var ring: MeshInstance3D = f.get_meta("ring_node")
 		ring.visible = true
+
+func _flash_animal_tag(a: Dictionary, duration: float = 2.2, force_show: bool = false):
+	if not force_show and bool(a.get("tag_shown_once", false)):
+		return
+	a.tag_shown_once = true
+	a.tag_left = maxf(float(a.get("tag_left", 0.0)), duration)
+	a.label.visible = true
 
 func update(delta: float):
 	if frozen_for_capture:
@@ -531,8 +550,25 @@ func update(delta: float):
 	if not is_instance_valid(game.player):
 		return
 	var ppos: Vector3 = game.player.position
+	# Flora one-time brief discovery reveal (v0.8.0 #14: clean scenic landscape!)
+	for f in flora_nodes:
+		var flbl: Label3D = f.get_meta("label_node")
+		var ftl: float = float(f.get_meta("tag_left", 0.0))
+		if ftl > 0.0:
+			ftl = maxf(0.0, ftl - delta)
+			f.set_meta("tag_left", ftl)
+			if ftl <= 0.0:
+				flbl.visible = false
+		elif not bool(f.get_meta("tag_shown_once", false)) and ppos.distance_squared_to(f.position) <= 23.0:
+			f.set_meta("tag_shown_once", true)
+			f.set_meta("tag_left", 2.2)
+			flbl.visible = true
 	for a in animals:
 		a.charge_cd = maxf(0.0, float(a.charge_cd) - delta)
+		if float(a.get("tag_left", 0.0)) > 0.0 and a.state != "charge":
+			a.tag_left = maxf(0.0, float(a.tag_left) - delta)
+			if float(a.tag_left) <= 0.0 and a.state != "downed":
+				a.label.visible = false
 		match a.state:
 			"hidden":
 				a.timer -= delta
@@ -547,7 +583,8 @@ func update(delta: float):
 					a.visual.scale = Vector3.ONE * a.visual_scale
 					a.label.text = a.base_label
 					a.label.modulate = Color("f2f7d4")
-					a.label.visible = (a.state != "ambush")
+					a.label.visible = false
+					a.tag_left = 0.0
 					a.area.collision_layer = HIT_LAYER
 					a.root.visible = true
 					_play_critter_anim(a.anim, ["Idle"], 1.0)
@@ -832,6 +869,7 @@ func _move_charging_boar(a: Dictionary, delta: float, ppos: Vector3, _dist_xz: f
 		a.timer = 3.2
 		a.label.text = a.base_label
 		a.label.modulate = Color("f2f7d4")
+		a.label.visible = false
 
 func _resolve_boar_gore_impact(a: Dictionary, ppos: Vector3):
 	var push_dir := Vector3(ppos.x - a.pos.x, 0.0, ppos.z - a.pos.z)
@@ -854,9 +892,10 @@ func _resolve_boar_gore_impact(a: Dictionary, ppos: Vector3):
 	a.timer = 3.6
 	a.label.text = a.base_label
 	a.label.modulate = Color("f2f7d4")
+	a.label.visible = false
 
 func _trigger_boar_ambush(a: Dictionary, ppos: Vector3, by_proximity: bool):
-	a.label.visible = true
+	_flash_animal_tag(a, 2.2)
 	a.visual.position.y = 0.0
 	_spawn_vanish_motes(a.pos + Vector3(0.0, 0.32, 0.0))
 	if by_proximity and not discovered_species.has("boar"):
@@ -887,11 +926,13 @@ func _start_flee(a: Dictionary, away_from: Vector3, by_proximity: bool = false):
 	if flee_sfx_cooldown <= 0.0:
 		flee_sfx_cooldown = 1.35
 		game.play_sfx("bird_flap" if a.kind == "bird" else ("boar_charge" if a.kind == "boar" else "animal_flee"), -12)
-	if by_proximity and not discovered_species.has(a.kind) and a.pos.distance_to(game.player.position) < 12.0:
-		discovered_species[a.kind] = true
-		game.speak_english(a.tts)
-		var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else "靠近惊动会敏捷逃逸！"
-		game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
+	if by_proximity and a.pos.distance_to(game.player.position) < 9.5:
+		_flash_animal_tag(a, 2.2)
+		if not discovered_species.has(a.kind):
+			discovered_species[a.kind] = true
+			game.speak_english(a.tts)
+			var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else "靠近惊动会敏捷逃逸！"
+			game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
 	if a.kind == "squirrel" and start_squirrel_tree_climb(a):
 		return
 	a.state = "fly" if a.kind == "bird" else "flee"
@@ -1214,6 +1255,9 @@ func interact_flora(node: Node3D) -> bool:
 	var lbl: Label3D = node.get_meta("label_node")
 	lbl.text = "✓ %s · %s" % [en, zh]
 	lbl.modulate = Color("89f0ad")
+	lbl.visible = true
+	node.set_meta("tag_left", 2.4)
+	node.set_meta("tag_shown_once", true)
 	var ring: MeshInstance3D = node.get_meta("ring_node")
 	ring.visible = false
 	game._notice("🌿 辨识奇植【%s · %s】(+5分 +%d生命 +6护盾) · %s" % [en, zh, heal_amt, sentence], Color("8ff5b5"))

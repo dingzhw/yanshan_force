@@ -1030,8 +1030,8 @@ func _on_boss_defeated(_boss):
 	game.rules.boss_defeated = true
 	game.rules.score += game.Rules.BOSS_DEFEAT_SCORE
 	game.player.add_reserve_ammo(game.rules.magazine())
-	var core_val := roundi(380.0 * (game.Rules.CONFIDENTIAL_VALUE_MULT if game.rules.is_confidential() else 1.0))
-	var core_item := {"title": "烟山统领黄金核心", "value": core_val, "rarity": 5}
+	var core_val := roundi(460.0 * (game.Rules.CONFIDENTIAL_VALUE_MULT if game.rules.is_confidential() else 1.0))
+	var core_item := {"title": "烟山统领黄金核心", "value": core_val, "rarity": 6}
 	if not game.rules.add_loot(core_item.title, core_item.value, core_item.rarity):
 		game.rules.swap_lowest_loot(core_item)
 	var bp_unlocked := ""

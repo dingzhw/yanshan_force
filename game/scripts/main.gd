@@ -13,7 +13,7 @@ const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
-const VERSION = "0.7.2"
+const VERSION = "0.8.0"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -117,7 +117,11 @@ var tutorial_moved = false
 var render_age = 0.0
 var abandon_button: Button
 var practice_button: Button
+var warehouse_button: Button
 var compendium_button: Button
+var camp_display_stand: Node3D
+var camp_display_slots: Array = []
+var camp_display_clock: float = 0.0
 var combat: Node3D
 var combat_panel: Panel
 var combat_label: Label
@@ -179,6 +183,8 @@ func _ready():
 	loot_ui = LootUI.new()
 	add_child(loot_ui)
 	loot_ui.setup(self)
+	_build_camp_display_stand()
+	refresh_camp_display_stand()
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	startup_ms["loot_and_menu"] = Time.get_ticks_msec() - step_begin
@@ -365,21 +371,25 @@ func _load_profile():
 		for key in rules.profile:
 			if data.has(key) and typeof(data[key]) == typeof(rules.profile[key]):
 				rules.profile[key] = data[key]
-		for key in ["coins", "xp", "points", "runs", "extractions", "red_extracted", "gold_extracted", "best_haul", "best_item_value"]:
+		rules.profile["schema_version"] = int(data.get("schema_version", 1))
+		for key in ["coins", "xp", "points", "runs", "extractions", "red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value"]:
 			rules.profile[key] = maxi(0, int(data.get(key, 0)))
 		var normalized_wh = []
 		for item in rules.profile.warehouse:
 			if item is Dictionary:
-				normalized_wh.append(rules._enrich_loot_dict({
+				var raw_d := {
 					"title": str(item.get("title", "物资")),
 					"en": str(item.get("en", "")),
 					"value": maxi(1, int(item.get("value", 20))),
-					"rarity": clampi(int(item.get("rarity", 1)), 1, 6),
+					"rarity": clampi(int(item.get("rarity", 1)), 1, Rules.MAX_RARITY),
 					"cond": str(item.get("cond", "标准")),
 					"grid": str(item.get("grid", "")),
 					"icon": str(item.get("icon", "")),
 					"lore": str(item.get("lore", ""))
-				}))
+				}
+				if item.has("locked"):
+					raw_d["locked"] = bool(item.get("locked", false))
+				normalized_wh.append(rules._enrich_loot_dict(raw_d))
 		rules.profile.warehouse = normalized_wh
 	rules.migrate_legacy_items()
 	rules.ensure_equipped()
@@ -534,11 +544,8 @@ func _build_tower(at: Vector3) -> Node3D:
 	tw_lbl.visibility_range_end = 44.0
 	return tower
 
-func _crate_accent(tier: int) -> Color:
-	if tier >= 3:
-		return Color("ffd15c")
-	if tier == 2:
-		return Color("cf8aff")
+func _crate_accent(_tier: int) -> Color:
+	# v0.8.0 #11: uniform blind-box accent so containers never spoil rarity before opening!
 	return GOLD
 
 func _make_crate(title: String, tier: int, at: Vector3) -> Node3D:
@@ -549,19 +556,127 @@ func _make_crate(title: String, tier: int, at: Vector3) -> Node3D:
 	add_child(crate)
 	var req = rules.crate_requirements(tier)
 	var lock_desc = "单词+词组双关锁"
-	var header = title
 	if tier == 2:
-		header = "【史诗/大金/大红】" + title
 		lock_desc = "词组+短句双关锁"
 	elif tier >= 3:
-		header = "【大金/旷世大红】" + title
 		lock_desc = "词汇+词组+整句三重破译"
-	var tag = "%s\n%d题 · %d%%正确率 · %s" % [header, req.minimum, roundi(req.accuracy * 100), lock_desc]
+	var tag = "%s\n%d题 · %d%%正确率 · %s" % [title, req.minimum, roundi(req.accuracy * 100), lock_desc]
 	var lbl = _label3d(crate, tag, Vector3(0, 1.75, 0), 30, _crate_accent(tier))
 	lbl.pixel_size = 0.0056
 	lbl.visibility_range_end = 28.0
 	crate_nodes.append(crate)
 	return crate
+
+func _build_camp_display_stand():
+	## v0.8.0 Camp Courtyard 4-Slot 3D Showcase Display Stand ('烟山奇珍展台')
+	## Positioned on sunny east-center camp lawn facing the player courtyard; renders up to 4 pinned 3D collectibles!
+	camp_display_stand = Node3D.new()
+	camp_display_stand.name = "CampDisplayStand"
+	camp_display_stand.position = Layout.on_ground(Vector3(-6.8, 0.0, 0.8))
+	camp_display_stand.rotation.y = 0.62
+	add_child(camp_display_stand)
+
+	var wood_mat := StandardMaterial3D.new()
+	wood_mat.albedo_color = Color("3a241b")
+	wood_mat.roughness = 0.44
+	wood_mat.metallic = 0.12
+
+	var brass_mat := StandardMaterial3D.new()
+	brass_mat.albedo_color = Color("c9a252")
+	brass_mat.metallic = 0.78
+	brass_mat.roughness = 0.28
+
+	# Grounded rosewood gallery cabinet (collidable so player walks cleanly around it)
+	var base: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.42, 0), Vector3(3.12, 0.84, 0.78), Color("3a241b"), true)
+	base.material_override = wood_mat
+	var trim_top: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.855, 0), Vector3(3.18, 0.04, 0.84), Color("c9a252"), false)
+	trim_top.material_override = brass_mat
+	var backboard: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.18, -0.34), Vector3(3.10, 0.68, 0.08), Color("281914"), false)
+	backboard.material_override = wood_mat
+	var crown: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.54, -0.34), Vector3(3.18, 0.05, 0.14), Color("c9a252"), false)
+	crown.material_override = brass_mat
+
+	var header_lbl: Label3D = _label3d(camp_display_stand, "🏆 烟山奇珍 3D 展台（最多陈列 4 件）", Vector3(0, 1.80, -0.20), 28, Color("ffd46e"))
+	header_lbl.pixel_size = 0.0052
+	header_lbl.visibility_range_end = 18.0
+
+	camp_display_slots.clear()
+	var x_offsets := [-1.08, -0.36, 0.36, 1.08]
+	for i in Rules.MAX_DISPLAY_STAND:
+		var slot_root := Node3D.new()
+		slot_root.position = Vector3(x_offsets[i], 0.88, 0.04)
+		camp_display_stand.add_child(slot_root)
+
+		var ped := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.25
+		cyl.bottom_radius = 0.28
+		cyl.height = 0.06
+		ped.mesh = cyl
+		ped.position.y = 0.03
+		ped.material_override = wood_mat
+		slot_root.add_child(ped)
+
+		var ring := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.23
+		tm.outer_radius = 0.26
+		ring.mesh = tm
+		ring.position.y = 0.062
+		var rmat := StandardMaterial3D.new()
+		rmat.albedo_color = Color("5a7d72")
+		rmat.metallic = 0.65
+		rmat.roughness = 0.28
+		ring.material_override = rmat
+		slot_root.add_child(ring)
+
+		var mount := Node3D.new()
+		mount.name = "RelicMount"
+		mount.position.y = 0.075
+		slot_root.add_child(mount)
+
+		var plaque: Label3D = _label3d(slot_root, "空展位 #%d" % (i + 1), Vector3(0, -0.18, 0.39), 18, Color("9ebdb0"))
+		plaque.pixel_size = 0.0036
+		plaque.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		plaque.visibility_range_end = 11.0
+		camp_display_slots.append({"root": slot_root, "mount": mount, "ring": ring, "plaque": plaque})
+
+func refresh_camp_display_stand():
+	if camp_display_slots.is_empty():
+		return
+	var stand_titles: Array = rules.profile.get("display_stand", [])
+	for i in camp_display_slots.size():
+		var slot: Dictionary = camp_display_slots[i]
+		var mount: Node3D = slot.mount
+		var ring: MeshInstance3D = slot.ring
+		var plaque: Label3D = slot.plaque
+		for ch in mount.get_children():
+			ch.queue_free()
+		if i < stand_titles.size():
+			var title_s: String = str(stand_titles[i])
+			var meta: Dictionary = Rules.catalog_meta(title_s)
+			var r: int = clampi(int(meta.get("rarity", 5)), 1, Rules.MAX_RARITY)
+			var r_col: Color = Rules.RARITY_COLORS[r]
+			var rmat := StandardMaterial3D.new()
+			rmat.albedo_color = r_col
+			rmat.metallic = 0.72
+			rmat.roughness = 0.22
+			rmat.emission_enabled = true
+			rmat.emission = r_col
+			rmat.emission_energy_multiplier = 1.25 if r >= 6 else 0.75
+			ring.material_override = rmat
+			var mesh_3d := LootUI.build_world_loot_mesh(meta if not meta.is_empty() else title_s, r, r_col, 1.38)
+			mount.add_child(mesh_3d)
+			plaque.text = "%s\n%s" % [title_s, str(meta.get("en", ""))]
+			plaque.modulate = r_col
+		else:
+			var dmat := StandardMaterial3D.new()
+			dmat.albedo_color = Color("5a7d72")
+			dmat.metallic = 0.45
+			dmat.roughness = 0.45
+			ring.material_override = dmat
+			plaque.text = "空展位 #%d\n在仓库点★上展台" % (i + 1)
+			plaque.modulate = Color("8aa89c")
 
 func attach_weapon(parent: Node3D):
 	var view = WeaponView.new()
@@ -852,11 +967,18 @@ func _build_ui():
 	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
 	practice_button = _button(menu, "自由靶场", Rect2(446, 404, 132, 50), func(): start_action(false, "normal"))
 
-	_button(menu, "战备与改装", Rect2(122, 462, 154, 38), func():
+	_button(menu, "战备与改装", Rect2(122, 462, 146, 38), func():
 		armory_panel.visible = not armory_panel.visible
 	)
-	compendium_button = _button(menu, "奇珍图鉴", Rect2(284, 462, 294, 38), func():
+	warehouse_button = _button(menu, "我的仓库", Rect2(276, 462, 148, 38), func():
 		if is_instance_valid(loot_ui):
+			armory_panel.hide()
+			loot_ui.open_warehouse()
+	)
+	_style_tactical_button(warehouse_button, Color("3c341a"), Color("f6c34e"), Color("fff2c4"))
+	compendium_button = _button(menu, "奇珍图鉴", Rect2(432, 462, 146, 38), func():
+		if is_instance_valid(loot_ui):
+			armory_panel.hide()
 			loot_ui.open_compendium()
 	)
 	retest_button = _button(menu, "无提示复测", Rect2(122, 510, 456, 38), _open_retest)
@@ -942,16 +1064,21 @@ func _refresh_menu(result = ""):
 	_refresh_progress()
 	var collected = rules.profile.collection.size()
 	var total_collectibles = Rules.total_collectible_count()
-	compendium_button.text = "奇珍图鉴 · %d/%d" % [collected, total_collectibles]
+	compendium_button.text = "图鉴 %d/%d" % [collected, total_collectibles]
+	var wh_count = rules.profile.warehouse.size()
+	if is_instance_valid(warehouse_button):
+		warehouse_button.text = "我的仓库 · %d" % wh_count
+		warehouse_button.disabled = rules.phase in ["active", "extracting"]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "认词、搜物、带着战利品撤离。\n到期错词将在战场上化身金色【宿敌复习兵】优先出现。\n刚开始玩？先到自由靶场练习。"
+		menu_summary.text = "认词、搜盲盒、把大金/大红放进安全箱带回营地！\n可在「我的仓库」单件出售、🔒锁存珍宝或摆上营地 3D 展台。\n刚开始玩？先到自由靶场练习。"
 		menu_status.text = "掌握数按独立答对且正确高于错误，或跨间隔复习通过统计。"
 
-	var wh_count = rules.profile.warehouse.size()
-	var wh_val = _warehouse_total_value()
-	sell_button.text = "一键出售仓库物资（%d 件 · 合计 %d 币）" % [wh_count, wh_val]
-	sell_button.disabled = wh_count == 0 or rules.phase in ["active", "extracting"]
+	var unlocked_cnt: int = rules.unlocked_warehouse_count()
+	var unlocked_val: int = rules.unlocked_warehouse_value()
+	var locked_cnt: int = rules.locked_warehouse_count()
+	sell_button.text = "出售未锁物资（%d件·%d币 | 已锁%d件）" % [unlocked_cnt, unlocked_val, locked_cnt]
+	sell_button.disabled = unlocked_cnt == 0 or rules.phase in ["active", "extracting"]
 
 	var eq_optic: String = rules.active_optic()
 	var eq_muzzle: String = rules.active_muzzle()
@@ -1006,8 +1133,10 @@ func _sell():
 	if value > 0:
 		play_sfx("cipher_unlock", -12)
 	_save()
+	refresh_camp_display_stand()
 	_refresh_menu()
-	menu_status.text = "物资已全部结算出售，获得 %d 枚游戏货币！" % value
+	var kept_locked: int = rules.locked_warehouse_count()
+	menu_status.text = "已出售全部未锁物资，获得 +%d 枚货币！%s" % [value, ("（%d 件🔒锁存珍宝已安全保留）" % kept_locked) if kept_locked > 0 else ""]
 
 func _buy(id: String):
 	var item = Rules.ITEMS.get(id, {})
@@ -1393,7 +1522,9 @@ func _notice(text: String, color = GOLD):
 	feedback_left = 3.4
 
 func _refresh_bag_pills():
-	var sig_parts = [str(rules.capacity())]
+	var sig_parts = [str(rules.capacity()), str(rules.safe_box.size())]
+	for item in rules.safe_box:
+		sig_parts.append("S:%s:%d:%d" % [item.title, int(item.value), int(item.get("rarity", 1))])
 	for item in rules.bag:
 		sig_parts.append("%s:%d:%d" % [item.title, int(item.value), int(item.get("rarity", 1))])
 	var sig = "|".join(sig_parts)
@@ -1402,21 +1533,28 @@ func _refresh_bag_pills():
 	bag_signature = sig
 	for child in bag_slots_box.get_children():
 		child.queue_free()
-	if rules.bag.is_empty():
+	if rules.bag.is_empty() and rules.safe_box.is_empty():
 		var empty_lbl = Label.new()
-		empty_lbl.text = "搜刮木箱/桌面/鸟窝/密码箱（皆可爆大金·旷世大红！）"
+		empty_lbl.text = "搜刮盲盒物资箱/草丛桥角秘藏（按 [B] 存入安全箱！）"
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color("89a89b"))
 		bag_slots_box.add_child(empty_lbl)
 		return
-	for item in rules.bag:
-		var r = clampi(int(item.get("rarity", 1)), 1, 6)
+	var shown_list: Array = []
+	for sit in rules.safe_box:
+		shown_list.append({"item": sit, "safe": true})
+	for bit in rules.bag:
+		shown_list.append({"item": bit, "safe": false})
+	for wrap in shown_list:
+		var item: Dictionary = wrap.item
+		var is_safe: bool = wrap.safe
+		var r = clampi(int(item.get("rarity", 1)), 1, Rules.MAX_RARITY)
 		var col: Color = Rules.RARITY_COLORS[r]
 		var pill = PanelContainer.new()
 		var st = StyleBoxFlat.new()
-		st.bg_color = Color(0.24, 0.04, 0.07, 0.95) if r == 6 else Color(col.r * 0.17, col.g * 0.17, col.b * 0.19, 0.92)
-		st.border_color = col
-		st.set_border_width_all(2 if r >= 5 else 1)
+		st.bg_color = Color(0.24, 0.04, 0.07, 0.95) if r == 7 else Color(col.r * 0.17, col.g * 0.17, col.b * 0.19, 0.92)
+		st.border_color = Color("ffd46e") if is_safe else col
+		st.set_border_width_all(2 if (r >= 5 or is_safe) else 1)
 		st.set_corner_radius_all(4)
 		st.content_margin_left = 6
 		st.content_margin_right = 6
@@ -1425,7 +1563,7 @@ func _refresh_bag_pills():
 		pill.add_theme_stylebox_override("panel", st)
 		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var lbl = Label.new()
-		var prefix = "🔥" if r == 6 else ("✦" if r == 5 else "")
+		var prefix = ("🔒" if is_safe else "") + ("🔥" if r == 7 else ("✦" if r == 6 else ("◆" if r == 5 else "")))
 		lbl.text = prefix + str(item.title)
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.add_theme_color_override("font_color", col)
@@ -1435,6 +1573,12 @@ func _refresh_bag_pills():
 
 func _process(delta):
 	render_age += delta
+	camp_display_clock += delta
+	if not camp_display_slots.is_empty():
+		for slot in camp_display_slots:
+			var mount: Node3D = slot.mount
+			if is_instance_valid(mount) and mount.get_child_count() > 0:
+				mount.rotation.y = camp_display_clock * 0.85
 	if not is_instance_valid(player) or not is_instance_valid(stat_label):
 		return
 	if paused:
@@ -1500,7 +1644,7 @@ func _process(delta):
 	_update_guide()
 	_update_combat_hud()
 
-	bag_label.text = "背包 %d/%d 格 · 估值 %d 币   [B]整理 [I]检视" % [rules.bag.size(), rules.capacity(), rules.bag_value()]
+	bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), Rules.SAFE_BOX_SLOTS, rules.total_carried_value()]
 	_refresh_bag_pills()
 
 	var mods := []
@@ -1647,13 +1791,11 @@ func _update_interaction():
 			else:
 				interaction_label.text = title + " · " + _crate_progress(tier)
 		else:
-			var sup_title = str(closest_interaction.get_meta("title", "常规物资箱"))
+			var sup_title = str(closest_interaction.get_meta("title", "野外物资箱"))
 			if closest_interaction.has_meta("unclaimed_loot"):
 				interaction_label.text = "[F] 领取待替换物资 · " + sup_title
-			elif closest_interaction.has_meta("overcharged"):
-				interaction_label.text = "[F] ⚡单词破译高能异动箱（高爆大金/大红！）· " + sup_title
 			else:
-				interaction_label.text = "[F] 单词拼写开箱 · " + sup_title
+				interaction_label.text = "[F] 单词拼写开盲盒 · " + sup_title
 	else:
 		interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
 			roundi(player.position.distance_to(exit_position)),
@@ -1717,7 +1859,8 @@ func _end_run(success: bool, title = ""):
 	if rules.phase not in ["active", "extracting"]:
 		return
 	var pre_wh = rules.profile.warehouse.size()
-	var carried_value = rules.bag_value()
+	var carried_value = rules.total_carried_value()
+	var safe_val_before = rules.safe_box_value()
 	var defeated_boss: bool = rules.boss_defeated
 	if success:
 		if not rules.finish_extraction():
@@ -1737,6 +1880,8 @@ func _end_run(success: bool, title = ""):
 	}
 	var saved := _save()
 	var banked_count = rules.profile.warehouse.size() - pre_wh
+	var safe_saved_count: int = rules.last_saved_safe_box_count
+	refresh_camp_display_stand()
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
 		cipher_terminal.reset()
@@ -1751,7 +1896,13 @@ func _end_run(success: bool, title = ""):
 	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
 	var mode_badge: String = "【%s%s】" % [rules.mode_label(), "·估值×1.35" if rules.is_confidential() else ""]
-	var header = ("%s 带回 %d 件物资（估值 %d 币）！\n" % [mode_badge, banked_count, carried_value]) if success else ("%s 未撤离物资遗留在烟山，学习记录已保存。\n" % mode_badge)
+	var header := ""
+	if success:
+		header = "%s 带回 %d 件物资（总估值 %d 币）！可在「我的仓库」单件出售或锁存展陈。\n" % [mode_badge, banked_count, carried_value]
+	elif safe_saved_count > 0:
+		header = "%s 随身背包遗留烟山，但 🔒 安全箱成功保住 %d 件重宝（%d 币）入库！\n" % [mode_badge, safe_saved_count, safe_val_before]
+	else:
+		header = "%s 未撤离物资遗留在烟山，学习记录已保存（下次可放进 🔒 安全箱）。\n" % mode_badge
 	menu_summary.text = header + "识词 %d/%d（%d%%）· 最高 %d 连击 · 宿敌攻克 %d 词\n" % [
 		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak, rules.nemesis_cleared
 	]

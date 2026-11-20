@@ -5,11 +5,11 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.7.2-teal.svg)
+![Version](https://img.shields.io/badge/Version-v0.8.0-teal.svg)
 
-## v0.7.2 试玩
+## v0.8.0 试玩
 
-双击项目根目录的「开始烟山试玩.cmd」或验收包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版在 `v0.7.1` 全平台离线美式自然女声语音包与 `v0.7.0` 学战深度闭环基础上，全面翻新全部 32 件藏品的 Blender 4.5 独立 PBR 3D 模型与同源影棚 2D 图标，并将 `[I]` 3D 检视台升级为支持鼠标 360° 拖拽旋转与滚轮缩放的博物展台。[试玩说明](docs/v0.7.2-试玩说明.txt) · [阶段计划](docs/v0.7.2-阶段计划.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
+双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版在 `v0.7.2` 博物建模翻新与全平台离线美式自然女声基础上，重塑 7 级摸金经济（增设第 5 级「珍品·小金」并扩充至 **64 件独立 PBR 3D 藏品 / 64 张影棚图标 / 279 条离线语音**），新增营地「我的仓库」（单件出售、🔒锁存大金/大红、一键售杂物、**4 槽营地 3D 奇珍展台**）与局内 **2 格加密安全箱**（阵亡不掉落），校准普通/机密阶梯爆率、取消露天刷大红与箱体品质剧透、新增 14 处草丛/花丛/桥角隐蔽秘藏，并关闭生灵与花草头顶常驻文字还山水一片清爽。[试玩说明](docs/v0.8.0-试玩说明.txt) · [阶段计划](docs/v0.8.0-阶段计划.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
 
 ---
 
@@ -23,11 +23,19 @@
 
 ---
 
-## 实机画面 · Screenshots (`v0.7.2`)
+## 实机画面 · Screenshots (`v0.8.0`)
 
-| 32 件藏品 Blender 4.5 PBR 同源影棚图标总览（`v0.7.2`） | 营地「烟山奇珍图鉴」与未解锁神秘剪影（`v0.7.2`） |
+| 营地「烟山战利品收藏库」：单件出售、🔒锁存与 3D 展台（`v0.8.0`） | 局内 `[B]` 随身背包 + 顶部 2 格「🔒加密安全箱」（`v0.8.0`） |
 | :---: | :---: |
-| ![32件藏品影棚图标总览](docs/media/v072-collectibles-32.png) | ![烟山奇珍图鉴v072](docs/media/v072-compendium.png) |
+| ![战利品收藏库v080](docs/media/v080-warehouse-vault.png) | ![背包与安全箱v080](docs/media/v080-backpack-safebox.png) |
+
+| 营地阳光草坪「4 槽 3D 奇珍展台」实景陈列（`v0.8.0`） | 新增 32 件藏品影棚实拍总览（全库扩至 64 件 · `v0.8.0`） |
+| :---: | :---: |
+| ![营地3D展台v080](docs/media/v080-camp-display-stand.png) | ![新增32件藏品影棚总览](docs/media/v080-collectibles-new32.png) |
+
+| 清爽无遮挡溪谷山水（关闭生灵/花草头顶常驻字 · `v0.8.0`） | 32 件首批藏品 Blender 4.5 PBR 同源影棚图标（`v0.7.2`） |
+| :---: | :---: |
+| ![清爽山水v080](docs/media/v080-scenic-clean.png) | ![32件藏品影棚图标总览](docs/media/v072-collectibles-32.png) |
 
 | 360° 交互检视：【旷世·大红】诚庄先民双龙玉璧（`v0.7.2`） | 360° 交互检视：【旷世·大红】越窑秘色青瓷盏（`v0.7.2`） |
 | :---: | :---: |

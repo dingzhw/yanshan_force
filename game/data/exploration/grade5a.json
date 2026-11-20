@@ -268,8 +268,8 @@
       "explanation": "over there = 在那边！卫星信标已锁定坐标，立即投放空投备弹与高价值战利品！",
       "source": "江苏五上英语 Unit 3 · Look at ... over there!",
       "reward_title": "量子词典原型机",
-      "reward_value": 320,
-      "reward_rarity": 5
+      "reward_value": 395,
+      "reward_rarity": 6
     },
     {
       "title": "北脊紧急空投信标 · 卫星口令",
@@ -284,8 +284,8 @@
       "explanation": "Never give up = 永不放弃；put ... in order = 把……整理好！空投舱已弹射解锁，备弹与大金奖励就位！",
       "source": "江苏五上英语 Unit 1-2 · Never give up / put in order",
       "reward_title": "特级金质勋章",
-      "reward_value": 290,
-      "reward_rarity": 5
+      "reward_value": 365,
+      "reward_rarity": 6
     }
   ],
   "heritage_pools": {
@@ -338,8 +338,8 @@
       "source": "烟山秘史卷三 · 洞中寒潭茶灶与先民竹简 / 英语祈使句与自然词汇",
       "reward_score": 35,
       "reward_title": "烟山先民竹简",
-      "reward_value": 340,
-      "reward_rarity": 5
+      "reward_value": 420,
+      "reward_rarity": 6
     }
   }
 }

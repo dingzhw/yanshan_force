@@ -53,7 +53,7 @@ func run():
 	game.cipher_terminal.swap_button.pressed.emit()
 	verify(game.rules.bag.size() == 8 and not pickup2.visible, "swapping lowest item claims supply loot and removes supply box")
 	game.cipher_terminal.close()
-	game.rules.bag[0] = {"title": "量子词典原型机", "value": 320, "rarity": 5}
+	game.rules.bag[0] = {"title": "量子词典原型机", "value": 395, "rarity": 6}
 
 	# 16 wrong + 15 right => accuracy 48% (< 70%), score = 2*15 + 13*20 = 290 >= 260
 	for i in 31:
@@ -124,21 +124,21 @@ func run():
 	verify(wv.att_nodes["att_scope_2x"].visible and wv.att_nodes["att_suppressor"].visible and wv.att_nodes["att_angled_grip"].visible and not wv.att_nodes["att_compensator"].visible, "equipped Gunsmith 2.0 attachments render visibly on YS-04 carbine")
 	game._end_run(false)
 
-	# v0.6.3 6-Tier Rarity ('旷世·大红'), Appraisal Condition Variance, Discard & Tier-6 Persistence Checks
-	verify(game.Rules.RARITY_NAMES.has(6) and game.Rules.LOOT_TABLE[6].size() >= 5 and game.Rules.total_collectible_count() == 17, "v0.6.3 defines Tier-6 Crimson Mythic Red ('旷世·大红') with 5 peak curios and 17 collectibles")
+	# v0.8.0 7-Tier Rarity ('珍品·小金' T5, '传说·大金' T6, '旷世·大红' T7), 64 Collectibles, Calibration, Safe Box, Lock & Camp 3D Display Stand
+	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 5 and game.Rules.LOOT_TABLE[5].size() == 6 and game.Rules.total_collectible_count() == 27 and game.Rules.total_catalog_count() == 64, "v0.8.0 defines 7-tier rarity with Small Gold (6), Big Gold (6), Mythic Red (5), 27 high collectibles and 64 total museum items")
 	game.start_action(false)
 	var seen_values := {}
 	var mythic_sample: Dictionary = {}
 	for sample_i in 30:
-		var rolled_red: Dictionary = game.rules.roll_item_by_rarity(6)
+		var rolled_red: Dictionary = game.rules.roll_item_by_rarity(7)
 		if rolled_red.get("title", "") == "烟山之心·赤金龙印":
 			mythic_sample = rolled_red
 		seen_values[int(rolled_red.get("value", 0))] = true
 	if mythic_sample.is_empty():
-		mythic_sample = game.rules.roll_item_by_rarity(6)
-	verify(int(mythic_sample.get("rarity", 0)) == 6 and str(mythic_sample.get("en", "")) != "" and seen_values.size() >= 6, "Tier-6 items roll dynamic condition/appraisal valuations and bilingual metadata")
+		mythic_sample = game.rules.roll_item_by_rarity(7)
+	verify(int(mythic_sample.get("rarity", 0)) == 7 and str(mythic_sample.get("en", "")) != "" and seen_values.size() >= 6, "Tier-7 Mythic Red items roll dynamic condition/appraisal valuations and bilingual metadata")
 
-	verify(game.rules.add_loot_item(mythic_sample) and game.rules.add_loot("杂物测试", 18, 1), "add_loot_item inserts enriched Tier-6 item into raid bag")
+	verify(game.rules.add_loot_item(mythic_sample) and game.rules.add_loot("杂物测试", 18, 1), "add_loot_item inserts enriched Tier-7 item into raid bag")
 	var dropped: Dictionary = game.rules.discard_bag_item(1)
 	verify(str(dropped.get("title", "")) == "杂物测试" and game.rules.bag.size() == 1, "discard_bag_item removes selected bag slot cleanly")
 
@@ -150,21 +150,98 @@ func run():
 	game.interact()
 	game.extraction_left = 0.01
 	game._process(0.02)
-	verify(int(game.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1 and (mythic_sample.title in game.rules.profile.collection) and int(game.rules.profile.get("best_item_value", 0)) >= int(mythic_sample.value), "extracting a Tier-6 Crimson Red treasure increments red_extracted, unlocks Compendium, and updates best_item_value")
+	verify(int(game.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1 and (mythic_sample.title in game.rules.profile.collection) and int(game.rules.profile.get("best_item_value", 0)) >= int(mythic_sample.value), "extracting a Tier-7 Crimson Red treasure increments red_extracted, unlocks Compendium, and updates best_item_value")
 
-	game.profile_path_override = "user://qa-v063-red-economy.json"
+	# Auto-lock on Big Gold / Mythic Red + single-item sell + sell_unlocked_junk + Camp 3D Display Stand
+	var red_wh_idx := -1
+	for wi in game.rules.profile.warehouse.size():
+		if int(game.rules.profile.warehouse[wi].get("rarity", 0)) == 7:
+			red_wh_idx = wi
+			break
+	verify(red_wh_idx >= 0 and bool(game.rules.profile.warehouse[red_wh_idx].get("locked", false)), "extracted Tier-7 Mythic Red is auto-locked in warehouse against accidental sale")
+	verify(game.rules.sell_warehouse_item(red_wh_idx) == 0, "locked warehouse treasure refuses single-item sale")
+	game.rules.profile.warehouse.append(game.rules._enrich_loot_dict({"title": "粗陶米碗", "value": 22, "rarity": 1, "locked": false}))
+	game.rules.profile.warehouse.append(game.rules._enrich_loot_dict({"title": "端溪雕云古砚", "value": 192, "rarity": 4, "locked": false}))
+	var coins_before_junk := int(game.rules.profile.coins)
+	var junk_res: Dictionary = game.rules.sell_unlocked_junk(3)
+	verify(int(junk_res.count) >= 1 and int(game.rules.profile.coins) == coins_before_junk + int(junk_res.coins), "sell_unlocked_junk sells only unlocked T1-T3 items and credits coins")
+	var still_has_epic := false
+	for wh_it in game.rules.profile.warehouse:
+		if str(wh_it.get("title", "")) == "端溪雕云古砚":
+			still_has_epic = true
+	verify(still_has_epic, "sell_unlocked_junk preserves unlocked Epic/Gold/Red treasures")
+	var epic_idx := -1
+	for wi2 in game.rules.profile.warehouse.size():
+		if str(game.rules.profile.warehouse[wi2].get("title", "")) == "端溪雕云古砚":
+			epic_idx = wi2
+			break
+	var single_earned: int = game.rules.sell_warehouse_item(epic_idx)
+	verify(single_earned == 192, "sell_warehouse_item sells a single unlocked treasure for its exact valuation")
+	var pin_res: Dictionary = game.rules.toggle_display_stand(str(mythic_sample.title))
+	game.refresh_camp_display_stand()
+	var stand_meshes := 0
+	for slot in game.camp_display_slots:
+		if slot.mount.get_child_count() > 0:
+			stand_meshes += 1
+	verify(bool(pin_res.ok) and bool(pin_res.pinned) and stand_meshes == 1, "toggle_display_stand pins treasure and renders 3D collectible on Camp Display Stand")
+
+	game.profile_path_override = "user://qa-v080-red-economy.json"
 	game._save()
-	var restored_v063 = load("res://scripts/main.gd").new()
-	restored_v063.profile_path_override = game.profile_path_override
-	restored_v063._load_profile()
-	var kept_r6 := false
-	for wh_it in restored_v063.rules.profile.warehouse:
-		if int(wh_it.get("rarity", 0)) == 6 and str(wh_it.get("en", "")) != "":
-			kept_r6 = true
-	verify(kept_r6 and int(restored_v063.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1, "save/load preserves Tier-6 rarity==6 without clamping to 5 and restores red_extracted")
-	restored_v063.free()
+	var restored_v080 = load("res://scripts/main.gd").new()
+	restored_v080.profile_path_override = game.profile_path_override
+	restored_v080._load_profile()
+	var kept_r7 := false
+	for wh_it in restored_v080.rules.profile.warehouse:
+		if int(wh_it.get("rarity", 0)) == 7 and bool(wh_it.get("locked", false)) and str(wh_it.get("en", "")) != "":
+			kept_r7 = true
+	verify(kept_r7 and int(restored_v080.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1 and (str(mythic_sample.title) in restored_v080.rules.profile.display_stand), "save/load preserves Tier-7 rarity==7, lock flag, red_extracted and Camp Display Stand")
+	restored_v080.free()
 
-	# v0.7.2 32 Unique Sculpted PBR Collectibles & Studio Icons Verification
+	# Legacy schema_version=1 save auto-migration (old T5->T6, old T6->T7)
+	var mig_rules = game.Rules.new()
+	mig_rules.profile["schema_version"] = 1
+	mig_rules.profile["warehouse"] = [
+		{"title": "量子词典原型机", "value": 320, "rarity": 5},
+		{"title": "越窑秘色青瓷盏", "value": 640, "rarity": 6}
+	]
+	mig_rules.migrate_legacy_items()
+	verify(int(mig_rules.profile.warehouse[0].rarity) == 6 and int(mig_rules.profile.warehouse[1].rarity) == 7 and bool(mig_rules.profile.warehouse[1].locked), "v0.8.0 migrates legacy schema v1 warehouse items from T5/T6 cleanly to T6/T7 with auto-lock")
+
+	# 2-Slot Encrypted Safe Box survives failed run while regular bag clears
+	game.start_action(true, "confidential")
+	var sb_wh_before: int = game.rules.profile.warehouse.size()
+	game.rules.add_loot_item(game.rules.roll_item_by_rarity(7))
+	game.rules.add_loot_item(game.rules.roll_item_by_rarity(5))
+	game.rules.add_loot_item(game.rules.roll_item_by_rarity(1))
+	verify(game.rules.move_bag_to_safe_box(0) and game.rules.move_bag_to_safe_box(0) and not game.rules.move_bag_to_safe_box(0), "Encrypted Safe Box accepts up to 2 items and rejects a 3rd")
+	game._end_run(false, "QA SafeBox Failure Check")
+	verify(game.rules.bag.is_empty() and game.rules.safe_box.is_empty() and game.rules.profile.warehouse.size() == sb_wh_before + 2 and game.rules.last_saved_safe_box_count == 2, "failed run clears regular bag while permanently banking both Encrypted Safe Box items")
+
+	# Monte Carlo 2000-roll drop calibration check (#6 Normal vs Confidential, #9 7-tier ascending curve, #10 zero open-road Big Gold/Red)
+	var mc_rules = game.Rules.new()
+	mc_rules.loot_rng.seed = 20261120
+	var c_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
+	var n_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
+	for _mc in 2000:
+		c_counts[mc_rules.roll_calibrated_rarity(true, "standard", true)] += 1
+		n_counts[mc_rules.roll_calibrated_rarity(false, "standard", true)] += 1
+	var c_red_pct: float = float(c_counts[7]) / 2000.0
+	var c_bg_pct: float = float(c_counts[6]) / 2000.0
+	var c_sg_pct: float = float(c_counts[5]) / 2000.0
+	var n_red_pct: float = float(n_counts[7]) / 2000.0
+	var n_bg_pct: float = float(n_counts[6]) / 2000.0
+	verify(c_red_pct >= 0.010 and c_red_pct <= 0.034 and c_bg_pct >= 0.032 and c_bg_pct <= 0.072 and c_sg_pct >= 0.058 and c_sg_pct <= 0.108, "Confidential standard Monte Carlo matches ~2%% Red / ~5%% Big Gold / ~8%% Small Gold (got %.1f%%/%.1f%%/%.1f%%)" % [c_red_pct * 100.0, c_bg_pct * 100.0, c_sg_pct * 100.0])
+	verify(c_counts[7] < c_counts[6] and c_counts[6] < c_counts[5] and c_counts[5] < c_counts[4] and c_counts[4] < c_counts[3] and c_counts[3] < c_counts[2], "Confidential rarity counts strictly ascend from Red -> Big Gold -> Small Gold -> Purple -> Blue -> Green")
+	verify(n_red_pct < 0.005 and n_bg_pct < c_bg_pct * 0.45, "Normal mode Big Gold & Red odds are clearly lower than Confidential (Normal %.2f%%/%.2f%%)" % [n_red_pct * 100.0, n_bg_pct * 100.0])
+	var open_high_violations := 0
+	for _ol in 300:
+		if mc_rules.roll_calibrated_rarity(true, "loose_open", true) >= 5:
+			open_high_violations += 1
+		if mc_rules.roll_calibrated_rarity(false, "loose_open", true) >= 4:
+			open_high_violations += 1
+	verify(open_high_violations == 0, "open-road loose spawns roll ZERO Gold/Red across 600 Normal+Confidential samples")
+
+	# v0.8.0 64 Unique Sculpted PBR Collectibles & Studio Icons Verification
 	var seen_art_ids := {}
 	var missing_meshes := 0
 	var missing_icons := 0
@@ -176,7 +253,7 @@ func run():
 				missing_meshes += 1
 			if game.LootUI.load_collectible_icon(entry) == null:
 				missing_icons += 1
-	verify(seen_art_ids.size() == 32 and missing_meshes == 0 and missing_icons == 0, "v0.7.2 maps all 32 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
+	verify(seen_art_ids.size() == 64 and missing_meshes == 0 and missing_icons == 0, "v0.8.0 maps all 64 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
 	var alias_ok: bool = (
 		game.LootUI.resolve_art_id({"title": "光学测距模块", "icon": "lens"}) == "rangefinder"
 		and game.LootUI.resolve_art_id({"title": "军规夜视镜片", "icon": "lens"}) == "nvg_lens"
@@ -185,8 +262,8 @@ func run():
 		and game.LootUI.resolve_art_id({"title": "古樟祈福银锁", "icon": "badge"}) == "silver_lock"
 		and game.LootUI.resolve_art_id({"title": "望稻亭鎏金香炉", "icon": "kettle"}) == "censer"
 	)
-	verify(alias_ok, "v0.7.2 resolves legacy saved item titles cleanly to their distinct v0.7.2 art IDs")
-	game.loot_ui.open_inspect_item(game.Rules.LOOT_TABLE[6][2])
+	verify(alias_ok, "v0.8.0 resolves legacy saved item titles cleanly to their distinct sculpted art IDs")
+	game.loot_ui.open_inspect_item(game.Rules.LOOT_TABLE[7][2])
 	var insp_has_glb: bool = false
 	for ch in game.loot_ui.inspect_turntable.find_children("*", "MeshInstance3D", true, false):
 		if ch.mesh == game.LootUI.get_collectible_mesh("jade_bi"):

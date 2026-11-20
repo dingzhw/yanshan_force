@@ -349,12 +349,12 @@ static func build_tiered_vault_crate(game, crate: Node3D, tier: int):
 		shape.size = Vector3(1.20, 0.82, 0.82)
 		game.Props.shape_body(crate, shape, Vector3(0, 0.41, 0))
 	elif tier == 2:
-		# Tier 2: Heavy Pelican-style armored gunmetal & violet holographic vault case
+		# Tier 2: Heavy Pelican-style armored gunmetal tactical vault case (v0.8.0 #11 blind-box: neutral teal lock LED)
 		var case_mat := StandardMaterial3D.new()
-		case_mat.albedo_texture = steel_case_texture("epic")
+		case_mat.albedo_texture = steel_case_texture("std")
 		case_mat.metallic = 0.62
 		case_mat.roughness = 0.38
-		var trim_mat := brushed_metal_material("3d3852", 0.72, 0.32)
+		var trim_mat := brushed_metal_material("384644", 0.72, 0.34)
 
 		var base_skid = game._mesh_box(crate, Vector3(0, -0.04, 0), Vector3(1.36, 0.32, 0.88), Color.WHITE)
 		base_skid.material_override = s_mat
@@ -366,20 +366,20 @@ static func build_tiered_vault_crate(game, crate: Node3D, tier: int):
 		for lx in [-0.42, 0.0, 0.42]:
 			var latch = game._mesh_box(crate, Vector3(lx, 0.68, 0.42), Vector3(0.10, 0.18, 0.05), Color.WHITE)
 			latch.material_override = brushed_metal_material("9ba4b0", 0.82, 0.28)
-		var seal = game._mesh_box(crate, Vector3(0, 0.74, 0.43), Vector3(1.16, 0.045, 0.03), Color("cf8aff"))
+		var seal = game._mesh_box(crate, Vector3(0, 0.74, 0.43), Vector3(1.16, 0.045, 0.03), Color("74e3a3"))
 		seal.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var holo = game._mesh_box(crate, Vector3(0, 0.90, 0.16), Vector3(0.46, 0.06, 0.24), Color("cf8aff"))
+		var holo = game._mesh_box(crate, Vector3(0, 0.90, 0.16), Vector3(0.46, 0.06, 0.24), Color("74e3a3"))
 		holo.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		var shape2 := BoxShape3D.new()
 		shape2.size = Vector3(1.36, 0.92, 0.88)
 		game.Props.shape_body(crate, shape2, Vector3(0, 0.46, 0))
 	else:
-		# Tier 3: Legendary Gold-Trimmed Heavy Airdrop Vault Pod (with beacon light & shock skids)
+		# Tier 3: Heavy Reinforced Airdrop Vault Pod (v0.8.0 #11 blind-box: weathered olive-steel & teal lock LED, no rarity spoiler!)
 		var pod_mat := StandardMaterial3D.new()
 		pod_mat.albedo_texture = steel_case_texture("std")
-		pod_mat.metallic = 0.68
-		pod_mat.roughness = 0.34
-		var gold_armor := brushed_metal_material("c89b3c", 0.82, 0.26)
+		pod_mat.metallic = 0.66
+		pod_mat.roughness = 0.36
+		var steel_armor := brushed_metal_material("4d5a54", 0.78, 0.32)
 
 		var under_plinth = game._mesh_box(crate, Vector3(0, -0.08, 0), Vector3(1.44, 0.28, 0.92), Color.WHITE)
 		under_plinth.material_override = s_mat
@@ -391,21 +391,15 @@ static func build_tiered_vault_crate(game, crate: Node3D, tier: int):
 		for cx in [-0.68, 0.68]:
 			for cz in [-0.46, 0.46]:
 				var bumper = game._mesh_box(crate, Vector3(cx, 0.56, cz), Vector3(0.14, 0.88, 0.14), Color.WHITE)
-				bumper.material_override = gold_armor
+				bumper.material_override = steel_armor
 		var top_cap = game._mesh_box(crate, Vector3(0, 1.00, 0), Vector3(1.46, 0.14, 1.02), Color.WHITE)
-		top_cap.material_override = gold_armor
+		top_cap.material_override = steel_armor
 		crate.set_meta("lid_node", top_cap)
 		for z_face in [-0.49, 0.49]:
-			var band = game._mesh_box(crate, Vector3(0, 0.78, z_face), Vector3(1.24, 0.06, 0.03), Color("ffd15c"))
+			var band = game._mesh_box(crate, Vector3(0, 0.78, z_face), Vector3(1.24, 0.055, 0.03), Color("74e3a3"))
 			band.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var beacon = game._mesh_box(crate, Vector3(0, 1.14, 0), Vector3(0.28, 0.14, 0.28), Color("ffd86b"))
+		var beacon = game._mesh_box(crate, Vector3(0, 1.14, 0), Vector3(0.28, 0.14, 0.28), Color("88e8b8"))
 		beacon.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var pod_light := OmniLight3D.new()
-		pod_light.position = Vector3(0, 1.32, 0)
-		pod_light.light_color = Color("ffd369")
-		pod_light.light_energy = 0.95
-		pod_light.omni_range = 4.6
-		crate.add_child(pod_light)
 		var shape3 := BoxShape3D.new()
 		shape3.size = Vector3(1.50, 1.14, 1.04)
 		game.Props.shape_body(crate, shape3, Vector3(0, 0.57, 0))

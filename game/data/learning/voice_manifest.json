@@ -5,8 +5,8 @@
   "rate": "-5%",
   "audio_format": "ogg_vorbis_mono_24khz",
   "usage_notice": "仅供个人与家庭离线英语学习使用；若对外公开分发，请通过 tools/build_voice_pack.py 替换为已获公开分发许可的开源离线语音或自录音频。",
-  "count": 247,
-  "total_bytes": 3236896,
+  "count": 279,
+  "total_bytes": 3657539,
   "entries": {
     "a golden airdrop is inside the stone cave beside the tall hill west of the pass.": {
       "file": "v_bcb9503ed043.ogg",
@@ -86,6 +86,12 @@
       "bytes": 13828,
       "sha256": "862956cd8e4298fd5a3b2535f0ab2d7e392f099680d7c4325d9eceb4b4908b4c"
     },
+    "bamboo ruler": {
+      "file": "v_7451b6f7a669.ogg",
+      "text": "Bamboo Ruler",
+      "bytes": 12080,
+      "sha256": "cba7da58b05641e4644475fd61ef107c88e6a58aed8ea2264a354a2c8061ed99"
+    },
     "bamboo whistle": {
       "file": "v_753a05bfba61.ogg",
       "text": "Bamboo Whistle",
@@ -110,11 +116,29 @@
       "bytes": 11454,
       "sha256": "c845914b5a67cba98e146a57b2c15c0d548b89ef7a1c904296ff13c43c478db7"
     },
+    "blue porcelain cup": {
+      "file": "v_56f97a9c7ff7.ogg",
+      "text": "Blue Porcelain Cup",
+      "bytes": 13015,
+      "sha256": "f674cbeaedf71526e80d8cdb54e6b5cc827733ae51ebd751b62f17f625520525"
+    },
     "bow": {
       "file": "v_fa5bd38090c7.ogg",
       "text": "bow",
       "bytes": 10767,
       "sha256": "1146620fa4aeec58c45dcc2c925242ade95921be33134ee7453d19531ebbafe1"
+    },
+    "brass key ring": {
+      "file": "v_0ad70c4b4377.ogg",
+      "text": "Brass Key Ring",
+      "bytes": 12615,
+      "sha256": "1c2ef98a333501ae6332c599b196a87221adfb5674642718ce11d47d5c460d4f"
+    },
+    "brass pocket watch": {
+      "file": "v_6d3ae672f3fc.ogg",
+      "text": "Brass Pocket Watch",
+      "bytes": 13413,
+      "sha256": "e72c3fa5461e4324e289ca7d8f1eef8f70b2cbb6533fbea7331d382fa6ad53a7"
     },
     "bronze tea kettle": {
       "file": "v_eaa1c79cfe93.ogg",
@@ -128,6 +152,12 @@
       "bytes": 13976,
       "sha256": "4fafa7c0df454d9f7b5ceea3d7f89eb10d03e75eb43065c1804f23ed41182804"
     },
+    "calligraphy brush": {
+      "file": "v_4b8b21d5a136.ogg",
+      "text": "Calligraphy Brush",
+      "bytes": 13274,
+      "sha256": "ea760169e3197ccd68f1e4489eab7642354361ee6f3b4b4e4bbee3f0ab2b0cb9"
+    },
     "card": {
       "file": "v_2ab0591dbcf5.ogg",
       "text": "card",
@@ -140,11 +170,23 @@
       "bytes": 12292,
       "sha256": "d56a8aadfe571a6b0f5eda8136e41c2abf2e097153dd9f32038f3bd4156a2c23"
     },
+    "carved ink box": {
+      "file": "v_0f2981bfd856.ogg",
+      "text": "Carved Ink Box",
+      "bytes": 12989,
+      "sha256": "6547775465a86db2c435e8d10aafec76563fb2f3e45879d342776b75a278f7ae"
+    },
     "cave orchid": {
       "file": "v_b1898aee980b.ogg",
       "text": "cave orchid",
       "bytes": 12175,
       "sha256": "e828f104ec8ebba56f80f6a8c54479e037db9d404993508c42edbf0b19dddb9c"
+    },
+    "celadon water dropper": {
+      "file": "v_a44a44000c6b.ogg",
+      "text": "Celadon Water Dropper",
+      "bytes": 13476,
+      "sha256": "0821840512de3870e8fa317751ba644227da3441d1eb0a92ef6550f5f364d41c"
     },
     "chat": {
       "file": "v_7ecde348ff9c.ogg",
@@ -194,6 +236,12 @@
       "bytes": 12247,
       "sha256": "ea70cd3385bc0c22ceccf8897590d5c2a6b7269e005c213e23ba4293ce6486e1"
     },
+    "clay rice bowl": {
+      "file": "v_85aee485d4b5.ogg",
+      "text": "Clay Rice Bowl",
+      "bytes": 12182,
+      "sha256": "b8b26e8e31e7a7314ac44a3dc39b6a25b26ca33be2b0c00266ec75917422c855"
+    },
     "clear spring water flows under the skylight. take a sip of warm tea and keep exploring!": {
       "file": "v_f5386274a6f2.ogg",
       "text": "Clear spring water flows under the skylight. Take a sip of warm tea and keep exploring!",
@@ -211,6 +259,12 @@
       "text": "Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!",
       "bytes": 41538,
       "sha256": "50f82a4bc9a74cb0df09b4aeef40e98a0efc40f1f292f7336211a90c9d18a025"
+    },
+    "climbing rope": {
+      "file": "v_b3b31428b8f9.ogg",
+      "text": "Climbing Rope",
+      "bytes": 12099,
+      "sha256": "b3e1b223e10317962e1f7b005bb3d4a6f557b0bac99e058b41991cd44b5f107b"
     },
     "close to": {
       "file": "v_056acfeac557.ogg",
@@ -290,6 +344,18 @@
       "bytes": 12990,
       "sha256": "6dfe529cf6486f0ed64321d30f465ce571136c3a2889285a54d30127774e2836"
     },
+    "duanxi inkstone": {
+      "file": "v_4c97d0c7544c.ogg",
+      "text": "Duanxi Inkstone",
+      "bytes": 13091,
+      "sha256": "2d820c6b244abf695102c97caf2d722c3360681b7ef0693d75d8023957d91887"
+    },
+    "encrypted hard drive": {
+      "file": "v_3565e79ba5e0.ogg",
+      "text": "Encrypted Hard Drive",
+      "bytes": 13686,
+      "sha256": "3294c0838048b01cea0a9243237df051115cf0ddf5fbc4a08ee111c9496e7fbf"
+    },
     "encrypted radio": {
       "file": "v_6ec028bb6565.ogg",
       "text": "Encrypted Radio",
@@ -332,6 +398,18 @@
       "bytes": 12045,
       "sha256": "b02a51d51ea582b03d987a035731381533a6321c886d38694831489673910bfd"
     },
+    "field binoculars": {
+      "file": "v_dafe654cf950.ogg",
+      "text": "Field Binoculars",
+      "bytes": 12625,
+      "sha256": "c16e559ccb9587ac568fffe9cdc2ebdb4b50ba8a0faf14796639f29260af88ad"
+    },
+    "field canteen": {
+      "file": "v_8a9f7a87e7a8.ogg",
+      "text": "Field Canteen",
+      "bytes": 13184,
+      "sha256": "7ee50c7f4b9e5e5819edc318afead420a5b01ea1becd7672be5d9fbca16358a5"
+    },
     "field ration": {
       "file": "v_785b5cd4c9b2.ogg",
       "text": "Field Ration",
@@ -343,6 +421,12 @@
       "text": "Flight Black Box",
       "bytes": 13183,
       "sha256": "0839528682bdba5546d21561b0f29e31651893afb0ee2380aa53e8fd72d36a52"
+    },
+    "folding shovel": {
+      "file": "v_1c8bf2316748.ogg",
+      "text": "Folding Shovel",
+      "bytes": 13035,
+      "sha256": "f5e36848d05286a63985de82e5cc67714260d5c4115050075924d616e319b21e"
     },
     "forest compass": {
       "file": "v_db4bd1b7705f.ogg",
@@ -385,6 +469,12 @@
       "text": "gift",
       "bytes": 11341,
       "sha256": "a3db1f74a91c94e58288d399b719699a5d117ee07f6b20ff8b8d6833980405d0"
+    },
+    "gilded hairpin": {
+      "file": "v_1888bb4ed17d.ogg",
+      "text": "Gilded Hairpin",
+      "bytes": 12609,
+      "sha256": "c7484f4da9eac51f75a6625707fb90f24def6dbb990800568744ee8603b678ab"
     },
     "gilded incense burner": {
       "file": "v_436b6f8803fa.ogg",
@@ -500,6 +590,12 @@
       "bytes": 6422,
       "sha256": "2c60fee4545ce860e31c3e4060d1c224618797bc340740e5368fd66641822637"
     },
+    "herb specimen box": {
+      "file": "v_9603ee188e33.ogg",
+      "text": "Herb Specimen Box",
+      "bytes": 13979,
+      "sha256": "0ba5c095405c0f6d7434b31856159aa4fdb7f5f1294b02731161b1c4b3cdde93"
+    },
     "hobby": {
       "file": "v_54b7e849c6d2.ogg",
       "text": "hobby",
@@ -529,6 +625,12 @@
       "text": "I often play the piano.",
       "bytes": 13903,
       "sha256": "1eb966dde851824534d1b58ddd53c973c4432d9653507c8ac4afd8898be14ce1"
+    },
+    "imperial blue bowl": {
+      "file": "v_4325e5a7cdde.ogg",
+      "text": "Imperial Blue Bowl",
+      "bytes": 12989,
+      "sha256": "436ea0bd2cf242c9969973dce4692841e780f1a46e7b0f28450ec076f6ae256c"
     },
     "important": {
       "file": "v_5b4009518b37.ogg",
@@ -565,6 +667,12 @@
       "text": "It's your turn.",
       "bytes": 12228,
       "sha256": "72ffb05dea7d501f4d512c5212130d6005194ff24867cf2365f938c156e58580"
+    },
+    "jade bamboo pendant": {
+      "file": "v_f952f0b13c58.ogg",
+      "text": "Jade Bamboo Pendant",
+      "bytes": 13634,
+      "sha256": "f8470a0bc120c95257da9a091da6a012cbfd778ffcf0ca86efd46d7665ff7e42"
     },
     "january": {
       "file": "v_549c6ca8a52f.ogg",
@@ -758,6 +866,12 @@
       "bytes": 12325,
       "sha256": "044ef48eff562d5ab903ef75d59afbda2e8d09b16301b76fe38db635326676a7"
     },
+    "mountain walnut": {
+      "file": "v_edf939e1a7db.ogg",
+      "text": "Mountain Walnut",
+      "bytes": 12884,
+      "sha256": "7bee972d0788b105aa0a64bc4e70bb2cba8aedda6fc5713f8db90c4da7f20ee7"
+    },
     "ms": {
       "file": "v_26cc3217be64.ogg",
       "text": "Ms",
@@ -848,6 +962,12 @@
       "bytes": 10500,
       "sha256": "f7cdd60adc8aacf0cd43904abffd48cdd6f04326e9fc9f968a2f41d3fc2054b6"
     },
+    "osmanthus sachet": {
+      "file": "v_2fad4008d75d.ogg",
+      "text": "Osmanthus Sachet",
+      "bytes": 14040,
+      "sha256": "6a78bf4b15f5379d873afb747b851d6ceb670a4ca7c4a89665b08b73340f2b6d"
+    },
     "other": {
       "file": "v_d0941e68da8f.ogg",
       "text": "other",
@@ -901,6 +1021,12 @@
       "text": "Petroglyph Rubbing",
       "bytes": 11822,
       "sha256": "75d6f938e7cab0ad98562df3f442f86c0a97506650e70be9cec32dcbe89ef2e7"
+    },
+    "pine soot inkstick": {
+      "file": "v_f8d3a5ec6608.ogg",
+      "text": "Pine Soot Inkstick",
+      "bytes": 13708,
+      "sha256": "96a58f714e9525702cb56775a67a97dbceff926e21f97cbb086bd714c463b2a9"
     },
     "plant": {
       "file": "v_baf0bf92eb79.ogg",
@@ -986,6 +1112,12 @@
       "bytes": 12524,
       "sha256": "50fd1ffee901c4a1e0e06b7bb1560a5d3b3690c828056fa8822ab14c3ee238d9"
     },
+    "red lacquer box": {
+      "file": "v_bebd7bb82645.ogg",
+      "text": "Red Lacquer Box",
+      "bytes": 13046,
+      "sha256": "a245a331e388c8115093bad8bfcb5941fd4aa2cb02e13a3227742107384b592a"
+    },
     "red mushroom": {
       "file": "v_2f5b0efdf92b.ogg",
       "text": "red mushroom",
@@ -1058,11 +1190,23 @@
       "bytes": 11427,
       "sha256": "df10f637207571b9f1def1973580b73c087df89b6d896e1b3942ed73a045ee5b"
     },
+    "signal smoke can": {
+      "file": "v_c8d5a4123f49.ogg",
+      "text": "Signal Smoke Can",
+      "bytes": 13552,
+      "sha256": "92c67b242c899b5aba090d685ecc6a82f5ae36466ce1a13a04de533df17c2133"
+    },
     "silver blessing lock": {
       "file": "v_52da4a5cbff8.ogg",
       "text": "Silver Blessing Lock",
       "bytes": 14151,
       "sha256": "769094cc839dba7cdd95ec3e17bac4794fecf3d5dfeecc21eea1f16e2a7ae04d"
+    },
+    "silver inlaid mirror": {
+      "file": "v_1b5d119be027.ogg",
+      "text": "Silver Inlaid Mirror",
+      "bytes": 13150,
+      "sha256": "4f2de678116dcd363d710095bae129638126e28a1d80dea8979fdcf9f129bcd8"
     },
     "sixty-eight": {
       "file": "v_03fcc994bfc4.ogg",
@@ -1184,6 +1328,12 @@
       "bytes": 13422,
       "sha256": "621674c6f061318c3349a8a4259a3639a0ac0a4a20b830f832379018f63f9707"
     },
+    "suzhou silk pouch": {
+      "file": "v_fa7537b928f6.ogg",
+      "text": "Suzhou Silk Pouch",
+      "bytes": 14114,
+      "sha256": "8333f2b98d9b8b8ab2aabd94be11a0556739c84a581eccd62c5ce1fd050cf447"
+    },
     "sweater": {
       "file": "v_506227fcb1ad.ogg",
       "text": "sweater",
@@ -1238,6 +1388,12 @@
       "bytes": 11504,
       "sha256": "71e462ae0772cdfd085d9d6baf5d088cb465929e871cac8396c6079ed7a389c3"
     },
+    "telegraph key": {
+      "file": "v_58865dcecb1f.ogg",
+      "text": "Telegraph Key",
+      "bytes": 12985,
+      "sha256": "15f6795660bf1608976e46719c3efaf088435cbdb6c2388ee8b95ed71fadc8e6"
+    },
     "the high jump": {
       "file": "v_799ff737cfab.ogg",
       "text": "the high jump",
@@ -1256,6 +1412,12 @@
       "bytes": 11088,
       "sha256": "910709da2907c7b5aae7358b84e258b3c582a80a98e7fe6b3db2ad82086cc9dc"
     },
+    "thermal optic core": {
+      "file": "v_3f43c43da94a.ogg",
+      "text": "Thermal Optic Core",
+      "bytes": 13028,
+      "sha256": "6ce2f19672ae3f2679c918f75d84921649e3a508a5bf673a57e07ce05ffdd9c2"
+    },
     "tidy": {
       "file": "v_a78fb1383c14.ogg",
       "text": "tidy",
@@ -1267,6 +1429,12 @@
       "text": "time",
       "bytes": 11158,
       "sha256": "7b26f3c13f7a8733e82cf6f305eff84cba83bd5d8fa94e71750647e4675760f1"
+    },
+    "tin pencil case": {
+      "file": "v_bc6b0e7ee4cf.ogg",
+      "text": "Tin Pencil Case",
+      "bytes": 13809,
+      "sha256": "d5dd5468e9de3242c9330288cf233e813c4dd1d310386d880d353d8d6d9e70ac"
     },
     "too": {
       "file": "v_164a5c24f5df.ogg",
@@ -1333,6 +1501,12 @@
       "text": "very much",
       "bytes": 12427,
       "sha256": "acb195555b0e7b770e61767e058bf5b8b4ce6d4ade57df349c520ebea61ae4c7"
+    },
+    "vintage film camera": {
+      "file": "v_2cd262002e9e.ogg",
+      "text": "Vintage Film Camera",
+      "bytes": 13559,
+      "sha256": "e06400bf1946709c181e22f034e22b4e30c1c9f7b45a36a0ca6a6edda894d2a4"
     },
     "visit": {
       "file": "v_a41f18cb110c.ogg",
@@ -1448,11 +1622,23 @@
       "bytes": 12387,
       "sha256": "8cd3a364c05d2c9299803d70348f8ec277eada5c74e9395d906c964d49ad8783"
     },
+    "wind meter": {
+      "file": "v_7eec033db1f0.ogg",
+      "text": "Wind Meter",
+      "bytes": 11923,
+      "sha256": "8157b69fae8ac2f8602597a91460d9eefce635f1ecbf220e6e083ea0f54c8628"
+    },
     "wonderful": {
       "file": "v_51f90c38d793.ogg",
       "text": "wonderful",
       "bytes": 11524,
       "sha256": "5b4bff3e7f2750577c964585ca0f1e5fc0ec30645907e46116467229a739de23"
+    },
+    "wooden abacus": {
+      "file": "v_39a52310b482.ogg",
+      "text": "Wooden Abacus",
+      "bytes": 12785,
+      "sha256": "912c84e2e3d2b6d00702320acd3cb0f3804d7d2761b292e752f899e3357fd762"
     },
     "word": {
       "file": "v_3cbcd90adc4b.ogg",
@@ -1489,6 +1675,12 @@
       "text": "yuan",
       "bytes": 11631,
       "sha256": "7da91b441877e0570ba42362120e92ee4261f9a0f3c3d5e6c1c69753d822f586"
+    },
+    "zisha clay teapot": {
+      "file": "v_2927f8ffb0c3.ogg",
+      "text": "Zisha Clay Teapot",
+      "bytes": 14085,
+      "sha256": "7401b8815e78919337443752a062b1dc5019c014bfb7b3429848165362561027"
     }
   }
 }
