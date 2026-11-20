@@ -164,6 +164,36 @@ func run():
 	verify(kept_r6 and int(restored_v063.rules.profile.get("red_extracted", 0)) == prev_red_cnt + 1, "save/load preserves Tier-6 rarity==6 without clamping to 5 and restores red_extracted")
 	restored_v063.free()
 
+	# v0.7.2 32 Unique Sculpted PBR Collectibles & Studio Icons Verification
+	var seen_art_ids := {}
+	var missing_meshes := 0
+	var missing_icons := 0
+	for r_key in game.Rules.LOOT_TABLE.keys():
+		for entry in game.Rules.LOOT_TABLE[r_key]:
+			var aid: String = game.LootUI.resolve_art_id(entry)
+			seen_art_ids[aid] = true
+			if game.LootUI.get_collectible_mesh(entry) == null:
+				missing_meshes += 1
+			if game.LootUI.load_collectible_icon(entry) == null:
+				missing_icons += 1
+	verify(seen_art_ids.size() == 32 and missing_meshes == 0 and missing_icons == 0, "v0.7.2 maps all 32 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
+	var alias_ok: bool = (
+		game.LootUI.resolve_art_id({"title": "光学测距模块", "icon": "lens"}) == "rangefinder"
+		and game.LootUI.resolve_art_id({"title": "军规夜视镜片", "icon": "lens"}) == "nvg_lens"
+		and game.LootUI.resolve_art_id({"title": "竹海古玉残片", "icon": "jade"}) == "jade_piece"
+		and game.LootUI.resolve_art_id({"title": "诚庄先民双龙玉璧", "icon": "jade"}) == "jade_bi"
+		and game.LootUI.resolve_art_id({"title": "古樟祈福银锁", "icon": "badge"}) == "silver_lock"
+		and game.LootUI.resolve_art_id({"title": "望稻亭鎏金香炉", "icon": "kettle"}) == "censer"
+	)
+	verify(alias_ok, "v0.7.2 resolves legacy saved item titles cleanly to their distinct v0.7.2 art IDs")
+	game.loot_ui.open_inspect_item(game.Rules.LOOT_TABLE[6][2])
+	var insp_has_glb: bool = false
+	for ch in game.loot_ui.inspect_turntable.find_children("*", "MeshInstance3D", true, false):
+		if ch.mesh == game.LootUI.get_collectible_mesh("jade_bi"):
+			insp_has_glb = true
+	verify(game.loot_ui.busy_inspect and insp_has_glb, "3D Relic Showcase Inspector mounts the sculpted Twin-Dragon Jade Bi mesh cleanly")
+	game.loot_ui.close_inspect()
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

@@ -12,7 +12,8 @@ const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
-const VERSION = "0.6.7"
+const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
+const VERSION = "0.7.2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -28,6 +29,7 @@ var font: Font
 var player
 var words = []
 var sentences: Array = []
+var cloze_index: Dictionary = {}
 var pool = []
 var question_queue = []
 var question = {}
@@ -49,6 +51,11 @@ var paused = true
 var scene_cache = {}
 var sound_cache = {}
 var sfx_cache = {}
+var voice_manifest: Dictionary = {}
+var voice_cache: Dictionary = {}
+var voice_player: AudioStreamPlayer = null
+var last_voice_backend: String = ""
+var last_voice_key: String = ""
 var tts_voice_id = ""
 var listening_mode = false
 var question_help_used := false
@@ -74,6 +81,7 @@ var shop_buttons = {}
 var unit_picker: OptionButton
 var include_extra: CheckBox
 var question_label: Label
+var cloze_label: Label
 var unit_label: Label
 var stat_label: Label
 var mission_label: Label
@@ -133,9 +141,11 @@ func _ready():
 	variable_font.base_font = load("res://assets/font/NotoSansSC.ttf")
 	variable_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500.0}
 	font = variable_font
+	_init_voice_pack()
 	_init_tts()
 	_load_words()
 	sentences = LearningStore.load_sentences()
+	cloze_index = LearningStore.build_cloze_index(sentences)
 	_load_profile()
 	startup_ms["font_voice_profile"] = Time.get_ticks_msec() - step_begin
 	step_begin = Time.get_ticks_msec()
@@ -181,7 +191,11 @@ func _ready():
 		startup_menu_frame_ms = Time.get_ticks_msec()
 		print("STARTUP_REPORT ", JSON.stringify({
 			"version": VERSION, "renderer": RenderingServer.get_current_rendering_method(),
-			"menu_frame_ms": startup_menu_frame_ms, "stages_ms": startup_ms
+			"menu_frame_ms": startup_menu_frame_ms, "stages_ms": startup_ms,
+			"tts_setting_enabled": bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)),
+			"tts_voice_ready": tts_voice_id != "",
+			"voice_pack_count": voice_manifest.size(),
+			"voice_sample_playable": load_voice_stream("Dragon Boat Festival") != null
 		}))
 		if "--startup-check" in args:
 			get_tree().quit()
@@ -210,6 +224,24 @@ func _ready():
 		await get_tree().create_timer(3).timeout
 		get_tree().quit()
 
+static func normalize_voice_key(text: String) -> String:
+	var s := text.replace("...", " ").replace("…", " ").replace("’", "'").replace("‘", "'")
+	s = s.replace("\t", " ").replace("\n", " ").replace("\r", " ")
+	var parts: PackedStringArray = s.strip_edges().split(" ", false)
+	return " ".join(parts).to_lower()
+
+func _init_voice_pack():
+	voice_manifest.clear()
+	var path := "res://data/learning/voice_manifest.json"
+	if FileAccess.file_exists(path):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if parsed is Dictionary and parsed.get("entries") is Dictionary:
+			voice_manifest = parsed.entries
+	if not is_instance_valid(voice_player):
+		voice_player = AudioStreamPlayer.new()
+		voice_player.volume_db = -1.5
+		add_child(voice_player)
+
 func _init_tts():
 	if qa_mode or DisplayServer.get_name() == "headless":
 		return
@@ -217,23 +249,81 @@ func _init_tts():
 	if voices.size() > 0:
 		tts_voice_id = voices[0]
 
-func speak_english(text: String):
-	if qa_mode or DisplayServer.get_name() == "headless" or tts_voice_id == "" or text.strip_edges() == "":
-		return
-	var clean = text.replace("...", " ").replace("’", "'").strip_edges()
+func has_english_voice(text: String = "") -> bool:
+	if text.strip_edges() != "":
+		var key := normalize_voice_key(text)
+		if voice_manifest.has(key):
+			var fname := str(voice_manifest[key].get("file", ""))
+			if fname != "" and ResourceLoader.exists("res://assets/voice/" + fname):
+				return true
+		return tts_voice_id != ""
+	return not voice_manifest.is_empty() or tts_voice_id != ""
+
+func load_voice_stream(text: String) -> AudioStream:
+	var key := normalize_voice_key(text)
+	if key == "" or not voice_manifest.has(key):
+		return null
+	if voice_cache.has(key):
+		return voice_cache[key]
+	var fname := str(voice_manifest[key].get("file", ""))
+	if fname == "":
+		return null
+	var path := "res://assets/voice/" + fname
+	if not ResourceLoader.exists(path):
+		return null
+	var stream = load(path)
+	if stream is AudioStream:
+		voice_cache[key] = stream
+		return stream
+	return null
+
+func speak_english(text: String) -> bool:
+	var key := normalize_voice_key(text)
+	last_voice_key = key
+	if key == "":
+		last_voice_backend = "none"
+		return false
+	var stream := load_voice_stream(text)
+	if stream != null:
+		last_voice_backend = "ogg"
+		if qa_mode or DisplayServer.get_name() == "headless":
+			return true
+		DisplayServer.tts_stop()
+		if not is_instance_valid(voice_player):
+			voice_player = AudioStreamPlayer.new()
+			voice_player.volume_db = -1.5
+			add_child(voice_player)
+		voice_player.stop()
+		voice_player.stream = stream
+		voice_player.play()
+		return true
+	if qa_mode or DisplayServer.get_name() == "headless":
+		last_voice_backend = "tts" if tts_voice_id != "" else "none"
+		return tts_voice_id != ""
+	if tts_voice_id == "":
+		_init_tts()
+	if tts_voice_id == "":
+		last_voice_backend = "none"
+		return false
+	if is_instance_valid(voice_player):
+		voice_player.stop()
+	var clean := text.replace("...", " ").replace("…", " ").replace("’", "'").replace("‘", "'").strip_edges()
 	DisplayServer.tts_stop()
-	DisplayServer.tts_speak(clean, tts_voice_id, 85, 1.0, 0.96)
+	DisplayServer.tts_speak(clean, tts_voice_id, 90, 1.0, 0.96)
+	last_voice_backend = "tts"
+	return true
 
 func replay_question_audio():
 	if question.is_empty():
 		return
-	if tts_voice_id != "":
+	var en_text := str(question.get("english", ""))
+	if has_english_voice(en_text):
 		if not listening_mode:
 			question_help_used = true
-		speak_english(question.english)
-		_notice("🔊 正在朗读英文发音", MINT)
-	else:
-		_notice("提示：当前环境未检测到系统英文语音包", GOLD)
+		if speak_english(en_text):
+			_notice("🔊 正在朗读英文发音", MINT)
+			return
+	_notice("提示：当前环境未检测到可用英文语音（离线语音与系统语音均未命中）", GOLD)
 
 func _load_words():
 	for file in DirAccess.get_files_at("res://data/wordpacks"):
@@ -243,19 +333,29 @@ func _load_words():
 				words.append_array(pack.get("entries", []))
 	assert(words.size() >= 4, "词库至少需要四个词条")
 
+func cloze_for_word(word_id: String) -> Dictionary:
+	return cloze_index.get(word_id, {})
+
 func _save_path() -> String:
 	if profile_path_override != "":
 		return profile_path_override
-	return "user://qa-profile.json" if qa_mode else "user://profile-v067.json"
+	return "user://qa-profile.json" if qa_mode else "user://profile-v070.json"
 
 func _load_profile():
 	if qa_mode and profile_path_override == "":
 		return
 	var path := _save_path()
 	if not FileAccess.file_exists(path):
-		if profile_path_override != "" or not FileAccess.file_exists("user://profile-v01.json"):
+		if profile_path_override != "":
 			return
-		path = "user://profile-v01.json"
+		var fallback := ""
+		for candidate in ["user://profile-v067.json", "user://profile-v01.json"]:
+			if FileAccess.file_exists(candidate):
+				fallback = candidate
+				break
+		if fallback == "":
+			return
+		path = fallback
 	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not (data is Dictionary):
 		profile_read_failed = true
@@ -602,18 +702,22 @@ func _build_ui():
 	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guide_label.clip_text = true
 
-	# ZONE 2: Top-Center Sleek Word Prompt Card
-	_panel(hud, Rect2(398, 16, 514, 102), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
-	question_label = _text(hud, "", Vector2(412, 20), Vector2(486, 48), 25, CREAM)
+	# ZONE 2: Top-Center Sleek Word Prompt Card (with optional Textbook Cloze Context line)
+	_panel(hud, Rect2(398, 16, 514, 116), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
+	question_label = _text(hud, "", Vector2(412, 18), Vector2(486, 46), 25, CREAM)
 	question_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	question_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	question_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	unit_label = _text(hud, "", Vector2(412, 72), Vector2(486, 38), 13, MINT)
+	cloze_label = _text(hud, "", Vector2(412, 65), Vector2(486, 24), 15, Color("ffe08c"))
+	cloze_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cloze_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cloze_label.clip_text = true
+	unit_label = _text(hud, "", Vector2(412, 91), Vector2(486, 36), 13, MINT)
 	unit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# Threat Warning Banner (only shown when actively locked on)
-	threat_banner = _panel(hud, Rect2(455, 124, 400, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
+	threat_banner = _panel(hud, Rect2(455, 138, 400, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
 	threat_label = _text(threat_banner, "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！", Vector2(10, 4), Vector2(370, 22), 14, Color("ffd6d6"))
 	threat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	threat_banner.hide()
@@ -710,16 +814,17 @@ func _build_ui():
 	menu.add_child(veil)
 	_panel(menu, Rect2(86, 56, 534, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
 
-	menu_title = _text(menu, "烟山基地", Vector2(120, 82), Vector2(390, 52), 28, MINT)
+	menu_title = _text(menu, "烟山基地", Vector2(120, 76), Vector2(280, 44), 28, MINT)
 	menu_title.clip_text = true
-	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 142), Vector2(460, 28), 17, GOLD)
+	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 126), Vector2(460, 24), 16, GOLD)
 	_button(menu, "退出", Rect2(518, 86, 64, 36), _quit_game)
 	abandon_button = _button(menu, "放弃本局", Rect2(406, 86, 104, 36), func(): _end_run(false, "放弃本局"))
 	abandon_button.hide()
 
-	menu_summary = _text(menu, "", Vector2(122, 186), Vector2(460, 126), 16)
+	menu_summary = _text(menu, "", Vector2(122, 156), Vector2(460, 154), 14)
 	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	review_button = _button(menu, "查看本局错词与提示（含页码）", Rect2(122, 316, 456, 30), _show_review)
+	menu_summary.clip_text = false
+	review_button = _button(menu, "查看本局错词与例句（含页码）", Rect2(122, 316, 456, 30), _show_review)
 	review_button.hide()
 
 	unit_picker = OptionButton.new()
@@ -802,7 +907,11 @@ func _build_ui():
 func _show_review():
 	var lines = []
 	for word in wrong_words:
-		lines.append("[url=%s][color=#8de8c0]🔊 %s[/color][/url]  —  %s\n[color=#a9c4b6]Unit %d · 课本第 %d 页[/color]\n" % [word.english, word.english, word.chinese, word.unit, word.textbook_page])
+		var line := "[url=%s][color=#8de8c0]🔊 %s[/color][/url]  —  %s\n[color=#a9c4b6]Unit %d · 课本第 %d 页[/color]" % [word.english, word.english, word.chinese, word.unit, word.textbook_page]
+		var cloze := cloze_for_word(str(word.get("id", "")))
+		if not cloze.is_empty():
+			line += "\n[color=#ffe08c]例句：%s（%s · p.%d）[/color]" % [cloze.english, cloze.chinese, int(cloze.textbook_page)]
+		lines.append(line + "\n")
 	review_text.text = "\n".join(lines) if not lines.is_empty() else "本局还没有错词，表现非常棒！"
 	review_text.scroll_to_line(0)
 	review_overlay.show()
@@ -822,11 +931,11 @@ func _open_retest():
 
 func _refresh_progress():
 	var pending := _pending_retest().size()
-	retest_button.text = "无提示复测 · %d 题待练" % pending
+	retest_button.text = "今日到期复测 · %d 题待练" % pending
 	retest_button.disabled = pending == 0 or rules.phase in ["active", "extracting"]
-	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d\n货币 %d · 家长奖励券 %d 张" % [
+	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d · 到期 %d\n货币 %d · 家长奖励券 %d 张" % [
 		rules.learning.mastered_count(words), words.size(), rules.learning.mastered_count(sentences),
-		sentences.size(), rules.profile.coins, rules.profile.points
+		sentences.size(), pending, rules.profile.coins, rules.profile.points
 	]
 
 func _refresh_menu(result = ""):
@@ -836,8 +945,8 @@ func _refresh_menu(result = ""):
 	compendium_button.text = "奇珍图鉴 · %d/%d" % [collected, total_collectibles]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "认词、搜物、带着战利品撤离。\n刚开始玩？先到自由靶场练习。"
-		menu_status.text = "掌握数按本版独立答对至少两次统计。"
+		menu_summary.text = "认词、搜物、带着战利品撤离。\n到期错词将在战场上化身金色【宿敌复习兵】优先出现。\n刚开始玩？先到自由靶场练习。"
+		menu_status.text = "掌握数按独立答对且正确高于错误，或跨间隔复习通过统计。"
 
 	var wh_count = rules.profile.warehouse.size()
 	var wh_val = _warehouse_total_value()
@@ -920,13 +1029,7 @@ func _buy(id: String):
 			menu_status.text += "（线下奖励可与爸爸妈妈核对兑现！）"
 
 func _build_weighted_queue() -> Array:
-	var deck = []
-	for w in pool:
-		deck.append(w)
-		if rules.word_priority(w.id) >= 2.8:
-			deck.append(w)
-	deck.shuffle()
-	return deck
+	return SrsScheduler.build_session_queue(rules.profile, pool)
 
 func _refresh_terminal_title():
 	if not is_instance_valid(terminal_title_label):
@@ -1078,7 +1181,7 @@ func _next_question():
 	for i in choices.size():
 		if choices[i].id == question.id:
 			answer_index = i
-	listening_mode = (tts_voice_id != "" and rules.answered >= 4 and rules.answered % 5 == 0)
+	listening_mode = (has_english_voice(str(question.get("english", ""))) and rules.answered >= 4 and rules.answered % 5 == 0)
 	rules.open_question()
 	_sync_question()
 	if listening_mode and not paused:
@@ -1093,6 +1196,8 @@ func _sync_question():
 			combat.show_question()
 		else:
 			question_label.text = "靠近绿色终端，按 [F] 启动识词靶场"
+			if is_instance_valid(cloze_label):
+				cloze_label.text = ""
 			unit_label.text = "A 山脚营地 → 林间前哨 → B 竹林撤离点  |  自由探索与识词"
 		return
 	for i in choices.size():
@@ -1100,8 +1205,13 @@ func _sync_question():
 		target_materials[i].albedo_color = Color("182e30")
 	if listening_mode and rules.question_open:
 		question_label.text = "🔊 听音辨词挑战 · 按 [X] 重播读音"
+		if is_instance_valid(cloze_label):
+			cloze_label.text = ""
 	else:
 		question_label.text = question.chinese
+		if is_instance_valid(cloze_label):
+			var cloze := cloze_for_word(str(question.get("id", "")))
+			cloze_label.text = ("教材语境：%s  (p.%d)" % [cloze.cloze_text, int(cloze.textbook_page)]) if not cloze.is_empty() else ""
 	unit_label.text = "%s · Unit %d · 第 %d 页  |  [X] 听标准发音" % [stations[active_station].title, question.unit, question.textbook_page]
 	if not rules.question_open:
 		target_materials[answer_index].albedo_color = Color("3b8a62")
@@ -1267,7 +1377,9 @@ func resolve_answer(index: int, mobile = false):
 			rules.add_loot("战术知识芯片", 46 + maxi(0, rules.level() - 1) * 4, chip_rarity)
 	else:
 		var warning = "\n⚠ 敌方狂暴强化 7 秒 · 当前伤害 ×%.2f" % combat.damage_multiplier() if mobile else ""
-		_notice("正确答案：%s  —  %s%s" % [question.english, question.chinese, warning], Color("f5b995"))
+		var cloze := cloze_for_word(str(question.get("id", "")))
+		var example_line := ("\n例句：%s (p.%d)" % [cloze.english, int(cloze.textbook_page)]) if not cloze.is_empty() else ""
+		_notice("正确答案：%s  —  %s%s%s" % [question.english, question.chinese, warning, example_line], Color("f5b995"))
 		if question not in wrong_words:
 			wrong_words.append(question)
 
@@ -1615,8 +1727,13 @@ func _end_run(success: bool, title = ""):
 		rules.abandon()
 	var duration := maxf(0.0, (Time.get_ticks_msec() - run_started_ms) / 1000.0) if run_started_ms >= 0 else 0.0
 	run_started_ms = -1
+	var due_now := _pending_retest().size()
 	rules.profile.last_run = {
-		"wall_clock_seconds": duration, "mode": rules.mode_label(), "extracted": success
+		"wall_clock_seconds": duration,
+		"mode": rules.mode_label(),
+		"extracted": success,
+		"nemesis_cleared": rules.nemesis_cleared,
+		"due_remaining": due_now
 	}
 	var saved := _save()
 	var banked_count = rules.profile.warehouse.size() - pre_wh
@@ -1634,14 +1751,14 @@ func _end_run(success: bool, title = ""):
 	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
 	var mode_badge: String = "【%s%s】" % [rules.mode_label(), "·估值×1.35" if rules.is_confidential() else ""]
-	var header = ("%s 成功带回 %d 件物资（含清哨%s奖励），随身估值 %d 币！\n" % [mode_badge, banked_count, "+首领" if defeated_boss else "", carried_value]) if success else ("%s 本局未撤离物资遗留在烟山，调整装备再战！\n" % mode_badge)
-	menu_summary.text = header + "识词命中 %d / %d 题（正确率 %d%%） · 最高 %d 连击\n" % [
-		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak
+	var header = ("%s 带回 %d 件物资（估值 %d 币）！\n" % [mode_badge, banked_count, carried_value]) if success else ("%s 未撤离物资遗留在烟山，学习记录已保存。\n" % mode_badge)
+	menu_summary.text = header + "识词 %d/%d（%d%%）· 最高 %d 连击 · 宿敌攻克 %d 词\n" % [
+		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak, rules.nemesis_cleared
 	]
-	menu_summary.text += "实际用时 %d 分 %02d 秒\n" % [int(duration) / 60, int(duration) % 60]
+	menu_summary.text += "实际用时 %d 分 %02d 秒 · 今日剩余到期 %d 题\n" % [int(duration) / 60, int(duration) % 60, due_now]
 	var eco_count: int = wildlife.eco_discoveries_total() if is_instance_valid(wildlife) else 0
-	menu_summary.text += "攻克前哨 %d 处 · B区首领 %s · 完美破译 %d 箱 · 探索 %d/3 · 秘藏 %d/6 · 古迹 %d/3 · 生态 %d/12\n" % [
-		rules.outposts_cleared, "已击败" if defeated_boss else "未击败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), exploration.heritage_completed(), eco_count
+	menu_summary.text += "营地 %d/6 · 首领%s · 完美开箱 %d · 探索 %d/3 · 秘藏 %d/6 · 古迹 %d/3 · 生态 %d/12" % [
+		rules.outposts_cleared, "已败" if defeated_boss else "未败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), exploration.heritage_completed(), eco_count
 	]
 	if wrong_words.size() > 0:
 		menu_status.text = "本局有 %d 条错词或借助提示的题目。" % wrong_words.size()

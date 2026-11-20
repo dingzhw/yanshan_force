@@ -1,0 +1,1494 @@
+{
+  "schema_version": 1,
+  "voice_name": "en-US-JennyNeural",
+  "accent": "en-US",
+  "rate": "-5%",
+  "audio_format": "ogg_vorbis_mono_24khz",
+  "usage_notice": "仅供个人与家庭离线英语学习使用；若对外公开分发，请通过 tools/build_voice_pack.py 替换为已获公开分发许可的开源离线语音或自录音频。",
+  "count": 247,
+  "total_bytes": 3236896,
+  "entries": {
+    "a golden airdrop is inside the stone cave beside the tall hill west of the pass.": {
+      "file": "v_bcb9503ed043.ogg",
+      "text": "A golden airdrop is inside the stone cave beside the tall hill west of the pass.",
+      "bytes": 34269,
+      "sha256": "08964a31e5691ec899a25d2777648e22d74bfbb798c98ed4b8034baf7a84209e"
+    },
+    "a lot": {
+      "file": "v_761ff6c1d02c.ogg",
+      "text": "a lot",
+      "bytes": 11767,
+      "sha256": "444dd8540193e9c0868bdb124e37826e183a7bd745ab9d1a8dc404c31db40003"
+    },
+    "a lot of": {
+      "file": "v_3502255fa6b9.ogg",
+      "text": "a lot of",
+      "bytes": 11927,
+      "sha256": "7cd87ef29703f640bd82f9d7f7c25bb49e7074e6fa2bf214cb710326e06cd67c"
+    },
+    "about": {
+      "file": "v_5780daf6db0b.ogg",
+      "text": "about",
+      "bytes": 11582,
+      "sha256": "ff707c9a2be066d86ad4ddeb58c106cd622f105d2c5b701397fbfb9406b0235c"
+    },
+    "activity": {
+      "file": "v_0bf4170444cd.ogg",
+      "text": "activity",
+      "bytes": 12424,
+      "sha256": "e9f789d3c94a95b96e0c4056497aaa7e62595dfa44f23817bc5b5f6aa5ee7b6b"
+    },
+    "advice": {
+      "file": "v_8015f1d1fd4a.ogg",
+      "text": "advice",
+      "bytes": 11918,
+      "sha256": "7d5537ec21a41d15458cfd158a09f3b1a479751d13c47d2ded6a0f7f5cb52cb7"
+    },
+    "always": {
+      "file": "v_6656018ac96d.ogg",
+      "text": "always",
+      "bytes": 11975,
+      "sha256": "ae90a776160c4ba9f1f5fa234d4f7b5e8ee71869564feaddf8645ca0400685be"
+    },
+    "ancient amber": {
+      "file": "v_a153f182c7f1.ogg",
+      "text": "Ancient Amber",
+      "bytes": 12302,
+      "sha256": "3b60c8a1b8c6cb0a5e34ac3cb929d7f965ccfa589a73f38e87423ed1cf9ba320"
+    },
+    "ancient bamboo slips": {
+      "file": "v_cc3673a913f2.ogg",
+      "text": "Ancient Bamboo Slips",
+      "bytes": 14114,
+      "sha256": "3e646a5321a1d954551750435a4f19ecc9fb8ee865aa336eda5d08db18f1e034"
+    },
+    "ancient jade piece": {
+      "file": "v_598d3ba168db.ogg",
+      "text": "Ancient Jade Piece",
+      "bytes": 13626,
+      "sha256": "f29caf284b840ee2e61e6ced77068a42ce9166d7848f1b59871bfa1556e12a38"
+    },
+    "anne sullivan": {
+      "file": "v_8c406dbefce4.ogg",
+      "text": "Anne Sullivan",
+      "bytes": 12445,
+      "sha256": "bdb674f74b47ce7ef82273306ef9bfcac3fd57c3703b1096d6d14668f554557d"
+    },
+    "bad": {
+      "file": "v_1902e3d6fc4e.ogg",
+      "text": "bad",
+      "bytes": 11132,
+      "sha256": "f03c5c657c86ec82923d1442aed4663bceab1b66ec376c1a3bfff4c2367c0db3"
+    },
+    "bamboo folding fan": {
+      "file": "v_c0fa06625f50.ogg",
+      "text": "Bamboo Folding Fan",
+      "bytes": 13828,
+      "sha256": "862956cd8e4298fd5a3b2535f0ab2d7e392f099680d7c4325d9eceb4b4908b4c"
+    },
+    "bamboo whistle": {
+      "file": "v_753a05bfba61.ogg",
+      "text": "Bamboo Whistle",
+      "bytes": 12586,
+      "sha256": "0eba011d0573d685346aa542b9a4aad8b9b5eec6dc213fddeecfc1adc9996867"
+    },
+    "before": {
+      "file": "v_51de2b835bd3.ogg",
+      "text": "before",
+      "bytes": 11646,
+      "sha256": "9c74fe0043c58d433aa83e957a8d7a499123f8de7bf97e4d2e8dd6a07aff7e35"
+    },
+    "between": {
+      "file": "v_709634051471.ogg",
+      "text": "between",
+      "bytes": 11895,
+      "sha256": "efa0cc1d67c84e17573fd06f80db022a459615f837aa9275fdc247407819f986"
+    },
+    "billy": {
+      "file": "v_051522d0c464.ogg",
+      "text": "Billy",
+      "bytes": 11454,
+      "sha256": "c845914b5a67cba98e146a57b2c15c0d548b89ef7a1c904296ff13c43c478db7"
+    },
+    "bow": {
+      "file": "v_fa5bd38090c7.ogg",
+      "text": "bow",
+      "bytes": 10767,
+      "sha256": "1146620fa4aeec58c45dcc2c925242ade95921be33134ee7453d19531ebbafe1"
+    },
+    "bronze tea kettle": {
+      "file": "v_eaa1c79cfe93.ogg",
+      "text": "Bronze Tea Kettle",
+      "bytes": 12908,
+      "sha256": "66488ae34640c2aa8e97236c6671301f180e928149fb34298708cbca95cd353d"
+    },
+    "bronze tiger tally": {
+      "file": "v_f73ffd1cc30f.ogg",
+      "text": "Bronze Tiger Tally",
+      "bytes": 13976,
+      "sha256": "4fafa7c0df454d9f7b5ceea3d7f89eb10d03e75eb43065c1804f23ed41182804"
+    },
+    "card": {
+      "file": "v_2ab0591dbcf5.ogg",
+      "text": "card",
+      "bytes": 10952,
+      "sha256": "cb047f84550361454ce2fed50f77684b5e297585a209d802bfa46e7658d619a1"
+    },
+    "carefully": {
+      "file": "v_00f74c9df553.ogg",
+      "text": "carefully",
+      "bytes": 12292,
+      "sha256": "d56a8aadfe571a6b0f5eda8136e41c2abf2e097153dd9f32038f3bd4156a2c23"
+    },
+    "cave orchid": {
+      "file": "v_b1898aee980b.ogg",
+      "text": "cave orchid",
+      "bytes": 12175,
+      "sha256": "e828f104ec8ebba56f80f6a8c54479e037db9d404993508c42edbf0b19dddb9c"
+    },
+    "chat": {
+      "file": "v_7ecde348ff9c.ogg",
+      "text": "chat",
+      "bytes": 11422,
+      "sha256": "32af79ddf1c3f8c0ecc1c0b3925600169fac4671eb9368684cca2b6f00ff371e"
+    },
+    "children's day": {
+      "file": "v_01a96775ec39.ogg",
+      "text": "Children's Day",
+      "bytes": 13093,
+      "sha256": "d335cf4e122eabcac9b70060b806a4ed6545f8153e65d24732405b055b1cc366"
+    },
+    "china": {
+      "file": "v_3ab9380fa252.ogg",
+      "text": "China",
+      "bytes": 11545,
+      "sha256": "ea947157e74706e4ab8aa5c2d63f49577ed73848188ead2a2c5a88078f2e5989"
+    },
+    "chinese new year's day": {
+      "file": "v_c75db5c405cf.ogg",
+      "text": "Chinese New Year's Day",
+      "bytes": 14028,
+      "sha256": "c88650b9550802349a1dfd58b1bb5d2e14b4949ded8363935d3e712b1d94eadf"
+    },
+    "chinese new year's eve": {
+      "file": "v_abf2ef752755.ogg",
+      "text": "Chinese New Year's Eve",
+      "bytes": 13988,
+      "sha256": "7399cd99ad0934b2973cd52c85b951394d97e70d94fa5e795eb20588c27205a2"
+    },
+    "christmas": {
+      "file": "v_46e505c98343.ogg",
+      "text": "Christmas",
+      "bytes": 12308,
+      "sha256": "1ddbfeba0a31cb0c955dccaaffb1faafdad3006b5238f4c511fec4f2644ffa5d"
+    },
+    "christmas eve": {
+      "file": "v_2a395c9040e0.ogg",
+      "text": "Christmas Eve",
+      "bytes": 12972,
+      "sha256": "c9b79c631b6a89b9495cadd3e6cf04e89df2ba33fb80d75e298dce6a5ffc5aa8"
+    },
+    "classmate": {
+      "file": "v_4d4dde8a08da.ogg",
+      "text": "classmate",
+      "bytes": 12247,
+      "sha256": "ea70cd3385bc0c22ceccf8897590d5c2a6b7269e005c213e23ba4293ce6486e1"
+    },
+    "clear spring water flows under the skylight. take a sip of warm tea and keep exploring!": {
+      "file": "v_f5386274a6f2.ogg",
+      "text": "Clear spring water flows under the skylight. Take a sip of warm tea and keep exploring!",
+      "bytes": 37361,
+      "sha256": "a906179fc6ecf56a466f346de6b703033e2593354ecdd5897597f04ada5df6d3"
+    },
+    "climb": {
+      "file": "v_cd42169de3fa.ogg",
+      "text": "climb",
+      "bytes": 11352,
+      "sha256": "f104a1ae416afacd1bf362421bcb9468043b64ab541c75f4c0fb2206639103ce"
+    },
+    "climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!": {
+      "file": "v_24db05ddc238.ogg",
+      "text": "Climb the steps beside the bamboo shelter to find the purple case on its roof, or climb the tall tower!",
+      "bytes": 41538,
+      "sha256": "50f82a4bc9a74cb0df09b4aeef40e98a0efc40f1f292f7336211a90c9d18a025"
+    },
+    "close to": {
+      "file": "v_056acfeac557.ogg",
+      "text": "close to",
+      "bytes": 11872,
+      "sha256": "b47bd6c5505667ea5cf1300b7c049fa22cabfc3893d5a2d34de71371c28642db"
+    },
+    "copper wire": {
+      "file": "v_b4fa4baf8972.ogg",
+      "text": "Copper Wire",
+      "bytes": 11894,
+      "sha256": "708d5affbe7c2da98a788408cefd73611963a3c74109bb14ee42c50c38e690cf"
+    },
+    "dance": {
+      "file": "v_74b518ed5512.ogg",
+      "text": "dance",
+      "bytes": 11693,
+      "sha256": "6dc12779cbcef19adc10250ed9a4cb26950b09e5d7e805fa8a45391f169fd46b"
+    },
+    "december": {
+      "file": "v_c35b07262fca.ogg",
+      "text": "December",
+      "bytes": 11941,
+      "sha256": "5c117d25689e8cd5e689381be8cc3fa3db8a33f2173665a105c5ac6c5ff1a4c6"
+    },
+    "do exercise": {
+      "file": "v_ac0721d10890.ogg",
+      "text": "do exercise",
+      "bytes": 13647,
+      "sha256": "47487b76c73945b5c93099cf81f462ef7e56b335fcc23e5cb7b30cdf0a4c0a52"
+    },
+    "do well": {
+      "file": "v_10ae11f99ac0.ogg",
+      "text": "do well",
+      "bytes": 11618,
+      "sha256": "31ba30c9d539d54441479007111473f745c529b08a11681c3c5a3a71467b2a2b"
+    },
+    "do your homework": {
+      "file": "v_dde239ea2970.ogg",
+      "text": "do your homework",
+      "bytes": 12272,
+      "sha256": "7e2e5ce8790e2aacc5753872edbfac885872cac64d0eef6fa76e4bdc8b0d515a"
+    },
+    "door": {
+      "file": "v_2680b6746cf8.ogg",
+      "text": "door",
+      "bytes": 10883,
+      "sha256": "624b40e9704ef7cfc84b32c3f94e093fa3bb3731895e72ff6bd099e1adc18fd4"
+    },
+    "double ninth festival": {
+      "file": "v_e5d2d69c5539.ogg",
+      "text": "Double Ninth Festival",
+      "bytes": 13450,
+      "sha256": "54a82864e82d1eb71b6bf5160db80c9b7f3f812a6a077d609ebc807b227ead85"
+    },
+    "dragon boat festival": {
+      "file": "v_56f3f9a5768f.ogg",
+      "text": "Dragon Boat Festival",
+      "bytes": 13653,
+      "sha256": "fa39393e72cda4fa37a982ec0341ccf710d79641ca2676aa410a52b6788af227"
+    },
+    "dragon boat race": {
+      "file": "v_3de671b893ac.ogg",
+      "text": "dragon boat race",
+      "bytes": 13288,
+      "sha256": "7207ecbd74fe4871383f189043d14c5dcaa93c917e0d4b9ea089e10bf7947ca8"
+    },
+    "drink": {
+      "file": "v_7ca7a4abcc2d.ogg",
+      "text": "drink",
+      "bytes": 11564,
+      "sha256": "8794ba168249e971417e32d034f841b0aa7e7b0e76771186d623afdced8f19df"
+    },
+    "drone ai chip": {
+      "file": "v_0d60f65567f1.ogg",
+      "text": "Drone AI Chip",
+      "bytes": 12990,
+      "sha256": "6dfe529cf6486f0ed64321d30f465ce571136c3a2889285a54d30127774e2836"
+    },
+    "encrypted radio": {
+      "file": "v_6ec028bb6565.ogg",
+      "text": "Encrypted Radio",
+      "bytes": 13425,
+      "sha256": "e1248e07c04d420391c6359e50511d422c95d4588521ebf74860385a3acdcd31"
+    },
+    "excited": {
+      "file": "v_f529c0de3cab.ogg",
+      "text": "excited",
+      "bytes": 12276,
+      "sha256": "ed6c97f808a1539d4dca76708d4291d2466db8f7093f09bd1dafdcba5a76669d"
+    },
+    "fast": {
+      "file": "v_0afde56699db.ogg",
+      "text": "fast",
+      "bytes": 11929,
+      "sha256": "344cc3e325d5a68fee90d0763f0c5277a84a35a8570b9f8f41ad57c78f0e1628"
+    },
+    "favourite": {
+      "file": "v_824168b68d01.ogg",
+      "text": "favourite",
+      "bytes": 11764,
+      "sha256": "05d4bb87ae08c4b544ff62085b2ac3a931908c59cb1768372ffe12188731430f"
+    },
+    "february": {
+      "file": "v_4d8f35e9ae90.ogg",
+      "text": "February",
+      "bytes": 12277,
+      "sha256": "ba5331c4ec0d011130a202bc027854da37c9715ba5c1d6a01fb9ee45c46cd301"
+    },
+    "feel good": {
+      "file": "v_5ca17b900225.ogg",
+      "text": "feel good",
+      "bytes": 11905,
+      "sha256": "b830282df0b99415f306e727d1a892b0962ba8d25f8b7b8c4d049e2e2b527e5c"
+    },
+    "festival": {
+      "file": "v_f114308994e5.ogg",
+      "text": "festival",
+      "bytes": 12045,
+      "sha256": "b02a51d51ea582b03d987a035731381533a6321c886d38694831489673910bfd"
+    },
+    "field ration": {
+      "file": "v_785b5cd4c9b2.ogg",
+      "text": "Field Ration",
+      "bytes": 12640,
+      "sha256": "d473665f21593dc833d69171f6429d0a5063eee599a6c7758b3f78dbaa117848"
+    },
+    "flight black box": {
+      "file": "v_efdb5796ab7a.ogg",
+      "text": "Flight Black Box",
+      "bytes": 13183,
+      "sha256": "0839528682bdba5546d21561b0f29e31651893afb0ee2380aa53e8fd72d36a52"
+    },
+    "forest compass": {
+      "file": "v_db4bd1b7705f.ogg",
+      "text": "Forest Compass",
+      "bytes": 13557,
+      "sha256": "38541f15f9ad136a038b89654701b16fdb941b7f5b4f54fd8d370e337569aa7b"
+    },
+    "forty": {
+      "file": "v_88ddff0da7c9.ogg",
+      "text": "forty",
+      "bytes": 11654,
+      "sha256": "ae524af1c51eaa448c9ded6b564bb6a36af0fd719c136f73640a2fa930ff6e3d"
+    },
+    "friendly": {
+      "file": "v_41209342f361.ogg",
+      "text": "friendly",
+      "bytes": 12011,
+      "sha256": "a51ae01c016d94e550d0200e841a9b691371797cdb9e1a9fd217479868cea36a"
+    },
+    "from": {
+      "file": "v_0b1e95cfd977.ogg",
+      "text": "from",
+      "bytes": 10762,
+      "sha256": "56a511d457797504c4cd841597f401bd3753a971ee6febb2030a11e2ba56645f"
+    },
+    "get along with": {
+      "file": "v_094de84ee009.ogg",
+      "text": "get along with",
+      "bytes": 12232,
+      "sha256": "02496ba16068482343838f3471e9b17e0ce41bd7e8f5ebdeb87d8174037d4f23"
+    },
+    "get out": {
+      "file": "v_9bd36b0dc673.ogg",
+      "text": "get out",
+      "bytes": 11681,
+      "sha256": "5c6c36fa18d7f5b99dc9f9190bc6939b109157d650f0608f9e84d91efb327260"
+    },
+    "gift": {
+      "file": "v_b7b2fb7443bc.ogg",
+      "text": "gift",
+      "bytes": 11341,
+      "sha256": "a3db1f74a91c94e58288d399b719699a5d117ee07f6b20ff8b8d6833980405d0"
+    },
+    "gilded incense burner": {
+      "file": "v_436b6f8803fa.ogg",
+      "text": "Gilded Incense Burner",
+      "bytes": 13098,
+      "sha256": "9db66643beae95a6a878586f2a7b0f6f513c1df07176ac89aaf65c94ddf79b28"
+    },
+    "give up": {
+      "file": "v_54ceacd5d219.ogg",
+      "text": "give up",
+      "bytes": 11715,
+      "sha256": "7d6e9346b41fdb5f1c9212005e1f59abc049567ef055f6ad76ebcfff989b0476"
+    },
+    "grandparent": {
+      "file": "v_410bce0c5898.ogg",
+      "text": "grandparent",
+      "bytes": 12134,
+      "sha256": "6c1072365f8ec37721be9b1fa09e3b08843aaf55254ba76c5959464c3982159c"
+    },
+    "green herb": {
+      "file": "v_ad7f2235b526.ogg",
+      "text": "green herb",
+      "bytes": 11628,
+      "sha256": "eb91198e1c60f9b72a776e190b0f1d62c5057d1e4b1443caada8251b2866b97c"
+    },
+    "habit": {
+      "file": "v_3800515d4b6d.ogg",
+      "text": "habit",
+      "bytes": 11684,
+      "sha256": "3786d0e3886b1f1ee477d58d699f03b04fb2660477c47ff07d820e9486c6601a"
+    },
+    "hand": {
+      "file": "v_9621a244a447.ogg",
+      "text": "hand",
+      "bytes": 11110,
+      "sha256": "f65332bb3bf0eaf895d77b002f2a0775754beb2cfa263e4eb68287bf095e44a6"
+    },
+    "hang": {
+      "file": "v_824ee68a8c81.ogg",
+      "text": "hang",
+      "bytes": 10763,
+      "sha256": "7ec149a16ce1f3a628c64172b778243e98d0cdfdfe28c0fefbcbce6cb4759282"
+    },
+    "hard": {
+      "file": "v_cae5970fc939.ogg",
+      "text": "hard",
+      "bytes": 10919,
+      "sha256": "3643a2eaad7b8124abfed00587d9f2535ece163e3ca521923f2fdc6e79f10d3c"
+    },
+    "have a good time": {
+      "file": "v_edfced22fd0c.ogg",
+      "text": "have a good time",
+      "bytes": 12481,
+      "sha256": "32f2437a0b458a7ee148516bf1bc74a0ab1c950c06d716731a7d899f3e8db96c"
+    },
+    "have a picnic": {
+      "file": "v_4fd580ed4979.ogg",
+      "text": "have a picnic",
+      "bytes": 12834,
+      "sha256": "ef4ae8957840dd6744db5d9cc64df0c74151c3d9ac4e3dfa4fd16d5c6a1a762e"
+    },
+    "he feels worried.": {
+      "file": "v_fddbf73b816f.ogg",
+      "text": "He feels worried.",
+      "bytes": 12781,
+      "sha256": "c4ee35e1fab2c7e9c0ea7171ce723530cb0152ab935ff72d79d4191c45d1c33b"
+    },
+    "he likes playing ping-pong.": {
+      "file": "v_d34bf934c12e.ogg",
+      "text": "He likes playing ping-pong.",
+      "bytes": 14513,
+      "sha256": "badf3b55493f2ebf3a4d7b07f7b913b8937b16c59bf6cf1ea62c996555f1d439"
+    },
+    "health": {
+      "file": "v_834b34f16f45.ogg",
+      "text": "health",
+      "bytes": 11077,
+      "sha256": "0d02b2ac1dd1ce87083979838c83eef7b1630c43b5a1883656990262ffb8ccce"
+    },
+    "healthy": {
+      "file": "v_de18ccfa15e8.ogg",
+      "text": "healthy",
+      "bytes": 11581,
+      "sha256": "eee0d7bd037b3b9b6de03a50d28d16e15d023ec1cd4e194648595db17cb3c325"
+    },
+    "hear": {
+      "file": "v_ca607cf696dc.ogg",
+      "text": "hear",
+      "bytes": 10850,
+      "sha256": "ac851b1cc47a4bdf96cbc9f817eed2444c09da2b4ae5a5c14ca67a50cb5d48d7"
+    },
+    "heart of yanshan": {
+      "file": "v_6361d49c2dd3.ogg",
+      "text": "Heart of Yanshan",
+      "bytes": 12846,
+      "sha256": "c489873dbe495461b55594b090335ebdabf1da6ab812c6b28134b7e677503841"
+    },
+    "heavy": {
+      "file": "v_7e85183c21f8.ogg",
+      "text": "heavy",
+      "bytes": 11821,
+      "sha256": "abfb2495d7fcbf35f02847037522a67a4b8262aa4d482b61ad8a153db6a239ea"
+    },
+    "helen keller": {
+      "file": "v_1bb3716480fb.ogg",
+      "text": "Helen Keller",
+      "bytes": 12170,
+      "sha256": "7263561e62b482ba59c35bf33b2406e222d4dc28664d545428e6b048214b0859"
+    },
+    "her": {
+      "file": "v_999400659233.ogg",
+      "text": "her",
+      "bytes": 6422,
+      "sha256": "2c60fee4545ce860e31c3e4060d1c224618797bc340740e5368fd66641822637"
+    },
+    "hobby": {
+      "file": "v_54b7e849c6d2.ogg",
+      "text": "hobby",
+      "bytes": 11677,
+      "sha256": "111a55103dbd18b6732d9eff928f4ba46c146bee033d2b88bb8707d8ccf9122f"
+    },
+    "how about twenty yuan?": {
+      "file": "v_c056e5e24815.ogg",
+      "text": "How about twenty yuan?",
+      "bytes": 13202,
+      "sha256": "1c23e6c09b63d4dc6809e218b1dfb32a8be747c137805be78e7280d5acc5007e"
+    },
+    "hurt": {
+      "file": "v_7ee201fb09fb.ogg",
+      "text": "hurt",
+      "bytes": 10999,
+      "sha256": "92cf6d798efb220c2de7e77a3bd2c7b2eac5a13ef734d8f1968faf43830418af"
+    },
+    "i don't think so.": {
+      "file": "v_5c4ceb21c49c.ogg",
+      "text": "I don't think so.",
+      "bytes": 12737,
+      "sha256": "c105b8bc9446c8bd814fa699233dfaf5411eb3d0f12bc84820be69ef1af7a903"
+    },
+    "i often play the piano.": {
+      "file": "v_3212e7068ce1.ogg",
+      "text": "I often play the piano.",
+      "bytes": 13903,
+      "sha256": "1eb966dde851824534d1b58ddd53c973c4432d9653507c8ac4afd8898be14ce1"
+    },
+    "important": {
+      "file": "v_5b4009518b37.ogg",
+      "text": "important",
+      "bytes": 12022,
+      "sha256": "b7b9d2621a1d60c4e67991c94d3206380b4fd1b4f0572a1861d5a28757bbc50c"
+    },
+    "in bed": {
+      "file": "v_17545efd9da3.ogg",
+      "text": "in bed",
+      "bytes": 11857,
+      "sha256": "ba7913a0b190b6568a72d985e9b877fbf61d40c1e01e792d465a490e1a927a9e"
+    },
+    "in class": {
+      "file": "v_7cc7dc1c8dba.ogg",
+      "text": "in class",
+      "bytes": 12626,
+      "sha256": "b6fc0be6d37313df5a39e78dcc15e1efd7a1b2bd6f7b578bc8df64ffc9f73e5d"
+    },
+    "internet": {
+      "file": "v_4d0fb475b242.ogg",
+      "text": "internet",
+      "bytes": 12047,
+      "sha256": "ce72b6f2e87a39719a4077ec4ff036cbb6499dabdec532a9b102471db53386d6"
+    },
+    "it's your turn now.": {
+      "file": "v_58453e8b2983.ogg",
+      "text": "It's your turn now.",
+      "bytes": 13001,
+      "sha256": "ea4e19def4e36b96e7df36e0b809ceaeeffbdca39d3f48d25a71848a2f29e4f5"
+    },
+    "it's your turn.": {
+      "file": "v_5d60dd32c001.ogg",
+      "text": "It's your turn.",
+      "bytes": 12228,
+      "sha256": "72ffb05dea7d501f4d512c5212130d6005194ff24867cf2365f938c156e58580"
+    },
+    "january": {
+      "file": "v_549c6ca8a52f.ogg",
+      "text": "January",
+      "bytes": 12171,
+      "sha256": "c24b99d875a2ad516e427984cb42a1ef28940a42c5c7583ff7e6e6ec59fd257a"
+    },
+    "join": {
+      "file": "v_c455b38e0762.ogg",
+      "text": "join",
+      "bytes": 11340,
+      "sha256": "f67d23237c66cd6d68622ca4d490c642c9a5e9afb0dc3ecc79c939a301f8418b"
+    },
+    "jump": {
+      "file": "v_271e9a568c0e.ogg",
+      "text": "jump",
+      "bytes": 10853,
+      "sha256": "267b7c685e0c610444c25c1b19c138e145c42171039af90ebaa026b9dc34cb83"
+    },
+    "jump across the flat stones under the big tree to find rare supplies.": {
+      "file": "v_93e628cb2be1.ogg",
+      "text": "Jump across the flat stones under the big tree to find rare supplies.",
+      "bytes": 30465,
+      "sha256": "0b2a1193421ff66c29e73436f75393aa382d931ad4f449bf6803229d30516716"
+    },
+    "june": {
+      "file": "v_b05c038edc70.ogg",
+      "text": "June",
+      "bytes": 11135,
+      "sha256": "9fa9cdcc67e8fe6bed64c6e52e9e1c53d2eecb9381a6b87740ba2d1148dc6776"
+    },
+    "keep to the right": {
+      "file": "v_f2b595902309.ogg",
+      "text": "keep to the right",
+      "bytes": 12938,
+      "sha256": "afe04aa7c9b7c0e9ed002f2b2054169199982280957cfbdd7de6ca79bb54202f"
+    },
+    "know": {
+      "file": "v_97accafb5337.ogg",
+      "text": "know",
+      "bytes": 11081,
+      "sha256": "98ee485150247d63c5658916d0f3a364062e4759599c67b1e477d77a28a84436"
+    },
+    "lantern festival": {
+      "file": "v_dbc2fee721a8.ogg",
+      "text": "Lantern Festival",
+      "bytes": 13245,
+      "sha256": "4901929288b8ee9d58574fbe580067d78e6dc3e4b0d1622f2197b2fecbb0684d"
+    },
+    "laser rangefinder": {
+      "file": "v_a3ae9f93d076.ogg",
+      "text": "Laser Rangefinder",
+      "bytes": 13399,
+      "sha256": "87ca7c86da0f55b64c73a9cc287fc6bb59ce438c19f34fbac11c0a6ba86ec8f4"
+    },
+    "late": {
+      "file": "v_5d6200f8cf98.ogg",
+      "text": "late",
+      "bytes": 11476,
+      "sha256": "495d0d864f948b5fe4830d544c98a73c222439bf4a765baea628722b87a8715b"
+    },
+    "let's go and have a picnic, billy.": {
+      "file": "v_15de7bee7c26.ogg",
+      "text": "Let's go and have a picnic, Billy.",
+      "bytes": 17947,
+      "sha256": "89e683c368913fe41c65b8c43bc0587d5ba40b258fb6631a21a2b4b82941aa03"
+    },
+    "let's walk slowly.": {
+      "file": "v_2e0e16c66376.ogg",
+      "text": "Let's walk slowly.",
+      "bytes": 13607,
+      "sha256": "5c4ac18a62f5f9b338164c161df3233c065c63bc99fac09781f959e79cb1bbd0"
+    },
+    "letter": {
+      "file": "v_18cc852c9ac8.ogg",
+      "text": "letter",
+      "bytes": 11129,
+      "sha256": "9ae21999a2f1517cca75ff89ece347afba714e2e391f8444d27bfcaf7f62ebae"
+    },
+    "like": {
+      "file": "v_c4eb7d7fea3c.ogg",
+      "text": "like",
+      "bytes": 11444,
+      "sha256": "26c76875aed59e911724872b966710d3fcefb3172d90ec2f6a75e8424ec34177"
+    },
+    "lion dance": {
+      "file": "v_d4383a8a02ee.ogg",
+      "text": "lion dance",
+      "bytes": 12640,
+      "sha256": "9f8653d71aa7255129806f6e743c447bedbbce16860dc0983d62736837f28276"
+    },
+    "list": {
+      "file": "v_38b62be4bdda.ogg",
+      "text": "list",
+      "bytes": 11475,
+      "sha256": "00bb202fe79a1e834a9066aea52e6e03bc29262e7483643e2bb378bb78689265"
+    },
+    "listen": {
+      "file": "v_2147a9e5f9e8.ogg",
+      "text": "listen",
+      "bytes": 11983,
+      "sha256": "8c7fd1f9d88ac10835fffa68855be68c98bfaedd46454778b3c379dee4b2fb33"
+    },
+    "listen carefully in class.": {
+      "file": "v_318fe148b22f.ogg",
+      "text": "Listen carefully in class.",
+      "bytes": 15907,
+      "sha256": "ac44f674027dbe030a708b41dbcd1d64d4bfa2c7c6a1541108993fb02e56cbcc"
+    },
+    "little bird": {
+      "file": "v_5678d78d82c5.ogg",
+      "text": "little bird",
+      "bytes": 11895,
+      "sha256": "63cd2eda5069858a844036b9060cdaf101b535d6a552e696e0422b85887c1b1e"
+    },
+    "little rabbit": {
+      "file": "v_1daf33a9dbc8.ogg",
+      "text": "little rabbit",
+      "bytes": 12401,
+      "sha256": "ef0dd1634549a3f48134a01926060c8f008d0208bdd2ade65b925ba1b2c1d677"
+    },
+    "live": {
+      "file": "v_98aadb37083e.ogg",
+      "text": "live",
+      "bytes": 11430,
+      "sha256": "b9e59480443d2e06ca15e25f7fd78a67e56e2275abec04033056e93e6a5fa377"
+    },
+    "long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.": {
+      "file": "v_45fc23882cdf.ogg",
+      "text": "Long ago, villagers picked tea on misty hills and read books beside a warm lamp inside this cave.",
+      "bytes": 42101,
+      "sha256": "eb6ed070fd9efc6f2387c40dbb3049c8a2e6add4bbee2dc74d8a53a28ff6cd9f"
+    },
+    "look at the golden box over there! let's climb up and get it.": {
+      "file": "v_e1344dd6613f.ogg",
+      "text": "Look at the golden box over there! Let's climb up and get it.",
+      "bytes": 25488,
+      "sha256": "5b99692f40b5e6a7dbc1dc42c9a46fd632fc3543153a75465dd7a66b8914e312"
+    },
+    "look on top of the green containers to the west. climb up step by step!": {
+      "file": "v_0bf8d0f99ab8.ogg",
+      "text": "Look on top of the green containers to the west. Climb up step by step!",
+      "bytes": 33477,
+      "sha256": "5844ac3795865047f8a1e87a49c63714616b35234ee389dd11fac29dd8f56af2"
+    },
+    "make": {
+      "file": "v_5821eb27d7b7.ogg",
+      "text": "make",
+      "bytes": 11300,
+      "sha256": "a529131c6af02252f4f41571be31997cb0cca93bfa59d23632d0182b018b1ebc"
+    },
+    "may": {
+      "file": "v_f458ef050c0c.ogg",
+      "text": "may",
+      "bytes": 10896,
+      "sha256": "3feb47d1fce63211159188214592f242d04ffc2ba1d1d7cc814ea8b7919dfc73"
+    },
+    "mid-autumn festival": {
+      "file": "v_2b911d015f16.ogg",
+      "text": "Mid-Autumn Festival",
+      "bytes": 13251,
+      "sha256": "3bcf60aea04ebcd6180f2a7ef97196465991fbd3f148c2fb65b1078a7bc0eb1b"
+    },
+    "millennium ganoderma": {
+      "file": "v_c4b16d05ec33.ogg",
+      "text": "Millennium Ganoderma",
+      "bytes": 13741,
+      "sha256": "1036800e1f1ced7f30d39b7a0a37687add3db293d7ce133501f2a29308771bba"
+    },
+    "miss sullivan does not give up.": {
+      "file": "v_070e9cf38d72.ogg",
+      "text": "Miss Sullivan does not give up.",
+      "bytes": 14865,
+      "sha256": "491bc040b253be29ae02644b29635d281a76970476925d6ca512cc5fe00985e8"
+    },
+    "moon": {
+      "file": "v_46dcd4dd65b6.ogg",
+      "text": "moon",
+      "bytes": 11060,
+      "sha256": "e0470f15ab682cad25f960c6edb7ab6bd7322e975c8c3c30fbc99e8e466220c3"
+    },
+    "mooncake": {
+      "file": "v_80572a7505ca.ogg",
+      "text": "mooncake",
+      "bytes": 12077,
+      "sha256": "bb2d43a54e95b88402f8c3905a919b48f01d330e8833378e9a0fae0a3e43e055"
+    },
+    "mountain berry": {
+      "file": "v_0809923d5fab.ogg",
+      "text": "mountain berry",
+      "bytes": 12325,
+      "sha256": "044ef48eff562d5ab903ef75d59afbda2e8d09b16301b76fe38db635326676a7"
+    },
+    "ms": {
+      "file": "v_26cc3217be64.ogg",
+      "text": "Ms",
+      "bytes": 11591,
+      "sha256": "c289b4697f7c092aa983fc6c4dc0145bf92d1c4e4c3331c81150bf08bdf00b2c"
+    },
+    "need": {
+      "file": "v_efe30e310694.ogg",
+      "text": "need",
+      "bytes": 11135,
+      "sha256": "f8114a8b7946178aa392f1f520bcc7fe70981f45a6c39f844e716b6a86d67ff2"
+    },
+    "neighbour": {
+      "file": "v_b8a818857cbe.ogg",
+      "text": "neighbour",
+      "bytes": 11439,
+      "sha256": "2a815d93e8f3e96aaba16b9e6e17a78e6fc2f524830b55324c6a22fb724b9cc2"
+    },
+    "never": {
+      "file": "v_85777c03b725.ogg",
+      "text": "never",
+      "bytes": 11325,
+      "sha256": "814fa22e63052b97a0cc686e84c3cf2a36c87eeede1900c9f37e318e9d46d3a9"
+    },
+    "never give up! put your gear in order and keep moving.": {
+      "file": "v_34645ce530ff.ogg",
+      "text": "Never give up! Put your gear in order and keep moving.",
+      "bytes": 25556,
+      "sha256": "d3cf6f8a35b81c52bff73bdc692a8c2ee8969c92a08147ac448c0cbd27ccd845"
+    },
+    "next to": {
+      "file": "v_4b8fd8727d3b.ogg",
+      "text": "next to",
+      "bytes": 12188,
+      "sha256": "3bf069ac8dd3c155cc6bc9c8c095cacd7965632e597024878002ba8da768119d"
+    },
+    "night vision lens": {
+      "file": "v_7134bddd47b9.ogg",
+      "text": "Night Vision Lens",
+      "bytes": 13342,
+      "sha256": "57dc309e91c49a022ef28169945e4496990e3f901fad9b01ce7bad5e669ddaee"
+    },
+    "no, i don't think so.": {
+      "file": "v_91902172766f.ogg",
+      "text": "No, I don't think so.",
+      "bytes": 13874,
+      "sha256": "8864bb1cd300a6bb660776ca05650e541162ff2c8ad2c04afb0e61c922d69b14"
+    },
+    "october": {
+      "file": "v_2760666e0552.ogg",
+      "text": "October",
+      "bytes": 11624,
+      "sha256": "67194a54318bb9ed74f7307fe774b9186cbd49e2b5418d6d2eef19d991ea3f90"
+    },
+    "often": {
+      "file": "v_6b77993c3476.ogg",
+      "text": "often",
+      "bytes": 11667,
+      "sha256": "735fd45ac5aa8631aa4a3355c4838abace0df3f1565a90b4e0922601d9080f88"
+    },
+    "old battery": {
+      "file": "v_d7ec44659bbc.ogg",
+      "text": "Old Battery",
+      "bytes": 12217,
+      "sha256": "aecdbcf010c0b434ab13aa33920c398625fe13e0d9da585ad9df3a62e492d4a2"
+    },
+    "on one's way back": {
+      "file": "v_c5380b5adba4.ogg",
+      "text": "on one's way back",
+      "bytes": 13150,
+      "sha256": "545ce55edcddf0e344d4b369050d306ccb70518d7d4b085020c38c18c74cff8b"
+    },
+    "one": {
+      "file": "v_fe05bcdcdc49.ogg",
+      "text": "one",
+      "bytes": 10613,
+      "sha256": "c1e66aac049c0b91e4063e89b5486061cabdc211be06ea9eb20b1ec2c3f843bb"
+    },
+    "open": {
+      "file": "v_5fc7e38bffe0.ogg",
+      "text": "open",
+      "bytes": 11371,
+      "sha256": "dc3bc212c41b8869780c49a2e6b0a860a8203f86a3a6e30826e7bf6cff1dc538"
+    },
+    "or": {
+      "file": "v_1758356db217.ogg",
+      "text": "or",
+      "bytes": 10500,
+      "sha256": "f7cdd60adc8aacf0cd43904abffd48cdd6f04326e9fc9f968a2f41d3fc2054b6"
+    },
+    "other": {
+      "file": "v_d0941e68da8f.ogg",
+      "text": "other",
+      "bytes": 10899,
+      "sha256": "be345eae395503a4cecd7b8bc672c2feae6c3940fb51bf3b3d88644286826c99"
+    },
+    "ouch": {
+      "file": "v_67c7f994355d.ogg",
+      "text": "ouch",
+      "bytes": 11210,
+      "sha256": "b05abe93e574bc37346a727699a20792051c956e9f1620494228c59c830d6c22"
+    },
+    "our scouts are in front of the green bamboo forest right now.": {
+      "file": "v_1ff70e4e01d5.ogg",
+      "text": "Our scouts are in front of the green bamboo forest right now.",
+      "bytes": 23665,
+      "sha256": "585b1708f50f1c9e610514b6c1c0c323f1eb6e4b5bc1f0783c3fc122e0189758"
+    },
+    "out of the way": {
+      "file": "v_aec20f165e6e.ogg",
+      "text": "out of the way",
+      "bytes": 12261,
+      "sha256": "07cb899ed56ed5785865efe76f2d39481e448ee3ba7b1feb10001826e00127aa"
+    },
+    "over there": {
+      "file": "v_ef34d7274a7b.ogg",
+      "text": "over there",
+      "bytes": 11865,
+      "sha256": "764bf35eeee611b4259da950e519ae43a11e4f5864b6cee2f90ca5739a5ea41d"
+    },
+    "paint": {
+      "file": "v_039f7bd6bc6c.ogg",
+      "text": "paint",
+      "bytes": 11509,
+      "sha256": "889e697ce503c2e99a04961a53c4b55ac9fa59168787061164b88a904c315b1c"
+    },
+    "pair": {
+      "file": "v_20166cc53d54.ogg",
+      "text": "pair",
+      "bytes": 10929,
+      "sha256": "c9d296383495bc1ee5300d2bae4531c18b227eb34e0a4985a55150d8cadd0cb1"
+    },
+    "paper-cutting": {
+      "file": "v_fde8dd352528.ogg",
+      "text": "paper-cutting",
+      "bytes": 12538,
+      "sha256": "78318823953d4b259cc4a9009adc18f32e880f7a446751943e8bd143ad63c807"
+    },
+    "petroglyph rubbing": {
+      "file": "v_e2f561f0a2ac.ogg",
+      "text": "Petroglyph Rubbing",
+      "bytes": 11822,
+      "sha256": "75d6f938e7cab0ad98562df3f442f86c0a97506650e70be9cec32dcbe89ef2e7"
+    },
+    "plant": {
+      "file": "v_baf0bf92eb79.ogg",
+      "text": "plant",
+      "bytes": 11616,
+      "sha256": "be58910f64a8eeae3b8ff3f3bdcf9df5ba0adf6e68085c36fbd64dfdf930ab79"
+    },
+    "play chinese chess": {
+      "file": "v_d8cd9b17c6c2.ogg",
+      "text": "play Chinese chess",
+      "bytes": 13907,
+      "sha256": "9e66ca25a5d2209c9dc0bbe7aa531cfb264e0a17212285adf217e9779c0a0d50"
+    },
+    "play the piano": {
+      "file": "v_b7635635f874.ogg",
+      "text": "play the piano",
+      "bytes": 12873,
+      "sha256": "c6e298357c26989bed08834322a84988a25297a36ed6360be772138b426b0a5f"
+    },
+    "please do your homework.": {
+      "file": "v_f05e0f67935b.ogg",
+      "text": "Please do your homework.",
+      "bytes": 13082,
+      "sha256": "c4b2da35afa998338b5b57d6086a293b2d8be4de59f940f7875daad2436150da"
+    },
+    "pocket money": {
+      "file": "v_4d6081a3491c.ogg",
+      "text": "pocket money",
+      "bytes": 12527,
+      "sha256": "c089c45ee8fb15ca7d8b4ce29751fcf2aa736d38a33719bb7b60e7572e5b8f9e"
+    },
+    "problem": {
+      "file": "v_a5a0d15d4ae8.ogg",
+      "text": "problem",
+      "bytes": 11489,
+      "sha256": "c775d917fc458dc5e3209aded5cd4879e4bc2048c96ddac0fbfdef90251b351b"
+    },
+    "pull": {
+      "file": "v_c872d5564551.ogg",
+      "text": "pull",
+      "bytes": 10890,
+      "sha256": "f5edac2dadcefe0ab3df10dfaca200a5b58d63ca506867cfab7cc0ff64a6852b"
+    },
+    "purple flower": {
+      "file": "v_595e38bff552.ogg",
+      "text": "purple flower",
+      "bytes": 12208,
+      "sha256": "1bea886ae3a6f546712b8ec53d2ed256a0f5da52074bea72043995730f20ec90"
+    },
+    "push": {
+      "file": "v_dc867c03d6f1.ogg",
+      "text": "push",
+      "bytes": 11552,
+      "sha256": "b9cccb5e0f9b0df15cc1e3447f81a13f687142bb65fb8cfd45f269f8d659caf9"
+    },
+    "put in order": {
+      "file": "v_47f0be2ae865.ogg",
+      "text": "put in order",
+      "bytes": 12060,
+      "sha256": "244f762366a082bdb4a05a11425c78ddaecf01b036d8d4eb793534a221dba4fe"
+    },
+    "quantum dictionary": {
+      "file": "v_ac5b04e6b931.ogg",
+      "text": "Quantum Dictionary",
+      "bytes": 13381,
+      "sha256": "d6fa21dece6277afe7e68493922952f2c1e6924bc63c91a54c65404fb37dc151"
+    },
+    "quantum radar core": {
+      "file": "v_75c94eaae98c.ogg",
+      "text": "Quantum Radar Core",
+      "bytes": 13041,
+      "sha256": "b1b178d43409bb54c03d1f1f83ccb891c93a8870289888291e615db27362d1e1"
+    },
+    "ranger badge": {
+      "file": "v_6f10a9662b14.ogg",
+      "text": "Ranger Badge",
+      "bytes": 12689,
+      "sha256": "362f06000a7ca14fceee8fa671eda74aad65570bb1a58fb6389d1545d55c15a5"
+    },
+    "red fox": {
+      "file": "v_35758fda4c6c.ogg",
+      "text": "red fox",
+      "bytes": 12524,
+      "sha256": "50fd1ffee901c4a1e0e06b7bb1560a5d3b3690c828056fa8822ab14c3ee238d9"
+    },
+    "red mushroom": {
+      "file": "v_2f5b0efdf92b.ogg",
+      "text": "red mushroom",
+      "bytes": 12247,
+      "sha256": "dd895a11f03d5bff932520410feb9d3a354a8277121355a926121770456f9060"
+    },
+    "red packet": {
+      "file": "v_c69f2e9e18b6.ogg",
+      "text": "red packet",
+      "bytes": 12512,
+      "sha256": "f0ee098cc466ec01768ee248115831b088cb9d7b8ac206af21d6289346da12df"
+    },
+    "right now": {
+      "file": "v_6b6d41551a4f.ogg",
+      "text": "right now",
+      "bytes": 11723,
+      "sha256": "3446d75beb34f64a603c9beebf62a2978fe95725315cca01bbd6846ad205f9cd"
+    },
+    "river crab": {
+      "file": "v_d73243390b93.ogg",
+      "text": "river crab",
+      "bytes": 12089,
+      "sha256": "6b3e88ef6245fd1a6d2c99efe49c3cb1c84150576e8d0d2ca088970e60bab4de"
+    },
+    "river shrimp": {
+      "file": "v_1b37bcd2c32a.ogg",
+      "text": "river shrimp",
+      "bytes": 12219,
+      "sha256": "f374684e68951c6db3b0a650fa14c05fc9dc9ecef09f023aa075bb77569b5f8e"
+    },
+    "search between the two tall rocks behind the forest station for a secret cache.": {
+      "file": "v_148594416a4a.ogg",
+      "text": "Search between the two tall rocks behind the forest station for a secret cache.",
+      "bytes": 33243,
+      "sha256": "7c8ec893f1aab05ea5797c420d5f5dd6e65172a3e0edce4368aac6ee8202d1ae"
+    },
+    "secret celadon bowl": {
+      "file": "v_42efd0824718.ogg",
+      "text": "Secret Celadon Bowl",
+      "bytes": 14210,
+      "sha256": "e90defed7676991aa47e7b131fc88b5339fa0695600aa110fea0cac858a60728"
+    },
+    "september": {
+      "file": "v_85f2aea244da.ogg",
+      "text": "September",
+      "bytes": 12303,
+      "sha256": "a315da05d0ad8b7c5d50b25881c37d51fa32b5941d9f8eb816950c7d320e30b2"
+    },
+    "shoe": {
+      "file": "v_4488ae65393e.ogg",
+      "text": "shoe",
+      "bytes": 11400,
+      "sha256": "4098165faf27f646f2b8cea96ca96935737cec6b521c06b22e98c9939b852690"
+    },
+    "shop": {
+      "file": "v_5042d1466675.ogg",
+      "text": "shop",
+      "bytes": 11093,
+      "sha256": "8dfa7fb1949d6371473136eaed3abb287e0a320d55a3886b317faed4a01b24d1"
+    },
+    "should": {
+      "file": "v_c6dc9bc9f77b.ogg",
+      "text": "should",
+      "bytes": 11438,
+      "sha256": "25a250b1b0c1a17d4de88bf2a99b0d77f4437eb7f261522718710bff6a6586c7"
+    },
+    "show": {
+      "file": "v_9fb29051f221.ogg",
+      "text": "show",
+      "bytes": 11427,
+      "sha256": "df10f637207571b9f1def1973580b73c087df89b6d896e1b3942ed73a045ee5b"
+    },
+    "silver blessing lock": {
+      "file": "v_52da4a5cbff8.ogg",
+      "text": "Silver Blessing Lock",
+      "bytes": 14151,
+      "sha256": "769094cc839dba7cdd95ec3e17bac4794fecf3d5dfeecc21eea1f16e2a7ae04d"
+    },
+    "sixty-eight": {
+      "file": "v_03fcc994bfc4.ogg",
+      "text": "sixty-eight",
+      "bytes": 13196,
+      "sha256": "efc69bc7f04b8799e19aad20c8e8419c750090e29199454f59153d5e5dbdf5a5"
+    },
+    "skip": {
+      "file": "v_c7e16815bdd6.ogg",
+      "text": "skip",
+      "bytes": 11833,
+      "sha256": "4dfa1afec6a10632a06543de7455de4498fbdcde5bf4a5b48b31c651fe7c3491"
+    },
+    "sky": {
+      "file": "v_5737ef08a3ec.ogg",
+      "text": "sky",
+      "bytes": 11937,
+      "sha256": "7cdb44e8d4f564d1cd914634ce39a5c0f57e4293dbc80333487722e234393688"
+    },
+    "slowly": {
+      "file": "v_b972c8ef2b9a.ogg",
+      "text": "slowly",
+      "bytes": 12216,
+      "sha256": "b4b04a84b46a48db44d162b11b8de7745035c774ef865b2b9bb13ba968e66f00"
+    },
+    "small fish": {
+      "file": "v_b3ef86303cbe.ogg",
+      "text": "small fish",
+      "bytes": 13096,
+      "sha256": "4ae4acaf1c2fc6da6d8b3862be546a9ed43687e430d5df35618592638fff9421"
+    },
+    "smart": {
+      "file": "v_155635568414.ogg",
+      "text": "smart",
+      "bytes": 11780,
+      "sha256": "a20ad4c50f1e3c80b393e090afaca96a9114e976ec7266f48ad3816c9355e38f"
+    },
+    "sock": {
+      "file": "v_18c9667c2999.ogg",
+      "text": "sock",
+      "bytes": 11831,
+      "sha256": "284449d7de5374ddb71b7a25068723adf10c813c9b1ae7b0cacbe748f7494d9e"
+    },
+    "some": {
+      "file": "v_eb875812858d.ogg",
+      "text": "some",
+      "bytes": 11421,
+      "sha256": "c9055b4a9e0e03bbaa186f3791a4f6efdc06c68a45f324b87aca2d139d33d916"
+    },
+    "sometimes": {
+      "file": "v_297f31f02b99.ogg",
+      "text": "sometimes",
+      "bytes": 12418,
+      "sha256": "8c29b8c84805e9c98f4deaadda0dea84e6b444f371e6f571530bc98d8d0e7bcb"
+    },
+    "space": {
+      "file": "v_0803df4ff165.ogg",
+      "text": "space",
+      "bytes": 12134,
+      "sha256": "bc88e819961b9645274bd5650e60278b9670760e3696e87d5fb185cff4a9c074"
+    },
+    "speak": {
+      "file": "v_a65265946e25.ogg",
+      "text": "speak",
+      "bytes": 12079,
+      "sha256": "6a6cc8253884a8f6717e9778bf005ba34cec7cdb5df995313204baf2324ec3f5"
+    },
+    "spend": {
+      "file": "v_91c38fc743ea.ogg",
+      "text": "spend",
+      "bytes": 11808,
+      "sha256": "dd97f6456d471c17107d24019e43e9cb9ca49c22aeceeba0418183f745f27f7f"
+    },
+    "spring festival": {
+      "file": "v_df64edc4ea18.ogg",
+      "text": "Spring Festival",
+      "bytes": 13337,
+      "sha256": "464ad03b2eb8101ce76e6b4c7792f43e0bb8f983ca1c358833b922e5f5c5370d"
+    },
+    "spring tea cake": {
+      "file": "v_14d9c2e60b2d.ogg",
+      "text": "Spring Tea Cake",
+      "bytes": 13677,
+      "sha256": "4d6e45183c9639325b1957bc267d5ff375d168701cbf362c2d6eb7d3d224518e"
+    },
+    "squirrel": {
+      "file": "v_3e2bc6af9994.ogg",
+      "text": "squirrel",
+      "bytes": 11560,
+      "sha256": "fc16bc60ee2446bae6907f6d73f2cb96e939bab2a95bb1a45515ce6b016c93f2"
+    },
+    "stairs": {
+      "file": "v_5f56addc08d0.ogg",
+      "text": "stairs",
+      "bytes": 12304,
+      "sha256": "5f3a24bd4056c6cf667e6d8ebd0558e3240e8d66ea94cdad1c6c7aa31277efab"
+    },
+    "stocking": {
+      "file": "v_c4714e24d006.ogg",
+      "text": "stocking",
+      "bytes": 12235,
+      "sha256": "475611c7e3a686394a7093b6d34b13ada10298162409effb7eb1be77d8f2f1be"
+    },
+    "stream fluorite": {
+      "file": "v_c07fae4def99.ogg",
+      "text": "Stream Fluorite",
+      "bytes": 13228,
+      "sha256": "35b2e60e5e1affc5b698c74ff813029b88fd468a7d7f2b1292b87ecbead6590c"
+    },
+    "study": {
+      "file": "v_885534c19d5f.ogg",
+      "text": "study",
+      "bytes": 12243,
+      "sha256": "bfc998677cc15119f4e09aad63d2252395744cce6ee1cf4fb385765869584ced"
+    },
+    "supreme gold medal": {
+      "file": "v_24395f22119e.ogg",
+      "text": "Supreme Gold Medal",
+      "bytes": 13422,
+      "sha256": "621674c6f061318c3349a8a4259a3639a0ac0a4a20b830f832379018f63f9707"
+    },
+    "sweater": {
+      "file": "v_506227fcb1ad.ogg",
+      "text": "sweater",
+      "bytes": 11614,
+      "sha256": "24ac47319432060848f35c851d07393ad033c5bf24ae91fd2dc7e6a3fd75daa6"
+    },
+    "swim": {
+      "file": "v_b89f90f328fa.ogg",
+      "text": "swim",
+      "bytes": 11555,
+      "sha256": "7bfef79daea6cdaf58e2bdbae4116ca8c867fd38f45f5034297dfa248a263ad6"
+    },
+    "swimming pool": {
+      "file": "v_4d0008e59ffb.ogg",
+      "text": "swimming pool",
+      "bytes": 12544,
+      "sha256": "c1a80b48d6e9319dd0bce8b1ce66c4eadf652d6c15d29cecadf5a23a16e286ed"
+    },
+    "tactical flashlight": {
+      "file": "v_f182a97d9efe.ogg",
+      "text": "Tactical Flashlight",
+      "bytes": 13821,
+      "sha256": "2a8ebd4bf0bc5a727626d6fafdf75cbc51e1d62798ef70b50d0528c176f2977b"
+    },
+    "taihu scholar rock": {
+      "file": "v_054dc1e11be8.ogg",
+      "text": "Taihu Scholar Rock",
+      "bytes": 12911,
+      "sha256": "895695c414b770cb8a0e84978ce67d96d33e8eed11049fd5cde028901a7b07f9"
+    },
+    "tail": {
+      "file": "v_fbf5f2a2875b.ogg",
+      "text": "tail",
+      "bytes": 11172,
+      "sha256": "76f66c624a04b4f74b36c53d3cffcfc243b007b6d5ad5445be22312a69171cd0"
+    },
+    "take": {
+      "file": "v_53bd7d992ed7.ogg",
+      "text": "take",
+      "bytes": 11346,
+      "sha256": "9255016870275f496ff6791ff30336f44b5b79c4bf6a23868130f1bd192c43e6"
+    },
+    "take notes": {
+      "file": "v_3b2484e652f1.ogg",
+      "text": "take notes",
+      "bytes": 12369,
+      "sha256": "06918a3f7212e66fb62b9448ce4a1d0e68dd4874ef0fd5809e175477e87421e1"
+    },
+    "teach": {
+      "file": "v_bbe5bb364fb3.ogg",
+      "text": "teach",
+      "bytes": 11504,
+      "sha256": "71e462ae0772cdfd085d9d6baf5d088cb465929e871cac8396c6079ed7a389c3"
+    },
+    "the high jump": {
+      "file": "v_799ff737cfab.ogg",
+      "text": "the high jump",
+      "bytes": 12146,
+      "sha256": "cfc08ffcc326cb813f53366c5b82575ce4f78b3686d73fb94e357f5fa20fe07b"
+    },
+    "their": {
+      "file": "v_df055c669423.ogg",
+      "text": "their",
+      "bytes": 10925,
+      "sha256": "a8faa82b13b4f69bad64103299700eaae16ee34193df571e851fe8d8e81f0dd3"
+    },
+    "then": {
+      "file": "v_6f8f8e9f7673.ogg",
+      "text": "then",
+      "bytes": 11088,
+      "sha256": "910709da2907c7b5aae7358b84e258b3c582a80a98e7fe6b3db2ad82086cc9dc"
+    },
+    "tidy": {
+      "file": "v_a78fb1383c14.ogg",
+      "text": "tidy",
+      "bytes": 11565,
+      "sha256": "a637ed757dc1dc6cff434307974ba743497f6778a3f2849d85d92cfd4ce95e5c"
+    },
+    "time": {
+      "file": "v_714eea0f4c98.ogg",
+      "text": "time",
+      "bytes": 11158,
+      "sha256": "7b26f3c13f7a8733e82cf6f305eff84cba83bd5d8fa94e71750647e4675760f1"
+    },
+    "too": {
+      "file": "v_164a5c24f5df.ogg",
+      "text": "too",
+      "bytes": 11073,
+      "sha256": "738d8eaa6bf18451794cdeb4e60ee7045faa61f2e467a7e51d87bf0226ea2803"
+    },
+    "try on": {
+      "file": "v_1b3afa35342d.ogg",
+      "text": "try on",
+      "bytes": 11815,
+      "sha256": "78e919637c4a440fa40220eb298d4cace5ce9d3c4442c0d4f23db249f43ee0fb"
+    },
+    "turkey": {
+      "file": "v_5009c8e190ee.ogg",
+      "text": "turkey",
+      "bytes": 8058,
+      "sha256": "4c1f9dc012928c4a8267ef5bb4e668be7010c847f5cf2cf880dbc8ff6b5471a1"
+    },
+    "tv": {
+      "file": "v_ff0dc9ba2500.ogg",
+      "text": "TV",
+      "bytes": 11677,
+      "sha256": "b71f8bb54b2d9184c5bae4ad648e44407db472ca51b3c5b9f7254181464a97c7"
+    },
+    "twenty-eight": {
+      "file": "v_943e08233219.ogg",
+      "text": "twenty-eight",
+      "bytes": 12328,
+      "sha256": "10aa2bee1cb2cdf38e05b9004dca2bf06637465cde27297d703292181202f1f6"
+    },
+    "twenty-four": {
+      "file": "v_871ff9d0bdbb.ogg",
+      "text": "twenty-four",
+      "bytes": 12299,
+      "sha256": "1d5ecc04aeb422b8a66aeb430f1c464b086e04ee4eb79eb78dfc52319092a5d9"
+    },
+    "twin-dragon jade disc": {
+      "file": "v_e0a7199e77b8.ogg",
+      "text": "Twin-Dragon Jade Disc",
+      "bytes": 14471,
+      "sha256": "db45b7796f72c2f388a4f9c631ec206554478cd015b0135ccf67774274262b85"
+    },
+    "understand": {
+      "file": "v_8e73840bbf9c.ogg",
+      "text": "understand",
+      "bytes": 12573,
+      "sha256": "d3a0b9519296b53fb9c8fe8a5869b1d3a993145ad62050df599e1fd275b7c2ed"
+    },
+    "use": {
+      "file": "v_04489a12bbaa.ogg",
+      "text": "use",
+      "bytes": 11684,
+      "sha256": "f781d25493876d18e37fea45e0c16df09571eb476913cca91ec0d8ade01c2018"
+    },
+    "usually": {
+      "file": "v_66c2fa4e9e56.ogg",
+      "text": "usually",
+      "bytes": 11823,
+      "sha256": "dd2934a6f1ecc5aa9dfe9d9ba23646cbb7edf998ad76a21d052594ace27ab8a9"
+    },
+    "very much": {
+      "file": "v_bf9be6f8d799.ogg",
+      "text": "very much",
+      "bytes": 12427,
+      "sha256": "acb195555b0e7b770e61767e058bf5b8b4ce6d4ade57df349c520ebea61ae4c7"
+    },
+    "visit": {
+      "file": "v_a41f18cb110c.ogg",
+      "text": "visit",
+      "bytes": 11932,
+      "sha256": "76e4c9f4693f69d4119cf806f5e35f5af47eb24ab9eb8a00d9563ed885f68407"
+    },
+    "wait a minute": {
+      "file": "v_5187793975ba.ogg",
+      "text": "wait a minute",
+      "bytes": 12238,
+      "sha256": "fb992dd1a61401bf5ac4b67b7b08102592bda78aaecbc8146e5ddfdeb87ec171"
+    },
+    "wait a minute!": {
+      "file": "v_b4f859ea0126.ogg",
+      "text": "Wait a minute!",
+      "bytes": 12458,
+      "sha256": "9ab9d70afdc7d8f9dacd8af141ce6da8567eccd1d157e606e8ab35e15ada7eff"
+    },
+    "walk": {
+      "file": "v_df06b147f778.ogg",
+      "text": "walk",
+      "bytes": 11149,
+      "sha256": "09828a41772f86a2cd7f26b793f6dce78a1eff6bc40883dc68b06c3fc840f89b"
+    },
+    "walk through the bamboo paths, or crouch under the low stone arch to reach the ancient cave!": {
+      "file": "v_fecc92f99721.ogg",
+      "text": "Walk through the bamboo paths, or crouch under the low stone arch to reach the ancient cave!",
+      "bytes": 38401,
+      "sha256": "533a57aaf71e5bb8ec269a9622e593f2fb2e86dfe5b7c97717a3e3899bd5059b"
+    },
+    "wall": {
+      "file": "v_eb7ada766135.ogg",
+      "text": "wall",
+      "bytes": 10769,
+      "sha256": "a50d5b569f1a6fa96d22de4a8c30d9cba96e28000dca35df15e7d0cff1cbdf8e"
+    },
+    "warden golden core": {
+      "file": "v_0e5830cb2b3b.ogg",
+      "text": "Warden Golden Core",
+      "bytes": 12725,
+      "sha256": "f2e4e5ca44cccc352d134c4023035ce3b92fb8aa1fc4f58814d01ca3e07289c4"
+    },
+    "warm up": {
+      "file": "v_94106a4a4d82.ogg",
+      "text": "warm up",
+      "bytes": 11497,
+      "sha256": "26a38122ecb23e9716d0ea7b0bdd07474a5f395a4e7a7324a5065eebeac38651"
+    },
+    "watch": {
+      "file": "v_292b0901993f.ogg",
+      "text": "watch",
+      "bytes": 11301,
+      "sha256": "1370de825f170af727354aa44be19328122739a2ee7b72c0d6dfbfb1d1bfa105"
+    },
+    "water lily": {
+      "file": "v_3e70ba0576cf.ogg",
+      "text": "water lily",
+      "bytes": 12013,
+      "sha256": "91814e42146acbb791a74d77ccdb9d848c691611fa5c3b01a474838ffb86d395"
+    },
+    "we all have a good time at this festival.": {
+      "file": "v_fd00fc585a95.ogg",
+      "text": "We all have a good time at this festival.",
+      "bytes": 17706,
+      "sha256": "9d4636de5b71d337b23cd523413e0ed91f4427111ea1cd6fb52e1b2e6678f390"
+    },
+    "we should also keep to the right.": {
+      "file": "v_36b0708cfe39.ogg",
+      "text": "We should also keep to the right.",
+      "bytes": 14855,
+      "sha256": "582b50c62b44172f176791b1589396e22fddb6ec4bf96757e0a36ca650efa55a"
+    },
+    "we should warm up.": {
+      "file": "v_9297a4fd34cf.ogg",
+      "text": "We should warm up.",
+      "bytes": 12532,
+      "sha256": "c6b71f3bfb9326419b71b0a20f79fa488fc74271a1698d0e7790250d9229d4f2"
+    },
+    "well done!": {
+      "file": "v_dc370a1a5907.ogg",
+      "text": "Well done!",
+      "bytes": 11929,
+      "sha256": "be2615370233639fd68f5a1e4af598b06804723b8fab6c634e2b2d8d3446100d"
+    },
+    "well done, bobby!": {
+      "file": "v_804f913ee437.ogg",
+      "text": "Well done, Bobby!",
+      "bytes": 13237,
+      "sha256": "4d4def78faab44407ea94cb1f2ff004bfe7eb68f27acff48f0604d213ad0313e"
+    },
+    "when": {
+      "file": "v_30603fa9e0f6.ogg",
+      "text": "when",
+      "bytes": 10921,
+      "sha256": "31fb14352e59c8e13a7bfb48c875ba77a238028bdf76910e832880e15d717db0"
+    },
+    "white bird": {
+      "file": "v_922239306657.ogg",
+      "text": "white bird",
+      "bytes": 11629,
+      "sha256": "50aff4800010f887c64a5e024be49ebca9b4b9926540d4f233c73c87cb0e30d4"
+    },
+    "wild boar": {
+      "file": "v_47c743c14505.ogg",
+      "text": "wild boar",
+      "bytes": 11700,
+      "sha256": "175926756e91c8bdf3874197f90928c505386119359340e9763890b7f7b576e7"
+    },
+    "wild orchid": {
+      "file": "v_2f4528c18b0c.ogg",
+      "text": "wild orchid",
+      "bytes": 12387,
+      "sha256": "8cd3a364c05d2c9299803d70348f8ec277eada5c74e9395d906c964d49ad8783"
+    },
+    "wonderful": {
+      "file": "v_51f90c38d793.ogg",
+      "text": "wonderful",
+      "bytes": 11524,
+      "sha256": "5b4bff3e7f2750577c964585ca0f1e5fc0ec30645907e46116467229a739de23"
+    },
+    "word": {
+      "file": "v_3cbcd90adc4b.ogg",
+      "text": "word",
+      "bytes": 10601,
+      "sha256": "aac482cfc62ccdf2a9c61bdc19f14019c3d77b42e6c185db826750979d9899c2"
+    },
+    "worried": {
+      "file": "v_7c3dc3889b6f.ogg",
+      "text": "worried",
+      "bytes": 11069,
+      "sha256": "727e0c1f7f48b51bd0349a2ea47c07450e9649779a6a6d1790f4f5bdfac13d67"
+    },
+    "write": {
+      "file": "v_e1d0c6c1c29e.ogg",
+      "text": "write",
+      "bytes": 11516,
+      "sha256": "3412ea4006841c92d3f032a7ecbdba34d84ea91d81b1dfda206cd3c542f37ba8"
+    },
+    "yeah": {
+      "file": "v_e029e41f4e01.ogg",
+      "text": "yeah",
+      "bytes": 10474,
+      "sha256": "3a8a84b36c0146f0769f8ea8db65f8a410fae7f6e4329adaed9df6b6d19a8c6a"
+    },
+    "yellow flower": {
+      "file": "v_99e1ea7e568b.ogg",
+      "text": "yellow flower",
+      "bytes": 12288,
+      "sha256": "1e274f1d4b877836c957913afa32148c59a4dabee0f95e4182466467726cbb85"
+    },
+    "yuan": {
+      "file": "v_35015dd23b25.ogg",
+      "text": "yuan",
+      "bytes": 11631,
+      "sha256": "7da91b441877e0570ba42362120e92ee4261f9a0f3c3d5e6c1c69753d822f586"
+    }
+  }
+}

@@ -116,6 +116,113 @@ func run():
 	verify(cipher.unlocked and not cipher.perfect_crack and game.rules.profile.mastery[copied_id].last_outcome == "copied_scaffold", "copying the revealed answer can still open the supply box")
 	verify(int(game.rules.profile.mastery[copied_id].get("independent_correct", 0)) == copied_prior and game.rules.profile.review_due.has(copied_id), "copying the answer is distinct from spelling mastery")
 	cipher.close()
+
+	# v0.7.0 Stage 1 & 2: Deterministic cross-day SRS progression, anti-false-mastery, encounters vs seen, and verified Cloze targets!
+	var Srs = load("res://scripts/srs_scheduler.gd")
+	var srs_id := "js5a2026-061" # warm up (Unit 4, p.53)
+	var day0 := 1763500000
+	game.rules.profile.mastery.erase(srs_id)
+	game.rules.profile.review_due.erase(srs_id)
+	learning.record_recognition(srs_id, true, 4, false, day0)
+	var e0: Dictionary = game.rules.profile.mastery[srs_id]
+	verify(int(e0.srs_stage) == 1 and int(e0.next_due_ts) == day0 + Srs.DAY_SECONDS, "first independent hit advances SRS to Stage 1 (+1d)")
+	verify(not learning.is_due(srs_id, day0 + 3600) and learning.is_due(srs_id, day0 + Srs.DAY_SECONDS), "SRS item is not due mid-day and becomes due after 1 day")
+	learning.record_recognition(srs_id, true, 4, false, day0 + 3600)
+	verify(int(game.rules.profile.mastery[srs_id].srs_stage) == 1, "same-session repeat does not artificially inflate SRS stage past 1")
+	var day1: int = day0 + Srs.DAY_SECONDS
+	learning.record_recognition(srs_id, true, 4, false, day1)
+	verify(int(game.rules.profile.mastery[srs_id].srs_stage) == 2 and int(game.rules.profile.mastery[srs_id].next_due_ts) == day1 + 3 * Srs.DAY_SECONDS, "next-day independent recall advances SRS to Stage 2 (+3d)")
+	var day4: int = day1 + 3 * Srs.DAY_SECONDS
+	learning.record_spelling(srs_id, "independent", true, day4)
+	verify(int(game.rules.profile.mastery[srs_id].srs_stage) == 3 and int(game.rules.profile.mastery[srs_id].next_due_ts) == day4 + 7 * Srs.DAY_SECONDS, "3-day independent retest advances SRS to Stage 3 (+7d)")
+	var day11: int = day4 + 7 * Srs.DAY_SECONDS
+	learning.record_spelling(srs_id, "independent", true, day11)
+	verify(int(game.rules.profile.mastery[srs_id].srs_stage) == 4 and int(game.rules.profile.mastery[srs_id].next_due_ts) == day11 + 15 * Srs.DAY_SECONDS, "7-day independent retest advances SRS to Stage 4 (+15d)")
+	learning.record_recognition(srs_id, false, 4, false, day11 + 100)
+	verify(int(game.rules.profile.mastery[srs_id].srs_stage) == 0 and learning.is_due(srs_id, day11 + 100), "a mistake resets SRS stage to 0 and immediately marks word due")
+
+	# Anti-false-mastery guard: 3 wrongs + 2 same-day independent hits (stage 1) must NOT count as mastered; cross-interval stage 2 DOES!
+	var hard_id := "js5a2026-070"
+	game.rules.profile.mastery.erase(hard_id)
+	game.rules.profile.review_due.erase(hard_id)
+	for _w in 3:
+		learning.record_recognition(hard_id, false, 4, false, day0)
+	learning.record_recognition(hard_id, true, 4, false, day0 + 60)
+	learning.record_recognition(hard_id, true, 4, false, day0 + 120)
+	verify(not learning.is_mastered(hard_id), "high-wrong word with only same-day hits is NOT falsely marked mastered")
+	learning.record_recognition(hard_id, true, 4, false, day0 + Srs.DAY_SECONDS + 120)
+	verify(learning.is_mastered(hard_id) and int(game.rules.profile.mastery[hard_id].srs_stage) == 2, "passing across a real 1-day interval earns mastery even after earlier struggles")
+
+	# Per-crate encounter count vs event seen count
+	var enc_id := "js5a2026-023"
+	game.rules.profile.mastery.erase(enc_id)
+	learning.record_spelling(enc_id, "incorrect", false, day0, true)
+	learning.record_spelling(enc_id, "hinted", false, day0, false)
+	verify(int(game.rules.profile.mastery[enc_id].seen) == 2 and int(game.rules.profile.mastery[enc_id].encounters) == 1, "single crate wrong-then-hinted logs 2 seen events and 1 encounter")
+
+	# Deterministic SRS queue puts due words at the tail (first popped by pop_back)
+	var queue_check: Array = Srs.build_session_queue(game.rules.profile, game.words, day11 + 100)
+	verify(not queue_check.is_empty() and learning.is_due(str(queue_check[-1].id), day11 + 100), "SRS session queue prioritizes due/mistake words at pop_back tail")
+
+	# Verified Cloze index integrity across all 16 audited sentences & 175-word pack
+	var word_ids := {}
+	for w in game.words:
+		word_ids[str(w.id)] = w
+	var cloze_valid := true
+	var cloze_total := 0
+	for s in game.sentences:
+		for t in s.get("cloze_targets", []):
+			cloze_total += 1
+			var wid := str(t.get("word_id", ""))
+			var span := str(t.get("span", ""))
+			if not word_ids.has(wid) or str(s.english).findn(span) < 0:
+				cloze_valid = false
+	var warm_cloze: Dictionary = game.cloze_for_word("js5a2026-061")
+	verify(cloze_valid and cloze_total >= 15 and warm_cloze.get("cloze_text", "") == "We should ____.", "all 15+ Cloze targets match valid 175-pack IDs and verbatim textbook spans")
+
+	# Legacy profile non-destructive migration check (v0.6.7 -> v0.7.0 preserves old file bytes!)
+	var legacy_path := "user://qa-v067-legacy-src.json"
+	var legacy_payload := JSON.stringify({"coins": 88, "xp": 240, "mastery": {"js5a2026-003": {"seen": 3, "correct": 2, "independent_correct": 2, "wrong": 0}}, "review_due": {"js5a2026-040": "incorrect"}}, "\t")
+	var lf := FileAccess.open(legacy_path, FileAccess.WRITE)
+	lf.store_string(legacy_payload)
+	lf.close()
+	var legacy_hash_before := FileAccess.get_sha256(legacy_path)
+	var migrated = load("res://scripts/main.gd").new()
+	migrated.profile_path_override = legacy_path
+	migrated._load_profile()
+	migrated.profile_path_override = "user://qa-v070-migrated-dst.json"
+	var mig_saved: bool = migrated._save()
+	var mig_reload = load("res://scripts/main.gd").new()
+	mig_reload.profile_path_override = "user://qa-v070-migrated-dst.json"
+	mig_reload._load_profile()
+	verify(mig_saved and FileAccess.get_sha256(legacy_path) == legacy_hash_before and mig_reload.rules.profile.coins == 88 and mig_reload.rules.profile.review_due.has("js5a2026-040"), "v0.6.7 profile migrates forward cleanly while keeping source file SHA-256 unchanged")
+	migrated.free()
+	mig_reload.free()
+
+	# v0.7.1 Offline US Neural Voice Pack + Export TTS Fallback Verification
+	verify(bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)), "project.godot explicitly enables audio/general/text_to_speech for exported builds")
+	var missing_word_voice := 0
+	for w in game.words:
+		if not game.voice_manifest.has(game.normalize_voice_key(str(w.english))):
+			missing_word_voice += 1
+	var missing_sent_voice := 0
+	for s in game.sentences:
+		if not game.voice_manifest.has(game.normalize_voice_key(str(s.english))):
+			missing_sent_voice += 1
+	var missing_loot_voice := 0
+	for r_tier in game.Rules.LOOT_TABLE.keys():
+		for item in game.Rules.LOOT_TABLE[r_tier]:
+			if not game.voice_manifest.has(game.normalize_voice_key(str(item.get("en", "")))):
+				missing_loot_voice += 1
+	verify(game.voice_manifest.size() >= 240 and missing_word_voice == 0 and missing_sent_voice == 0 and missing_loot_voice == 0, "offline voice manifest covers 100% of 175 words, 16 sentences, and 32 loot names")
+	var prev_tts := str(game.tts_voice_id)
+	game.tts_voice_id = ""
+	var has_no_os_tts: bool = game.has_english_voice("Dragon Boat Festival") and game.has_english_voice("put ... in order") and game.has_english_voice("Children’s Day")
+	var spoke_phrase: bool = game.speak_english("put ... in order")
+	var stream_ok: bool = game.load_voice_stream("Dragon Boat Festival") is AudioStream
+	verify(has_no_os_tts and spoke_phrase and game.last_voice_backend == "ogg" and stream_ok, "offline OGG voice works cleanly with zero OS English TTS voices installed")
+	game.tts_voice_id = prev_tts
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

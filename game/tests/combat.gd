@@ -573,6 +573,44 @@ func run():
 	game.interact()
 	verify(game.combat.stage == Battle.Stage.OFF and game.stations[1].boards[0].visible and game.active_station == 0, "free practice starts with stationary boards enabled")
 
+	# 10. v0.7.0 Nemesis Bounty deterministic wave injection, bounty kill reward & all-camp readability promotion!
+	var nemesis_id := "js5a2026-061" # warm up (has textbook Cloze sentence 'We should ____.')
+	game.rules.profile.review_due[nemesis_id] = "incorrect"
+	game.start_action(true, "normal")
+	await frames(6)
+	var found_nemesis = null
+	for s in game.combat.troops[0]:
+		if is_instance_valid(s) and str(s.assigned_word.get("id", "")) == nemesis_id:
+			found_nemesis = s
+			break
+	verify(found_nemesis != null and found_nemesis.is_nemesis_bounty, "due mistake word is deterministically injected into Camp 0 wave as golden Nemesis Bounty soldier")
+	game.player.position = center0 + Vector3(0, 0.08, 4.0)
+	game.combat.engage_camp(0)
+	await frames(4)
+	verify(str(game.question.get("id", "")) == nemesis_id and game.cloze_label.text.contains("We should ____."), "engaging camp surfaces Nemesis word first with verified textbook Cloze context")
+	for s_p in game.combat.troops[0]:
+		s_p.set_physics_process(false)
+	found_nemesis.position = center0 + Vector3(0, 0.08, -1.8)
+	found_nemesis.rotation = Vector3.ZERO
+	await frames(2)
+	var score_pre_nem: int = game.rules.score
+	shoot(game.player.camera.global_position, found_nemesis.head_area.global_position)
+	verify(
+		found_nemesis.defeated and game.rules.nemesis_cleared == 1 and game.rules.score >= score_pre_nem + game.Rules.BASE_ANSWER_SCORE + game.Rules.NEMESIS_BONUS_SCORE and not game.rules.profile.review_due.has(nemesis_id),
+		"independently defeating Nemesis Bounty soldier grants +10 bonus, increments nemesis_cleared & clears review_due"
+	)
+
+	# All-6-camp readability generalization check (Camp 2 B-Zone uses elevated shield_y & tall outer flank cover)
+	var b_non_boss = null
+	for s2 in game.combat.troops[2]:
+		if is_instance_valid(s2) and s2.archetype != Soldier.Archetype.BOSS_WARDEN:
+			b_non_boss = s2
+			break
+	var b_flank: Vector3 = game.combat.camp_covers[2][0]
+	game.player.position = game.Layout.on_ground(b_flank + Vector3(0, 0, 5.0))
+	var b_flank_blocked: bool = not game.combat.clear_shot(game.Layout.on_ground(b_flank - Vector3(0, 0, 1.42)))
+	verify(b_non_boss != null and b_non_boss.shield_area.position.y >= 1.33 and b_flank_blocked, "Camp 2 B-Zone shares unified elevated word shields and tall outer flank cover")
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.3).timeout

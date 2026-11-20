@@ -1,0 +1,275 @@
+{
+  "version": "0.7.1",
+  "baseline": "v0.7.0 (git baseline v0.6.7 / 4c3931d)",
+  "date": "2026-11-20",
+  "target_vega8_validated": false,
+  "student_run_validated": false,
+  "delayed_recall_validated": false,
+  "standalone_pck_regression": {
+    "suites": {
+      "learning": 39,
+      "combat": 61,
+      "economy": 32,
+      "smoke": 33,
+      "movement": 27,
+      "navigation": 13,
+      "physics": 18,
+      "challenges": 12,
+      "slice": 165
+    },
+    "passed": 400,
+    "packaged_resources": 22
+  },
+  "headless_startup": {
+    "menu_frame_ms": 3928,
+    "renderer": "forward_plus",
+    "stages_ms": {
+      "backdrop": 579,
+      "boundary": 3,
+      "camp": 255,
+      "exploration_wildlife": 64,
+      "flora_meadows": 23,
+      "font_voice_profile": 78,
+      "ground": 1258,
+      "init_structure_materials": 28,
+      "landmarks": 15,
+      "lighting": 10,
+      "loot_and_menu": 49,
+      "player_ui": 89,
+      "ready_total": 3301,
+      "stream": 647,
+      "vegetation": 782,
+      "world_total": 3021
+    },
+    "tts_setting_enabled": true,
+    "tts_voice_ready": false,
+    "version": "0.7.1",
+    "voice_pack_count": 247,
+    "voice_sample_playable": true,
+    "process_wall_s": 4.199
+  },
+  "graphics_launch_first": {
+    "standard": {
+      "menu_frame_ms": 14915,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 811,
+        "boundary": 4,
+        "camp": 857,
+        "exploration_wildlife": 116,
+        "flora_meadows": 57,
+        "font_voice_profile": 68,
+        "ground": 820,
+        "init_structure_materials": 31,
+        "landmarks": 26,
+        "lighting": 39,
+        "loot_and_menu": 110,
+        "player_ui": 380,
+        "ready_total": 5172,
+        "stream": 1462,
+        "vegetation": 1202,
+        "world_total": 4498
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 25.072,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 4514,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 450,
+        "boundary": 2,
+        "camp": 387,
+        "exploration_wildlife": 62,
+        "flora_meadows": 32,
+        "font_voice_profile": 54,
+        "ground": 782,
+        "init_structure_materials": 28,
+        "landmarks": 21,
+        "lighting": 21,
+        "loot_and_menu": 70,
+        "player_ui": 124,
+        "ready_total": 3054,
+        "stream": 770,
+        "vegetation": 701,
+        "world_total": 2744
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 4.897,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 19063,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 373,
+        "boundary": 2,
+        "camp": 266,
+        "exploration_wildlife": 53,
+        "flora_meadows": 28,
+        "font_voice_profile": 51,
+        "ground": 782,
+        "init_structure_materials": 26,
+        "landmarks": 13,
+        "lighting": 7,
+        "loot_and_menu": 60,
+        "player_ui": 85,
+        "ready_total": 2550,
+        "stream": 591,
+        "vegetation": 586,
+        "world_total": 2301
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 19.437,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "graphics_launch_repeat": {
+    "standard": {
+      "menu_frame_ms": 4288,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 435,
+        "boundary": 2,
+        "camp": 372,
+        "exploration_wildlife": 56,
+        "flora_meadows": 32,
+        "font_voice_profile": 54,
+        "ground": 801,
+        "init_structure_materials": 28,
+        "landmarks": 19,
+        "lighting": 20,
+        "loot_and_menu": 69,
+        "player_ui": 121,
+        "ready_total": 3011,
+        "stream": 757,
+        "vegetation": 680,
+        "world_total": 2711
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 4.63,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 4376,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 435,
+        "boundary": 2,
+        "camp": 376,
+        "exploration_wildlife": 55,
+        "flora_meadows": 34,
+        "font_voice_profile": 58,
+        "ground": 795,
+        "init_structure_materials": 29,
+        "landmarks": 19,
+        "lighting": 22,
+        "loot_and_menu": 68,
+        "player_ui": 120,
+        "ready_total": 3026,
+        "stream": 767,
+        "vegetation": 681,
+        "world_total": 2725
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 4.706,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 4049,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 409,
+        "boundary": 1,
+        "camp": 273,
+        "exploration_wildlife": 52,
+        "flora_meadows": 32,
+        "font_voice_profile": 55,
+        "ground": 845,
+        "init_structure_materials": 26,
+        "landmarks": 13,
+        "lighting": 7,
+        "loot_and_menu": 57,
+        "player_ui": 86,
+        "ready_total": 2768,
+        "stream": 674,
+        "vegetation": 646,
+        "world_total": 2518
+      },
+      "tts_setting_enabled": true,
+      "tts_voice_ready": true,
+      "version": "0.7.1",
+      "voice_pack_count": 247,
+      "voice_sample_playable": true,
+      "process_wall_s": 4.434,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "zip_crc_ok": true,
+  "historical_hashes_preserved": {
+    "0.6.6": true,
+    "0.6.7": true,
+    "0.7.0": true
+  },
+  "launcher_parity_ok": true,
+  "release": {
+    "version": "0.7.1",
+    "source_checkpoint": "docs\\checkpoints\\source-0.7.1.zip",
+    "files": [
+      {
+        "path": "playtest\\windows-v0.7.1\\YanshanBase.exe",
+        "bytes": 109268480,
+        "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+      },
+      {
+        "path": "playtest\\windows-v0.7.1\\YanshanBase.pck",
+        "bytes": 76388468,
+        "sha256": "4f454fac83243f40b1b84b527de696510cee21c0c9434a9987d92a453c3a6161"
+      },
+      {
+        "path": "playtest\\烟山基地试玩_v0.7.1_Windows.zip",
+        "bytes": 113702574,
+        "sha256": "506eb345e94dc097031ad1cf30c705661518939e901b511b11f1b8dd30c8642d"
+      }
+    ]
+  }
+}

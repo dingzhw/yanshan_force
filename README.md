@@ -5,11 +5,11 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.6.7-teal.svg)
+![Version](https://img.shields.io/badge/Version-v0.7.2-teal.svg)
 
-## v0.6.7 试玩
+## v0.7.2 试玩
 
-双击项目根目录的「开始烟山试玩.cmd」或验收包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility。按 F6 可在当前后端内切换低画质。此版缩短启动等待、改善首营英文词盾的可读性，并在失败结算时保存学习记录。目标 Vega 8 与家庭试玩分别按验收单记录。[试玩说明](docs/v0.6.7-试玩说明.txt) · [阶段计划](docs/review-v066/C团队_v0.6.7推进计划.md)
+双击项目根目录的「开始烟山试玩.cmd」或验收包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版在 `v0.7.1` 全平台离线美式自然女声语音包与 `v0.7.0` 学战深度闭环基础上，全面翻新全部 32 件藏品的 Blender 4.5 独立 PBR 3D 模型与同源影棚 2D 图标，并将 `[I]` 3D 检视台升级为支持鼠标 360° 拖拽旋转与滚轮缩放的博物展台。[试玩说明](docs/v0.7.2-试玩说明.txt) · [阶段计划](docs/v0.7.2-阶段计划.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
 
 ---
 
@@ -121,7 +121,9 @@
 - **`v0.6.2` ~ `v0.6.2.1` 秘境探索与双行动分级**（✅ 已发布）：竹石交错的「迷踪竹石阵」（含 `[C]` 矮拱潜行捷径与摩崖石刻）、带无框先民岩凿壁画《烟山耕读》与一线天寒潭茶灶遗迹的纵深「烟霞古洞」，以及「普通行动 / 机密行动」双难度摸金体系；
 - **`v0.6.3` 真摸金大红重塑与烟山双语奇珍图鉴**（✅ 已发布）：6 阶稀有度与「旷世·大红」奇迹池、放大镜逐格悬念鉴定、露天 3D 刷货/掏鸟窝/波次掉落包、`[B]` 摸金背包、`[I]` 3D 旋转宝物检视台与营地双语奇珍馆；
 - **`v0.6.4` 青绿烟山美术、建模与第一人称动作重塑**（✅ 已发布）：锁肩双骨 IK 与双手武术持刀+青瓷金锋刀光（根除挥刀断臂穿帮）、团簇青绿水墨树竹与乌桕丹枫立体体积着色器（零树影开销消除绿团塑料感）、6 分件苍青错金 `YS-04` 卡宾枪、伞绳短刀、八角须弥石案、盘枝鸟窝与飞檐机关词卫；
-- **下一阶段**：用 Vega 8 与家庭首局记录确定 v0.7.0 的重点，优先落实跨局错词和间隔复习。安全箱与委托排在学战闭环之后。
+- **`v0.6.7` 启动提速、学习口径纠偏与首营读词（✅ 已完成）**：共享地形/外谷顶点并建立道路空间索引（无窗口初始化 `42.67s → 2.95s`）、失败/关窗保存学习记录、主词与句库分池并核对 16 句印刷页码、统一根/包启动器与巡检真实后端；
+- **`v0.7.0` 学战深度闭环（✅ 本版）**：透明 5 级间隔复习（1d/3d/7d/15d）、跨局宿敌错词必出与金色悬赏词兵、教材原句挖空语境与例句反馈、全图 6 营读词规则统一；
+- **下一阶段（`v0.8.0+`）**：结合 Vega 8 实测与家庭首局/次日复测数据，按路线推进加密安全箱、随机战地委托（`v0.8.0`）及多词库/家长学情看板（`v0.9.0`）。
 
 ---
 
@@ -149,7 +151,7 @@
 ### 1. 从源码直接运行（无需联网）
 1. 开发使用 **Godot 4.7.2 Standard**。试玩包可直接运行。Windows 标准入口默认 Forward+，GL Compatibility 低档通过启动脚本选择。
 2. 克隆本仓库后，用 Godot 打开 [`game/project.godot`](game/project.godot)，点击运行即可进入游戏。
-3. v0.6.7 首次运行可读取旧版学习与战备记录，后续写入 `%APPDATA%\Godot\app_userdata\烟山基地 · 英语搜撤试玩\profile-v067.json`。
+3. v0.7.0 首次运行可无损读取旧版 `profile-v067.json` 或 `profile-v01.json`，后续写入 `%APPDATA%\Godot\app_userdata\烟山基地 · 英语搜撤试玩\profile-v070.json`。
 
 ### 2. 零代码替换/扩展你的专属词库
 想换成**人教版 / 译林版其他年级词汇、KET / PET 词库，或语文/科学单词卡**？
@@ -171,7 +173,7 @@
 ### 4. 自动化回归验证
 本机安装 Godot 4.7.2 后，可将运行时路径填入 `docs/runtime-local.json`（参考 [`docs/runtime-local.example.json`](docs/runtime-local.example.json)），运行：
 ```bash
-python -X utf8 tools/check_slice.py --stage --ver 0.6.7 smoke learning economy movement navigation physics challenges combat slice
+python -X utf8 tools/check_slice.py --stage --ver 0.7.0 smoke learning economy movement navigation physics challenges combat slice
 ```
 
 ---

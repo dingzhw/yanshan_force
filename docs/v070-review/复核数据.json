@@ -1,0 +1,377 @@
+{
+  "version": "0.7.0",
+  "baseline": "v0.6.7 / 4c3931d",
+  "date": "2026-11-19",
+  "target_vega8_validated": false,
+  "student_run_validated": false,
+  "delayed_recall_validated": false,
+  "standalone_pck_regression": {
+    "suites": {
+      "learning": 36,
+      "combat": 61,
+      "economy": 32,
+      "smoke": 33,
+      "movement": 27,
+      "navigation": 13,
+      "physics": 18,
+      "challenges": 12,
+      "slice": 165
+    },
+    "passed": 397,
+    "packaged_resources": 19
+  },
+  "headless_startup": {
+    "menu_frame_ms": 3174,
+    "renderer": "forward_plus",
+    "stages_ms": {
+      "backdrop": 440,
+      "boundary": 2,
+      "camp": 242,
+      "exploration_wildlife": 57,
+      "flora_meadows": 20,
+      "font_voice_profile": 54,
+      "ground": 950,
+      "init_structure_materials": 23,
+      "landmarks": 13,
+      "lighting": 7,
+      "loot_and_menu": 46,
+      "player_ui": 80,
+      "ready_total": 2677,
+      "stream": 559,
+      "vegetation": 624,
+      "world_total": 2440
+    },
+    "version": "0.7.0",
+    "process_wall_s": 3.436
+  },
+  "graphics_launch_first": {
+    "standard": {
+      "menu_frame_ms": 6783,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 555,
+        "boundary": 3,
+        "camp": 539,
+        "exploration_wildlife": 65,
+        "flora_meadows": 56,
+        "font_voice_profile": 54,
+        "ground": 980,
+        "init_structure_materials": 29,
+        "landmarks": 21,
+        "lighting": 32,
+        "loot_and_menu": 66,
+        "player_ui": 207,
+        "ready_total": 4075,
+        "stream": 1165,
+        "vegetation": 858,
+        "world_total": 3683
+      },
+      "version": "0.7.0",
+      "process_wall_s": 7.339,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 4989,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 530,
+        "boundary": 2,
+        "camp": 415,
+        "exploration_wildlife": 65,
+        "flora_meadows": 43,
+        "font_voice_profile": 51,
+        "ground": 968,
+        "init_structure_materials": 29,
+        "landmarks": 22,
+        "lighting": 23,
+        "loot_and_menu": 73,
+        "player_ui": 130,
+        "ready_total": 3481,
+        "stream": 844,
+        "vegetation": 816,
+        "world_total": 3162
+      },
+      "version": "0.7.0",
+      "process_wall_s": 5.446,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 11439,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 452,
+        "boundary": 2,
+        "camp": 306,
+        "exploration_wildlife": 65,
+        "flora_meadows": 31,
+        "font_voice_profile": 50,
+        "ground": 955,
+        "init_structure_materials": 25,
+        "landmarks": 16,
+        "lighting": 7,
+        "loot_and_menu": 70,
+        "player_ui": 86,
+        "ready_total": 2951,
+        "stream": 649,
+        "vegetation": 689,
+        "world_total": 2680
+      },
+      "version": "0.7.0",
+      "process_wall_s": 11.876,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "graphics_launch_repeat": {
+    "standard": {
+      "menu_frame_ms": 5148,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 517,
+        "boundary": 2,
+        "camp": 416,
+        "exploration_wildlife": 67,
+        "flora_meadows": 35,
+        "font_voice_profile": 59,
+        "ground": 1078,
+        "init_structure_materials": 32,
+        "landmarks": 23,
+        "lighting": 29,
+        "loot_and_menu": 73,
+        "player_ui": 129,
+        "ready_total": 3611,
+        "stream": 876,
+        "vegetation": 792,
+        "world_total": 3283
+      },
+      "version": "0.7.0",
+      "process_wall_s": 5.57,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "balanced": {
+      "menu_frame_ms": 5008,
+      "renderer": "forward_plus",
+      "stages_ms": {
+        "backdrop": 529,
+        "boundary": 2,
+        "camp": 426,
+        "exploration_wildlife": 74,
+        "flora_meadows": 35,
+        "font_voice_profile": 51,
+        "ground": 969,
+        "init_structure_materials": 30,
+        "landmarks": 24,
+        "lighting": 23,
+        "loot_and_menu": 79,
+        "player_ui": 142,
+        "ready_total": 3528,
+        "stream": 843,
+        "vegetation": 830,
+        "world_total": 3182
+      },
+      "version": "0.7.0",
+      "process_wall_s": 5.451,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "Vulkan 1.4.315 - Forward+ - Using Device #0: AMD - AMD Radeon RX 6600"
+      ]
+    },
+    "gl": {
+      "menu_frame_ms": 4385,
+      "renderer": "gl_compatibility",
+      "stages_ms": {
+        "backdrop": 452,
+        "boundary": 2,
+        "camp": 295,
+        "exploration_wildlife": 65,
+        "flora_meadows": 31,
+        "font_voice_profile": 54,
+        "ground": 949,
+        "init_structure_materials": 25,
+        "landmarks": 15,
+        "lighting": 6,
+        "loot_and_menu": 62,
+        "player_ui": 97,
+        "ready_total": 2944,
+        "stream": 667,
+        "vegetation": 675,
+        "world_total": 2666
+      },
+      "version": "0.7.0",
+      "process_wall_s": 4.832,
+      "engine_header": [
+        "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org",
+        "OpenGL API 3.3.0 Core Profile Context 25.10.250611 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 6600"
+      ]
+    }
+  },
+  "gl_packaged_tour": {
+    "average_fps": 217.935054197269,
+    "blocked_at": "",
+    "cpu": "AMD Ryzen 9 5900X 12-Core Processor",
+    "driver": "opengl3",
+    "duration_seconds": 62.261,
+    "gpu": "AMD Radeon RX 6600",
+    "low_quality": true,
+    "max_frame_ms": 511.946,
+    "normal_b_outpost": {
+      "average_fps": 186.344545063461,
+      "max_frame_ms": 11.942,
+      "p95_frame_ms": 8.714,
+      "p95_meets_30fps_budget": true,
+      "render_frames": 1118,
+      "sample_completed": true,
+      "squad_size": 4,
+      "zone": "bamboo"
+    },
+    "normal_first_camp": {
+      "average_fps": 160.241018499251,
+      "max_frame_ms": 12.992,
+      "p95_frame_ms": 8.793,
+      "p95_meets_30fps_budget": true,
+      "render_frames": 961,
+      "sample_completed": true,
+      "squad_size": 3,
+      "zone": "forest"
+    },
+    "opened_crates": 1,
+    "optional_discoveries": 3,
+    "os": "Windows",
+    "p95_frame_ms": 6.227,
+    "p95_meets_30fps_budget": true,
+    "profile_saved": false,
+    "render_frames": 13567,
+    "renderer": "gl_compatibility",
+    "route_and_extraction_passed": true,
+    "scaling_3d_scale": 0.899999976158142,
+    "score": 345,
+    "startup_menu_frame_ms": 4381,
+    "startup_stages_ms": {
+      "backdrop": 487,
+      "boundary": 2,
+      "camp": 310,
+      "exploration_wildlife": 72,
+      "flora_meadows": 33,
+      "font_voice_profile": 52,
+      "ground": 967,
+      "init_structure_materials": 24,
+      "landmarks": 17,
+      "lighting": 8,
+      "loot_and_menu": 71,
+      "player_ui": 94,
+      "ready_total": 2990,
+      "stream": 631,
+      "vegetation": 709,
+      "world_total": 2701
+    },
+    "version": "0.7.0",
+    "viewport": "(1280.0, 720.0)",
+    "vsync_disabled": true
+  },
+  "captures": [
+    {
+      "cloze_text": "",
+      "file": "menu-v070.png",
+      "label_hidden": false,
+      "pose": "(0.0, 0.15, 4.5)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.7.0",
+      "sha256": "dac748bbc8bab0d70f72d2ac0b235e07e5268d301225701d30d06d0cadea60a6"
+    },
+    {
+      "cloze_text": "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾",
+      "file": "first-camp-standard.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.7.0",
+      "sha256": "db340a6c2def3ad2ab3a5071639312c6b9d95760514ff15bba1b45efc04753c0"
+    },
+    {
+      "cloze_text": "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾",
+      "file": "first-camp-f6.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 0.899999976158142,
+      "version": "0.7.0",
+      "sha256": "fda0be3bb82e4b407ff07caef60dd8418715ccd865a76379cff8d1512092fc54"
+    },
+    {
+      "cloze_text": "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾",
+      "file": "first-camp-flank.png",
+      "label_hidden": true,
+      "pose": "(-16.0, 3.64253, -37.2)",
+      "renderer": "forward_plus",
+      "scale": 0.899999976158142,
+      "version": "0.7.0",
+      "sha256": "3d4db613da7563b33885a1b6dd3ae93daa716d75ceeb59fcfc74b943cd85e3ac"
+    },
+    {
+      "cloze_text": "教材语境：We all have a good time at this ____.  (p.99)",
+      "file": "b-zone-nemesis-cloze.png",
+      "label_hidden": true,
+      "pose": "(6.9, 7.491606, -84.8)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.7.0",
+      "sha256": "b5ca4224f996982f740af7d52d670e4bd3d730148ab08356bd6dcb19e4c06547"
+    },
+    {
+      "cloze_text": "教材语境：We all have a good time at this ____.  (p.99)",
+      "file": "settlement-v070.png",
+      "label_hidden": false,
+      "pose": "(6.9, 7.491606, -84.8)",
+      "renderer": "forward_plus",
+      "scale": 1.0,
+      "version": "0.7.0",
+      "sha256": "f7397299c0aea0368528c0321efa3973189d5acb0f5a3afa90b6b8c4c8eaea08"
+    },
+    {
+      "cloze_text": "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾",
+      "file": "first-camp-gl.png",
+      "label_hidden": true,
+      "pose": "(-11.4, 3.725838, -37.2)",
+      "renderer": "gl_compatibility",
+      "scale": 0.899999976158142,
+      "version": "0.7.0",
+      "sha256": "e71d6f955f6756c64bab530921f2577981fa9bd4c222281c8615efde8dfda479"
+    }
+  ],
+  "zip_crc_ok": true,
+  "v067_historical_hashes_preserved": true,
+  "release": {
+    "version": "0.7.0",
+    "source_checkpoint": "docs\\checkpoints\\source-0.7.0.zip",
+    "files": [
+      {
+        "path": "playtest\\windows-v0.7.0\\YanshanBase.exe",
+        "bytes": 109268480,
+        "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+      },
+      {
+        "path": "playtest\\windows-v0.7.0\\YanshanBase.pck",
+        "bytes": 72607888,
+        "sha256": "7fb44dfb6c85a369e049e2bc4a02826ac6096f4ecb00849d8274a6ab0375dd28"
+      },
+      {
+        "path": "playtest\\烟山基地试玩_v0.7.0_Windows.zip",
+        "bytes": 111182685,
+        "sha256": "54cc0c4788372052ad85863712c2068e349c1ecb986c9f129747a1e00f9718bc"
+      }
+    ]
+  }
+}

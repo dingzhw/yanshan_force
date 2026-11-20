@@ -5,8 +5,8 @@ extends Node
 ## - Squad Drop Pouches: Instant unlocking into escalating Magnifying-Glass Slot-by-Slot Inspection!
 
 const LootUI = preload("res://scripts/loot_ui.gd")
-
 const LearningStore = preload("res://scripts/learning_store.gd")
+const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 
 var game
 var busy = false
@@ -276,6 +276,10 @@ func _refresh_stage_ui():
 	var kind := str(target_word.get("kind", "word"))
 	var prefix := "中文句意" if kind == "sentence" else ("词组释义" if kind == "phrase" else "单词释义")
 	prompt_label.text = "%s：【 %s 】" % [prefix, target_word.chinese]
+	if mode != "retest":
+		var cloze: Dictionary = game.cloze_for_word(str(target_word.get("id", "")))
+		if not cloze.is_empty():
+			prompt_label.text += "\n语境填空：%s" % cloze.cloze_text
 	mask_label.text = ""
 
 	var unit_str := "Unit %d · 课本第 %d 页" % [int(target_word.get("unit", 1)), int(target_word.get("textbook_page", 1))]
@@ -475,7 +479,7 @@ func open_for_crate(crate_node: Node3D):
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func _speak_hint():
-	if busy and not unlocked and mode != "retest" and not target_word.is_empty() and game.tts_voice_id != "":
+	if busy and not unlocked and mode != "retest" and not target_word.is_empty() and game.has_english_voice(str(target_word.english)):
 		spelling_help_used = true
 		game.speak_english(str(target_word.english))
 
@@ -589,7 +593,7 @@ func submit():
 		elif attempts > 1 or spelling_help_used:
 			outcome = LearningStore.HINTED
 		all_stages_perfect = all_stages_perfect and outcome == LearningStore.INDEPENDENT
-		game.rules.learning.record_spelling(str(target_word.id), outcome)
+		game.rules.learning.record_spelling(str(target_word.id), outcome, false, -1, attempts == 1)
 		if outcome != LearningStore.INDEPENDENT and target_word not in game.wrong_words:
 			game.wrong_words.append(target_word)
 		game.speak_english(str(target_word.english))
@@ -668,7 +672,7 @@ func submit():
 			else:
 				break
 		if attempts == 1:
-			game.rules.learning.record_spelling(str(target_word.id), LearningStore.INCORRECT)
+			game.rules.learning.record_spelling(str(target_word.id), LearningStore.INCORRECT, false, -1, true)
 			if target_word not in game.wrong_words:
 				game.wrong_words.append(target_word)
 			status_label.text = "输入有误（前 %d 个字符匹配）。可按 [Tab] 听发音提示再试一次！" % matched
@@ -687,9 +691,14 @@ func submit():
 
 func _submit_retest(typed: String):
 	var is_correct := _is_match(typed, target_word)
-	game.rules.learning.record_spelling(str(target_word.id), LearningStore.INDEPENDENT if is_correct else LearningStore.INCORRECT, true)
+	var tid := str(target_word.id)
+	game.rules.learning.record_spelling(tid, LearningStore.INDEPENDENT if is_correct else LearningStore.INCORRECT, true)
 	game._save()
-	var feedback := "写对了。" if is_correct else "已留待下次复测。参考答案：%s" % target_word.english
+	var entry: Dictionary = game.rules.profile.mastery.get(tid, {})
+	var stage := int(entry.get("srs_stage", 0))
+	var cloze: Dictionary = game.cloze_for_word(tid)
+	var example_suffix := (" · 例句：%s" % cloze.english) if not cloze.is_empty() else ""
+	var feedback := "写对了！已排入【%s】复习计划。" % SrsScheduler.stage_label(stage) if is_correct else "已留待下次复测。参考答案：%s%s" % [target_word.english, example_suffix]
 	if stage_index + 1 < stages.size():
 		stage_index += 1
 		_refresh_stage_ui()
@@ -755,7 +764,7 @@ func _render_loot_cards(items: Array, animate: bool = true):
 		revealed_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		card.add_child(revealed_root)
 
-		var ic := LootUI.create_icon(str(item.get("icon", "core")), r_color, Vector2(46, 46))
+		var ic := LootUI.create_icon(item, r_color, Vector2(48, 48))
 		ic.position = Vector2(10, 14)
 		revealed_root.add_child(ic)
 

@@ -37,6 +37,8 @@ var wave_wrong_stacks: int = 0
 var wrong_attempts_on_current: int = 0
 var prompt_choice_count := 0
 var first_choice_recorded := false
+var first_choice_independent := false
+var nemesis_cursor := 0
 var health: int = MAX_HEALTH
 var shield: float = 30.0
 var shield_delay: float = 0.0
@@ -75,6 +77,9 @@ func begin():
 	rage_left = 0.0
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
+	first_choice_recorded = false
+	first_choice_independent = false
+	nemesis_cursor = 0
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	health = MAX_HEALTH
@@ -99,6 +104,9 @@ func stop():
 	rage_left = 0.0
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
+	first_choice_recorded = false
+	first_choice_independent = false
+	nemesis_cursor = 0
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	boss_unit = null
@@ -290,6 +298,11 @@ func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
 	stripe.material_override.roughness = 0.82
 
 func _pick_seed_word() -> Dictionary:
+	var due_pool: Array = game.rules.learning.pending(game.pool, 0, true)
+	if not due_pool.is_empty():
+		var picked: Dictionary = due_pool[nemesis_cursor % due_pool.size()]
+		nemesis_cursor += 1
+		return picked
 	if game.question_queue.is_empty():
 		game.question_queue = game._build_weighted_queue()
 	if game.rules.answered > 0 and game.rules.answered % 6 == 0 and not game.wrong_words.is_empty():
@@ -334,6 +347,7 @@ func _spawn_camp_wave(z_idx: int):
 		soldier.setup(self, z_idx, i, covers[c_slot], archetypes[i])
 		soldier.claimed_cover_idx = c_slot
 		soldier.assigned_word = words_n[i]
+		soldier.set_nemesis_bounty(game.rules.learning.is_nemesis(str(words_n[i].get("id", ""))))
 		soldier.show_word("", false)
 		soldiers.append(soldier)
 		if archetypes[i] == Soldier.Archetype.BOSS_WARDEN:
@@ -371,7 +385,7 @@ func _deploy():
 		for i in CAMP_COVER_COUNT:
 			var off2: Vector2 = cover_offsets[i]
 			var barrier: Vector3 = game.Layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
-			_build_tactical_cover(barrier, i, z_idx == 0 and i > 0 and i < CAMP_COVER_COUNT - 1)
+			_build_tactical_cover(barrier, i, i > 0 and i < CAMP_COVER_COUNT - 1)
 			covers.append(barrier)
 		camp_covers[z_idx] = covers
 		# Collect nearby natural tree trunks (12m..30m from camp) as out-of-camp small-pursuit cover anchors!
@@ -403,15 +417,21 @@ func _select_next_wave_prompt(z_idx: int) -> bool:
 				non_boss.append(s)
 		if not non_boss.is_empty():
 			candidates = non_boss
-	var chosen = candidates[shot_rng.randi_range(0, candidates.size() - 1)]
+	var nemesis_candidates := []
+	if candidates.size() >= 2:
+		for s in candidates:
+			if s.is_nemesis_bounty:
+				nemesis_candidates.append(s)
+	var chosen = nemesis_candidates[shot_rng.randi_range(0, nemesis_candidates.size() - 1)] if not nemesis_candidates.is_empty() else candidates[shot_rng.randi_range(0, candidates.size() - 1)]
 	game.choices = wave_words[z_idx]
 	game.answer_index = chosen.option
 	game.question = chosen.assigned_word
 	wrong_attempts_on_current = 0
 	prompt_choice_count = candidates.size()
 	first_choice_recorded = false
+	first_choice_independent = false
 	game.question_help_used = false
-	game.listening_mode = (game.tts_voice_id != "" and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
+	game.listening_mode = (game.has_english_voice(str(game.question.get("english", ""))) and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
 	game.rules.open_question()
 	game.next_question_left = 0.0
 	show_question()
@@ -441,6 +461,8 @@ func engage_camp(z_idx: int):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	first_choice_recorded = false
+	first_choice_independent = false
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	active_attacker = null
@@ -474,6 +496,8 @@ func disengage_active_camp(announce: bool = true):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	first_choice_recorded = false
+	first_choice_independent = false
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	active_attacker = null
@@ -636,6 +660,8 @@ func show_question():
 						rest_hint = "🕊【%s】增援休整 %.0f 秒不主动追击（可离开或开枪迎战）  |  " % [zone_info(z_i).title, ceilf(g_l)]
 					break
 		game.question_label.text = "前往敌军营地触发波次仇恨（每营 3 波）"
+		if is_instance_valid(game.cloze_label):
+			game.cloze_label.text = ""
 		game.unit_label.text = "%s已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
 			rest_hint, game.rules.outposts_cleared, 1 if game.rules.boss_defeated else 0
 		]
@@ -643,18 +669,32 @@ func show_question():
 
 	var words_5: Array = wave_words.get(zone, [])
 	var alive_count := 0
+	var active_is_nemesis := false
 	for slot_i in troops[zone].size():
 		var soldier = troops[zone][slot_i]
 		if not is_instance_valid(soldier) or soldier.defeated:
 			continue
 		alive_count += 1
+		if soldier.option == game.answer_index and soldier.is_nemesis_bounty:
+			active_is_nemesis = true
 		var w_text := str(soldier.assigned_word.get("english", "")) if not soldier.assigned_word.is_empty() else (str(words_5[slot_i].english) if slot_i < words_5.size() else "")
 		soldier.show_word(w_text, false)
 
 	if game.listening_mode and game.rules.question_open:
 		game.question_label.text = "🔊 电台截获英文语音 · 按 [X] 重播读音"
+		if is_instance_valid(game.cloze_label):
+			game.cloze_label.text = "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾" if active_is_nemesis else ""
 	else:
 		game.question_label.text = str(game.question.get("chinese", ""))
+		if is_instance_valid(game.cloze_label):
+			var cloze: Dictionary = game.cloze_for_word(str(game.question.get("id", "")))
+			if not cloze.is_empty():
+				var tag := "★ 宿敌语境：" if active_is_nemesis else "教材语境："
+				game.cloze_label.text = "%s%s  (p.%d)" % [tag, cloze.cloze_text, int(cloze.textbook_page)]
+			elif active_is_nemesis:
+				game.cloze_label.text = "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾"
+			else:
+				game.cloze_label.text = ""
 
 	var z_title: String = zone_info(zone).title
 	var w_cur: int = int(waves_done.get(zone, 0)) + 1
@@ -681,6 +721,7 @@ func _record_first_choice(is_correct: bool):
 	if first_choice_recorded or game.question.is_empty():
 		return
 	first_choice_recorded = true
+	first_choice_independent = is_correct and prompt_choice_count >= 2 and not game.question_help_used
 	game.rules.learning.record_recognition(str(game.question.id), is_correct, prompt_choice_count, game.question_help_used)
 	if (not is_correct or game.question_help_used) and game.question not in game.wrong_words:
 		game.wrong_words.append(game.question)
@@ -733,6 +774,13 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 	game.speak_english(str(w_entry.get("english", "")))
 	game.screen_flash.color = Color(0.3, 1.0, 0.65, 0.08)
 
+	var nemesis_tag := ""
+	if is_instance_valid(soldier) and soldier.is_nemesis_bounty and first_choice_independent:
+		game.rules.nemesis_cleared += 1
+		game.rules.score += game.Rules.NEMESIS_BONUS_SCORE
+		gained += game.Rules.NEMESIS_BONUS_SCORE
+		heal(0, 4)
+		nemesis_tag = " · ★宿敌攻克(+%d分/+4盾)" % game.Rules.NEMESIS_BONUS_SCORE
 	var streak_tag := (" · 🔥%d连击" % game.rules.streak) if game.rules.streak >= 3 else ""
 	if game.rules.streak >= 3:
 		heal(0, 6)
@@ -740,9 +788,13 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 	if game.rules.correct % 3 == 0:
 		var chip_rarity := 3 if game.rules.streak >= 4 else 2
 		game.rules.add_loot("战术知识芯片", 46 + maxi(0, game.rules.level() - 1) * 4, chip_rarity)
-	game._notice("%s！+%d 分%s · %s（%s）" % [
-		prefix, gained, streak_tag, str(w_entry.get("english", "")), str(w_entry.get("chinese", ""))
-	], game.MINT)
+	var cloze_note := ""
+	var cl: Dictionary = game.cloze_for_word(str(w_entry.get("id", "")))
+	if not cl.is_empty():
+		cloze_note = "\n教材例句：%s (p.%d)" % [cl.english, int(cl.textbook_page)]
+	game._notice("%s！+%d 分%s%s · %s（%s）%s" % [
+		prefix, gained, nemesis_tag, streak_tag, str(w_entry.get("english", "")), str(w_entry.get("chinese", "")), cloze_note
+	], Color("ffd15c") if nemesis_tag != "" else game.MINT)
 
 func _rotate_boss_word_and_prompt(boss):
 	var fresh := _pick_seed_word()
@@ -758,6 +810,7 @@ func _rotate_boss_word_and_prompt(boss):
 	if wave_words.has(2) and boss.option < wave_words[2].size():
 		wave_words[2][boss.option] = fresh
 	boss.assigned_word = fresh
+	boss.set_nemesis_bounty(game.rules.learning.is_nemesis(str(fresh.get("id", ""))))
 	boss.shield_layers = boss.max_shield_layers
 	_select_next_wave_prompt(2)
 
@@ -767,6 +820,8 @@ func _complete_current_wave(z_idx: int):
 	wave_wrong_stacks = 0
 	rage_left = 0.0
 	wrong_attempts_on_current = 0
+	first_choice_recorded = false
+	first_choice_independent = false
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	active_attacker = null

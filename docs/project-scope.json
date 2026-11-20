@@ -1,13 +1,13 @@
 {
-  "recorded_date": "2026-11-19",
-  "stage": "v0.6.7 · 启动、学习记录与首营读词验收版",
+  "recorded_date": "2026-11-20",
+  "stage": "v0.7.2 · 烟山奇珍博物大翻新（32件独立PBR 3D藏品建模 + 影棚2D图鉴图标 + 360°交互检视台）",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
     "range": "以该课本书后附带的单词表为准",
     "future_updates": "通过游戏更新追加单词包",
-    "extraction_status": "已提取175条，单元表与字母索引逐项交叉核对，包含13条专有名词，支持单字掌握度持久化追踪与智能干扰项",
-    "sentence_bank": "16 道独立句型题，按教材印刷页标注课文原句或教材词组拓展"
+    "extraction_status": "已提取175条，单元表与字母索引逐项交叉核对，包含13条专有名词，支持5级间隔复习与跨局宿敌错词优先出题",
+    "sentence_bank": "16 道独立句型题，按教材印刷页标注课文原句或教材词组拓展，含 15 条经核验的原句挖空语境映射"
   },
   "first_map": "烟山基地",
   "map_description": "江南乡村山岭、竹林、溪谷和梯田。6 处战斗营地，每处 3 波。",
@@ -81,11 +81,11 @@
   "technical_direction": {
     "engine": "Godot 4.7.2 Standard Windows x86_64",
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
-    "initial_platform": "Windows 单人离线（支持 Windows OneCore 离线英文 TTS）",
+    "initial_platform": "Windows 单人离线（内置 247 条美式自然女声离线 OGG 语音包 + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，开发基线 v0.6.6 / bdd0308"
+    "version_control": "Git，开发基线 v0.6.7 / 4c3931d（承接 v0.7.0 本地验收包）"
   },
-  "playtest": "playtest/windows-v0.6.7/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.7.2/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

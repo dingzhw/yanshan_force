@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--prepared-build", type=Path, help="Use an already exported and verified Windows EXE/PCK pair")
     parser.add_argument("--root-launchers", action="store_true", help="Point the project launchers to the completed release")
     args = parser.parse_args()
-    if args.version in {"0.3.1", "0.4.0", "0.5.0", "0.5.1", "0.5.2", "0.5.3", "0.5.4", "0.5.5"}:
+    if args.version in {"0.3.1", "0.4.0", "0.5.0", "0.5.1", "0.5.2", "0.5.3", "0.5.4", "0.5.5", "0.6.6", "0.6.7", "0.7.0", "0.7.1"}:
         raise RuntimeError(f"Protected historical release: {args.version}")
     folder = ROOT / "playtest" / ("windows-v" + args.version)
     archive_path = ROOT / "playtest" / f"烟山基地试玩_v{args.version}_Windows.zip"

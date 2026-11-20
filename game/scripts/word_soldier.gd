@@ -43,6 +43,7 @@ var word_label: Label3D
 var tag_label: Label3D
 var base_tag_text: String = ""
 var base_border_col: Color = Color("5ce0b8")
+var is_nemesis_bounty: bool = false
 var shield_material: StandardMaterial3D
 var frame_material: StandardMaterial3D
 var visor: StandardMaterial3D
@@ -270,9 +271,7 @@ func _build_model():
 	# 3. Chest-Mounted Holographic Electronic Word Shield (2 Shots to Break & Kill on Correct Soldier)
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
-	var shield_y := 1.56 if archetype == Archetype.BOSS_WARDEN else (1.22 if archetype == Archetype.SNIPER_GUARD else (1.20 if archetype == Archetype.SCOUT_DRONE else 1.16))
-	if zone == 0:
-		shield_y += 0.18
+	var shield_y := 1.70 if archetype == Archetype.BOSS_WARDEN else (1.40 if archetype == Archetype.SNIPER_GUARD else (1.38 if archetype == Archetype.SCOUT_DRONE else 1.34))
 	shield_area.position = Vector3(0, shield_y, 0.66 if archetype == Archetype.BOSS_WARDEN else 0.46)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
@@ -539,6 +538,24 @@ func on_wrong_hit_flash():
 		take_cover()
 		cover_left = 0.65
 
+func _active_border_col() -> Color:
+	return Color("f5b030") if is_nemesis_bounty else base_border_col
+
+func _active_tag_text() -> String:
+	return ("★ 宿敌复习 · " + base_tag_text) if is_nemesis_bounty else base_tag_text
+
+func _active_tag_col() -> Color:
+	return Color("8a4200") if is_nemesis_bounty else Color("143832")
+
+func set_nemesis_bounty(active: bool):
+	is_nemesis_bounty = active
+	if shield_layers >= max_shield_layers and wrong_flash_left <= 0:
+		if is_instance_valid(frame_material):
+			frame_material.albedo_color = _active_border_col()
+		if is_instance_valid(tag_label):
+			tag_label.text = _active_tag_text()
+			tag_label.modulate = _active_tag_col()
+
 func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool = false) -> bool:
 	if defeated:
 		return false
@@ -551,10 +568,10 @@ func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool 
 	if from_english_shield and archetype == Archetype.BOSS_WARDEN:
 		shield_layers = max_shield_layers
 		if is_instance_valid(tag_label):
-			tag_label.text = base_tag_text
-			tag_label.modulate = Color("143832")
+			tag_label.text = _active_tag_text()
+			tag_label.modulate = _active_tag_col()
 		if is_instance_valid(frame_material):
-			frame_material.albedo_color = base_border_col
+			frame_material.albedo_color = _active_border_col()
 		expose_boss_core(4.5)
 		stun(1.25)
 		var next_phase := 3 if hp > 300 else (2 if hp > 150 else 1)
@@ -582,10 +599,10 @@ func show_word(word: String, _new_question: bool):
 		shield_intact = true
 		combat.game._fit_word(word_label, word, 110)
 		if shield_layers >= max_shield_layers and wrong_flash_left <= 0:
-			shield_material.albedo_color = Color("edf2e6")
-			frame_material.albedo_color = base_border_col
-			tag_label.text = base_tag_text
-			tag_label.modulate = Color("143832")
+			shield_material.albedo_color = Color("fff8e3") if is_nemesis_bounty else Color("edf2e6")
+			frame_material.albedo_color = _active_border_col()
+			tag_label.text = _active_tag_text()
+			tag_label.modulate = _active_tag_col()
 	else:
 		shield_area.hide()
 		shield_area.collision_layer = 0
@@ -707,9 +724,10 @@ func _physics_process(delta: float):
 		wrong_flash_left = maxf(0.0, wrong_flash_left - delta)
 		if wrong_flash_left <= 0.0 and not defeated:
 			if is_instance_valid(shield_material):
-				shield_material.albedo_color = Color("edf2e6") if shield_layers >= max_shield_layers else Color("fff0b3")
+				var idle_bg := Color("fff8e3") if is_nemesis_bounty else Color("edf2e6")
+				shield_material.albedo_color = idle_bg if shield_layers >= max_shield_layers else Color("fff0b3")
 			if is_instance_valid(frame_material):
-				frame_material.albedo_color = base_border_col if shield_layers >= max_shield_layers else Color("ff8c3b")
+				frame_material.albedo_color = _active_border_col() if shield_layers >= max_shield_layers else Color("ff8c3b")
 
 	var player_at: Vector3 = game.player.position
 	var toward_player := player_at - position

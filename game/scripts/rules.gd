@@ -1,11 +1,13 @@
 extends RefCounted
 
 const LearningStore = preload("res://scripts/learning_store.gd")
+const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 
 const EXTRACTION_SCORE = 260
 const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
+const NEMESIS_BONUS_SCORE = 10
 const OUTPOST_CLEAR_SCORE = 30
 const BOSS_DEFEAT_SCORE = 60
 const SUPPLY_PERFECT_SCORE = 10
@@ -56,17 +58,17 @@ const LOOT_TABLE = {
 	],
 	3: [
 		{"title": "加密无线电台", "en": "Encrypted Radio", "value": 82, "rarity": 3, "grid": "1×2", "icon": "radio", "lore": "双频抗干扰战术步话机，可截获词兵调动信号。"},
-		{"title": "光学测距模块", "en": "Laser Rangefinder", "value": 90, "rarity": 3, "grid": "1×2", "icon": "lens", "lore": "高精度红外测距仪，精密镜片完好无损。"},
+		{"title": "光学测距模块", "en": "Laser Rangefinder", "value": 90, "rarity": 3, "grid": "1×2", "icon": "rangefinder", "lore": "高精度红外测距仪，精密镜片完好无损。"},
 		{"title": "古树琥珀标本", "en": "Ancient Amber", "value": 96, "rarity": 3, "grid": "1×1", "icon": "amber", "lore": "凝结着远古松针与小虫的金透树脂琥珀。"},
-		{"title": "军规夜视镜片", "en": "Night Vision Lens", "value": 106, "rarity": 3, "grid": "1×2", "icon": "lens", "lore": "镀有翠绿增透膜的微光夜视仪核心光学组件。"},
+		{"title": "军规夜视镜片", "en": "Night Vision Lens", "value": 106, "rarity": 3, "grid": "1×2", "icon": "nvg_lens", "lore": "镀有翠绿增透膜的微光夜视仪核心光学组件。"},
 		{"title": "太湖透漏赏石", "en": "Taihu Scholar Rock", "value": 115, "rarity": 3, "grid": "1×2", "icon": "rock", "lore": "迷踪竹石阵中历经山泉溶蚀、瘦皱漏透的案头奇石。"}
 	],
 	4: [
 		{"title": "无人机核心芯片", "en": "Drone AI Chip", "value": 145, "rarity": 4, "grid": "1×1", "icon": "chip", "lore": "迅捷侦察机搭载的高算力飞控与词库阵列芯片。"},
-		{"title": "竹海古玉残片", "en": "Ancient Jade Piece", "value": 155, "rarity": 4, "grid": "1×1", "icon": "jade", "lore": "竹林深处出土的温润青白玉璜残件，沁色古朴。"},
+		{"title": "竹海古玉残片", "en": "Ancient Jade Piece", "value": 155, "rarity": 4, "grid": "1×1", "icon": "jade_piece", "lore": "竹林深处出土的温润青白玉璜残件，沁色古朴。"},
 		{"title": "军用黑匣子", "en": "Flight Black Box", "value": 165, "rarity": 4, "grid": "1×2", "icon": "blackbox", "lore": "防爆橙红涂装战术记录仪，存有珍贵加密航迹。"},
 		{"title": "烟霞岩画残拓", "en": "Petroglyph Rubbing", "value": 175, "rarity": 4, "grid": "1×2", "icon": "rubbing", "lore": "拓印自烟霞古洞原生石壁《烟山耕读》的宣纸墨拓。"},
-		{"title": "古樟祈福银锁", "en": "Silver Blessing Lock", "value": 188, "rarity": 4, "grid": "1×1", "icon": "badge", "lore": "百年古樟石龛旁流传的江南錾花长命银锁。"},
+		{"title": "古樟祈福银锁", "en": "Silver Blessing Lock", "value": 188, "rarity": 4, "grid": "1×1", "icon": "silver_lock", "lore": "百年古樟石龛旁流传的江南錾花长命银锁。"},
 		{"title": "先民青铜茶铫", "en": "Bronze Tea Kettle", "value": 198, "rarity": 4, "grid": "2×2", "icon": "kettle", "lore": "古洞寒潭畔先民汲泉煮茗所用的绿锈小青铜壶。"}
 	],
 	5: [
@@ -75,12 +77,12 @@ const LOOT_TABLE = {
 		{"title": "量子词典原型机", "en": "Quantum Dictionary", "value": 320, "rarity": 5, "grid": "2×2", "icon": "quantum", "lore": "搭载全息声纹解码核心的实验级双语终端原型机。"},
 		{"title": "烟山先民竹简", "en": "Ancient Bamboo Slips", "value": 340, "rarity": 5, "grid": "2×2", "icon": "slips", "lore": "烟霞古洞石案遗留的千年墨书竹简，记载诚庄耕读往事。"},
 		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 380, "rarity": 5, "grid": "2×2", "icon": "core", "lore": "铁甲词尊胸腔卸载的高纯度聚变黄金能源核心。"},
-		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 415, "rarity": 5, "grid": "2×2", "icon": "kettle", "lore": "镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
+		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 415, "rarity": 5, "grid": "2×2", "icon": "censer", "lore": "镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
 	],
 	6: [
 		{"title": "越窑秘色青瓷盏", "en": "Secret Celadon Bowl", "value": 640, "rarity": 6, "grid": "2×2", "icon": "celadon", "lore": "【旷世·大红】如冰似玉、千峰翠色的唐宋越窑秘色贡瓷孤品！"},
 		{"title": "烟山千年紫芝王", "en": "Millennium Ganoderma", "value": 720, "rarity": 6, "grid": "2×2", "icon": "ganoderma", "lore": "【旷世·大红】生于烟山绝壁云雾深处、紫气莹润的千年灵芝王！"},
-		{"title": "诚庄先民双龙玉璧", "en": "Twin-Dragon Jade Disc", "value": 790, "rarity": 6, "grid": "2×2", "icon": "jade", "lore": "【旷世·大红】精雕江南水云双龙纹的羊脂白玉礼璧，价值连城！"},
+		{"title": "诚庄先民双龙玉璧", "en": "Twin-Dragon Jade Disc", "value": 790, "rarity": 6, "grid": "2×2", "icon": "jade_bi", "lore": "【旷世·大红】精雕江南水云双龙纹的羊脂白玉礼璧，价值连城！"},
 		{"title": "相控阵超算雷达心", "en": "Quantum Radar Core", "value": 880, "rarity": 6, "grid": "2×3", "icon": "radar_heart", "lore": "【旷世·大红】统御全山防空与电讯阵列最高权限的超算红核！"},
 		{"title": "烟山之心·赤金龙印", "en": "Heart of Yanshan", "value": 980, "rarity": 6, "grid": "2×2", "icon": "seal", "lore": "【旷世·大红】赤金镶嵌红宝的镇山宝印——摸金行动最高荣耀象征！"}
 	]
@@ -128,6 +130,7 @@ var best_streak = 0
 var shots = 0
 var outposts_cleared = 0
 var perfect_ciphers = 0
+var nemesis_cleared = 0
 var boss_defeated = false
 var question_open = false
 var bag = []
@@ -283,6 +286,7 @@ func start_run(as_combat = false, tier: String = "normal"):
 	shots = 0
 	outposts_cleared = 0
 	perfect_ciphers = 0
+	nemesis_cleared = 0
 	boss_defeated = false
 	bag = []
 	crates = []
@@ -310,18 +314,19 @@ func answer(is_correct: bool, word_id: String = "", choice_count := 4, used_help
 	return true
 
 func word_priority(word_id: String) -> float:
-	if profile.review_due.has(word_id):
-		return 4.0
+	if SrsScheduler.is_due(profile, word_id):
+		return 4.2
 	if not profile.mastery.has(word_id):
 		return 2.2
 	var m = profile.mastery[word_id]
 	if not (m is Dictionary):
 		return 2.0
-	var c = int(m.get("correct", 0))
+	var c = int(m.get("independent_correct", m.get("correct", 0)))
 	var w = int(m.get("wrong", 0))
+	var stage = int(m.get("srs_stage", 0))
 	if w > 0 and c <= w + 1:
 		return 3.5 + float(w - c) * 0.5
-	if c >= 3 and w == 0:
+	if stage >= 3 or (c >= 3 and w == 0):
 		return 0.45
 	return 1.3
 

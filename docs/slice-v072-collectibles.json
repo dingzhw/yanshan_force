@@ -1,0 +1,426 @@
+{
+  "version": "0.7.2",
+  "glb_path": "game/assets/slice/v072_collectibles.glb",
+  "glb_bytes": 4826572,
+  "icon_count": 32,
+  "total_icon_bytes": 1665394,
+  "total_triangles": 73004,
+  "items": {
+    "battery": {
+      "title": "旧巡护电池",
+      "rarity": 1,
+      "mesh_name": "loot_battery",
+      "triangles": 1112,
+      "materials": 5,
+      "size_m": [
+        0.264,
+        0.149,
+        0.284
+      ],
+      "icon_bytes": 49603
+    },
+    "ration": {
+      "title": "压缩干粮",
+      "rarity": 1,
+      "mesh_name": "loot_ration",
+      "triangles": 224,
+      "materials": 3,
+      "size_m": [
+        0.198,
+        0.078,
+        0.255
+      ],
+      "icon_bytes": 62121
+    },
+    "wire": {
+      "title": "信号铜线",
+      "rarity": 1,
+      "mesh_name": "loot_wire",
+      "triangles": 4692,
+      "materials": 4,
+      "size_m": [
+        0.328,
+        0.28,
+        0.184
+      ],
+      "icon_bytes": 48131
+    },
+    "tea": {
+      "title": "诚庄春茶饼",
+      "rarity": 1,
+      "mesh_name": "loot_tea",
+      "triangles": 696,
+      "materials": 3,
+      "size_m": [
+        0.31,
+        0.165,
+        0.314
+      ],
+      "icon_bytes": 60602
+    },
+    "bamboo": {
+      "title": "青竹编织哨",
+      "rarity": 1,
+      "mesh_name": "loot_bamboo",
+      "triangles": 1680,
+      "materials": 6,
+      "size_m": [
+        0.329,
+        0.131,
+        0.162
+      ],
+      "icon_bytes": 37543
+    },
+    "compass": {
+      "title": "林间指北针",
+      "rarity": 2,
+      "mesh_name": "loot_compass",
+      "triangles": 4100,
+      "materials": 5,
+      "size_m": [
+        0.26,
+        0.37,
+        0.257
+      ],
+      "icon_bytes": 49600
+    },
+    "torch": {
+      "title": "防水战术手电",
+      "rarity": 2,
+      "mesh_name": "loot_torch",
+      "triangles": 3340,
+      "materials": 5,
+      "size_m": [
+        0.289,
+        0.275,
+        0.165
+      ],
+      "icon_bytes": 34590
+    },
+    "badge": {
+      "title": "巡护员徽章",
+      "rarity": 2,
+      "mesh_name": "loot_badge",
+      "triangles": 1184,
+      "materials": 3,
+      "size_m": [
+        0.23,
+        0.113,
+        0.304
+      ],
+      "icon_bytes": 55511
+    },
+    "fan": {
+      "title": "烟山手工折扇",
+      "rarity": 2,
+      "mesh_name": "loot_fan",
+      "triangles": 1372,
+      "materials": 5,
+      "size_m": [
+        0.476,
+        0.109,
+        0.337
+      ],
+      "icon_bytes": 57111
+    },
+    "gem": {
+      "title": "溪石萤光矿",
+      "rarity": 2,
+      "mesh_name": "loot_gem",
+      "triangles": 304,
+      "materials": 2,
+      "size_m": [
+        0.275,
+        0.213,
+        0.262
+      ],
+      "icon_bytes": 38718
+    },
+    "radio": {
+      "title": "加密无线电台",
+      "rarity": 3,
+      "mesh_name": "loot_radio",
+      "triangles": 1380,
+      "materials": 5,
+      "size_m": [
+        0.13,
+        0.066,
+        0.387
+      ],
+      "icon_bytes": 46091
+    },
+    "rangefinder": {
+      "title": "光学测距模块",
+      "rarity": 3,
+      "mesh_name": "loot_rangefinder",
+      "triangles": 1624,
+      "materials": 6,
+      "size_m": [
+        0.16,
+        0.23,
+        0.156
+      ],
+      "icon_bytes": 45594
+    },
+    "amber": {
+      "title": "古树琥珀标本",
+      "rarity": 3,
+      "mesh_name": "loot_amber",
+      "triangles": 828,
+      "materials": 3,
+      "size_m": [
+        0.218,
+        0.19,
+        0.276
+      ],
+      "icon_bytes": 55686
+    },
+    "nvg_lens": {
+      "title": "军规夜视镜片",
+      "rarity": 3,
+      "mesh_name": "loot_nvg_lens",
+      "triangles": 1872,
+      "materials": 4,
+      "size_m": [
+        0.222,
+        0.289,
+        0.278
+      ],
+      "icon_bytes": 39887
+    },
+    "rock": {
+      "title": "太湖透漏赏石",
+      "rarity": 3,
+      "mesh_name": "loot_rock",
+      "triangles": 536,
+      "materials": 3,
+      "size_m": [
+        0.248,
+        0.13,
+        0.315
+      ],
+      "icon_bytes": 50901
+    },
+    "chip": {
+      "title": "无人机核心芯片",
+      "rarity": 4,
+      "mesh_name": "loot_chip",
+      "triangles": 2228,
+      "materials": 5,
+      "size_m": [
+        0.26,
+        0.15,
+        0.219
+      ],
+      "icon_bytes": 50921
+    },
+    "jade_piece": {
+      "title": "竹海古玉残片",
+      "rarity": 4,
+      "mesh_name": "loot_jade_piece",
+      "triangles": 3064,
+      "materials": 5,
+      "size_m": [
+        0.314,
+        0.107,
+        0.226
+      ],
+      "icon_bytes": 50000
+    },
+    "blackbox": {
+      "title": "军用黑匣子",
+      "rarity": 4,
+      "mesh_name": "loot_blackbox",
+      "triangles": 852,
+      "materials": 5,
+      "size_m": [
+        0.256,
+        0.208,
+        0.23
+      ],
+      "icon_bytes": 55982
+    },
+    "rubbing": {
+      "title": "烟霞岩画残拓",
+      "rarity": 4,
+      "mesh_name": "loot_rubbing",
+      "triangles": 448,
+      "materials": 4,
+      "size_m": [
+        0.292,
+        0.11,
+        0.34
+      ],
+      "icon_bytes": 60411
+    },
+    "silver_lock": {
+      "title": "古樟祈福银锁",
+      "rarity": 4,
+      "mesh_name": "loot_silver_lock",
+      "triangles": 4328,
+      "materials": 4,
+      "size_m": [
+        0.266,
+        0.06,
+        0.314
+      ],
+      "icon_bytes": 58677
+    },
+    "kettle": {
+      "title": "先民青铜茶铫",
+      "rarity": 4,
+      "mesh_name": "loot_kettle",
+      "triangles": 1788,
+      "materials": 2,
+      "size_m": [
+        0.339,
+        0.264,
+        0.356
+      ],
+      "icon_bytes": 44588
+    },
+    "tally": {
+      "title": "烟山古铜虎符",
+      "rarity": 5,
+      "mesh_name": "loot_tally",
+      "triangles": 1904,
+      "materials": 4,
+      "size_m": [
+        0.324,
+        0.1,
+        0.183
+      ],
+      "icon_bytes": 50414
+    },
+    "medal": {
+      "title": "特级金质勋章",
+      "rarity": 5,
+      "mesh_name": "loot_medal",
+      "triangles": 1248,
+      "materials": 3,
+      "size_m": [
+        0.2,
+        0.085,
+        0.331
+      ],
+      "icon_bytes": 53028
+    },
+    "quantum": {
+      "title": "量子词典原型机",
+      "rarity": 5,
+      "mesh_name": "loot_quantum",
+      "triangles": 1752,
+      "materials": 6,
+      "size_m": [
+        0.236,
+        0.21,
+        0.167
+      ],
+      "icon_bytes": 60552
+    },
+    "slips": {
+      "title": "烟山先民竹简",
+      "rarity": 5,
+      "mesh_name": "loot_slips",
+      "triangles": 1004,
+      "materials": 2,
+      "size_m": [
+        0.326,
+        0.088,
+        0.252
+      ],
+      "icon_bytes": 70806
+    },
+    "core": {
+      "title": "烟山统领黄金核心",
+      "rarity": 5,
+      "mesh_name": "loot_core",
+      "triangles": 3512,
+      "materials": 4,
+      "size_m": [
+        0.289,
+        0.226,
+        0.346
+      ],
+      "icon_bytes": 59488
+    },
+    "censer": {
+      "title": "望稻亭鎏金香炉",
+      "rarity": 5,
+      "mesh_name": "loot_censer",
+      "triangles": 4532,
+      "materials": 3,
+      "size_m": [
+        0.297,
+        0.297,
+        0.4
+      ],
+      "icon_bytes": 43837
+    },
+    "celadon": {
+      "title": "越窑秘色青瓷盏",
+      "rarity": 6,
+      "mesh_name": "loot_celadon",
+      "triangles": 2440,
+      "materials": 3,
+      "size_m": [
+        0.352,
+        0.342,
+        0.209
+      ],
+      "icon_bytes": 44990
+    },
+    "ganoderma": {
+      "title": "烟山千年紫芝王",
+      "rarity": 6,
+      "mesh_name": "loot_ganoderma",
+      "triangles": 1900,
+      "materials": 5,
+      "size_m": [
+        0.37,
+        0.269,
+        0.32
+      ],
+      "icon_bytes": 52422
+    },
+    "jade_bi": {
+      "title": "诚庄先民双龙玉璧",
+      "rarity": 6,
+      "mesh_name": "loot_jade_bi",
+      "triangles": 13436,
+      "materials": 5,
+      "size_m": [
+        0.32,
+        0.082,
+        0.408
+      ],
+      "icon_bytes": 69340
+    },
+    "radar_heart": {
+      "title": "相控阵超算雷达心",
+      "rarity": 6,
+      "mesh_name": "loot_radar_heart",
+      "triangles": 1636,
+      "materials": 5,
+      "size_m": [
+        0.455,
+        0.232,
+        0.328
+      ],
+      "icon_bytes": 49545
+    },
+    "seal": {
+      "title": "烟山之心·赤金龙印",
+      "rarity": 6,
+      "mesh_name": "loot_seal",
+      "triangles": 1988,
+      "materials": 5,
+      "size_m": [
+        0.202,
+        0.202,
+        0.3
+      ],
+      "icon_bytes": 58704
+    }
+  }
+}

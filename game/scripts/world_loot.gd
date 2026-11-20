@@ -232,7 +232,7 @@ func _populate_loose_visual(holder: Node3D, item: Dictionary):
 		beam.material_override = bmat
 		holder.add_child(beam)
 
-	var mesh_3d := LootUI.build_world_loot_mesh(str(item.get("icon", "core")), r, r_col, 1.05)
+	var mesh_3d := LootUI.build_world_loot_mesh(item, r, r_col, 1.15)
 	mesh_3d.name = "SpinMesh"
 	holder.add_child(mesh_3d)
 
