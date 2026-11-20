@@ -23,15 +23,23 @@
 
 ---
 
-## 实机画面 · Screenshots (`v0.6.6`)
+## 实机画面 · Screenshots (`v0.7.2`)
 
-| 普通行动 3~4 兵依托高低垛口半身矮垣谨慎探射（`v0.6.6`） | 词盾破损（1/2）机动换掩体 + 移动压制点射弹道（`v0.6.6`） |
+| 32 件藏品 Blender 4.5 PBR 同源影棚图标总览（`v0.7.2`） | 营地「烟山奇珍图鉴」与未解锁神秘剪影（`v0.7.2`） |
 | :---: | :---: |
-| ![普通行动谨慎掩体战术AI](docs/media/v066-cautious-cover-ai.png) | ![破盾换掩体与移动压制点射](docs/media/v066-bounding-suppression.png) |
+| ![32件藏品影棚图标总览](docs/media/v072-collectibles-32.png) | ![烟山奇珍图鉴v072](docs/media/v072-compendium.png) |
 
-| 晴空云海、金绿水镜梯田与徽派马头墙古村远眺（`v0.6.5`） | 溪畔徽派粉墙黛瓦土地石龛、古樟红绸与晴空积云（`v0.6.5`） |
+| 360° 交互检视：【旷世·大红】诚庄先民双龙玉璧（`v0.7.2`） | 360° 交互检视：【旷世·大红】越窑秘色青瓷盏（`v0.7.2`） |
 | :---: | :---: |
-| ![太平村云海梯田远眺](docs/media/v065-taiping-cloud-valley.png) | ![徽派石龛与晴空溪谷](docs/media/v065-hui-shrine-creek.png) |
+| ![双龙玉璧3D检视](docs/media/v072-inspect-jade-bi.png) | ![越窑秘色青瓷盏3D检视](docs/media/v072-inspect-celadon.png) |
+
+| B 区竹林统领营：宿敌悬赏边框 + 教材原句挖空（`v0.7.0`） | 普通行动 3~4 兵依托高低垛口半身矮垣谨慎探射（`v0.6.6`） |
+| :---: | :---: |
+| ![B区宿敌与原句挖空](docs/media/v070-b-zone-nemesis-cloze.png) | ![普通行动谨慎掩体战术AI](docs/media/v066-cautious-cover-ai.png) |
+
+| 词盾破损（1/2）机动换掩体 + 移动压制点射弹道（`v0.6.6`） | 晴空云海、金绿水镜梯田与徽派马头墙古村远眺（`v0.6.5`） |
+| :---: | :---: |
+| ![破盾换掩体与移动压制点射](docs/media/v066-bounding-suppression.png) | ![太平村云海梯田远眺](docs/media/v065-taiping-cloud-valley.png) |
 
 | 春风垂柳、修篁翠竹与晴空暖金积云（`v0.6.5`） | 据点清波 `15s+15s` 共 `30s` 从容搜刮窗口（`v0.6.6`） |
 | :---: | :---: |

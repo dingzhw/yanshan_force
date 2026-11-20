@@ -40,6 +40,9 @@ base_env = os.environ.copy()
 base_env["APPDATA"] = str(qa_appdata)
 base_env["LOCALAPPDATA"] = str(qa_appdata)
 
+qa_logs_root = Path(runtime["runtime_root"]) / "qa-logs"
+qa_logs_root.mkdir(parents=True, exist_ok=True)
+
 if args.stage:
     subprocess.run([runtime["python_used"], str(ROOT / "tools/build_playtest.py")], check=True, env=base_env)
     imported = subprocess.run(
@@ -50,12 +53,12 @@ if args.stage:
         timeout=120,
         env=base_env,
     )
-    (ROOT / f"docs/{ver_tag}-import.log").write_text(imported.stdout + "\n" + imported.stderr, encoding="utf-8")
+    (qa_logs_root / f"{ver_tag}-import.log").write_text(imported.stdout + "\n" + imported.stderr, encoding="utf-8")
     print("IMPORT_EXIT", imported.returncode, flush=True)
     if imported.returncode or "SCRIPT ERROR:" in imported.stderr:
-        raise RuntimeError(f"Godot import failed; inspect {ver_tag}-import.log")
+        raise RuntimeError(f"Godot import failed; inspect {qa_logs_root / (ver_tag + '-import.log')}")
 
-out = ROOT / "docs" / f"{ver_tag}-checks"
+out = qa_logs_root / f"{ver_tag}-checks"
 out.mkdir(parents=True, exist_ok=True)
 results = []
 
@@ -71,10 +74,10 @@ for name in args.tests:
         command = [str(ROOT / f"playtest/windows-v{args.ver}/YanshanBase.exe"), "--log-file", str(out / "packaged-engine.log"), "--", "--qa", "--hardware-check", "--auto-quit", "--low-quality"]
 
     env = base_env.copy()
-    screenshots = ROOT / "docs" / "screenshots" / ver_tag
+    screenshots = qa_logs_root / "screenshots" / ver_tag
     screenshots.mkdir(parents=True, exist_ok=True)
     env["DRZ_SCREENSHOT_DIR"] = str(screenshots)
-    diagnostics = ROOT / "docs" / "diagnostics" / ver_tag
+    diagnostics = qa_logs_root / "diagnostics" / ver_tag
     diagnostics.mkdir(parents=True, exist_ok=True)
     env["DRZ_DIAGNOSTICS_DIR"] = str(diagnostics)
 
