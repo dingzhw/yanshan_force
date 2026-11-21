@@ -55,6 +55,8 @@ var recoil_rot_x := 0.0
 var slash_left := 0.0
 var slash_duration := 0.34
 var slash_combo := 0
+var slam_left := 0.0
+const SLAM_DURATION := 0.50
 var weapon_slot := 0  # 0 = YS-04 Carbine, 1 = Tactical Knife
 var elapsed := 0.0
 var aim_blend := 0.0
@@ -536,6 +538,11 @@ func trigger_knife_slash(combo_idx: int = 0):
 	slash_combo = combo_idx % 2
 	slash_left = slash_duration
 
+func trigger_ground_slam():
+	slam_left = SLAM_DURATION
+	charm_vel.y += 14.0
+	charm_vel.x += 4.5
+
 func _setup_skinned_arms(has_skin: bool):
 	var path := "res://assets/slice/fp_arms.glb"
 	if not game.scene_cache.has(path):
@@ -866,6 +873,7 @@ func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 	recoil_z = lerpf(recoil_z, 0.0, minf(delta * 20.0, 1.0))
 	recoil_rot_x = lerpf(recoil_rot_x, 0.0, minf(delta * 18.0, 1.0))
 	slash_left = maxf(0, slash_left - delta)
+	slam_left = maxf(0.0, slam_left - delta)
 	_update_shells(delta)
 
 	var firing := shot_left > 0 and weapon_slot == 0
@@ -943,3 +951,32 @@ func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 				slash_arc.show()
 			else:
 				slash_arc.hide()
+
+	if slam_left > 0.0:
+		# Compact downward seismic punch impulse keeping shoulder joints strictly behind camera lens!
+		var st := clampf(1.0 - (slam_left / SLAM_DURATION), 0.0, 1.0)
+		var slam_y := 0.0
+		var slam_z := 0.0
+		var slam_rx := 0.0
+		var slam_rz := 0.0
+		if st < 0.22:
+			var u1 := smoothstep(0.0, 0.22, st)
+			slam_y = 0.028 * u1
+			slam_z = 0.018 * u1
+			slam_rx = 0.11 * u1
+			slam_rz = 0.08 * u1
+		elif st < 0.54:
+			var u2 := clampf((st - 0.22) / 0.32, 0.0, 1.0)
+			var punch := 1.0 - pow(1.0 - u2, 2.5)
+			slam_y = lerpf(0.028, -0.072, punch)
+			slam_z = lerpf(0.018, 0.032, punch)
+			slam_rx = lerpf(0.11, -0.22, punch)
+			slam_rz = lerpf(0.08, -0.09, punch)
+		else:
+			var u3 := smoothstep(0.54, 1.0, st)
+			slam_y = lerpf(-0.072, 0.0, u3)
+			slam_z = lerpf(0.032, 0.0, u3)
+			slam_rx = lerpf(-0.22, 0.0, u3)
+			slam_rz = lerpf(-0.09, 0.0, u3)
+		position += Vector3(0.0, slam_y, slam_z)
+		rotation += Vector3(slam_rx, 0.0, slam_rz)

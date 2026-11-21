@@ -582,6 +582,8 @@ func complete_prologue():
 		game.rules.profile["prologue_best_seconds"] = elapsed_sec
 	game.rules.profile.coins += 120 if first_clear else 40
 	game.rules.profile.xp += 60 if first_clear else 25
+	if is_instance_valid(game.rangers):
+		game.rangers.unlock_card("chen_guide", false)
 	game.rules.phase = "result"
 	game.rules.prologue_mode = false
 	var saved: bool = game._save()

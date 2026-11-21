@@ -436,7 +436,8 @@ func reset():
 
 func safe() -> bool:
 	var cipher_busy = is_instance_valid(game.cipher_terminal) and game.cipher_terminal.busy
-	return busy or cipher_busy or grace > 0 or game.player.position.distance_to(game.exit_position) < 4.7
+	var ranger_busy = is_instance_valid(game.rangers) and game.rangers.busy
+	return busy or cipher_busy or ranger_busy or grace > 0 or game.player.position.distance_to(game.exit_position) < 4.7
 
 func update(delta: float):
 	grace = maxf(0, grace - delta)

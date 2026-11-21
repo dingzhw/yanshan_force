@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.2_dev2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.2_dev2 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.3 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -904,13 +904,38 @@ func run():
 	for p2 in game.pickup_nodes:
 		if str(p2.get_meta("tactical_item", "")) == "ammo_crate" and p2.visible:
 			active_ammo_conf += 1
-	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 960, "v0.8.2_dev2 D2-2/D2-4: Confidential mode limits ground ammo crates to <= 4 and upgrades Cave Warden to 960 HP")
+	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 440, "v0.8.3 hotfix: Confidential mode limits ground ammo crates to <= 4 and sets Cave Warden to 440 HP")
 	game.exploration.open(hearth_nd)
 	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
 	game.exploration.close()
 	var conf_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
 	verify(str(conf_cave_item.get("title", "")) == "翡翠节节高玉佩" and int(conf_cave_item.get("rarity", 0)) == 5, "v0.8.2_dev2 D2-4: Confidential cave_hearth upgrades to T5 Small Gold Jade Bamboo Pendant")
 	game._end_run(false)
+
+	# 9) v0.8.3 R1/R3: Ranger '少羽' Profile, Camp Liaison NPC Bounty ('烟山名望') & Character Codex Tab ('人物小记')
+	game.start_action(true, "normal")
+	await frames(3)
+	verify(is_instance_valid(game.rangers) and game.rangers.camp_npc_node.visible and not game.rangers.active_bounty.is_empty(), "v0.8.3 R3: Camp Liaison NPC '陈向导' stands in camp and assigns a random Reputation bounty in Combat")
+	game.player.position = game.rangers.camp_npc_node.position + Vector3(0.0, 0.1, 1.8)
+	await frames(2)
+	game.interact()
+	verify(game.rangers.busy and game.paused and game.rangers.is_card_unlocked("chen_guide"), "v0.8.3 R3: interacting [F] with Camp Liaison opens Ranger/Bounty modal and unlocks '陈向导' character card")
+	var first_b_id: String = str(game.rangers.active_bounty.id)
+	game.rangers._reroll_bounty()
+	verify(str(game.rangers.active_bounty.id) != first_b_id and game.rangers.bounty_rerolled, "v0.8.3 R3: Camp Liaison supports one-time random bounty reroll per run")
+	game.rangers.close_npc_modal()
+	var rep_before: int = game.rangers.reputation()
+	var coins_before_b: int = int(game.rules.profile.coins)
+	var b_ev: String = str(game.rangers.active_bounty.event)
+	var b_tgt: int = int(game.rangers.active_bounty.target)
+	game.rangers.record_bounty_progress(b_ev, b_tgt, true)
+	verify(game.rangers.bounty_done and game.rangers.reputation() > rep_before and int(game.rules.profile.coins) > coins_before_b, "v0.8.3 R3: completing Camp Liaison bounty awards Yanshan Reputation ('烟山名望') and coins")
+	game.rangers.unlock_card("vanguard_boss", false)
+	game.rangers.unlock_card("cave_warden", false)
+	game._end_run(false)
+	game.loot_ui.open_compendium("characters")
+	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.rangers.CHARACTER_CARDS.size(), "v0.8.3 R3: Compendium exposes '👤 人物小记' tab listing all 8 Ranger & enemy character cards")
+	game.loot_ui.close_compendium()
 
 	game.queue_free()
 	await process_frame

@@ -656,6 +656,31 @@ def gen_loot_mythic_red() -> None:
     _write_wav("loot_mythic_red.wav", out, 0.62)
 
 
+def gen_skill_slam() -> None:
+    """Shaoyu [V] 'Innate Might' ground-slam punch: heavy sub-bass seismic thud + stone crunch + jade shock chime."""
+    dur = 0.68
+    n = int(SAMPLE_RATE * dur)
+    raw_a = _make_noise(n, 88301)
+    raw_b = _make_noise(n, 88307)
+    gravel = _one_pole_hp(_one_pole_lp(raw_a, 3400.0), 480.0)
+    rumble = _one_pole_lp(raw_b, 220.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # 1) Immediate seismic fist-ground sub-bass impact (145Hz -> 36Hz)
+        env_sub = math.exp(-t * 6.8) * min(1.0, t / 0.0025)
+        f_sub = 36.0 + 115.0 * math.exp(-t * 24.0)
+        sub = math.sin(2.0 * math.pi * f_sub * t) * env_sub * 1.95
+        # 2) Rock/stone fracture burst (0..180ms)
+        env_cr = math.exp(-t * 16.5) * min(1.0, t / 0.0015)
+        crunch = gravel[i] * env_cr * 1.35 + rumble[i] * math.exp(-t * 5.2) * 1.15
+        # 3) Subtle martial golden-bronze shockwave resonance
+        env_ring = math.exp(-t * 8.5) * min(1.0, t / 0.008)
+        ring = (math.sin(2.0 * math.pi * 220.0 * t) + 0.45 * math.sin(2.0 * math.pi * 330.0 * t)) * env_ring * 0.36
+        out[i] = math.tanh((sub + crunch + ring) * 1.35)
+    _write_wav("skill_slam.wav", out, 0.72)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -691,7 +716,8 @@ def main() -> None:
     gen_loot_reveal_common()
     gen_loot_reveal_rare()
     gen_loot_mythic_red()
-    print("Generated 34 procedural SFX files in", OUT_DIR)
+    gen_skill_slam()
+    print("Generated 35 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

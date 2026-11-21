@@ -160,6 +160,8 @@ func _unhandled_input(event):
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			if weapon_slot == 0:
 				aiming = true
+		elif event.button_index == MOUSE_BUTTON_MIDDLE:
+			quick_melee()
 		elif event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			select_weapon(1 if weapon_slot == 0 else 0)
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -173,7 +175,7 @@ func _unhandled_input(event):
 		elif code == KEY_2:
 			select_weapon(1)
 		elif code == KEY_V:
-			quick_melee()
+			use_ranger_skill()
 		elif code == KEY_F:
 			game.interact()
 		elif code == KEY_X:
@@ -297,6 +299,13 @@ func select_weapon(slot: int):
 	if is_instance_valid(weapon_view):
 		weapon_view.set_weapon_slot(weapon_slot)
 	game.play_sound("weapon_change", -18)
+
+func use_ranger_skill() -> bool:
+	if not active or game.paused:
+		return false
+	if is_instance_valid(game) and game.has_method("use_ranger_skill"):
+		return game.use_ranger_skill()
+	return false
 
 func quick_melee():
 	if not active or game.paused or knife_cooldown > 0:

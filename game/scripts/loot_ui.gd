@@ -228,6 +228,7 @@ var comp_grid: GridContainer
 var comp_tab := "relics"
 var comp_tab_relics_btn: Button
 var comp_tab_ach_btn: Button
+var comp_tab_chars_btn: Button
 
 
 func setup(g):
@@ -1250,6 +1251,10 @@ func _build_compendium_modal():
 		comp_tab = "achievements"
 		_refresh_compendium_ui()
 	)
+	comp_tab_chars_btn = game._button(comp_overlay, "👤 人物小记", Rect2(698, 68, 168, 36), func():
+		comp_tab = "characters"
+		_refresh_compendium_ui()
+	)
 	game._button(comp_overlay, "返回营地", Rect2(1020, 68, 138, 38), close_compendium)
 
 	comp_stats_label = game._text(comp_overlay, "", Vector2(122, 110), Vector2(1036, 26), 14, game.MINT)
@@ -1298,9 +1303,22 @@ func _refresh_compendium_ui():
 			Color("ffd15c") if comp_tab == "achievements" else Color("4a6e6a"),
 			Color("fff2c4") if comp_tab == "achievements" else Color("b8d2c8")
 		)
+	if is_instance_valid(comp_tab_chars_btn):
+		game._style_tactical_button(
+			comp_tab_chars_btn,
+			Color("3c341a") if comp_tab == "characters" else Color("17282c"),
+			Color("ffd15c") if comp_tab == "characters" else Color("4a6e6a"),
+			Color("fff2c4") if comp_tab == "characters" else Color("b8d2c8")
+		)
 	if comp_tab == "achievements":
+		comp_grid.columns = 3
 		_render_achievements_tab()
 		return
+	if comp_tab == "characters":
+		comp_grid.columns = 2
+		_render_characters_tab()
+		return
+	comp_grid.columns = 3
 	var col_arr: Array = game.rules.profile.collection
 	var total_col: int = game.Rules.total_collectible_count()
 	var total_all: int = game.Rules.total_catalog_count()
@@ -1436,4 +1454,55 @@ func _render_achievements_tab():
 		else:
 			var lock_l: Label = game._text(card, "待解锁", Vector2(232, 88), Vector2(88, 22), 12, Color("5a7068"))
 			lock_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		comp_grid.add_child(card)
+
+
+func _render_characters_tab():
+	var rngs = game.rangers
+	if not is_instance_valid(rngs):
+		comp_stats_label.text = "人物小记与游侠名录加载中…"
+		return
+	var ar: Dictionary = rngs.active_ranger()
+	comp_stats_label.text = "已收录人物小记 %d/%d  |  当前出战游侠：%s（[%s] %s）  |  烟山名望：%d（%s）" % [
+		rngs.unlocked_card_count(), rngs.CHARACTER_CARDS.size(),
+		str(ar.name), str(ar.skill_key), str(ar.skill_name), rngs.reputation(), rngs.reputation_rank()
+	]
+	for item in rngs.CHARACTER_CARDS:
+		var cid := str(item.id)
+		var is_open: bool = rngs.is_card_unlocked(cid)
+		var col: Color = item.color
+		var card := Panel.new()
+		card.custom_minimum_size = Vector2(502, 168)
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(col.r * 0.14 + 0.03, col.g * 0.13 + 0.04, col.b * 0.15 + 0.04, 0.96) if is_open else Color(0.032, 0.06, 0.072, 0.86)
+		st.border_color = col if is_open else Color(0.32, 0.45, 0.42, 0.42)
+		st.set_border_width_all(2 if cid == rngs.active_ranger_id() else 1)
+		st.set_corner_radius_all(8)
+		card.add_theme_stylebox_override("panel", st)
+
+		var badge_bg := ColorRect.new()
+		badge_bg.position = Vector2(12, 12)
+		badge_bg.size = Vector2(48, 48)
+		badge_bg.color = Color(col.r * 0.28, col.g * 0.24, col.b * 0.22, 0.95) if is_open else Color(0.08, 0.12, 0.14, 0.92)
+		card.add_child(badge_bg)
+		var ic_l: Label = game._text(card, str(item.icon) if is_open else "？", Vector2(12, 15), Vector2(48, 42), 24, col if is_open else Color("668078"))
+		ic_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+		var active_tag := "  [当前出战]" if cid == rngs.active_ranger_id() else ""
+		var head_txt := "%s%s" % [str(item.name) if is_open else "？？？ · 未解锁人物", active_tag]
+		var head_l: Label = game._text(card, head_txt, Vector2(70, 10), Vector2(418, 24), 16, col if is_open else Color("8aa29a"))
+		head_l.clip_text = true
+		var sub_l: Label = game._text(card, "%s  ·  %s" % [str(item.faction), str(item.role)], Vector2(70, 36), Vector2(418, 20), 12, game.MINT if is_open else Color("68827a"))
+		sub_l.clip_text = true
+
+		var body_txt := ("%s\n战术备注：%s" % [str(item.bio), str(item.tactical)]) if is_open else ("解锁条件：%s" % str(item.unlock_hint))
+		var body_l: Label = game._text(card, body_txt, Vector2(14, 66), Vector2(474, 94), 12, Color("dcece4") if is_open else Color("789088"))
+		body_l.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+		body_l.clip_text = true
+		body_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		body_l.set_deferred("size", Vector2(474, 94))
+		body_l.offset_left = 14.0
+		body_l.offset_right = 488.0
+		body_l.offset_top = 66.0
+		body_l.offset_bottom = 160.0
 		comp_grid.add_child(card)

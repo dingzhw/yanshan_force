@@ -27,8 +27,10 @@ const STILL_HIT_CHANCE = 0.78
 const FAST_HIT_CHANCE = 0.26
 const MAX_EVASION_SPEED = 6.1
 const AIRBORNE_HIT_SCALE = 0.55
-# v0.8.1 #3/#4/#8: Distant word sniping, strict wrong-answer rotation, prompt timeout & 3-wrong Rage Hunt
-const SNIPER_PREVIEW_RANGE = 96.0
+# v0.8.1 #3/#4/#8 & v0.8.3 ADS-gated sniping: 3x aggro (~46-48m) ADS-only preview with LOS + audio debounce
+const SNIPER_AGGRO_MULT = 3.0
+const SNIPER_PREVIEW_RANGE = 48.0
+const PREVIEW_SPEAK_DEBOUNCE = 1.2
 const PROMPT_TIMEOUT_NORMAL = 10.0
 const PROMPT_TIMEOUT_CONFIDENTIAL = 7.0
 const WRONG_REVEAL_SECONDS = 1.4
@@ -51,6 +53,9 @@ var first_choice_independent := false
 var nemesis_cursor := 0
 var zone_prompt_option: Dictionary = {}
 var preview_zone: int = -1
+var last_preview_speak_zone: int = -1
+var last_preview_speak_word: String = ""
+var preview_speak_cd: float = 0.0
 var prompt_timer_left: float = 0.0
 var prompt_timer_max: float = PROMPT_TIMEOUT_NORMAL
 var prompt_reveal_left: float = 0.0
@@ -103,6 +108,9 @@ func begin():
 	nemesis_cursor = 0
 	zone_prompt_option.clear()
 	preview_zone = -1
+	last_preview_speak_zone = -1
+	last_preview_speak_word = ""
+	preview_speak_cd = 0.0
 	prompt_timer_left = 0.0
 	prompt_timer_max = prompt_timeout_limit()
 	prompt_reveal_left = 0.0
@@ -141,6 +149,9 @@ func stop():
 	nemesis_cursor = 0
 	zone_prompt_option.clear()
 	preview_zone = -1
+	last_preview_speak_zone = -1
+	last_preview_speak_word = ""
+	preview_speak_cd = 0.0
 	prompt_timer_left = 0.0
 	prompt_timer_max = prompt_timeout_limit()
 	prompt_reveal_left = 0.0
@@ -215,6 +226,9 @@ func zone_center(z_idx: int) -> Vector3:
 func zone_aggro(z_idx: int) -> float:
 	return float(zone_info(z_idx).aggro)
 
+func zone_sniper_range(z_idx: int) -> float:
+	return zone_aggro(z_idx) * SNIPER_AGGRO_MULT
+
 func is_rage_hunting(z_idx: int) -> bool:
 	return rage_hunt_left > 0.0 and z_idx == rage_hunt_zone
 
@@ -278,6 +292,9 @@ func _mark_zone_cleared(z_idx: int):
 	var clear_ammo := 6 if game.rules.is_confidential() else 8
 	game.player.add_reserve_ammo(clear_ammo)
 	game.play_sfx("loot_epic", -11)
+	if is_instance_valid(game.rangers):
+		game.rangers.unlock_card("mistbound_syndicate", false)
+		game.rangers.record_bounty_progress("camp_cleared", 1)
 	game._sync_question()
 	game._notice("★ 已彻底肃清【%s】全部 3 波守军！+%d 积分 · 医疗包+1 备弹+%d（已攻克 %d/%d 营地，撤离需2处）" % [
 		zone_info(z_idx).title, game.Rules.OUTPOST_CLEAR_SCORE, clear_ammo,
@@ -594,7 +611,8 @@ func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_exist
 	if game.has_method("flash_word_switch_banner"):
 		game.flash_word_switch_banner()
 	var auto_speak: bool = bool(game.rules.setting("auto_speak_on_switch", true))
-	if (game.listening_mode or auto_speak) and not game.paused:
+	var should_speak_zone: bool = (zone == z_idx and is_zone_engaged(z_idx)) or (preview_zone == z_idx and is_instance_valid(game.player) and game.player.aiming)
+	if should_speak_zone and (game.listening_mode or auto_speak) and not game.paused:
 		game.speak_english(str(game.question.get("english", "")))
 	return true
 
@@ -628,40 +646,58 @@ func _rotate_prompt_on_timeout(z_idx: int):
 	_select_next_wave_prompt(z_idx, old_opt, false)
 	game._notice("⏱ 题目超时自动轮换新词 · 瞄准新目标词兵！", Color("9cd6f0"))
 
+func _has_sniper_los(from: Vector3, target_pt: Vector3) -> bool:
+	var seg := target_pt - from
+	var dist := seg.length()
+	if dist <= 1.2:
+		return true
+	var rq := PhysicsRayQueryParameters3D.create(from, target_pt - seg.normalized() * 0.45, 1, [game.player.get_rid()])
+	rq.collide_with_areas = false
+	return get_world_3d().direct_space_state.intersect_ray(rq).is_empty()
+
 func _detect_aimed_camp() -> int:
-	## v0.8.1 #3: Detect which un-cleared camp/soldier the player is aiming at up to 96m away!
+	## v0.8.3 ADS-gated sniping: ONLY when right-click aiming (rifle) within 3x camp aggro (~46-48m) & unobstructed LOS!
 	if not in_field() or not is_instance_valid(game.player) or not is_instance_valid(game.player.camera):
+		return -1
+	if not game.player.aiming or game.player.weapon_slot != 0:
 		return -1
 	var cam: Camera3D = game.player.camera
 	var from := cam.global_position
 	var fwd := (-cam.global_basis.z).normalized()
-	# 1) Direct crosshair hit on any living soldier up to 96m
+	# 1) Direct crosshair hit on any living soldier within that camp's 3x-aggro sniper range (layer 1 auto-occludes terrain/walls)
 	var rq := PhysicsRayQueryParameters3D.create(from, from + fwd * SNIPER_PREVIEW_RANGE, 1 | Soldier.HIT_LAYER, [game.player.get_rid()])
 	rq.collide_with_areas = true
 	var hit := get_world_3d().direct_space_state.intersect_ray(rq)
 	if not hit.is_empty():
 		var direct_s = _resolve_soldier_node(hit.collider)
-		if direct_s is Soldier and not direct_s.defeated and not zone_cleared.get(direct_s.zone, false):
-			return direct_s.zone
-	# 2) Tight angular cone around crosshair toward un-cleared camp centers & living soldiers
+		if direct_s is Soldier and not direct_s.defeated and not zone_cleared.get(direct_s.zone, false) and float(zone_reinforce_left.get(direct_s.zone, 0.0)) <= 0.0:
+			var max_r: float = zone_sniper_range(direct_s.zone)
+			if from.distance_to(hit.position) <= max_r:
+				return direct_s.zone
+	# 2) Tight ADS angular cone (~15 deg) with terrain/obstacle LOS check within each camp's 3x-aggro sniper range
 	var best_z := -1
-	var best_dot: float = 0.90 if game.player.aiming else 0.955
+	var best_dot: float = 0.965
 	for z_idx in game.Layout.COMBAT_ZONES.size():
 		if zone_cleared.get(z_idx, false) or float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
 			continue
 		var alive := living_soldiers(z_idx)
 		if alive.is_empty():
 			continue
+		var max_r: float = zone_sniper_range(z_idx)
 		var z_dot := -1.0
-		var center_pt := zone_center(z_idx) + Vector3.UP * 1.5
+		var center_pt := zone_center(z_idx) + Vector3.UP * 2.2
 		var d_c := from.distance_to(center_pt)
-		if d_c <= SNIPER_PREVIEW_RANGE and d_c > 1.0:
-			z_dot = maxf(z_dot, fwd.dot((center_pt - from).normalized()))
+		if d_c <= max_r and d_c > 1.0:
+			var dot_c := fwd.dot((center_pt - from).normalized())
+			if dot_c > best_dot and _has_sniper_los(from, center_pt):
+				z_dot = maxf(z_dot, dot_c)
 		for s in alive:
-			var sp: Vector3 = s.global_position + Vector3.UP * 1.4
+			var sp: Vector3 = s.global_position + Vector3.UP * 1.72
 			var d_s := from.distance_to(sp)
-			if d_s <= SNIPER_PREVIEW_RANGE and d_s > 1.0:
-				z_dot = maxf(z_dot, fwd.dot((sp - from).normalized()))
+			if d_s <= max_r and d_s > 1.0:
+				var dot_s := fwd.dot((sp - from).normalized())
+				if dot_s > best_dot and _has_sniper_los(from, sp):
+					z_dot = maxf(z_dot, dot_s)
 		if z_dot > best_dot:
 			best_dot = z_dot
 			best_z = z_idx
@@ -770,6 +806,7 @@ func update(delta: float):
 	attack_lock = maxf(0.0, attack_lock - delta)
 	suppress_lock = maxf(0.0, suppress_lock - delta)
 	miss_left = maxf(0.0, miss_left - delta)
+	preview_speak_cd = maxf(0.0, preview_speak_cd - delta)
 
 	# v0.8.1 #8: Rage Hunt countdown
 	if rage_hunt_left > 0.0:
@@ -913,16 +950,21 @@ func update(delta: float):
 		engage_camp(pull_idx, true)
 		return
 
-	# v0.8.1 #3: Distant sniper aim detection — aiming at any un-cleared camp up to 96m previews its target Chinese prompt on HUD!
-	var aimed := _detect_aimed_camp()
+	# v0.8.3 ADS-gated sniper aim detection — ONLY when right-click aiming at an un-cleared camp within 3x aggro (~46-48m) & clear LOS!
+	var aimed: int = preview_zone if (prompt_reveal_left > 0.0 and preview_zone >= 0) else _detect_aimed_camp()
 	if aimed != preview_zone:
 		preview_zone = aimed
 		if preview_zone >= 0 and prompt_reveal_left <= 0.0:
 			_sync_active_prompt_from_zone(preview_zone, true)
 			if game.has_method("flash_word_switch_banner"):
 				game.flash_word_switch_banner()
-			if bool(game.rules.setting("auto_speak_on_switch", true)) and not game.paused:
-				game.speak_english(str(game.question.get("english", "")))
+			var cur_en := str(game.question.get("english", ""))
+			var allow_speak := preview_speak_cd <= 0.0 or preview_zone != last_preview_speak_zone or cur_en != last_preview_speak_word
+			if allow_speak and bool(game.rules.setting("auto_speak_on_switch", true)) and not game.paused and cur_en != "":
+				game.speak_english(cur_en)
+				last_preview_speak_zone = preview_zone
+				last_preview_speak_word = cur_en
+				preview_speak_cd = PREVIEW_SPEAK_DEBOUNCE
 		elif preview_zone < 0:
 			prompt_timer_left = 0.0
 		show_question()
@@ -943,7 +985,7 @@ func show_question():
 	if not fighting:
 		if game.active_station == 0:
 			return
-		# v0.8.1 #3: Distant Sniper Preview HUD when aiming at an un-cleared camp from afar!
+		# v0.8.3 ADS-Gated Sniper Preview HUD when right-click aiming at an un-cleared camp within 3x aggro!
 		if preview_zone >= 0 and not zone_cleared.get(preview_zone, false) and not living_soldiers(preview_zone).is_empty():
 			if prompt_reveal_left <= 0.0:
 				_sync_active_prompt_from_zone(preview_zone, false)
@@ -959,11 +1001,11 @@ func show_question():
 			if is_instance_valid(game.cloze_label):
 				var p_cl: Dictionary = game.cloze_for_word(str(game.question.get("id", "")))
 				game.cloze_label.text = ("教材语境：%s  (p.%d)" % [p_cl.cloze_text, int(p_cl.textbook_page)]) if not p_cl.is_empty() else ""
-			game.unit_label.text = "🎯 远距瞄准【%s】(%dm) · 第%d/%d波 · 守军%d | [X]读音" % [
+			game.unit_label.text = "🎯 开镜狙词【%s】(%dm) · 第%d/%d波 · 守军%d | [X]读音" % [
 				p_title, p_dist, p_wcur, p_wmax, p_alive
 			]
 			return
-		var rest_hint := "开镜/远距瞄准敌营即可预览词义狙击  |  "
+		var rest_hint := "右键开镜瞄准45m内敌营即可狙词  |  "
 		if is_instance_valid(game.player):
 			for z_i in game.Layout.COMBAT_ZONES.size():
 				if zone_cleared.get(z_i, false):
@@ -976,7 +1018,7 @@ func show_question():
 					else:
 						rest_hint = "🕊【%s】增援休整 %.0f 秒不主动追击（可离开或开枪迎战）  |  " % [zone_info(z_i).title, ceilf(g_l)]
 					break
-		game.question_label.text = "远距瞄准敌营狙词，或靠近触发波次交火"
+		game.question_label.text = "右键开镜瞄准敌营狙词，或靠近触发波次交火"
 		if is_instance_valid(game.cloze_label):
 			game.cloze_label.text = ""
 		game.unit_label.text = "%s已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
@@ -1164,6 +1206,8 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 	game.screen_flash.color = Color(0.3, 1.0, 0.65, 0.08)
 	if is_instance_valid(game.achievements):
 		game.achievements.record_stat("best_streak", game.rules.streak, true)
+	if is_instance_valid(game.rangers):
+		game.rangers.record_bounty_progress("best_streak", game.rules.streak, true)
 		if is_instance_valid(soldier) and soldier.defeated:
 			game.achievements.record_stat("soldiers_defeated", 1)
 			if is_instance_valid(game.player) and game.player.position.distance_to(soldier.position) >= 35.0:
@@ -1378,14 +1422,14 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			show_question()
 		return true
 
+	# v0.8.1 #4: During the 1.4s correct-answer reveal after a wrong hit, lock prompt resolution (no score cheat & no accidental burst double-penalty)!
+	if prompt_locked_after_wrong:
+		game._notice("本题答案已公布，正在切换新题，请等待新词出现！", Color("ffd27d"))
+		return true
+
 	# Wrong soldier hit -> 0 damage + reveal correct answer + force switch + count toward 3-wrong Rage Hunt!
 	if soldier.option != game.answer_index:
 		_apply_wrong_target_penalty(soldier)
-		return true
-
-	# v0.8.1 #4: During the 1.4s correct-answer reveal after a wrong hit, shooting the revealed answer awards 0 points!
-	if prompt_locked_after_wrong:
-		game._notice("本题答案已公布，正在切换新题，请等待新词出现！", Color("ffd27d"))
 		return true
 
 	_record_first_choice(true)
@@ -1604,6 +1648,10 @@ func _on_boss_defeated(boss):
 				break
 	var bp_msg := (" + 研发图纸【%s】" % bp_unlocked) if bp_unlocked != "" else ""
 	game.play_sfx("loot_epic", -7)
+	if is_instance_valid(game.rangers):
+		var is_ov: bool = is_instance_valid(boss) and boss.is_skyfall_overlord
+		game.rangers.unlock_card("skyfall_overlord" if is_ov else "vanguard_boss", false)
+		game.rangers.record_bounty_progress("boss_defeated", 1)
 	var boss_name := "雾隐机关王·玄铁词尊" if (is_instance_valid(boss) and boss.is_skyfall_overlord) else "雾隐先锋·铁面词卫"
 	game._notice("🏆 击败【%s】！夺得 B区撤离密钥 + 黄金核心(%d)%s%s！" % [boss_name, core_val, extra_red_msg, bp_msg], Color("ffd15c"))
 

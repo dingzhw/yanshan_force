@@ -26,6 +26,8 @@ var hp: int = 90
 var max_shield_layers: int = 2
 var shield_layers: int = 2
 var stun_left: float = 0.0
+var knockdown_left: float = 0.0
+var knockdown_vel: Vector3 = Vector3.ZERO
 var exposed_left: float = 0.0
 var wrong_flash_left: float = 0.0
 var boss_phase: int = 3
@@ -156,6 +158,8 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	shield_layers = max_shield_layers
 	boss_phase = 3
 	stun_left = 0.0
+	knockdown_left = 0.0
+	knockdown_vel = Vector3.ZERO
 	exposed_left = 0.0
 	wrong_flash_left = 0.0
 	shield_intact = true
@@ -543,12 +547,17 @@ func _refresh_hp_bar():
 	var full_w := 1.37 if archetype == Archetype.BOSS_WARDEN else 0.86
 	hp_fill.position.x = -full_w * 0.5 * (1.0 - ratio)
 	if is_instance_valid(hp_fill_mat):
-		if stun_left > 0:
+		if knockdown_left > 0.0:
+			hp_fill_mat.albedo_color = Color("ffd86b")
+		elif stun_left > 0:
 			hp_fill_mat.albedo_color = Color("56e8ff")
 		elif archetype == Archetype.BOSS_WARDEN:
 			hp_fill_mat.albedo_color = Color("ff5c5c") if exposed_left > 0 else Color("ffb84d")
 		else:
 			hp_fill_mat.albedo_color = Color("5fe3a8") if shield_layers >= 2 else Color("ff9f4a")
+	if is_instance_valid(tag_label) and knockdown_left <= 0.0 and base_tag_text != "":
+		tag_label.text = base_tag_text
+		tag_label.modulate = Color("ffd15c") if is_nemesis_bounty else Color("d8ebe2")
 
 func stun(seconds: float):
 	if defeated:
@@ -950,6 +959,21 @@ func _update_laser(player_eye: Vector3):
 	var up_axis = Vector3.RIGHT if absf((player_eye - from).normalized().y) > 0.98 else Vector3.UP
 	laser_beam.look_at(player_eye, up_axis)
 
+func apply_knockdown(duration: float = 1.5, impulse: Vector3 = Vector3.ZERO):
+	if defeated:
+		return
+	var was_aiming: bool = (action == Action.AIM)
+	knockdown_left = maxf(knockdown_left, duration)
+	knockdown_vel = Vector3(impulse.x, 0.0, impulse.z)
+	aim_left = 0.0
+	laser_beam.hide()
+	if was_aiming and is_instance_valid(combat) and combat.has_method("on_soldier_attack_finished"):
+		combat.on_soldier_attack_finished(self)
+	action = Action.ADVANCE
+	if is_instance_valid(tag_label):
+		tag_label.text = "💫 震倒在地 %.1fs" % knockdown_left
+		tag_label.modulate = Color("ffd86b")
+
 func _physics_process(delta: float):
 	var game = combat.game
 	if defeated or game.paused or not combat.in_field():
@@ -1013,6 +1037,25 @@ func _physics_process(delta: float):
 			if engaged and not assigned_word.is_empty():
 				show_word(str(assigned_word.get("english", "")), false)
 			_refresh_hp_bar()
+
+	if knockdown_left > 0.0:
+		knockdown_left = maxf(0.0, knockdown_left - delta)
+		laser_beam.hide()
+		knockdown_vel = knockdown_vel.move_toward(Vector3.ZERO, 9.0 * delta)
+		velocity = Vector3(knockdown_vel.x, velocity.y - 20.0 * delta if not is_on_floor() else 0.0, knockdown_vel.z)
+		visual_root.rotation.x = lerpf(visual_root.rotation.x, -1.16, minf(delta * 18.0, 1.0))
+		visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.14 * side, minf(delta * 14.0, 1.0))
+		visual_root.position.y = lerpf(visual_root.position.y, -0.52, minf(delta * 18.0, 1.0))
+		if is_instance_valid(tag_label):
+			tag_label.text = "💫 震倒 %.1fs" % knockdown_left
+			tag_label.modulate = Color("ffd86b")
+		move_and_slide()
+		if knockdown_left <= 0.0:
+			visual_root.rotation.x = 0.0
+			visual_root.rotation.z = 0.0
+			visual_root.position.y = 0.0
+			_refresh_hp_bar()
+		return
 
 	if stun_left > 0:
 		stun_left = maxf(0, stun_left - delta)

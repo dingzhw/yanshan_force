@@ -625,6 +625,8 @@ func submit():
 		# Final stage cleared -> Unlock container & start Magnifying-Glass Reveal!
 		unlocked = true
 		perfect_crack = all_stages_perfect
+		if is_instance_valid(game.rangers):
+			game.rangers.record_bounty_progress("box_cracked", 1)
 		input_box.editable = false
 		submit_button.disabled = true
 		hint_button.hide()

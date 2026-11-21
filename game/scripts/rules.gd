@@ -230,10 +230,15 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.8.2_dev2",
+	"saved_by_version": "0.8.3",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
+	"reputation": 0,
+	"active_ranger": "shaoyu",
+	"unlocked_rangers": ["shaoyu"],
+	"character_cards": ["shaoyu"],
+	"bounties_completed": 0,
 	"warehouse": [],
 	"display_stand": [],
 	"owned": [],
@@ -361,6 +366,25 @@ func unlock_blueprint(id: String) -> bool:
 		profile["equipped"][slot] = id
 	return true
 
+func ensure_ranger_profile():
+	if not profile.has("reputation"):
+		profile["reputation"] = 0
+	profile["reputation"] = maxi(0, int(profile.get("reputation", 0)))
+	if not profile.has("bounties_completed"):
+		profile["bounties_completed"] = 0
+	profile["bounties_completed"] = maxi(0, int(profile.get("bounties_completed", 0)))
+	if not profile.has("unlocked_rangers") or not (profile.unlocked_rangers is Array):
+		profile["unlocked_rangers"] = ["shaoyu"]
+	if not ("shaoyu" in profile.unlocked_rangers):
+		profile.unlocked_rangers.insert(0, "shaoyu")
+	var ar := str(profile.get("active_ranger", "shaoyu"))
+	if ar == "" or not (ar in profile.unlocked_rangers):
+		profile["active_ranger"] = "shaoyu"
+	if not profile.has("character_cards") or not (profile.character_cards is Array):
+		profile["character_cards"] = ["shaoyu"]
+	if not ("shaoyu" in profile.character_cards):
+		profile.character_cards.insert(0, "shaoyu")
+
 func ensure_settings() -> Dictionary:
 	if not profile.has("settings") or not (profile["settings"] is Dictionary):
 		profile["settings"] = DEFAULT_SETTINGS.duplicate(true)
@@ -447,6 +471,7 @@ func migrate_legacy_items():
 	if not profile.has("learning_stats") or not (profile["learning_stats"] is Dictionary):
 		profile["learning_stats"] = {}
 	ensure_settings()
+	ensure_ranger_profile()
 	profile["schema_version"] = PROFILE_SCHEMA_VERSION
 
 static func catalog_meta(title: String) -> Dictionary:

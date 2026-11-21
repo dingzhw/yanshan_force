@@ -53,6 +53,7 @@ func run():
 	await frames(2)
 
 	# 1. Immediate field deployment into 6 camps × 3 waves × 5 soldiers in standby (Normal Operation default)
+	game.rules.profile.review_due.clear()
 	game.start_button.pressed.emit()
 	verify(
 		game.rules.operation_tier == "normal" and not game.rules.is_confidential() and game.terminal_title_label.text.contains("普通行动"),
@@ -85,25 +86,74 @@ func run():
 	verify(game.rules.score == camp_score_before, "camp Station 0 warm-up awards 0 combat score in field runs")
 	game._leave_station()
 
-	# 2. v0.8.1 #3 Distant Word Sniping: standby soldiers show English shields at spawn (<=98m), do NOT auto-chase from afar,
-	# and aiming at Camp 0 from 24.5m previews its Chinese word prompt in the HUD!
+	# 2. v0.8.3 ADS-Gated Sniper Preview (3x camp aggro ~46-48m): standby soldiers show English shields at spawn (<=98m),
+	# do NOT auto-chase from afar, stay SILENT without right-click ADS, ignore camps beyond 3x aggro, and lock+speak ONLY on ADS!
 	var center0: Vector3 = game.combat.zone_center(0)
-	game.player.position = center0 + Vector3(0, 0.1, 24.5)
+	game.player.position = game.Layout.on_ground(center0 + Vector3(0, 0, 24.5)) + Vector3(0, 0.12, 0)
+	game.player.aiming = false
 	await frames(65)
 	var patrol = game.combat.troops[0][0]
 	verify(
 		game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and patrol.action == Soldier.Action.PATROL and patrol.shield_area.visible and patrol.word_label.text != "" and patrol.word_label.visibility_range_end >= 90.0,
 		"v0.8.1 #3: standby camp squad patrols at spawn, does NOT auto-chase from 24.5m, and visibly displays long-range word shields"
 	)
-	# Aim directly at Camp 0 from 24.5m -> sniper HUD previews Camp 0's Chinese prompt & countdown bar!
-	game.player.camera.look_at(patrol.shield_area.global_position)
+	# (a) Looking directly at Camp 0 from 24.5m WITHOUT ADS -> MUST NOT preview HUD or auto-speak!
+	var d_patrol: Vector3 = patrol.shield_area.global_position - game.player.camera.global_position
+	game.player.yaw = atan2(-d_patrol.x, -d_patrol.z)
+	game.player.pitch = atan2(d_patrol.y, Vector2(d_patrol.x, d_patrol.z).length())
+	game.last_voice_key = ""
 	await frames(6)
 	verify(
-		game.combat.preview_zone == 0 and game.unit_label.text.contains("远距瞄准") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible,
-		"v0.8.1 #3: aiming at distant camp previews target Chinese prompt and sniper countdown bar on HUD"
+		game.combat.preview_zone == -1 and game.last_voice_key == "" and not game.unit_label.text.contains("开镜狙词") and not game.prompt_timer_fill.visible,
+		"v0.8.3 ADS-gated sniping: looking at Camp 0 from 24.5m WITHOUT ADS stays silent and hides sniper prompt"
 	)
+	# (b) Even WITH ADS, aiming from beyond 3x aggro (56m > 47.4m) MUST NOT trigger sniper preview or audio!
+	game.player.position = game.Layout.on_ground(center0 + Vector3(0, 0, 56.0)) + Vector3(0, 0.12, 0)
+	game.player.aiming = true
+	await frames(2)
+	var d_far: Vector3 = patrol.shield_area.global_position - game.player.camera.global_position
+	game.player.yaw = atan2(-d_far.x, -d_far.z)
+	game.player.pitch = atan2(d_far.y, Vector2(d_far.x, d_far.z).length())
+	game.last_voice_key = ""
+	await frames(6)
+	verify(
+		game.combat.preview_zone == -1 and game.last_voice_key == "",
+		"v0.8.3 ADS-gated sniping: ADS beyond 3x camp aggro (56m > 47.4m) never previews or auto-speaks"
+	)
+	# (c) Right-click ADS directly at Camp 0 from 24.5m (within 3x aggro & clear LOS) -> locks HUD & speaks target English word!
+	game.player.aiming = false
+	game.player.position = game.Layout.on_ground(center0 + Vector3(0, 0, 24.5)) + Vector3(0, 0.12, 0)
+	await frames(2)
+	d_patrol = patrol.shield_area.global_position - game.player.camera.global_position
+	game.player.yaw = atan2(-d_patrol.x, -d_patrol.z)
+	game.player.pitch = atan2(d_patrol.y, Vector2(d_patrol.x, d_patrol.z).length())
+	await frames(2)
+	game.last_voice_key = ""
+	game.player.aiming = true
+	await frames(6)
+	verify(
+		game.combat.preview_zone == 0 and game.unit_label.text.contains("开镜狙词") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible and game.last_voice_key != "",
+		"v0.8.3 ADS-gated sniping: right-click ADS within 3x aggro previews target Chinese prompt, countdown bar, and speaks English"
+	)
+	# (d) Releasing ADS clears distant preview immediately; rapid re-ADS within 1.2s debounce does not spam audio!
+	game.player.aiming = false
+	await frames(4)
+	verify(
+		game.combat.preview_zone == -1 and not game.prompt_timer_fill.visible,
+		"v0.8.3 ADS-gated sniping: releasing ADS immediately clears distant sniper preview"
+	)
+	game.last_voice_key = ""
+	game.player.aiming = true
+	await frames(4)
+	verify(
+		game.combat.preview_zone == 0 and game.last_voice_key == "",
+		"v0.8.3 ADS-gated sniping: rapid re-ADS on same camp within 1.2s debounce does not spam duplicate audio"
+	)
+	game.player.aiming = false
+	await frames(4)
 
-	# Stepping into Camp 0's spawn aggro radius (~15.8m) pulls aggro on the 3-4 wave soldiers & triggers cover bounding!
+	# Stepping into Camp 0's spawn aggro radius (~15.8m) WITHOUT ADS pulls aggro & auto-speaks target English word!
+	game.last_voice_key = ""
 	game.player.position = center0 + Vector3(0, 0.1, 13.5)
 	await frames(6)
 	var squad0_n: int = game.combat.troops[0].size()
@@ -115,8 +165,8 @@ func run():
 			claimed_slots[s0_check.claimed_cover_idx] = true
 	var prompted_soldier = game.combat.troops[0][game.answer_index]
 	verify(
-		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
-		"entering camp aggro radius engages 3-4 bot wave with distinct words & unique claimed cover slots"
+		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and game.last_voice_key != "" and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
+		"entering camp aggro radius without ADS engages 3-4 bot wave, auto-speaks word, and assigns distinct words & cover slots"
 	)
 
 	var all_words_fit = true
@@ -225,6 +275,7 @@ func run():
 	var wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
 	for s_pause in game.combat.troops[0]:
 		s_pause.set_physics_process(false)
+		s_pause.position = center0 + Vector3(6.5, 0.08, -6.5)
 	wrong.position = center0 + Vector3(0, 0.08, -2.6)
 	wrong.rotation = Vector3.ZERO
 	await frames(2)
@@ -237,7 +288,9 @@ func run():
 	)
 	# Attempting to shoot the just-revealed correct soldier during 1.4s lock MUST NOT score or kill!
 	var locked_right = game.combat.troops[0][game.answer_index]
-	locked_right.position = center0 + Vector3(1.5, 0.08, -2.6)
+	locked_right.position = center0 + Vector3(2.4, 0.08, -2.6)
+	locked_right.rotation = Vector3.ZERO
+	await frames(2)
 	var pre_lock_score: int = game.rules.score
 	shoot(game.player.camera.global_position, locked_right.head_area.global_position)
 	verify(not locked_right.defeated and game.rules.score == pre_lock_score, "v0.8.1 #4: shooting revealed answer during 1.4s lock cannot cheat score or kill")
@@ -247,7 +300,7 @@ func run():
 
 	# Two more consecutive wrong hits (total 3) trigger Normal Rage Hunt (12s, 2.0x damage, 145m pursuit)!
 	for s_park in game.combat.troops[0]:
-		s_park.position = s_park.home
+		s_park.position = center0 + Vector3(6.5, 0.08, -6.5)
 	wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
 	wrong.position = center0 + Vector3(0, 0.08, -2.6)
 	wrong.rotation = Vector3.ZERO
@@ -256,7 +309,7 @@ func run():
 	verify(not wrong.defeated and game.combat.consecutive_wrong_hits == 2 and is_equal_approx(game.combat.damage_multiplier(), 1.50), "2nd consecutive wrong hit deals ZERO damage and raises counter to 2/3")
 	game.combat.update(1.55)
 	for s_park2 in game.combat.troops[0]:
-		s_park2.position = s_park2.home
+		s_park2.position = center0 + Vector3(6.5, 0.08, -6.5)
 	wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
 	wrong.position = center0 + Vector3(0, 0.08, -2.6)
 	wrong.rotation = Vector3.ZERO
@@ -737,9 +790,9 @@ func run():
 			elif wrong_melee_s == null:
 				wrong_melee_s = ns
 	if norm_melee_s == null:
-		# Pick a non-boss soldier as current prompt for deterministic 5-hit Normal melee verification
+		# Pick a distinct non-boss soldier as current prompt for deterministic 5-hit Normal melee verification
 		for ns2 in game.combat.troops[2]:
-			if is_instance_valid(ns2) and not ns2.defeated and ns2.archetype != Soldier.Archetype.BOSS_WARDEN:
+			if is_instance_valid(ns2) and not ns2.defeated and ns2.archetype != Soldier.Archetype.BOSS_WARDEN and ns2 != wrong_melee_s:
 				norm_melee_s = ns2
 				game.answer_index = ns2.option
 				game.question = ns2.assigned_word
@@ -778,28 +831,35 @@ func run():
 
 	var cw = game.cave_warden
 	cw.reset()
-	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 620, "v0.8.2_dev2 D2-4: Yanxia Cave Acoustic Warden upgraded to 620 HP in Normal mode")
-	cw.register_noise(cw.root_node.position + Vector3(0, 0, 8.0), 4.0)
+	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 280, "v0.8.3 hotfix: Yanxia Cave Warden balanced to 280 HP in Normal mode with protruding weakpoint & 3D HP bar")
+	# Outer camp gunfire (> 15m away) MUST NOT alert Cave Warden!
+	cw.on_gunshot(cw.root_node.position + Vector3(24.0, 0, 18.0), false)
+	verify(cw.state == "patrol" and cw.noise_meter == 0.0, "v0.8.3 hotfix: outer camp combat beyond 15m never pulls Cave Warden out of Yanxia Cave")
+	cw.register_noise(cw.root_node.position + Vector3(0, 0, 6.0), 4.0)
 	verify(cw.state == "patrol", "v0.8.2 #2: quiet prone/crouch movement keeps Cave Warden unalerted")
-	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 5.0), false)
-	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 5.0), false)
-	verify(cw.state == "hunt" and cw.noise_meter >= 75.0, "v0.8.2 #2: loud gunshots near Yanxia Cave trigger Cave Warden hunt lock")
-	# Armored body hit takes 8 dmg & un-stunned hit inside cave triggers immediate sonic retaliation!
-	game.player.position = cw.root_node.position + Vector3(0, 0.1, 6.0)
-	game.combat.health = 100
-	game.combat.shield = 30
-	cw.attack_cd = 0.0
+	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 4.0), false)
+	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 4.0), false)
+	verify(cw.state == "hunt" and cw.noise_meter >= 75.0, "v0.8.2 #2: loud gunshots inside Yanxia Cave trigger Cave Warden hunt lock")
+	# Leaving Yanxia Cave immediately cancels hunt & Warden never leaves cave corridor!
+	game.player.position = Vector3(-12.0, 4.0, -42.0)
+	cw.update(0.1)
+	verify(cw.state == "patrol" and cw.root_node.position.x >= cw.CAVE_MIN_X and cw.root_node.position.x <= cw.CAVE_MAX_X and cw.root_node.position.z >= cw.CAVE_MIN_Z and cw.root_node.position.z <= cw.CAVE_MAX_Z, "v0.8.3 hotfix: leaving Yanxia Cave immediately drops hunt and strictly confines Warden inside cave")
+	# Responsive armor damage (20 dmg + hit flash) & core crit (55 dmg) + 80-dmg auto-stagger!
+	game.player.position = cw.root_node.position + Vector3(0, 0.1, 4.5)
 	var hp_pre_body: int = cw.hp
 	cw.hit_bullet(cw.body_area)
-	verify(cw.hp == hp_pre_body - 8 and (game.combat.shield < 30.0 or game.combat.health < 100), "v0.8.2_dev2 D2-4: Cave Warden karst armor limits body damage to 8 and triggers sonic blast retaliation")
+	verify(cw.hp == hp_pre_body - 20 and cw.hit_flash_left > 0.05, "v0.8.3 hotfix: Cave Warden body hit deals 20 dmg with visible hit-flinch feedback")
+	cw.hit_bullet(cw.core_area)
+	cw.hit_bullet(cw.core_area)
+	verify(cw.state == "stunned" and cw.stun_left > 1.0, "v0.8.3 hotfix: dealing >= 80 dmg automatically staggers Cave Warden for counter-burst")
 	cw.on_smoke_emp(cw.root_node.position + Vector3(0, 0, 2.0))
 	verify(cw.state == "stunned" and cw.stun_left > 4.0, "v0.8.2 #2: smoke/EMP grenade stuns & blinds Cave Warden acoustic sensors")
 	var pre_cw_score: int = game.rules.score
-	for _cwh in 16:
+	for _cwh in 6:
 		if not cw.is_alive():
 			break
 		cw.hit_bullet(cw.core_area)
-	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar"), "v0.8.2 #2: defeating Cave Warden via stunned sonar core grants +80 pts, warden_1 achievement & charm_sonar")
+	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar"), "v0.8.3 hotfix: stunned core hits (85 crit dmg) defeat Cave Warden cleanly and grant +80 pts, warden_1 & charm_sonar")
 
 	# 12. v0.8.2_dev1 C2 & C4: Camp Warm-Up zero-contamination, Overlord accurate candidate/help count & Practice Range Cave Warden dormancy!
 	game._end_run(false)
@@ -841,6 +901,40 @@ func run():
 	game.start_action(false)
 	await frames(2)
 	verify(not game.cave_warden.is_mode_active() and not game.cave_warden.root_node.visible and game.cave_warden.core_area.collision_layer == 0, "v0.8.2_dev1 C2: Cave Warden stays dormant and hidden in pure Practice Range")
+
+	# 13. v0.8.3 R2: Default Ranger '少羽' [V] Active Skill '天生神力' (1.5s Knockdown, 30s Cooldown, Boss/Warden Stagger & Viewmodel Slam)
+	game.start_action(true, "normal")
+	await frames(4)
+	verify(is_instance_valid(game.rangers) and game.rangers.active_ranger_id() == "shaoyu" and game.rangers.can_use_skill(), "v0.8.3 R2: default Ranger '少羽' starts active with [V] '天生神力' skill ready")
+	game.combat.engage_camp(0)
+	var slam_targets := []
+	for s_sl in game.combat.troops[0]:
+		if is_instance_valid(s_sl) and not s_sl.defeated:
+			s_sl.position = game.Layout.on_ground(game.player.position + Vector3(2.2 + float(slam_targets.size()) * 1.4, 0.0, -3.2))
+			slam_targets.append(s_sl)
+			if slam_targets.size() >= 2:
+				break
+	await frames(2)
+	var slam_ok: bool = game.player.use_ranger_skill()
+	await frames(10)
+	var both_knocked: bool = slam_targets.size() >= 2 and slam_targets[0].knockdown_left > 1.0 and slam_targets[1].knockdown_left > 1.0 and slam_targets[0].visual_root.rotation.x < -0.5
+	verify(slam_ok and both_knocked and game.rangers.skill_cooldown_left > 28.0 and game.player.weapon_view.slam_left > 0.0, "v0.8.3 R2: [V] '天生神力' knocks nearby word soldiers flat for 1.5s, plays viewmodel slam & starts 30s cooldown")
+	verify(not game.player.use_ranger_skill(), "v0.8.3 R2: [V] skill cannot be spammed while 30s cooldown is active")
+	# Wait out remaining 1.5s knockdown and confirm clean recovery
+	for _kf in 110:
+		await physics_frame
+		if slam_targets[0].knockdown_left <= 0.0:
+			break
+	verify(slam_targets[0].knockdown_left <= 0.001 and absf(slam_targets[0].visual_root.rotation.x) < 0.05, "v0.8.3 R2: knocked-down word soldiers stand back up cleanly after 1.5s")
+	# Verify [V] skill also staggers Cave Warden in Yanxia Cave
+	game.rangers.skill_cooldown_left = 0.0
+	game.cave_warden.reset()
+	game.cave_warden.state = "hunt"
+	game.player.position = game.cave_warden.root_node.position + Vector3(0.0, 0.1, 4.0)
+	await frames(2)
+	game.player.use_ranger_skill()
+	verify(game.cave_warden.state == "stunned" and game.cave_warden.stun_left >= 1.4, "v0.8.3 R2: [V] '天生神力' ground slam staggers & interrupts Yanxia Cave Warden within range")
+	game._end_run(false)
 
 	game.queue_free()
 	await process_frame

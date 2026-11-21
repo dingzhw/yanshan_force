@@ -14,8 +14,9 @@ const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
+const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.8.2_dev2"
+const VERSION = "0.8.3"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -115,6 +116,9 @@ var bag_label: Label
 var bag_slots_box: HFlowContainer
 var bag_signature = ""
 var ammo_label: Label
+var skill_panel: Panel
+var skill_label: Label
+var skill_bar_fill: ColorRect
 var interaction_panel: Panel
 var interaction_label: Label
 var feedback_label: Label
@@ -155,6 +159,7 @@ var exploration
 var wildlife
 var cipher_terminal
 var achievements
+var rangers
 var cave_warden
 var prologue
 var loot_ui
@@ -222,6 +227,9 @@ func _ready():
 	prologue = PrologueScene.instantiate()
 	add_child(prologue)
 	prologue.setup(self)
+	rangers = Rangers.new()
+	add_child(rangers)
+	rangers.setup(self)
 	_build_camp_display_stand()
 	refresh_camp_display_stand()
 	_sync_settings_ui()
@@ -993,6 +1001,23 @@ func _build_ui():
 	bag_slots_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(bag_slots_box)
 
+	# ZONE 4B-TOP: Ranger Active [V] Skill Card ('游侠·少羽 · [V] 天生神力')
+	skill_panel = _panel(hud, Rect2(954, 514, 308, 46), Color(0.055, 0.095, 0.112, 0.90), Color("ffd15c"))
+	skill_label = _text(skill_panel, "⚡ 少羽 · [V] 天生神力 · 就绪！", Vector2(12, 6), Vector2(284, 22), 14, Color("ffd86b"))
+	skill_label.clip_text = true
+	var sk_bg := ColorRect.new()
+	sk_bg.position = Vector2(12, 31)
+	sk_bg.size = Vector2(284, 7)
+	sk_bg.color = Color(0.10, 0.18, 0.20, 0.92)
+	sk_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_panel.add_child(sk_bg)
+	skill_bar_fill = ColorRect.new()
+	skill_bar_fill.position = Vector2(12, 31)
+	skill_bar_fill.size = Vector2(284, 7)
+	skill_bar_fill.color = Color("ffd15c")
+	skill_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_panel.add_child(skill_bar_fill)
+
 	# ZONE 4B: Bottom-Right Weapon, Reserve Ammo & Tactical Consumables Card
 	_panel(hud, Rect2(954, 566, 308, 136))
 	ammo_label = _text(hud, "", Vector2(968, 574), Vector2(282, 122), 14, CREAM)
@@ -1018,7 +1043,7 @@ func _build_ui():
 	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hitmarker_label.hide()
 
-	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [F]搜刮/交互  [B]背包  [I]检视  [X]读音  [1/2/V]枪刀  [H/G/T]道具  [F6]画质", Vector2(296, 682), Vector2(696, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [V]游侠技能  [F]搜刮/交互  [B]背包  [I]检视  [X]读音  [1/2]枪刀  [H/G/T]道具  [F6]画质", Vector2(286, 682), Vector2(712, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1349,9 +1374,13 @@ func _refresh_progress():
 		confidential_button.text = "机密行动"
 		practice_button.text = "自由靶场"
 	retest_button.disabled = pending == 0 or in_run
-	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d · 到期 %d\n货币 %d · 家长奖励券 %d 张" % [
+	var ranger_tag := ""
+	if is_instance_valid(rangers):
+		var ar: Dictionary = rangers.active_ranger()
+		ranger_tag = "游侠·%s · 名望 %d（%s） | " % [str(ar.name), rangers.reputation(), rangers.reputation_rank()]
+	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d · 到期 %d\n%s货币 %d · 奖励券 %d" % [
 		rules.learning.mastered_count(words), words.size(), rules.learning.mastered_count(sentences),
-		sentences.size(), pending, rules.profile.coins, rules.profile.points
+		sentences.size(), pending, ranger_tag, rules.profile.coins, rules.profile.points
 	]
 
 func _refresh_menu(result = ""):
@@ -1506,6 +1535,8 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 			cave_warden.reset()
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
+		if is_instance_valid(rangers):
+			rangers.reset_for_run(eff_combat, is_prologue_req)
 		player.medkits = rules.starter_medkits()
 		player.grenades = rules.starter_grenades()
 		player.stims = rules.starter_stims()
@@ -1658,7 +1689,7 @@ func _next_question():
 		flash_word_switch_banner()
 		if (listening_mode or bool(rules.setting("auto_speak_on_switch", true))) and not paused:
 			speak_english(str(question.get("english", "")))
-	elif listening_mode and not paused:
+	elif listening_mode and not paused and not (combat.in_field() and combat.zone < 0):
 		speak_english(str(question.get("english", "")))
 
 func _sync_question():
@@ -1754,6 +1785,13 @@ func show_hitmarker(is_crit: bool = false):
 	hitmarker_label.text = "✦" if is_crit else "×"
 	hitmarker_label.add_theme_color_override("font_color", GOLD if is_crit else MINT)
 	hitmarker_label.show()
+
+func use_ranger_skill() -> bool:
+	if rules.phase not in ["active", "extracting"] or paused:
+		return false
+	if is_instance_valid(rangers):
+		return rangers.activate_skill()
+	return false
 
 func melee_strike(camera: Camera3D):
 	if rules.phase != "active" or paused:
@@ -1963,6 +2001,8 @@ func _process(delta):
 	camp_display_clock += delta
 	if is_instance_valid(achievements):
 		achievements.update(delta)
+	if is_instance_valid(rangers):
+		rangers.update(delta)
 	if is_instance_valid(cave_warden):
 		cave_warden.update(delta)
 	if is_instance_valid(prologue) and prologue.active:
@@ -2107,14 +2147,40 @@ func _process(delta):
 	var optic_tag = " · ".join(mods)
 	var active_tag = "[2] 战术匕首 (高移速 · 应急回弹)" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪  |  [2] 匕首"
 	var reserve_str = "∞" if player.has_infinite_ammo() else str(maxi(0, player.reserve_ammo))
-	var ammo_line = "近战状态  ·  [左键/V] 斩击（普通5刀/机密10刀处决回弹）" if player.weapon_slot == 1 else (
+	var ammo_line = "近战状态  ·  [左键/中键] 斩击（普通5刀/机密10刀回弹）" if player.weapon_slot == 1 else (
 		"换弹装填中…" if player.reload_left > 0 else "弹药 %02d / 备弹 %s   [R]换弹" % [player.ammo, reserve_str]
 	)
 	var stim_suffix = ("  ⚡%.0fs" % player.stim_left) if player.stim_left > 0 else ""
 	ammo_label.text = "%s\n%s\n%s\n[H]医疗×%d  [G]烟雾×%d  [T]能量×%d%s" % [
 		active_tag, ammo_line, optic_tag, player.medkits, player.grenades, player.stims, stim_suffix
 	]
+	_update_ranger_skill_hud()
 	_update_interaction()
+
+func _update_ranger_skill_hud():
+	if not is_instance_valid(skill_panel) or not is_instance_valid(rangers):
+		return
+	var ar: Dictionary = rangers.active_ranger()
+	var cd_max: float = maxf(1.0, float(ar.skill_cooldown))
+	var cd_left: float = float(rangers.skill_cooldown_left)
+	var ready_now: bool = cd_left <= 0.001
+	var frac: float = 1.0 if ready_now else clampf(1.0 - (cd_left / cd_max), 0.0, 1.0)
+	skill_bar_fill.size.x = 284.0 * frac
+	var st = skill_panel.get_theme_stylebox("panel")
+	if ready_now:
+		skill_label.text = "⚡ %s · [%s] %s · 就绪！" % [str(ar.name), str(ar.skill_key), str(ar.skill_name)]
+		skill_label.add_theme_color_override("font_color", Color("ffd86b"))
+		skill_bar_fill.color = Color("ffd15c")
+		if st is StyleBoxFlat:
+			st.border_color = Color("ffd15c")
+			st.set_border_width_all(2)
+	else:
+		skill_label.text = "⏳ %s · [%s] %s · 冷却 %.1fs" % [str(ar.name), str(ar.skill_key), str(ar.skill_name), cd_left]
+		skill_label.add_theme_color_override("font_color", Color("9cd8e8"))
+		skill_bar_fill.color = Color("56d8ff")
+		if st is StyleBoxFlat:
+			st.border_color = Color(0.38, 0.72, 0.78, 0.55)
+			st.set_border_width_all(1)
 
 func _update_prompt_timer_bar():
 	if not is_instance_valid(prompt_timer_bg) or not is_instance_valid(prompt_timer_fill):
@@ -2167,9 +2233,10 @@ func _update_guide():
 	elif combat.in_field() and combat.zone == 2 and is_instance_valid(combat.boss_unit) and not combat.boss_unit.defeated:
 		guide_label.text = "首领战：破词盾露核心，[G]烟雾可致盲躲红圈"
 	elif combat.in_field() and combat.zone >= 0:
-		guide_label.text = "正确词兵：爆头1枪秒 / 词盾2枪灭 · 打错敌攻+25%"
+		guide_label.text = "正确词兵：爆头1枪秒 / 词盾2枪灭 · [V]天生神力震倒周围词兵"
 	elif combat.in_field():
-		guide_label.text = "靠近6处敌营触发波次仇恨 · 护盾生命靠[H/T]与奇植恢复"
+		var b_str: String = rangers.bounty_hud_line() if is_instance_valid(rangers) else ""
+		guide_label.text = ("%s · [V]天生神力震地 · 靠近6处敌营开战" % b_str) if b_str != "" else "靠近6处敌营触发波次仇恨 · [V]天生神力震地 · 护盾靠[H/T]恢复"
 	elif not tutorial_moved and active_station < 0:
 		guide_label.text = "按 [F] 开启身旁营地终端，或沿山路探索"
 	else:
@@ -2219,7 +2286,8 @@ func _update_interaction():
 	if cached_interactables.is_empty():
 		var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
 		var wl_nodes: Array = world_loot.interactable_nodes() if is_instance_valid(world_loot) else []
-		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes + wl_nodes
+		var npc_nodes: Array = [rangers.camp_npc_node] if (is_instance_valid(rangers) and is_instance_valid(rangers.camp_npc_node)) else []
+		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes + wl_nodes + npc_nodes
 	for node in cached_interactables:
 		if not is_instance_valid(node):
 			continue
@@ -2258,6 +2326,8 @@ func _update_interaction():
 				interaction_label.text = "[F] 拾取 %s（+1）" % title
 		elif closest_interaction.has_meta("world_loot_kind") and is_instance_valid(world_loot):
 			interaction_label.text = world_loot.prompt_for(closest_interaction)
+		elif closest_interaction.has_meta("camp_bounty_npc"):
+			interaction_label.text = "[F] 找陈向导查看游侠档案与烟山名望委托"
 		elif closest_interaction.has_meta("flora_id"):
 			var fid := str(closest_interaction.get_meta("flora_id"))
 			var f_verb := "温习植物" if (is_instance_valid(wildlife) and wildlife.collected_flora.has(fid)) else "辨识奇植"
@@ -2335,6 +2405,10 @@ func interact():
 		play_sfx("ammo_pickup", -10)
 		Props.set_enabled(closest_interaction, false)
 		return
+	if closest_interaction.has_meta("camp_bounty_npc"):
+		if is_instance_valid(rangers):
+			rangers.open_npc_modal()
+		return
 	if closest_interaction.has_meta("world_loot_kind"):
 		if is_instance_valid(world_loot):
 			world_loot.interact(closest_interaction)
@@ -2389,6 +2463,8 @@ func _end_run(success: bool, title = ""):
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
 		cipher_terminal.reset()
+	if is_instance_valid(rangers) and rangers.busy:
+		rangers.close_npc_modal()
 	if is_instance_valid(loot_ui):
 		loot_ui.reset_run()
 	paused = true
@@ -2446,6 +2522,10 @@ func _input(event):
 			return
 		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:
 			cipher_terminal.close()
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(rangers) and rangers.busy and is_esc:
+			rangers.close_npc_modal()
 			get_viewport().set_input_as_handled()
 			return
 		if is_instance_valid(exploration) and exploration.busy and is_esc:
