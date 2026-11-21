@@ -94,6 +94,14 @@ func run():
 		boss_rig_ok = (bi.find_child("warden_body", true, false) != null and bi.find_child("arm_left_pivot", true, false) != null and bi.find_child("arm_right_pivot", true, false) != null and bi.find_child("head_crest", true, false) != null and bi.find_child("skyfall_overlord", true, false) != null)
 		bi.free()
 	verify(boss_rig_ok, "standalone PCK v082_bosses.glb contains articulated Cave Warden parts (warden_body/arm_left_pivot/arm_right_pivot/head_crest) & skyfall_overlord")
+	var lm_ok := false
+	if ResourceLoader.exists("res://assets/slice/v085_landmarks.glb"):
+		var lm_packed = load("res://assets/slice/v085_landmarks.glb")
+		if lm_packed is PackedScene:
+			var lmi: Node = lm_packed.instantiate()
+			lm_ok = (lmi.find_child("bridge_multi_arch", true, false) != null and lmi.find_child("tea_hill_pavilion", true, false) != null and lmi.find_child("cliff_stele", true, false) != null and lmi.find_child("arena_dragon_pillar", true, false) != null and lmi.find_child("arena_altar_rim", true, false) != null)
+			lmi.free()
+	verify(lm_ok, "standalone PCK v085_landmarks.glb contains all 5 Great Yanshan landmarks (bridge_multi_arch/tea_hill_pavilion/cliff_stele/arena_dragon_pillar/arena_altar_rim)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

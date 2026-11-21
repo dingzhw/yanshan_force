@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.4 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.5" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.5 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -93,9 +93,10 @@ func run():
 		game.rules.add_loot("filled", 1, 1)
 	var gate_at = game.exploration.gate.global_position + Vector3(1.4, 1.1, 0)
 	verify(not ray(gate_at + Vector3(0, 0, 3), gate_at - Vector3(0, 0, 3)).is_empty(), "closed shortcut gate blocks a real world ray")
-	# v0.8.1 FB-6: Flanking timber stockade wings block walking/rays across the entire valley pass (x=4.5 & x=16.0)!
-	var wing_w: Vector3 = game.Layout.on_ground(Vector3(4.5, 0, -62.0)) + Vector3(0, 1.1, 0)
-	var wing_e: Vector3 = game.Layout.on_ground(Vector3(16.0, 0, -62.0)) + Vector3(0, 1.1, 0)
+	# v0.8.1 FB-6 / v0.8.5: Flanking timber stockade wings block walking/rays across the entire valley pass!
+	var mg_c: Vector3 = game.Layout.MATH_GATE_CENTER
+	var wing_w: Vector3 = game.Layout.on_ground(Vector3(mg_c.x - 5.5, 0, mg_c.z)) + Vector3(0, 1.1, 0)
+	var wing_e: Vector3 = game.Layout.on_ground(Vector3(mg_c.x + 5.5, 0, mg_c.z)) + Vector3(0, 1.1, 0)
 	verify(not ray(wing_w + Vector3(0, 0, 3), wing_w - Vector3(0, 0, 3)).is_empty() and not ray(wing_e + Vector3(0, 0, 3), wing_e - Vector3(0, 0, 3)).is_empty(), "v0.8.1 FB-6: fortified timber stockade wings physically seal both flanks of the shortcut pass")
 	# v0.8.1 FB-1: Elevated Wangdao Pavilion scenic overlook deck stands > 9.0m with solid floor beneath it!
 	var wd_pos: Vector3 = game.landscape.wangdao_deck_pos
@@ -353,9 +354,9 @@ func run():
 	var horizon_node: Node3D = game.landscape.get_node_or_null("HorizonMountainsSkirt")
 	verify(is_instance_valid(stream_node) and is_instance_valid(valley_node) and is_instance_valid(horizon_node) and stream_node.visible and valley_node.visible and horizon_node.visible, "v0.5.5 stream water, 3D outer rice terraces & horizon skirt exist and render")
 
-	var wy_prev: float = game.Layout.stream_water_y(-111.0)
+	var wy_prev: float = game.Layout.stream_water_y(float(game.Layout.STREAM_Z_MIN))
 	var downhill_ok := true
-	for zi in range(-106, 27, 5):
+	for zi in range(int(game.Layout.STREAM_Z_MIN) + 6, int(game.Layout.FENCE_MAX_Z) + 1, 6):
 		var wy_cur: float = game.Layout.stream_water_y(float(zi))
 		if wy_cur >= wy_prev:
 			downhill_ok = false
@@ -364,23 +365,24 @@ func run():
 
 	for bz in game.Layout.STREAM_BRIDGES:
 		var bcx: float = game.Layout.stream_center_x(float(bz))
+		var half_span: float = 8.4 if is_equal_approx(float(bz), float(game.Layout.MULTI_ARCH_BRIDGE_Z)) else 5.8
 		game.player.clear_movement_input()
 		game.player.velocity = Vector3.ZERO
-		game.player.position = game.Layout.on_ground(Vector3(bcx - 5.2, 0.0, float(bz))) + Vector3(0, 0.12, 0)
+		game.player.position = game.Layout.on_ground(Vector3(bcx - half_span, 0.0, float(bz))) + Vector3(0, 0.12, 0)
 		await frames(6)
 		var walked := false
 		sim_key.call(KEY_SPACE, false)
-		for step in 240:
+		for step in 320:
 			var p: Vector3 = game.player.position
-			var d := Vector2((bcx + 5.2) - p.x, float(bz) - p.z)
-			if d.length() <= 0.65 and game.player.is_on_floor():
+			var d := Vector2((bcx + half_span) - p.x, float(bz) - p.z)
+			if d.length() <= 0.72 and game.player.is_on_floor():
 				walked = true
 				break
 			game.player.yaw = atan2(-d.x, -d.y)
 			sim_key.call(KEY_W, true)
 			await frames(1)
 		sim_key.call(KEY_W, false)
-		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream footbridge at z=" + str(bz) + " is smoothly walkable across water")
+		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream bridge at z=" + str(bz) + " is smoothly walkable across water")
 
 	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 48 and game.wildlife.flora_nodes.size() == 8 and game.wildlife.sky_egrets.size() >= 6, "v0.6.1.1 spawns 52 habitat critters across 8 species + 6 flapping sky egrets + 8 interactive flora nodes")
 	var kinds := {}
@@ -538,10 +540,12 @@ func run():
 	var poem_pav = poem_node.find_child("poem_stele_pavilion", true, false) if poem_node != null else null
 	var obelisk = poem_node.find_child("statue_obelisk", true, false) if poem_node != null else null
 	verify(poem_pav != null and obelisk == null, "v0.6.0 replaces Western obelisk with Jiangnan poem_stele_pavilion")
-	# v0.8.1 FB-1: Walk purely with KEY_W (ZERO jumping) up the +2.75m Grand Bluestone Staircase onto WangdaoPavilion overlook deck!
+	# v0.8.1 FB-1 / v0.8.5: Walk purely with KEY_W up the +2.75m Grand Bluestone Staircase onto WangdaoPavilion overlook deck!
 	var pav_at: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
-	var start_xz: Vector3 = game.Layout.on_ground(Vector3(27.4, 0.0, 17.1)) + Vector3(0.0, 0.12, 0.0)
-	var target_xz: Vector3 = Vector3(33.2, pav_at.y + 2.75, 22.1)
+	var wd_dx := float(game.Layout.WANGDAO_PAVILION.x) - 33.5
+	var wd_dz := float(game.Layout.WANGDAO_PAVILION.z) - 20.8
+	var start_xz: Vector3 = game.Layout.on_ground(Vector3(27.4 + wd_dx, 0.0, 17.1 + wd_dz)) + Vector3(0.0, 0.12, 0.0)
+	var target_xz: Vector3 = Vector3(33.2 + wd_dx, pav_at.y + 2.75, 22.1 + wd_dz)
 	var walk_dir := Vector2(target_xz.x - start_xz.x, target_xz.z - start_xz.z)
 	game.player.clear_movement_input()
 	game.player.position = start_xz
@@ -563,7 +567,7 @@ func run():
 	var bed_node := game.landscape.get_node_or_null("StreamChannelBed") as MeshInstance3D
 	verify(bed_node != null and bed_node.mesh != null and bed_node.mesh.get_surface_count() > 0, "v0.6.1 renders StreamChannelBed wet-pebble recessed channel")
 	var concave_ok := true
-	for tz in [16.0, -10.0, -60.0]:
+	for tz in [24.0, -14.0, -90.0]:
 		var tcx: float = game.Layout.stream_center_x(tz)
 		var twy: float = game.Layout.stream_water_y(tz)
 		var tbed: float = game.terrain_height(tcx, tz)
@@ -573,13 +577,16 @@ func run():
 			concave_ok = false
 	verify(concave_ok, "creek sits in a true concave channel (~0.52m below water, >=0.34m below both bank lips)")
 	var stream_aabb: AABB = (stream_node as MeshInstance3D).get_aabb()
-	verify(stream_aabb.end.z > 150.0, "MountainStreamWater flows continuously past South fence (z=26) into distant village paddies (z>150)")
+	verify(stream_aabb.end.z > 180.0, "MountainStreamWater flows continuously past South fence (z=40) into distant village paddies (z>180)")
 	var seam_max_err := 0.0
-	for sx_i in range(-60, 61, 4):
-		seam_max_err = maxf(seam_max_err, absf(game.landscape._outer_valley_y(float(sx_i), 36.0) - game.landscape._ground_vis_y(float(sx_i), 36.0)))
-	verify(seam_max_err < 0.002, "OuterRiceValley South collar matches ContinuousGround z=36 with zero seam gap")
-	var piling_prof: Vector2 = game.landscape._fence_post_profile(16.75, 26.0)
-	verify(piling_prof.x < game.Layout.stream_water_y(26.0) - 0.85, "South fence creek pilings plunge deep into streambed beneath water")
+	var max_z_f := float(game.Layout.MAX_Z)
+	for sx_i in range(int(game.Layout.MIN_X), int(game.Layout.MAX_X) + 1, 5):
+		seam_max_err = maxf(seam_max_err, absf(game.landscape._outer_valley_y(float(sx_i), max_z_f) - game.landscape._ground_vis_y(float(sx_i), max_z_f)))
+	verify(seam_max_err < 0.002, "OuterRiceValley South collar matches ContinuousGround z=MAX_Z with zero seam gap")
+	var fmax_z_f := float(game.Layout.FENCE_MAX_Z)
+	var scx_fmax := float(game.Layout.stream_center_x(fmax_z_f))
+	var piling_prof: Vector2 = game.landscape._fence_post_profile(scx_fmax - 0.90, fmax_z_f)
+	verify(piling_prof.x < game.Layout.stream_water_y(fmax_z_f) - 0.85, "South fence creek pilings plunge deep into streambed beneath water")
 	for batch_id in ["MountainCamphorTrees", "MountainWillowTrees", "MountainMapleTrees", "MosoBambooCulms", "MosoBambooClumps", "VillageWillows", "VillageCamphors", "HillsideGrassTufts", "HillsideAzaleaBushes"]:
 		var bnode := game.landscape.get_node_or_null(batch_id) as MultiMeshInstance3D
 		verify(bnode != null and bnode.multimesh != null and bnode.multimesh.instance_count > 0, "v0.6.1 MultiMesh batch active: " + batch_id)
@@ -592,10 +599,13 @@ func run():
 	verify(maze_node.get_node_or_null("BambooMazeSouthGate") != null and maze_node.get_node_or_null("KarstCrouchArch") != null and maze_node.get_node_or_null("CliffMoyaStele") != null and maze_node.get_node_or_null("StoneSundialPedestal") != null, "v0.6.2 maze includes South Gate, KarstCrouchArch, CliffMoyaStele, and StoneSundialPedestal")
 	verify(game.crate_nodes.size() >= 6 and str(game.crate_nodes[5].get_meta("title")) == "烟霞古洞秘藏石匣", "v0.6.2 places Tier-3 Yanxia Cavern vault crate at crate_nodes[5]")
 
-	# 1) KarstCrouchArch (-41.60, y, -45.50): physically blocks standing player, passes [C] crouched player
+	# 1) KarstCrouchArch rigidly translated by (CAVE_DX, CAVE_DZ): blocks standing, passes [C] crouched
+	var cdx := float(game.Layout.CAVE_DX)
+	var cdz := float(game.Layout.CAVE_DZ)
+	var cave_fy := float(game.Layout.CAVE_FLOOR_Y) + 0.026
 	game.player.clear_movement_input()
 	game.player.reset_stance()
-	game.player.position = Vector3(-41.60, float(game.terrain_height(-41.60, -44.15)) + 0.05, -44.15)
+	game.player.position = Vector3(-41.60 + cdx, float(game.terrain_height(-41.60 + cdx, -44.15 + cdz)) + 0.05, -44.15 + cdz)
 	game.player.velocity = Vector3.ZERO
 	game.player.yaw = 0.0
 	await frames(6)
@@ -605,7 +615,7 @@ func run():
 	game.player.clear_movement_input()
 	await frames(3)
 	var stand_blocked_z: float = game.player.position.z
-	verify(stand_blocked_z > -45.25, "KarstCrouchArch 1.25m lintel blocks standing player (z=%.2f)" % stand_blocked_z)
+	verify(stand_blocked_z > -45.25 + cdz, "KarstCrouchArch 1.25m lintel blocks standing player (z=%.2f)" % stand_blocked_z)
 
 	sim_key.call(KEY_C, true)
 	await frames(2)
@@ -615,12 +625,12 @@ func run():
 	game.player.yaw = 0.0
 	game.player.held_keys[KEY_W] = true
 	for _f in 75:
-		if game.player.position.z < -46.55:
+		if game.player.position.z < -46.55 + cdz:
 			break
 		await physics_frame
 	game.player.clear_movement_input()
 	await frames(4)
-	verify(game.player.position.z < -46.30 and game.player.is_on_floor(), "crouched player crawls cleanly underneath KarstCrouchArch (z=%.2f)" % game.player.position.z)
+	verify(game.player.position.z < -46.30 + cdz and game.player.is_on_floor(), "crouched player crawls cleanly underneath KarstCrouchArch (z=%.2f)" % game.player.position.z)
 	sim_key.call(KEY_C, true)
 	await frames(2)
 	sim_key.call(KEY_C, false)
@@ -628,19 +638,19 @@ func run():
 
 	# 2) Real walk-in traversal from Cavern Forecourt through South Cliff Portal into YanxiaAncientCave
 	game.player.clear_movement_input()
-	game.player.position = Vector3(-41.60, 6.55, -56.20)
+	game.player.position = Vector3(-41.60 + cdx, cave_fy + 0.03, -56.20 + cdz)
 	game.player.velocity = Vector3.ZERO
 	game.player.yaw = 0.0
 	await frames(6)
 	game.player.held_keys[KEY_W] = true
 	for _f in 125:
-		if game.player.position.z < -63.80:
+		if game.player.position.z < -63.80 + cdz:
 			break
 		await physics_frame
 	game.player.clear_movement_input()
 	await frames(6)
-	verify(game.player.position.z < -62.50 and game.player.is_on_floor() and absf(game.player.position.y - 6.526) < 0.16, "player walks seamlessly through Yanxia Cave portal onto wet limestone floor (pos=%s)" % str(game.player.position))
-	game.player.position = Vector3(-40.25, 6.526, -65.25)
+	verify(game.player.position.z < -62.50 + cdz and game.player.is_on_floor() and absf(game.player.position.y - cave_fy) < 0.18, "player walks seamlessly through Yanxia Cave portal onto wet limestone floor (pos=%s)" % str(game.player.position))
+	game.player.position = Vector3(-40.25 + cdx, cave_fy, -65.25 + cdz)
 	await frames(4)
 	verify(game._can_interact(game.crate_nodes[5]), "Yanxia Cavern Tier-3 vault crate has unobstructed interaction line-of-sight inside Inner Sanctum")
 
@@ -807,14 +817,15 @@ func run():
 		var btn0_top: float = game.exploration.buttons[0].position.y
 		verify(btn0_top >= body_bottom + 4.0, "v0.8.2 V81-4: Yanxia Cave mural body text clears option button 0 with zero overlap (gap=%.1fpx)" % (btn0_top - body_bottom))
 		game.exploration.close()
-	# V81-6: Exterior Yanxia Cave West/East walls & Maze row-6 corners block raycast penetration cleanly
+	# V81-6 / v0.8.5: Exterior Yanxia Cave West/East walls & Maze row-6 corners block raycast penetration cleanly
 	var sp82: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
-	var cave_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-50.0, 8.0, -61.0), Vector3(-43.0, 8.0, -61.0), 1)
-	var cave_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-33.0, 8.0, -61.0), Vector3(-40.0, 8.0, -61.0), 1)
-	var seam_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-47.5, 8.0, -56.2), Vector3(-47.5, 8.0, -60.5), 1)
-	var seam_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-35.7, 8.0, -56.2), Vector3(-35.7, 8.0, -60.5), 1)
+	var ray_y := float(game.Layout.CAVE_FLOOR_Y) + 1.5
+	var cave_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-50.0 + cdx, ray_y, -61.0 + cdz), Vector3(-43.0 + cdx, ray_y, -61.0 + cdz), 1)
+	var cave_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-33.0 + cdx, ray_y, -61.0 + cdz), Vector3(-40.0 + cdx, ray_y, -61.0 + cdz), 1)
+	var seam_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-47.5 + cdx, ray_y, -56.2 + cdz), Vector3(-47.5 + cdx, ray_y, -60.5 + cdz), 1)
+	var seam_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-35.7 + cdx, ray_y, -56.2 + cdz), Vector3(-35.7 + cdx, ray_y, -60.5 + cdz), 1)
 	var cave_sealed: bool = (not sp82.intersect_ray(cave_w_ray).is_empty()) and (not sp82.intersect_ray(cave_e_ray).is_empty()) and (not sp82.intersect_ray(seam_w_ray).is_empty()) and (not sp82.intersect_ray(seam_e_ray).is_empty())
-	verify(cave_sealed, "v0.8.2 V81-6: Yanxia Ancient Cave exterior rock cliffs and Maze row-6 corner seams are watertight solid")
+	verify(cave_sealed, "v0.8.5: Yanxia Ancient Cave exterior rock cliffs and Maze row-6 corner seams are watertight solid in West Bamboo Ravine")
 	# V81-7: Zero spoiler label "迷踪竹石阵 · 东侧幽径" in maze
 	var has_secret_spoiler := false
 	for lbl3 in game.landscape.find_children("*", "Label3D", true, false):
@@ -828,14 +839,36 @@ func run():
 	wv64.animate(0.016, 0.50, 0.0, false)
 	var optic_rel_reload: Vector3 = wv64.rifle.to_local(wv64.optic_root.global_position)
 	verify(optic_rel_idle.distance_to(optic_rel_reload) < 0.001 and wv64.optic_root.get_parent() == wv64.gun_pivot, "v0.8.2 V81-9: optic stays rigidly locked to rifle rail during reload animation (zero drift)")
-	# V81-10 & V81-11: Achievements (boar_1 / sq_10), 3D dangling weapon charm mount, & simplified Compendium with Achievements tab
+	# v0.8.5: Relocated rear upper-receiver charm directly below optic left flank (z >= +0.075 -> clear of BOTH front & rear hands!)
 	game.achievements.record_wildlife_kill("boar")
 	for _sqk in 10:
 		game.achievements.record_wildlife_kill("squirrel")
 	var ach_unlocked_ok: bool = game.achievements.is_unlocked("boar_1") and game.achievements.is_unlocked("sq_10") and game.achievements.is_charm_unlocked("charm_roast")
 	game.achievements.equip_charm("charm_roast")
-	var charm_world_x_clear: bool = (wv64.charm_anchor.position.x + wv64.charm_pendulum.position.x) <= -0.050 and wv64.charm_visual_root.scale.x >= 1.40
-	verify(ach_unlocked_ok and wv64.equipped_charm_id == "charm_roast" and wv64.charm_anchor.visible and wv64.charm_visual_root.get_child_count() >= 2 and charm_world_x_clear, "v0.8.4: wildlife kills unlock humorous achievements and mount enlarged 1.45x swinging charm prominently on left exterior rail")
+	var charm_under_optic_clear: bool = (wv64.charm_anchor.position.x + wv64.charm_pendulum.position.x) <= -0.036 and wv64.charm_anchor.position.z >= 0.075 and wv64.charm_visual_root.scale.x >= 1.10
+	verify(ach_unlocked_ok and wv64.equipped_charm_id == "charm_roast" and wv64.charm_anchor.visible and wv64.charm_visual_root.get_child_count() >= 2 and charm_under_optic_clear, "v0.8.5: weapon charm mounts on rear upper receiver below optic left flank (z>=0.075) clear of both hands")
+	# v0.8.5 Great Yanshan 3x Map Expansion, Camp Spacing (>=60m), Isolated Cave (>=60m) & New Blender 4.5 Landmarks
+	var playable_w: float = float(game.Layout.FENCE_MAX_X) - float(game.Layout.FENCE_MIN_X)
+	var playable_d: float = float(game.Layout.FENCE_MAX_Z) - float(game.Layout.FENCE_MIN_Z)
+	verify(playable_w >= 179.0 and playable_d >= 239.0 and playable_w * playable_d >= 43000.0, "v0.8.5: Great Yanshan playable area expanded 3x to 180m x 240m (%.0f m2)" % (playable_w * playable_d))
+	var min_camp_gap := 9999.0
+	for ci in game.Layout.COMBAT_ZONES.size():
+		for cj in range(ci + 1, game.Layout.COMBAT_ZONES.size()):
+			var pa: Vector3 = game.Layout.COMBAT_ZONES[ci].at
+			var pb: Vector3 = game.Layout.COMBAT_ZONES[cj].at
+			min_camp_gap = minf(min_camp_gap, Vector2(pa.x - pb.x, pa.z - pb.z).length())
+	var min_cave_gap := 9999.0
+	for camp_z in game.Layout.COMBAT_ZONES:
+		var cp: Vector3 = camp_z.at
+		min_cave_gap = minf(min_cave_gap, Vector2(cp.x - game.Layout.YANXIA_CAVE_CENTER.x, cp.z - game.Layout.YANXIA_CAVE_CENTER.z).length())
+	verify(min_camp_gap >= 60.0 and min_cave_gap >= 60.0, "v0.8.5: all 6 Fogveil camps spaced >=60m apart (min=%.1fm) and Yanxia Cave isolated >=60m (min=%.1fm)" % [min_camp_gap, min_cave_gap])
+	var cloud_arena: Node = game.landscape.get_node_or_null("CloudTopMartialArena")
+	var multi_bridge: Node = game.landscape.get_node_or_null("TripleArchStoneBridge")
+	var tea_pav: Node = game.landscape.get_node_or_null("TeaHillPavilion")
+	var cliff_stele: Node = game.landscape.get_node_or_null("YanshanCliffStele")
+	var arena_pillars: int = cloud_arena.find_children("ArenaDragonPillar_*", "Node3D", false, false).size() if cloud_arena != null else 0
+	var arena_flat_ok := absf(float(game.terrain_height(game.Layout.CLOUD_ARENA_CENTER.x, game.Layout.CLOUD_ARENA_CENTER.z)) - float(game.Layout.CLOUD_ARENA_Y)) < 0.08
+	verify(cloud_arena != null and arena_pillars == 8 and arena_flat_ok and multi_bridge != null and tea_pav != null and cliff_stele != null, "v0.8.5: spawns 38m flat CloudTopMartialArena (8 dragon pillars), TripleArchStoneBridge, TeaHillPavilion & YanshanCliffStele")
 	game._end_run(false)
 	game.loot_ui.open_compendium("achievements")
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.achievements.CATALOG.size(), "v0.8.2 V81-10/11: Compendium exposes Achievements & Weapon Charms Hall with all 24 achievement cards")

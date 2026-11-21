@@ -21,84 +21,84 @@ const BOAR_CHARGE_DAMAGE := 15
 const BOAR_CHARGE_CHANCE := 0.48
 
 const FLORA_SPOTS := [
-	{"id": "flora_camp_orchid", "pos": Vector3(13.5, 0, 5.2), "kind": "orchid", "en": "Wild Orchid", "zh": "溪畔幽兰", "tts": "wild orchid", "sentence": "Wild orchids grow beside the clear mountain stream.", "heal": 8},
-	{"id": "flora_bridge_lily", "pos": Vector3(15.2, 0, -21.5), "kind": "lily", "en": "Water Lily", "zh": "石桥睡莲", "tts": "water lily", "sentence": "Green water lilies float quietly near the stone bridge.", "heal": 6},
-	{"id": "flora_forest_mushroom", "pos": Vector3(-19.5, 0, -31.5), "kind": "mushroom", "en": "Red Mushroom", "zh": "红伞山菌", "tts": "red mushroom", "sentence": "Bright red mushrooms grow under tall shady camphor trees.", "heal": 7},
-	{"id": "flora_west_lavender", "pos": Vector3(-24.8, 0, -14.2), "kind": "purple_flower", "en": "Mountain Lavender", "zh": "山坡紫花", "tts": "purple flower", "sentence": "Purple flowers bloom beside the green cargo crates.", "heal": 6},
-	{"id": "flora_overlook_berry", "pos": Vector3(23.8, 0, -26.5), "kind": "berry_fern", "en": "Mountain Berry", "zh": "朱果奇草", "tts": "mountain berry", "sentence": "Curious fern berries shine orange on the east ridge.", "heal": 10},
-	{"id": "flora_cave_orchid", "pos": Vector3(-21.2, 0, -65.0), "kind": "orchid", "en": "Cave Orchid", "zh": "石窟夜光兰", "tts": "cave orchid", "sentence": "A glowing purple orchid blooms in front of the rock cave.", "heal": 10},
-	{"id": "flora_radio_goldflower", "pos": Vector3(24.5, 0, -49.5), "kind": "yellow_flower", "en": "Golden Marigold", "zh": "金盏野花", "tts": "yellow flower", "sentence": "Yellow flowers wave near the East Recon Radio.", "heal": 7},
-	{"id": "flora_bamboo_fern", "pos": Vector3(20.6, 0, -83.5), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 10}
+	{"id": "flora_camp_orchid", "pos": Vector3(17.0, 0, 13.5), "kind": "orchid", "en": "Wild Orchid", "zh": "溪畔幽兰", "tts": "wild orchid", "sentence": "Wild orchids grow beside the clear mountain stream.", "heal": 8},
+	{"id": "flora_bridge_lily", "pos": Vector3(21.0, 0, -24.5), "kind": "lily", "en": "Water Lily", "zh": "石桥睡莲", "tts": "water lily", "sentence": "Green water lilies float quietly near the stone bridge.", "heal": 6},
+	{"id": "flora_forest_mushroom", "pos": Vector3(-28.0, 0, -48.0), "kind": "mushroom", "en": "Red Mushroom", "zh": "红伞山菌", "tts": "red mushroom", "sentence": "Bright red mushrooms grow under tall shady camphor trees.", "heal": 7},
+	{"id": "flora_west_lavender", "pos": Vector3(-39.0, 0, -14.0), "kind": "purple_flower", "en": "Mountain Lavender", "zh": "山坡紫花", "tts": "purple flower", "sentence": "Purple flowers bloom beside the green cargo crates.", "heal": 6},
+	{"id": "flora_overlook_berry", "pos": Vector3(44.0, 0, -32.0), "kind": "berry_fern", "en": "Mountain Berry", "zh": "朱果奇草", "tts": "mountain berry", "sentence": "Curious fern berries shine orange on the east ridge.", "heal": 10},
+	{"id": "flora_cave_orchid", "pos": Vector3(-31.0, 0, -120.0), "kind": "orchid", "en": "Cave Orchid", "zh": "石窟夜光兰", "tts": "cave orchid", "sentence": "A glowing purple orchid blooms in front of the rock cave.", "heal": 10},
+	{"id": "flora_radio_goldflower", "pos": Vector3(48.0, 0, -98.0), "kind": "yellow_flower", "en": "Golden Marigold", "zh": "金盏野花", "tts": "yellow flower", "sentence": "Yellow flowers wave near the East Recon Radio.", "heal": 7},
+	{"id": "flora_bamboo_fern", "pos": Vector3(38.0, 0, -142.0), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 10}
 ]
 
 const HABITAT_ANIMALS := [
 	# 1. Little Rabbits (8 — meadows, creek lawns & East/West/South fence slopes)
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(9.6, 0, 12.8)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-11.0, 0, -6.5)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-22.5, 0, -24.5)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(24.5, 0, -34.0)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(13.5, 0, -70.0)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-18.5, 0, -90.0)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-43.5, 0, 16.5)},
-	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(44.0, 0, -14.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(11.0, 0, 24.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-16.0, 0, -4.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-34.0, 0, -38.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(40.0, 0, -52.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(20.0, 0, -112.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-30.0, 0, -152.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-68.0, 0, 24.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(72.0, 0, -18.0)},
 
 	# 2. Red Squirrels (7 — foraging near camphor & maple tree trunks; climb straight up trees when startled!)
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-15.2, 0, -4.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(12.2, 0, -16.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-27.2, 0, -19.2)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(22.6, 0, -41.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(26.8, 0, -62.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-24.2, 0, -75.5)},
-	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(43.2, 0, 10.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-23.0, 0, 2.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(17.5, 0, -15.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-43.0, 0, -28.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(38.0, 0, -46.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(45.0, 0, -112.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-34.0, 0, -130.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(75.0, 0, 15.0)},
 
 	# 3. Bush-Ambush Wild Boars (5 — hidden in azalea thickets; sprint on 4 legs & may counter-charge when chased!)
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.5, 0, 9.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(34.5, 0, 1.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-45.5, 0, -26.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(33.5, 0, -66.5)},
-	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-34.0, 0, -82.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-56.0, 0, 18.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(62.0, 0, 4.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-76.0, 0, -44.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(68.0, 0, -110.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-62.0, 0, -142.0)},
 
 	# 4. Agile Red Foxes (5 — patrolling fence-side grassy slopes & bamboo edges)
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-20.0, 0, 20.5)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(42.5, 0, -28.0)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-42.5, 0, -22.0)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(42.5, 0, -88.0)},
-	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-16.0, 0, -106.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-32.0, 0, 30.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(72.0, 0, -42.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-74.0, 0, -34.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(74.0, 0, -146.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-28.0, 0, -188.0)},
 
 	# 5. Tree-Perching Songbirds & Creek Egrets (9 — perched on fence posts, tree branches & wading by creek)
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-3.25, 0, 25.8), "perch_h": 1.28},
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(22.75, 0, 25.8), "perch_h": 1.28},
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-16.6, 0, -4.0), "perch_h": 3.25},
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(11.0, 0, -16.5), "perch_h": 3.45},
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(46.0, 0, -19.5), "perch_h": 2.85},
-	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-36.5, 0, -30.0), "perch_h": 3.15},
-	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(20.1, 0, 16.5), "perch_h": 0.04},
-	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(15.0, 0, -16.5), "perch_h": 0.04},
-	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(20.2, 0, -58.5), "perch_h": 0.04},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-3.5, 0, 39.8), "perch_h": 1.28},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(34.0, 0, 39.8), "perch_h": 1.28},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-24.0, 0, 2.0), "perch_h": 3.25},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(16.5, 0, -15.5), "perch_h": 3.45},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(78.0, 0, -16.0), "perch_h": 2.85},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-44.0, 0, -28.0), "perch_h": 3.15},
+	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(27.5, 0, 24.0), "perch_h": 0.04},
+	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(22.2, 0, -14.0), "perch_h": 0.04},
+	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(30.2, 0, -104.0), "perch_h": 0.04},
 
 	# 6. Brook Koi / Carp (7 — swimming in clear recessed pebble creek pools)
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 21.5, "lane": -0.35},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 12.5, "lane": 0.40},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 1.5, "lane": -0.38},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -15.0, "lane": 0.35},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -33.0, "lane": -0.40},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -56.0, "lane": 0.35},
-	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -84.0, "lane": -0.35},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 31.0, "lane": -0.35},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 8.0, "lane": 0.40},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -16.0, "lane": -0.38},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -48.0, "lane": 0.35},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -92.0, "lane": -0.40},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -138.0, "lane": 0.35},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -178.0, "lane": -0.35},
 
 	# 7. Creek Rock Crabs (5 — scuttling sideways with 8 jointed legs along wet pebble shorelines)
-	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 18.2, "bank_side": -1.48},
-	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 9.2, "bank_side": 1.50},
-	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -20.5, "bank_side": 1.52},
-	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -43.5, "bank_side": -1.48},
-	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -76.0, "bank_side": 1.50},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 28.0, "bank_side": -1.48},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 4.0, "bank_side": 1.50},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -40.0, "bank_side": 1.52},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -88.0, "bank_side": -1.48},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -146.0, "bank_side": 1.50},
 
 	# 8. Freshwater Jade River Shrimp (6 — hovering & tail-flipping backward when startled!)
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 20.0, "lane": 0.45},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 14.2, "lane": -0.48},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -8.5, "lane": 0.42},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -29.5, "lane": -0.44},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -51.0, "lane": 0.46},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -89.0, "lane": -0.42}
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 33.0, "lane": 0.45},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 11.0, "lane": -0.48},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -12.0, "lane": 0.42},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -58.0, "lane": -0.44},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -108.0, "lane": 0.46},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -172.0, "lane": -0.42}
 ]
 
 func setup(g):
@@ -315,12 +315,12 @@ func _spawn_wildlife():
 func _spawn_sky_egrets():
 	# Ambient flock of 6 snowy Jiangnan egrets flapping & gliding gracefully over the creek & rice valley
 	var orbit_specs := [
-		{"center": Vector3(16.5, 11.8, 16.5), "rx": 17.5, "rz": 13.5, "spd": 0.36, "phase": 0.0},
-		{"center": Vector3(20.0, 13.4, 21.5), "rx": 19.5, "rz": 15.0, "spd": 0.34, "phase": 0.62},
-		{"center": Vector3(15.5, 15.2, 38.0), "rx": 24.0, "rz": 18.0, "spd": 0.30, "phase": 1.85},
-		{"center": Vector3(-11.0, 15.8, -16.0), "rx": 22.0, "rz": 16.5, "spd": 0.32, "phase": 3.10},
-		{"center": Vector3(16.0, 16.5, -36.0), "rx": 20.0, "rz": 15.5, "spd": 0.33, "phase": 4.15},
-		{"center": Vector3(14.0, 18.5, -62.0), "rx": 21.0, "rz": 16.0, "spd": 0.31, "phase": 5.20}
+		{"center": Vector3(24.0, 12.8, 22.0), "rx": 22.0, "rz": 18.0, "spd": 0.34, "phase": 0.0},
+		{"center": Vector3(32.0, 14.4, 34.0), "rx": 26.0, "rz": 20.0, "spd": 0.32, "phase": 0.62},
+		{"center": Vector3(26.0, 16.2, 56.0), "rx": 32.0, "rz": 24.0, "spd": 0.28, "phase": 1.85},
+		{"center": Vector3(-18.0, 17.5, -36.0), "rx": 28.0, "rz": 22.0, "spd": 0.30, "phase": 3.10},
+		{"center": Vector3(26.0, 19.5, -88.0), "rx": 28.0, "rz": 22.0, "spd": 0.31, "phase": 4.15},
+		{"center": Vector3(16.0, 23.5, -158.0), "rx": 30.0, "rz": 24.0, "spd": 0.29, "phase": 5.20}
 	]
 	for i in orbit_specs.size():
 		var sp: Dictionary = orbit_specs[i]

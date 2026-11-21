@@ -47,7 +47,7 @@ func run():
 	var index = game.answer_index
 	var active_board = game.stations[1].boards[index]
 	var from = game.stations[1].position + Vector3(0, 1.7, 2)
-	await shoot_at(game.stations[0].boards[index], Vector3(0, 1.7, 7))
+	await shoot_at(game.stations[0].boards[index], game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 1.7, 2.5))
 	verify(game.rules.score == 0 and game.rules.question_open, "shooting an inactive station cannot score")
 	var midway = (from + active_board.global_position) / 2
 	game._mesh_box(game, midway, Vector3(2, 3, 1), Color.GRAY, true)

@@ -56,7 +56,7 @@ func _marker_ground(marker_name: String, fallback: Vector3) -> Vector3:
 
 func _build_world_props():
 	# 1) Camp Liaison NPC ("陈向导 · 烟山联络员") standing warmly beside Camp briefing area
-	var npc_pos := _marker_ground("CampGuideAnchor", Vector3(-2.8, 0.0, 5.2))
+	var npc_pos := _marker_ground("CampGuideAnchor", game.Layout.SPAWN + Vector3(-2.8, 0.0, 0.8))
 	npc_node = Node3D.new()
 	npc_node.name = "CampGuideNPC"
 	npc_node.position = npc_pos
@@ -143,9 +143,9 @@ func _build_world_props():
 
 	# 2) Diegetic warm-gold stone wayfinder lanterns along Camp -> South Bridge -> East Path -> Wangdao Stairs
 	var wf_specs := [
-		["Wayfinder_SouthBridge", Vector3(18.6, 0.0, 7.0), "南桥渡口 · 过桥赴东岭 ↗"],
-		["Wayfinder_EastPath", Vector3(24.8, 0.0, 11.2), "东岭山道 · 前方斥候警戒 ↗"],
-		["Wayfinder_WangdaoStairs", Vector3(27.4, 0.0, 17.2), "望稻亭石阶 · 登台查信标 ↗"]
+		["Wayfinder_SouthBridge", Vector3(25.0, 0.0, 16.0), "南桥渡口 · 过桥赴东岭 ↗"],
+		["Wayfinder_EastPath", Vector3(37.5, 0.0, 17.8), "东岭山道 · 前方斥候警戒 ↗"],
+		["Wayfinder_WangdaoStairs", Vector3(49.5, 0.0, 22.4), "望稻亭石阶 · 登台查信标 ↗"]
 	]
 	for spec in wf_specs:
 		var wpos := _marker_ground(spec[0], spec[1])
@@ -165,9 +165,11 @@ func _build_world_props():
 		wayfinder_nodes.append(wf)
 
 	# 3) Wangdao Pavilion Silenced Relay Beacon + Celadon Sample on elevated Wangdao Overlook Terrace!
-	var deck_pos := Vector3(35.2, float(game.terrain_height(35.2, 22.4)) + 2.75, 23.6)
+	var wd_x := float(game.Layout.WANGDAO_PAVILION.x) + 1.7
+	var wd_z := float(game.Layout.WANGDAO_PAVILION.z) + 2.8
+	var deck_pos := Vector3(wd_x, float(game.terrain_height(game.Layout.WANGDAO_PAVILION.x, game.Layout.WANGDAO_PAVILION.z)) + 2.75, wd_z)
 	if is_instance_valid(game.landscape) and game.landscape.wangdao_deck_pos.length() > 1.0:
-		deck_pos = Vector3(35.2, game.landscape.wangdao_deck_pos.y - 0.015, 23.6)
+		deck_pos = Vector3(game.landscape.wangdao_deck_pos.x, game.landscape.wangdao_deck_pos.y - 0.015, game.landscape.wangdao_deck_pos.z - 1.85)
 	beacon_node = Node3D.new()
 	beacon_node.name = "WangdaoLostBeacon"
 	beacon_node.position = deck_pos

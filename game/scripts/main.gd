@@ -17,7 +17,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.8.4"
+const VERSION = "0.8.5"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -196,7 +196,7 @@ func _ready():
 	player = Player.new()
 	player.game = self
 	add_child(player)
-	player.position = Vector3(0, 0.15, 4.5)
+	player.position = Layout.on_ground(Layout.SPAWN) + Vector3.UP * 0.15
 	combat = Combat.new()
 	combat.game = self
 	add_child(combat)
@@ -669,7 +669,7 @@ func _build_camp_display_stand():
 	## Positioned on sunny east-center camp lawn facing the player courtyard; renders up to 4 pinned 3D collectibles!
 	camp_display_stand = Node3D.new()
 	camp_display_stand.name = "CampDisplayStand"
-	camp_display_stand.position = Layout.on_ground(Vector3(-6.8, 0.0, 0.8))
+	camp_display_stand.position = Layout.on_ground(Layout.SPAWN + Vector3(-6.8, 0.0, -3.7))
 	camp_display_stand.rotation.y = 0.62
 	add_child(camp_display_stand)
 
@@ -2231,7 +2231,7 @@ func _crate_progress(tier: int) -> String:
 	return "正确率需 %d%%" % pct
 
 func _update_guide():
-	if player.position.distance_to(Vector3(0, 0, 4.5)) > 1.2:
+	if player.position.distance_to(Layout.SPAWN) > 1.2:
 		tutorial_moved = true
 	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
 		guide_label.text = "[J] 打开任务记录与英文线索  ·  [X] 听读音  ·  [Esc] 舒适设置"

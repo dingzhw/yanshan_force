@@ -42,14 +42,15 @@ func setup(g):
 	_mark("poem", game.Layout.POEM, "山路古诗石碑", Color("777b68"))
 	_mark("math", game.Layout.MATH, "巡护站 · 近道机关", Color("5d6a50"))
 	_mark("intel_container", game.Layout.PARKOUR_CONTAINERS + Vector3(5.6, 0, 2.5), "战地线报 #1 · 西岭货柜", Color("6ce3b8"))
-	_mark("intel_cleft", Vector3(-19.5, 0, -50.2), "战地线报 #2 · 双岩秘藏", Color("6ce3b8"))
+	_mark("intel_cleft", game.Layout.CLEFT_CACHE + Vector3(12.0, 0, 2.0), "战地线报 #2 · 双岩秘藏", Color("6ce3b8"))
 	_mark("intel_cave", game.Layout.MATH + Vector3(-2.6, 0, -1.8), "战地线报 #3 · 石窟密电", Color("ffd15c"))
 	_mark("intel_roof", game.Layout.SHELTER_BAMBOO + Vector3(1.6, 0, 3.8), "战地线报 #4 · 棚顶与高塔", Color("cf8aff"))
 	_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
 	_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
-	_mark("cliff_inscription", Vector3(-36.45, 0, -50.0), "摩崖石刻《竹石清音》", Color("e8b878"))
-	_mark("cave_mural", Vector3(-44.05, 0, -61.15), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
-	_mark("cave_hearth", Vector3(-41.05, 0, -66.35), "寒潭茶灶与古竹简", Color("ffd15c"))
+	var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
+	_mark("cliff_inscription", game.Layout.BAMBOO_MAZE_MOYA + Vector3(-0.05, 0, 0.0), "摩崖石刻《竹石清音》", Color("e8b878"))
+	_mark("cave_mural", Vector3(cave_c.x - 2.45, 0, cave_c.z + 2.85), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
+	_mark("cave_hearth", Vector3(cave_c.x + 0.55, 0, cave_c.z - 2.35), "寒潭茶灶与古竹简", Color("ffd15c"))
 	_build_shortcut_stockade()
 	_ui()
 	reset()
@@ -80,8 +81,9 @@ func _build_shortcut_stockade():
 	iron_mat.metallic = 0.62
 	iron_mat.roughness = 0.48
 
-	var center: Vector3 = game.Layout.on_ground(Vector3(10.0, 0.0, -62.0))
-	var fence_z := -62.0
+	var mg: Vector3 = game.Layout.MATH_GATE_CENTER
+	var center: Vector3 = game.Layout.on_ground(mg)
+	var fence_z: float = mg.z
 
 	# Central heavy gateway posts + overhead timber lintel framing the lockable door (exact gate center at x = 10.0!)
 	for gx in [-1.52, 1.52]:
@@ -124,10 +126,12 @@ func _build_shortcut_stockade():
 	gate_plaque.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	gate_plaque.visibility_range_end = 24.0
 
-	# Solid impenetrable palisade wings spanning entire pass: West [1.6..8.45] & East [11.55..19.4]
+	# Solid impenetrable palisade wings spanning entire pass from west slope to east creek bank!
+	var west_anchor := center.x - 10.5
+	var east_anchor := float(game.Layout.stream_center_x(fence_z)) - 2.2
 	var wings := [
-		[1.60, 8.45],
-		[11.55, 19.40]
+		[west_anchor, center.x - 1.55],
+		[center.x + 1.55, east_anchor]
 	]
 	for wing in wings:
 		var x0: float = wing[0]
@@ -184,8 +188,8 @@ func _build_shortcut_stockade():
 
 	# Anchor boulders pinning both ends of the stockade into West hillside & East creek bank!
 	if is_instance_valid(game.landscape) and game.landscape.has_method("rock"):
-		game.landscape.rock(Vector3(1.15, 0.0, fence_z - 0.15), 2.85, 1)
-		game.landscape.rock(Vector3(19.75, 0.0, fence_z + 0.10), 2.95, 3)
+		game.landscape.rock(Vector3(west_anchor - 0.45, 0.0, fence_z - 0.15), 2.85, 1)
+		game.landscape.rock(Vector3(east_anchor + 0.45, 0.0, fence_z + 0.10), 2.95, 3)
 
 func _mark(id: String, at: Vector3, label: String, color: Color):
 	var node = Node3D.new()

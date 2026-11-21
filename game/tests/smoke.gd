@@ -81,7 +81,7 @@ func run():
 	game.interact()
 	var camera = Camera3D.new()
 	game.add_child(camera)
-	camera.position = Vector3(0, 1.7, 7)
+	camera.position = game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 1.7, 2.5)
 	camera.look_at(game.targets[game.answer_index].global_position)
 	await physics_frame
 	game.fire(camera)

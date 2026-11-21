@@ -245,12 +245,12 @@ func _build_attachments():
 			att_nodes[key] = node
 
 func _build_charm_mount():
-	# v0.8.4 Left-flank exterior Picatinny side-rail outrigger lug & sling ring:
-	# Mounted on the camera-facing left side of the upper receiver (clear of the left hand & optic sightline)
-	# so all 13 achievement charms dangle prominently in hip-fire, combat, sprint, reload & ADS!
+	# v0.8.5 Rear upper-receiver side mount directly below the left flank of the optic (on the tan receiver flank
+	# z=+0.092, squarely between front left hand z=-0.064 and rear right grip hand z=+0.184, well above reload reach
+	# y=+0.032) -> ZERO 3D or screen-space hand clipping in hip-fire, sprint, ADS, and reload!
 	charm_anchor = Node3D.new()
 	charm_anchor.name = "WeaponCharmAnchor"
-	charm_anchor.position = Vector3(-0.030, 0.184, -0.068)
+	charm_anchor.position = Vector3(-0.022, 0.196, 0.092)
 	gun_pivot.add_child(charm_anchor)
 
 	var ring_mat := StandardMaterial3D.new()
@@ -263,33 +263,33 @@ func _build_charm_mount():
 	brass_mat.metallic = 0.90
 	brass_mat.roughness = 0.22
 
-	# Rail clamp block bolted to receiver left flank + outward cantilever arm
+	# Flush rail clamp block bolted to upper receiver left flank directly below optic + compact brass stud
 	var clamp_blk := MeshInstance3D.new()
 	var cb := BoxMesh.new()
-	cb.size = Vector3(0.010, 0.014, 0.026)
+	cb.size = Vector3(0.009, 0.013, 0.024)
 	clamp_blk.mesh = cb
-	clamp_blk.position = Vector3(-0.003, 0.0, 0.0)
+	clamp_blk.position = Vector3(-0.002, 0.0, 0.0)
 	clamp_blk.material_override = ring_mat
 	clamp_blk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	charm_anchor.add_child(clamp_blk)
 
 	var outrigger := MeshInstance3D.new()
 	var ob := BoxMesh.new()
-	ob.size = Vector3(0.024, 0.007, 0.010)
+	ob.size = Vector3(0.015, 0.006, 0.009)
 	outrigger.mesh = ob
-	outrigger.position = Vector3(-0.016, -0.001, 0.0)
+	outrigger.position = Vector3(-0.011, -0.001, 0.0)
 	outrigger.material_override = brass_mat
 	outrigger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	charm_anchor.add_child(outrigger)
 
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
-	torus.inner_radius = 0.0052
-	torus.outer_radius = 0.0084
+	torus.inner_radius = 0.0046
+	torus.outer_radius = 0.0074
 	torus.rings = 14
 	torus.ring_segments = 8
 	ring.mesh = torus
-	ring.position = Vector3(-0.028, -0.006, 0.0)
+	ring.position = Vector3(-0.018, -0.005, 0.0)
 	ring.rotation.x = PI * 0.5
 	ring.material_override = brass_mat
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -297,12 +297,12 @@ func _build_charm_mount():
 
 	charm_pendulum = Node3D.new()
 	charm_pendulum.name = "WeaponCharmPendulum"
-	charm_pendulum.position = Vector3(-0.028, -0.010, 0.0)
+	charm_pendulum.position = Vector3(-0.018, -0.008, 0.0)
 	charm_anchor.add_child(charm_pendulum)
 
 	charm_visual_root = Node3D.new()
 	charm_visual_root.name = "WeaponCharmVisual"
-	charm_visual_root.scale = Vector3.ONE * 1.45
+	charm_visual_root.scale = Vector3.ONE * 1.16
 	charm_pendulum.add_child(charm_visual_root)
 	charm_anchor.hide()
 

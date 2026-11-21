@@ -8,34 +8,34 @@ extends Node3D
 const LootUI = preload("res://scripts/loot_ui.gd")
 
 const LOOSE_SPOTS = [
-	{"id": "loose_camp_tent", "title": "营地帐篷行军案", "at": Vector3(-5.2, 0.0, 3.8), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "loose_shrine", "title": "土地石龛青石案", "at": Vector3(7.4, 0.0, -16.2), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_wangdao", "title": "望稻亭观景石几", "at": Vector3(33.7, 0.0, 25.0), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_poem", "title": "诗碑亭石栏旁", "at": Vector3(-23.2, 0.0, -30.5), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "loose_forest", "title": "古道掩体补给台", "at": Vector3(-8.4, 0.0, -35.8), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "loose_radio", "title": "东岭电台检修台", "at": Vector3(22.8, 0.0, -43.5), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_maze", "title": "竹石阵秘境石台", "at": Vector3(-46.6, 0.0, -52.2), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_cave", "title": "烟霞古洞东壁石案", "at": Vector3(-38.8, 0.0, -61.2), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_shelter", "title": "竹林木棚工具台", "at": Vector3(10.2, 0.0, -81.8), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_airdrop", "title": "北脊信标物资垫", "at": Vector3(18.6, 0.0, -97.8), "y_off": 0.44, "pedestal": true, "high": true}
+	{"id": "loose_camp_tent", "title": "营地帐篷行军案", "at": Vector3(-5.4, 0.0, 13.2), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "loose_shrine", "title": "土地石龛青石案", "at": Vector3(13.2, 0.0, -15.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_wangdao", "title": "望稻亭观景石几", "at": Vector3(56.2, 0.0, 30.2), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_poem", "title": "诗碑亭石栏旁", "at": Vector3(-37.0, 0.0, -47.5), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "loose_forest", "title": "古道掩体补给台", "at": Vector3(-11.5, 0.0, -52.0), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "loose_radio", "title": "东岭电台检修台", "at": Vector3(49.5, 0.0, -93.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_maze", "title": "竹石阵秘境石台", "at": Vector3(-77.0, 0.0, -88.2), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_cave", "title": "烟霞古洞东壁石案", "at": Vector3(-69.2, 0.0, -97.2), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_shelter", "title": "竹林木棚工具台", "at": Vector3(20.0, 0.0, -151.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_airdrop", "title": "北脊信标物资垫", "at": Vector3(52.5, 0.0, -172.0), "y_off": 0.44, "pedestal": true, "high": true}
 ]
 
 const NEST_SPOTS = [
-	# Original 6 + 8 new ultra-hidden bush, azalea, bridge-corner, reed, maze & shadow stashes (14 total!)
-	{"id": "nest_south_willow", "title": "溪畔垂柳树丫鸟窝", "at": Vector3(8.6, 0.0, 3.6), "kind": "nest"},
-	{"id": "nest_camphor", "title": "百年古樟背根秘洞", "at": Vector3(11.8, 0.0, -17.9), "kind": "nest"},
-	{"id": "nest_azalea", "title": "西岭映山红花丛藏点", "at": Vector3(-20.4, 0.0, -22.2), "kind": "nest"},
-	{"id": "nest_arch_bridge", "title": "青石拱桥南墩桥角", "at": Vector3(19.6, 0.0, -21.8), "kind": "crevice"},
-	{"id": "nest_karst_cleft", "title": "竹石阵太湖石秘缝", "at": Vector3(-45.2, 0.0, -41.2), "kind": "crevice"},
-	{"id": "nest_se_bamboo", "title": "东南竹海翠竹深窝", "at": Vector3(28.0, 0.0, -81.8), "kind": "nest"},
-	{"id": "nest_south_bridge_corner", "title": "南溪木桥东墩芦苇角", "at": Vector3(21.4, 0.0, 5.4), "kind": "nest"},
-	{"id": "nest_paddy_bank", "title": "望稻梯田草埂暗窝", "at": Vector3(28.4, 0.0, 19.6), "kind": "nest"},
-	{"id": "nest_poem_steps", "title": "诗碑亭石阶灌木缝", "at": Vector3(-30.4, 0.0, -27.2), "kind": "crevice"},
-	{"id": "nest_west_thicket", "title": "西岭红花坡矮灌丛", "at": Vector3(-33.6, 0.0, -14.8), "kind": "nest"},
-	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(15.6, 0.0, -48.2), "kind": "crevice"},
-	{"id": "nest_maze_deadend", "title": "竹石迷阵西壁石隙", "at": Vector3(-48.4, 0.0, -50.6), "kind": "crevice"},
-	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-43.6, 0.0, -61.8), "kind": "crevice"},
-	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(26.8, 0.0, -71.8), "kind": "nest"}
+	# 14 ultra-hidden bush, azalea, bridge-corner, reed, maze & shadow stashes across Great Yanshan (180x240m)
+	{"id": "nest_south_willow", "title": "溪畔垂柳树丫鸟窝", "at": Vector3(13.5, 0.0, 12.8), "kind": "nest"},
+	{"id": "nest_camphor", "title": "百年古樟背根秘洞", "at": Vector3(17.8, 0.0, -16.8), "kind": "nest"},
+	{"id": "nest_azalea", "title": "西岭映山红花丛藏点", "at": Vector3(-31.0, 0.0, -28.0), "kind": "nest"},
+	{"id": "nest_arch_bridge", "title": "三孔青石桥南墩桥角", "at": Vector3(28.5, 0.0, -24.8), "kind": "crevice"},
+	{"id": "nest_karst_cleft", "title": "竹石阵太湖石秘缝", "at": Vector3(-75.6, 0.0, -77.2), "kind": "crevice"},
+	{"id": "nest_se_bamboo", "title": "东南竹海翠竹深窝", "at": Vector3(61.5, 0.0, -124.0), "kind": "nest"},
+	{"id": "nest_south_bridge_corner", "title": "南溪木桥东墩芦苇角", "at": Vector3(29.8, 0.0, 14.0), "kind": "nest"},
+	{"id": "nest_paddy_bank", "title": "望稻梯田草埂暗窝", "at": Vector3(48.0, 0.0, 24.0), "kind": "nest"},
+	{"id": "nest_poem_steps", "title": "诗碑亭石阶灌木缝", "at": Vector3(-44.8, 0.0, -44.0), "kind": "crevice"},
+	{"id": "nest_west_thicket", "title": "西岭红花坡矮灌丛", "at": Vector3(-51.0, 0.0, -19.0), "kind": "nest"},
+	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(24.0, 0.0, -76.5), "kind": "crevice"},
+	{"id": "nest_maze_deadend", "title": "竹石迷阵西壁石隙", "at": Vector3(-78.8, 0.0, -86.6), "kind": "crevice"},
+	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-74.0, 0.0, -97.8), "kind": "crevice"},
+	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(38.2, 0.0, -161.5), "kind": "nest"}
 ]
 
 var game

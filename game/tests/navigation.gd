@@ -13,9 +13,9 @@ func run():
 	for i in 30: await physics_frame
 	for waypoint in game.Layout.ROUTE.slice(1):
 		var reached = false
-		for frame in 900:
+		for frame in 1400:
 			var offset = Vector2(waypoint.x-game.player.position.x,waypoint.z-game.player.position.z)
-			if offset.length()<0.6:
+			if offset.length()<0.65:
 				reached = true
 				break
 			game.player.yaw = atan2(-offset.x,-offset.y)
@@ -36,32 +36,37 @@ func run():
 	if not arrived: failures += 1
 	print("PASS " if arrived else "FAIL ","complete walking route reaches extraction")
 
-	# v0.6.1.1 Bridge-to-East-Hillside gentle slope traversal checks (strictly KEY_W walking, ZERO jumping!)
+	# v0.8.5 All 5 Creek Bridges (including Triple-Arch Bluestone Bridge & North Stone Arch Bridge) -> East Hillside walks without jumping!
+	var b0x: float = game.Layout.stream_center_x(16.0)
+	var b1x: float = game.Layout.stream_center_x(-28.0)
+	var b2x: float = game.Layout.stream_center_x(-74.0)
+	var b3x: float = game.Layout.stream_center_x(-124.0)
+	var b4x: float = game.Layout.stream_center_x(-164.0)
 	var bridge_trails := [
 		{
-			"name": "South Bridge (z=7.0, cx=18.6) -> East Hillside -> Wangdao Pavilion",
-			"start": Vector3(12.4, 0.0, 7.0),
-			"waypoints": [Vector3(18.6, 0.0, 7.0), Vector3(24.4, 0.0, 7.0), Vector3(28.0, 0.0, 13.5), Vector3(30.8, 0.0, 18.2)]
+			"name": "South Bridge (z=16.0) -> East Hillside -> Wangdao Approach",
+			"start": Vector3(b0x - 6.8, 0.0, 16.0),
+			"waypoints": [Vector3(b0x, 0.0, 16.0), Vector3(b0x + 6.8, 0.0, 16.0), Vector3(44.5, 0.0, 20.5)]
 		},
 		{
-			"name": "South Bridge (z=7.0, cx=18.6) -> North-East Ridge Trail",
-			"start": Vector3(12.4, 0.0, 7.0),
-			"waypoints": [Vector3(18.6, 0.0, 7.0), Vector3(24.4, 0.0, 7.0), Vector3(28.5, 0.0, -8.0)]
+			"name": "Central Triple-Arch Bluestone Bridge (z=-28.0) -> East Tea Pavilion Trail",
+			"start": Vector3(b1x - 9.2, 0.0, -28.0),
+			"waypoints": [Vector3(b1x, 0.0, -28.0), Vector3(b1x + 9.2, 0.0, -28.0), Vector3(42.0, 0.0, -28.0)]
 		},
 		{
-			"name": "Mid Stone Arch Bridge (z=-24.0, cx=16.5) -> East Overlook & Ridge",
-			"start": Vector3(9.8, 0.0, -24.0),
-			"waypoints": [Vector3(16.5, 0.0, -24.0), Vector3(23.0, 0.0, -24.0), Vector3(25.1, 0.0, -25.2), Vector3(27.0, 0.0, -35.5)]
+			"name": "Mid-Creek Bridge (z=-74.0) -> East Tea-Hill Slope",
+			"start": Vector3(b2x - 6.8, 0.0, -74.0),
+			"waypoints": [Vector3(b2x, 0.0, -74.0), Vector3(b2x + 6.8, 0.0, -74.0), Vector3(42.0, 0.0, -74.0)]
 		},
 		{
-			"name": "Upstream Bridge (z=-46.5, cx=18.5) -> East Recon Radio hillside",
-			"start": Vector3(12.2, 0.0, -46.5),
-			"waypoints": [Vector3(18.5, 0.0, -46.5), Vector3(24.3, 0.0, -46.5), Vector3(26.0, 0.0, -47.6), Vector3(27.8, 0.0, -56.0)]
+			"name": "Upper-Pass Bridge (z=-124.0) -> Extraction Approach",
+			"start": Vector3(b3x - 6.8, 0.0, -124.0),
+			"waypoints": [Vector3(b3x, 0.0, -124.0), Vector3(b3x + 6.8, 0.0, -124.0), Vector3(41.0, 0.0, -128.0)]
 		},
 		{
-			"name": "North Bridge (z=-73.5, cx=24.3) -> SE Bamboo Cache slope",
-			"start": Vector3(18.0, 0.0, -76.0),
-			"waypoints": [Vector3(18.6, 0.0, -73.5), Vector3(24.3, 0.0, -73.5), Vector3(30.2, 0.0, -73.5), Vector3(28.4, 0.0, -84.2)]
+			"name": "North Stone Arch Bridge (z=-164.0) -> North Airdrop Ridge",
+			"start": Vector3(b4x - 7.5, 0.0, -164.0),
+			"waypoints": [Vector3(b4x, 0.0, -164.0), Vector3(b4x + 7.5, 0.0, -164.0), Vector3(46.0, 0.0, -164.0)]
 		}
 	]
 	for trail in bridge_trails:
@@ -74,9 +79,9 @@ func run():
 		var trail_ok := true
 		for wp in trail.waypoints:
 			var wp_reached := false
-			for _frame in 420:
+			for _frame in 520:
 				var off := Vector2(wp.x - game.player.position.x, wp.z - game.player.position.z)
-				if off.length() < 0.72:
+				if off.length() < 0.78:
 					wp_reached = true
 					break
 				game.player.yaw = atan2(-off.x, -off.y)

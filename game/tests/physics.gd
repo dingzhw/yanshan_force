@@ -45,37 +45,37 @@ func run():
 	await physics_frame
 	game.interact()
 	for fixture in [["nature/rock_largeA",3.0,"convex"],["nature/tree_oak",6.0,"tree"],["survival/barrel",1.0,"convex"],["survival/box-large",1.0,"convex"]]:
-		var prop = game._model(game,"res://assets/"+fixture[0]+".glb",Vector3(0,0,12),fixture[1],0,fixture[2])
+		var prop = game._model(game,"res://assets/"+fixture[0]+".glb",Vector3(0,0,26),fixture[1],0,fixture[2])
 		await physics_frame
-		var position = await walk(Vector3(0,0.2,16),0,90)
+		var position = await walk(Vector3(0,0.2,30),0,90)
 		print("BLOCK ",fixture[0]," ",position)
-		verify(position.z>12.3,fixture[0]+" blocks an actual walking capsule")
-		var hit = ray(Vector3(0,0.6,16),Vector3(0,0.6,8))
+		verify(position.z>26.3,fixture[0]+" blocks an actual walking capsule")
+		var hit = ray(Vector3(0,0.6,30),Vector3(0,0.6,22))
 		verify(not hit.is_empty(),fixture[0]+" blocks the bullet ray")
 		prop.queue_free()
 		await physics_frame
-	var tent = game._model(game,"res://assets/survival/tent-canvas.glb",Vector3(0,0,12),3.5,0,"trimesh")
+	var tent = game._model(game,"res://assets/survival/tent-canvas.glb",Vector3(0,0,26),3.5,0,"trimesh")
 	await physics_frame
-	var inside = await walk(Vector3(0,0.2,16),0,50)
+	var inside = await walk(Vector3(0,0.2,30),0,50)
 	print("TENT_ENTRANCE ",inside)
-	verify(inside.z<13 and inside.z>10,"tent entrance admits the player")
+	verify(inside.z<27 and inside.z>24,"tent entrance admits the player")
 	var outside = await walk(inside,PI,50)
-	verify(outside.z>15,"player can leave through the tent entrance")
-	var side = await walk(Vector3(5,0.2,12),PI/2,80)
+	verify(outside.z>29,"player can leave through the tent entrance")
+	var side = await walk(Vector3(5,0.2,26),PI/2,80)
 	verify(side.x>0.3,"tent canvas side blocks the player")
 	tent.queue_free()
 	await physics_frame
-	var low = game._model(game,"res://assets/nature/rock_largeA.glb",Vector3(0,0,12),0.55,0,"convex")
+	var low = game._model(game,"res://assets/nature/rock_largeA.glb",Vector3(0,0,26),0.55,0,"convex")
 	await physics_frame
-	var landed = await walk(Vector3(0,0.1,13.6),0,23,true)
+	var landed = await walk(Vector3(0,0.1,27.6),0,23,true)
 	for i in 45: await physics_frame
 	verify(game.player.is_on_floor() and game.player.position.y>0.15,"jump lands on the low rock")
 	low.queue_free()
 	await physics_frame
-	var rock = game._model(game,"res://assets/nature/rock_largeA.glb",Vector3.ZERO,1.5,0,"convex")
+	var rock = game._model(game,"res://assets/nature/rock_largeA.glb",Vector3(0,0,26),1.5,0,"convex")
 	await physics_frame
-	var around = await walk(Vector3(5.5,0.1,4),0,100)
-	verify(around.z< -2,"player can walk around a solid rock")
+	var around = await walk(Vector3(5.5,0.1,30),0,100)
+	verify(around.z<24,"player can walk around a solid rock")
 	rock.queue_free()
 	await physics_frame
 	var pickup = game.pickup_nodes[0]
@@ -86,11 +86,16 @@ func run():
 	game.Props.set_enabled(pickup,true)
 	await physics_frame
 	verify(not ray(pickup.position+Vector3(0,0.25,2),pickup.position+Vector3(0,0.25,-2)).is_empty(),"new run restores pickup collider")
-	var tower=game.Layout.on_ground(Vector3(-34,0,-102))
+	var tower=game.Layout.on_ground(game.Layout.WATCHTOWER)
 	verify(not ray(tower+Vector3(-0.9,0.5,3),tower+Vector3(-0.9,0.5,-2)).is_empty(),"observation tower pillars block bullets")
+	game.player.clear_movement_input()
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 0.1, 0)
+	await physics_frame
+	game.interact()
+	await physics_frame
 	var board = game.targets[0].get_parent()
 	verify((board.collision_layer & 1)!=0,"word board also blocks player layer")
-	var stopped = await walk(Vector3(board.global_position.x,0.1,board.global_position.z+3),0,90)
+	var stopped = await walk(game.Layout.on_ground(Vector3(board.global_position.x,0,board.global_position.z+3))+Vector3(0,0.1,0),0,90)
 	verify(stopped.z>board.global_position.z+0.3,"word board blocks actual walking")
 	game.queue_free()
 	await process_frame

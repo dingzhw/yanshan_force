@@ -22,7 +22,7 @@ func verify(condition: bool,message: String):
 
 func travel(code: int,physical = true,sprint = false) -> Vector3:
 	game.player.clear_movement_input()
-	game.player.position = Vector3(0,0.2,4.5)
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 0.2, 0)
 	game.player.yaw = 0
 	for i in 20:
 		await physics_frame
@@ -86,7 +86,7 @@ func run():
 	game._input(escape)
 	verify(game.player.held_keys.is_empty(),"resume clears held input")
 	game.player.clear_movement_input()
-	game.player.position = Vector3(25,game.terrain_height(25,25)+1,25)
+	game.player.position = Vector3(42, game.terrain_height(42, 22) + 1.0, 22)
 	for i in 60:
 		await physics_frame
 	verify(game.player.is_on_floor(),"terrain slopes support the player")
@@ -100,7 +100,7 @@ func run():
 	# v0.6.1.1 Tactical Stances ([C] Crouch, [Z] Prone, Overhead Roof Clearance) & Hybrid [Q/E] Cover Lean + [F] Interact
 	game.player.clear_movement_input()
 	game.player.reset_stance()
-	game.player.position = Vector3(0, 0.2, 4.5)
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 0.2, 0)
 	game.player.yaw = 0.0
 	for i in 20:
 		await physics_frame
@@ -207,7 +207,7 @@ func run():
 	# [F] Interact remap check
 	game.player.clear_movement_input()
 	game.player.reset_stance()
-	game.player.position = Vector3(0, 0.2, 4.5)
+	game.player.position = game.Layout.on_ground(game.Layout.SPAWN) + Vector3(0, 0.2, 0)
 	game.player.yaw = 0.0
 	for i in 10:
 		await physics_frame

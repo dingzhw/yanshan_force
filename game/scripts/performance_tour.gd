@@ -93,7 +93,7 @@ func sample_landmark(label: String, stand_pos: Vector3, yaw_rad: float, pitch_ra
 
 func travel(goal: Vector3) -> bool:
 	var began = Time.get_ticks_msec()
-	while Time.get_ticks_msec() - began < 18000:
+	while Time.get_ticks_msec() - began < 28000:
 		var offset = Vector2(goal.x - game.player.position.x, goal.z - game.player.position.z)
 		if offset.length() < 0.65:
 			game.player.clear_movement_input()
@@ -308,9 +308,9 @@ func run():
 	# =========================================================================
 	var normal_first := await sample_combat(0)
 	var normal_b := await sample_combat(2)
-	var cave_pos: Vector3 = game.Layout.on_ground(Vector3(-41.60, 0.0, -55.4)) + Vector3(0, 0.12, 0)
+	var cave_pos: Vector3 = game.Layout.on_ground(game.Layout.YANXIA_CAVE_MOUTH + Vector3(0.0, 0.0, 2.1)) + Vector3(0, 0.12, 0)
 	var cave_scene := await sample_landmark("yanxia_cave_entrance", cave_pos, 0.0, -0.02, true)
-	var wangdao_pos: Vector3 = game.landscape.wangdao_deck_pos + Vector3(0, 0.12, -0.35) if is_instance_valid(game.landscape) else game.Layout.on_ground(Vector3(35.2, 0.0, 24.8))
+	var wangdao_pos: Vector3 = game.landscape.wangdao_deck_pos + Vector3(0, 0.12, -0.35) if is_instance_valid(game.landscape) else game.Layout.on_ground(game.Layout.WANGDAO_PAVILION + Vector3(1.7, 0.0, 4.0))
 	var wangdao_scene := await sample_landmark("wangdao_overlook", wangdao_pos, PI, -0.14, false)
 
 	var scenes_ok: bool = bool(normal_first.sample_completed and normal_b.sample_completed and cave_scene.sample_completed and wangdao_scene.sample_completed)

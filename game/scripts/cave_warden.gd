@@ -1,27 +1,31 @@
 extends Node3D
-## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.8.4 Articulated Dual-Arm Guard).
-## Blind karst guardian strictly guarding Yanxia Ancient Cave & immediate forecourt:
-## - Articulated Blender 4.5 hierarchy: warden_body, head_crest, arm_left_pivot, arm_right_pivot (with thick青石臂盾)
-## - Tightened 0.30m chest energy core hitbox (shrunk from 0.56m for rewarding marksmanship!)
-## - Hit -> Dual-Arm Guard (guard_arms=true, 2.4-3.2s): arms snap crossed across chest, frontal shots deflect off
-##   stone arm-shields (warden_shield_deflect.wav, 10/8 chip dmg) with tactical HUD guidance.
-## - Active Pursuit / Stagger / [G] Smoke EMP / Shaoyu [V] Slam -> Arms fling wide open exposing the 0.30m cyan core
-##   for high-value crit bursts (55/45 active, 85/70 stunned)!
-## - Strictly leashed inside Yanxia Cave corridor (x=-44.8..-38.4, z=-67.8..-53.2; exits hunt immediately outside cave).
+## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.8.5 No-Stun Stealth-Guard Redesign).
+## Blind karst guardian strictly leashed to Yanxia Ancient Cave in the isolated west bamboo ravine:
+## - Articulated Blender 4.5 hierarchy: warden_body, head_crest, arm_left_pivot, arm_right_pivot (thick青石臂盾)
+## - Compact 0.30m chest energy core hitbox (0.18m glowing cyan crystal)
+## - ZERO stun on core hit or damage accumulation!
+## - Core hit -> IMMEDIATELY snaps both stone arm-shields crossed across chest core (guard_arms=true) AND
+##   immediately unleashes a sonic wave retaliation attack toward the player!
+## - 1.5s Stealth Disengage Loop: if the player enters stealth silence ([C] crouch / [Z] prone / still without firing)
+##   for 1.5 seconds, Cave Warden abandons search (state="patrol") and lowers/opens both arms again, creating
+##   the next core-shot window!
+## - [G] Smoke helps break sound tracking quickly (NO stun); Shaoyu [V] Slam briefly jolts arms open for 1.0s (NO stun).
 
 const HIT_LAYER := 32  # Dedicated bit 5 for Cave Warden hitboxes (isolated from player/world masks)
-const TERRITORY_CENTER := Vector3(-41.60, 6.55, -61.50)
 const HEAR_RADIUS := 15.0
 const TERRITORY_RADIUS := 13.5
-const CAVE_MIN_X := -44.8
-const CAVE_MAX_X := -38.4
-const CAVE_MIN_Z := -67.8
-const CAVE_MAX_Z := -53.2
 const MAX_HP_NORMAL := 280
 const MAX_HP_CONFIDENTIAL := 440
-const STAGGER_THRESHOLD := 80
 const CORE_HIT_RADIUS := 0.30
 const CORE_VISUAL_RADIUS := 0.18
+const STEALTH_DISENGAGE_SECONDS := 1.5
+
+const PATROL_OFFSETS := [
+	Vector3(0.0, 0.0, 7.60),
+	Vector3(0.0, 0.0, 4.20),
+	Vector3(1.30, 0.0, 1.80),
+	Vector3(0.0, 0.0, 5.00),
+]
 
 var game
 var rng := RandomNumberGenerator.new()
@@ -42,32 +46,54 @@ var guard_area: Area3D
 var status_label: Label3D
 var sonar_rings: Array = []
 
-var state := "patrol"  # "patrol" | "investigate" | "hunt" | "stunned" | "defeated"
+var state := "patrol"  # "patrol" | "investigate" | "hunt" | "defeated" (ZERO stunned state!)
 var max_hp := MAX_HP_NORMAL
 var hp := MAX_HP_NORMAL
-var stagger_accum := 0
 var hit_flash_left := 0.0
 var deflect_flash_left := 0.0
 var guard_arms := false
 var guard_left := 0.0
-var pursuit_open_left := 0.0
-var pursuit_hits_taken := 0
+var arms_forced_open_left := 0.0
+var stealth_quiet_timer := 0.0
+var sonic_retaliation_count := 0
 var noise_meter := 0.0
-var investigate_pos := TERRITORY_CENTER
+var investigate_pos := Vector3.ZERO
 var sonar_cd := 0.0
 var attack_cd := 0.0
-var stun_left := 0.0
-var calm_timer := 0.0
 var patrol_idx := 0
 var elapsed := 0.0
 var hud_ping_cd := 0.0
 
-const PATROL_PTS := [
-	Vector3(-41.60, 0.0, -56.40),
-	Vector3(-41.60, 0.0, -59.80),
-	Vector3(-40.30, 0.0, -62.20),
-	Vector3(-41.60, 0.0, -59.00),
-]
+func _cave_center() -> Vector3:
+	if is_instance_valid(game) and game.Layout != null:
+		return game.Layout.YANXIA_CAVE_CENTER
+	return Vector3(-72.0, 0.0, -100.0)
+
+func _cave_floor_y() -> float:
+	if is_instance_valid(game) and game.Layout != null:
+		return float(game.Layout.CAVE_FLOOR_Y) + 0.03
+	return 8.63
+
+func territory_center() -> Vector3:
+	var c := _cave_center()
+	return Vector3(c.x, _cave_floor_y(), c.z + 2.5)
+
+func cave_min_x() -> float:
+	return _cave_center().x - 3.2
+
+func cave_max_x() -> float:
+	return _cave_center().x + 3.2
+
+func cave_min_z() -> float:
+	return _cave_center().z - 3.8
+
+func cave_max_z() -> float:
+	return _cave_center().z + 10.8
+
+func _patrol_pt(idx: int) -> Vector3:
+	var c := _cave_center()
+	var off: Vector3 = PATROL_OFFSETS[idx % PATROL_OFFSETS.size()]
+	return Vector3(c.x + off.x, 0.0, c.z + off.z)
 
 func setup(g):
 	game = g
@@ -116,7 +142,7 @@ func _build_warden():
 	body_area.add_child(b_col)
 	root_node.add_child(body_area)
 
-	# Compact 0.30m glowing cyan sonar chest core weakpoint (shrunk from 0.56m in v0.8.4!)
+	# Compact 0.30m glowing cyan sonar chest core weakpoint
 	core_area = Area3D.new()
 	core_area.collision_layer = HIT_LAYER
 	core_area.collision_mask = 0
@@ -174,12 +200,13 @@ func _build_warden():
 	status_label.visibility_range_end = 26.0
 
 func _ground_pos(xz: Vector3) -> Vector3:
-	if xz.z <= -58.2 and xz.x >= CAVE_MIN_X and xz.x <= CAVE_MAX_X:
-		return Vector3(xz.x, 6.53, xz.z)
+	var c := _cave_center()
+	if xz.z <= c.z + 5.8 and xz.x >= cave_min_x() and xz.x <= cave_max_x():
+		return Vector3(xz.x, _cave_floor_y(), xz.z)
 	return Vector3(xz.x, float(game.terrain_height(xz.x, xz.z)), xz.z)
 
 func _clamp_to_cave(xz: Vector3) -> Vector3:
-	return Vector3(clampf(xz.x, CAVE_MIN_X, CAVE_MAX_X), 0.0, clampf(xz.z, CAVE_MIN_Z, CAVE_MAX_Z))
+	return Vector3(clampf(xz.x, cave_min_x(), cave_max_x()), 0.0, clampf(xz.z, cave_min_z(), cave_max_z()))
 
 func is_mode_active() -> bool:
 	return is_instance_valid(game) and game.rules.combat_mode and not game.rules.prologue_mode
@@ -187,45 +214,43 @@ func is_mode_active() -> bool:
 func max_hp_for_mode() -> int:
 	return MAX_HP_CONFIDENTIAL if (is_instance_valid(game) and game.rules.is_confidential()) else MAX_HP_NORMAL
 
-func set_guard_arms(enabled: bool, duration: float = 2.8):
-	guard_arms = enabled and is_alive() and state != "stunned"
+func set_guard_arms(enabled: bool, duration: float = 4.2):
+	guard_arms = enabled and is_alive() and arms_forced_open_left <= 0.0
 	guard_left = duration if guard_arms else 0.0
 	if is_instance_valid(guard_area):
 		guard_area.collision_layer = HIT_LAYER if guard_arms else 0
 	_sync_label()
 
-func apply_stun(duration: float):
+func force_open_arms(duration: float = 1.0):
+	## v0.8.5: Shaoyu [V] Slam briefly jolts arm-shields apart for 1.0s WITHOUT stunning the Warden!
 	if not is_alive():
 		return
-	state = "stunned"
-	stun_left = maxf(stun_left, duration)
-	pursuit_open_left = 0.0
-	pursuit_hits_taken = 0
+	arms_forced_open_left = maxf(arms_forced_open_left, duration)
 	set_guard_arms(false, 0.0)
+	spawn_sonar_ring(root_node.position, Color("ffd86b"), 8.0)
+	game._notice("⚡ 少羽震开石卫双臂 %.1f 秒！趁空档速射 0.30m 胸口蓝核！" % duration, Color("ffd86b"))
 	_sync_label()
 
 func reset():
 	state = "patrol"
 	max_hp = max_hp_for_mode()
 	hp = max_hp
-	stagger_accum = 0
 	hit_flash_left = 0.0
 	deflect_flash_left = 0.0
 	guard_arms = false
 	guard_left = 0.0
-	pursuit_open_left = 0.0
-	pursuit_hits_taken = 0
+	arms_forced_open_left = 0.0
+	stealth_quiet_timer = 0.0
+	sonic_retaliation_count = 0
 	noise_meter = 0.0
 	sonar_cd = 1.5
 	attack_cd = 0.0
-	stun_left = 0.0
-	calm_timer = 0.0
 	patrol_idx = 0
 	hud_ping_cd = 0.0
-	investigate_pos = _ground_pos(PATROL_PTS[0])
+	investigate_pos = _ground_pos(_patrol_pt(0))
 	var on := is_mode_active()
 	if is_instance_valid(root_node):
-		root_node.position = _ground_pos(PATROL_PTS[0])
+		root_node.position = _ground_pos(_patrol_pt(0))
 		root_node.rotation = Vector3.ZERO
 		root_node.visible = on
 	if is_instance_valid(model_node):
@@ -260,7 +285,7 @@ func _sync_label():
 		hp_fill.scale.x = maxf(0.02, ratio)
 		hp_fill.position.x = -1.56 * 0.5 * (1.0 - ratio)
 		if is_instance_valid(hp_fill_mat):
-			if state == "stunned":
+			if arms_forced_open_left > 0.0:
 				hp_fill_mat.albedo_color = Color("ffd86b")
 			elif guard_arms:
 				hp_fill_mat.albedo_color = Color("9ab8c2")
@@ -277,20 +302,24 @@ func _sync_label():
 		return
 	status_label.visible = true
 	var pct := clampi(roundi(noise_meter), 0, 100)
-	if state == "stunned":
-		status_label.text = "💫 古洞循音石卫 · 失衡破防 %.1fs（集火蓝核暴击！） HP %d/%d" % [maxf(0.0, stun_left), hp, max_hp]
+	if arms_forced_open_left > 0.0:
+		status_label.text = "⚡ 古洞循音石卫 · 双臂震开 %.1fs（速射蓝核！） HP %d/%d" % [arms_forced_open_left, hp, max_hp]
 		status_label.modulate = Color("ffd86b")
 	elif guard_arms:
-		status_label.text = "🛡 古洞循音石卫 · 双臂护核！拉扯诱其追击  HP %d/%d" % [hp, max_hp]
+		var remain_quiet := maxf(0.0, STEALTH_DISENGAGE_SECONDS - stealth_quiet_timer)
+		if stealth_quiet_timer > 0.08:
+			status_label.text = "🛡 古洞循音石卫 · 护核搜寻中（静默 %.1fs 后放手） HP %d/%d" % [remain_quiet, hp, max_hp]
+		else:
+			status_label.text = "🛡 古洞循音石卫 · 双臂护核！按 [C]/[Z] 潜行静默 1.5s 脱搜  HP %d/%d" % [hp, max_hp]
 		status_label.modulate = Color("ffd166")
 	elif state == "hunt":
-		status_label.text = "⚠ 古洞循音石卫 · 追击露核！（打胸口蓝核暴击！） HP %d/%d" % [hp, max_hp]
+		status_label.text = "⚠ 古洞循音石卫 · 追击露核！（打胸口蓝核！） HP %d/%d" % [hp, max_hp]
 		status_label.modulate = Color("ff5c5c")
 	elif state == "investigate":
 		status_label.text = "🌀 古洞循音石卫 · 声波搜寻 (%d%%)  HP %d/%d" % [pct, hp, max_hp]
 		status_label.modulate = Color("ffd15c")
 	else:
-		status_label.text = "古洞循音石卫 · 听声巡逻  HP %d/%d" % [hp, max_hp]
+		status_label.text = "古洞循音石卫 · 听声巡逻（蓝核已暴露） HP %d/%d" % [hp, max_hp]
 		status_label.modulate = Color("6cf2ff")
 
 func spawn_sonar_ring(origin: Vector3, col: Color = Color("54f0ff"), max_r: float = 10.5):
@@ -332,10 +361,11 @@ func _update_sonar_rings(delta: float):
 		(sr.mat as StandardMaterial3D).albedo_color.a = (1.0 - u) * 0.58
 
 func _player_inside_cave_territory(pos: Vector3) -> bool:
-	return Vector2(pos.x - TERRITORY_CENTER.x, pos.z - TERRITORY_CENTER.z).length() <= TERRITORY_RADIUS and pos.z <= -51.5
+	var tc := territory_center()
+	return Vector2(pos.x - tc.x, pos.z - tc.z).length() <= TERRITORY_RADIUS and pos.z <= _cave_center().z + 12.5
 
 func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool = false):
-	if not is_alive() or state == "stunned":
+	if not is_alive():
 		return
 	var dist := root_node.position.distance_to(source_pos)
 	if dist > HEAR_RADIUS:
@@ -346,23 +376,20 @@ func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool 
 		return
 	noise_meter = minf(100.0, noise_meter + gained)
 	investigate_pos = _ground_pos(_clamp_to_cave(source_pos))
-	calm_timer = 0.0
+	stealth_quiet_timer = 0.0
 	if noise_meter >= 75.0:
 		if state != "hunt":
 			state = "hunt"
-			if not guard_arms:
-				pursuit_open_left = 3.2
-				pursuit_hits_taken = 0
 			game.play_sfx("warden_sonar", -7)
 			spawn_sonar_ring(root_node.position, Color("ff5c5c"), 11.5)
 			if is_instance_valid(game.player):
 				game.player.add_screen_shake(0.28)
-			game._notice("⚠ 古洞循音石卫惊醒追击！等其张臂追击时狙击 0.30m 蓝核，或用 [G]烟雾 / [V]天生神力 震晕破核！", Color("ff6b6b"))
+			game._notice("⚠ 古洞循音石卫循声惊醒！按 [C]/[Z] 潜行静默 1.5 秒可令其放弃搜索并放开双臂！", Color("ff6b6b"))
 	elif noise_meter >= 30.0 and state == "patrol":
 		state = "investigate"
 		game.play_sfx("warden_sonar", -11)
 		spawn_sonar_ring(root_node.position, Color("54f0ff"), 10.0)
-		game._notice("🌀 古洞循音石卫听到了动静！按 [C] 蹲行或 [Z] 匍匐静默，或瞄准胸前蓝核先手开火！", Color("7ceeff"))
+		game._notice("🌀 古洞循音石卫听到了动静！按 [C] 蹲伏或 [Z] 匍匐潜行静默，待其放开双臂再狙蓝核！", Color("7ceeff"))
 	elif immediate_ping and sonar_cd <= 0.0:
 		sonar_cd = 1.6
 		game.play_sfx("warden_sonar", -12)
@@ -372,40 +399,40 @@ func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool 
 func on_gunshot(origin: Vector3, suppressed: bool):
 	if not is_alive():
 		return
-	register_noise(origin, 22.0 if suppressed else 64.0, true)
+	register_noise(origin, 28.0 if suppressed else 68.0, true)
 
 func on_smoke_emp(origin: Vector3):
+	## v0.8.5: Smoke provides acoustic masking & accelerates silent disengage (NO long stun!).
 	if not is_alive():
 		return
 	if root_node.position.distance_to(origin) <= 13.5:
-		noise_meter = 10.0
-		apply_stun(5.5)
-		game._notice("✦ 烟雾 EMP 震开石卫双臂并致盲 5.5 秒！趁现在集火胸前蓝核（每枪 85 暴击伤害）！", Color("7ceeff"))
+		noise_meter = 0.0
+		stealth_quiet_timer = maxf(stealth_quiet_timer, STEALTH_DISENGAGE_SECONDS - 0.25)
+		game._notice("✦ 烟雾屏蔽声源！保持潜行静默片刻，石卫便会放弃搜索并放开双臂！", Color("7ceeff"))
+		_sync_label()
 
-func _deliver_sonic_retaliation(is_close_slam: bool = false):
-	if not is_alive() or state == "stunned" or not is_instance_valid(game.player):
+func _deliver_sonic_retaliation(is_close_slam: bool = false, keep_guard: bool = true):
+	if not is_alive() or not is_instance_valid(game.player):
 		return
 	if is_instance_valid(game.combat) and game.combat.player_in_smoke():
 		return
-	# Preparing a sonic slam forces arms open so aggressive play stays counterable!
-	if guard_arms:
+	if not keep_guard and guard_arms:
 		set_guard_arms(false, 0.0)
-		pursuit_open_left = maxf(pursuit_open_left, 2.2)
-		pursuit_hits_taken = 0
+	sonic_retaliation_count += 1
 	var is_conf: bool = game.rules.is_confidential()
-	attack_cd = (2.10 if is_conf else 2.60) if not is_close_slam else (2.25 if is_conf else 2.75)
-	spawn_sonar_ring(root_node.position, Color("ff3b30"), 11.0 if is_conf else 9.5)
+	attack_cd = (2.15 if is_conf else 2.65) if not is_close_slam else (2.30 if is_conf else 2.80)
+	spawn_sonar_ring(root_node.position, Color("ff3b30"), 11.5 if is_conf else 10.0)
 	game.play_sfx("warden_sonar", -6)
-	game.player.add_screen_shake(0.42 if is_close_slam else 0.30)
+	game.player.add_screen_shake(0.38 if is_close_slam else 0.26)
 	var push_dir: Vector3 = game.player.position - root_node.position
 	push_dir.y = 0.0
 	if push_dir.length() > 0.05:
-		game.player.apply_knockback(push_dir.normalized() * (6.8 if is_close_slam else 4.6) + Vector3(0, 1.8, 0))
-	var dmg: int = (34 if is_conf else 24) if is_close_slam else (24 if is_conf else 16)
+		game.player.apply_knockback(push_dir.normalized() * (6.2 if is_close_slam else 4.2) + Vector3(0, 1.5, 0))
+	var dmg: int = (32 if is_conf else 22) if is_close_slam else (22 if is_conf else 16)
 	if is_instance_valid(game.combat) and game.rules.combat_mode:
 		game.combat.apply_player_damage(dmg)
-	game._notice("💥 古洞循音石卫释放%s（-%d 伤害）！趁其双臂张开瞄准蓝核反打，或按 [G]/[V] 震晕！" % [
-		"重锤震地" if is_close_slam else "声波冲击", dmg
+	game._notice("💥 古洞循音石卫释放%s（-%d 伤害）！快按 [C]/[Z] 潜行静默 1.5 秒等其放弃搜索放开双臂！" % [
+		"重锤震地" if is_close_slam else "声波反击", dmg
 	], Color("ff7a6b"))
 
 func hit_bullet(collider) -> bool:
@@ -422,66 +449,51 @@ func hit_bullet(collider) -> bool:
 	if blocked_by_guard:
 		dmg = 8 if is_conf else 10
 		hp = maxi(0, hp - dmg)
-		stagger_accum += maxi(4, roundi(float(dmg) * 0.5))
 		deflect_flash_left = 0.18
 		hit_flash_left = 0.08
 		game.show_hitmarker(false)
 		game.play_sfx("warden_shield_deflect", -7)
 	elif part == "core":
 		is_crit = true
-		dmg = (70 if is_conf else 85) if state == "stunned" else (45 if is_conf else 55)
+		dmg = 50 if is_conf else 60
 		hp = maxi(0, hp - dmg)
-		stagger_accum += dmg
 		hit_flash_left = 0.18
 		game.show_hitmarker(true)
 		game.play_sfx("hit_correct", -9)
 	else:
 		dmg = 16 if is_conf else 20
 		hp = maxi(0, hp - dmg)
-		stagger_accum += dmg
 		hit_flash_left = 0.16
 		game.show_hitmarker(false)
 		game.play_sfx("knife_hit", -9)
 
-	var triggered_stagger := false
-	if hp > 0 and state != "stunned" and stagger_accum >= STAGGER_THRESHOLD:
-		stagger_accum = 0
-		apply_stun(1.4)
-		triggered_stagger = true
-		spawn_sonar_ring(root_node.position, Color("ffd86b"), 8.5)
-		game.play_sfx("boss_phase", -11)
-
-	if hp > 0 and not triggered_stagger and state != "stunned":
-		var was_pursuit_open: bool = (state == "hunt" and not guard_arms and pursuit_open_left > 0.0)
-		register_noise(game.player.position, 48.0 if blocked_by_guard else 68.0, not blocked_by_guard)
-		if not blocked_by_guard:
-			if not was_pursuit_open:
-				# Hit while patrol/investigate/braced -> IMMEDIATELY snap both stone arm-shields across chest core!
-				pursuit_open_left = 0.0
-				pursuit_hits_taken = 0
-				set_guard_arms(true, rng.randf_range(2.4, 3.2))
-			else:
-				# Hit while actively chasing with arms open -> allows a crisp 2-shot punish window before snapping arms back up!
-				pursuit_hits_taken += 1
-				if pursuit_hits_taken >= 2:
-					pursuit_open_left = 0.0
-					pursuit_hits_taken = 0
-					set_guard_arms(true, rng.randf_range(2.4, 3.0))
+	# v0.8.5 Core-Hit Behavior: NEVER stuns!
+	# Immediately raises X-brace dual-arm guard to shield chest core AND fires immediate sonic wave retaliation!
+	if hp > 0:
+		stealth_quiet_timer = 0.0
+		state = "hunt"
+		noise_meter = 100.0
+		if is_instance_valid(game.player):
+			investigate_pos = _ground_pos(_clamp_to_cave(game.player.position))
+		if is_crit:
+			arms_forced_open_left = 0.0
+			set_guard_arms(true, 4.6)
+			if is_instance_valid(game.player) and root_node.position.distance_to(game.player.position) <= HEAR_RADIUS:
+				_deliver_sonic_retaliation(false, true)
+		elif not blocked_by_guard:
+			if arms_forced_open_left <= 0.0:
+				set_guard_arms(true, 3.6)
 
 	if hp <= 0:
 		_on_defeated()
 	else:
 		_sync_label()
-		if triggered_stagger:
-			game._notice("⚡ 击破石卫平衡！双臂弹开陷入失衡硬直 1.4 秒（剩余 %d/%d HP · 趁机速射胸前蓝核！）" % [hp, max_hp], Color("ffd86b"))
-		elif blocked_by_guard:
-			game._notice("🛡 石卫双臂护核！子弹被青石臂盾弹开（-%d 擦伤 · 剩 %d/%d HP），拉扯诱其追击再破核！" % [dmg, hp, max_hp], Color("ffd166"))
+		if blocked_by_guard:
+			game._notice("🛡 石卫双臂护核！子弹被青石臂盾弹开（-%d 擦伤 · 剩 %d/%d HP），请按 [C]/[Z] 潜行静默 1.5s 等其放手！" % [dmg, hp, max_hp], Color("ffd166"))
 		elif is_crit:
-			var guard_note := " · 石卫立即举臂护核！" if guard_arms else ""
-			game._notice("✦ 暴击石卫发光蓝核 -%d HP！（剩余 %d/%d HP%s）" % [dmg, hp, max_hp, guard_note], Color("7ceeff"))
+			game._notice("✦ 暴击蓝核 -%d HP（剩 %d/%d HP）！石卫立刻护核并声波反击——潜行静默 1.5s 后将再度放开双臂！" % [dmg, hp, max_hp], Color("7ceeff"))
 		else:
-			var guard_note2 := " · 石卫合臂护核，拉扯诱其追击露核！" if guard_arms else " · 瞄准胸前 0.30m 蓝核可触发高额暴击！"
-			game._notice("💥 命中石卫岩甲 -%d HP（剩余 %d/%d HP%s）" % [dmg, hp, max_hp, guard_note2], Color("ffe08c"))
+			game._notice("💥 命中石卫岩甲 -%d HP（剩 %d/%d HP）· 石卫合臂护核，潜行静默 1.5s 待其放手再狙蓝核！" % [dmg, hp, max_hp], Color("ffe08c"))
 	return true
 
 func _on_defeated():
@@ -489,7 +501,8 @@ func _on_defeated():
 	noise_meter = 0.0
 	guard_arms = false
 	guard_left = 0.0
-	pursuit_open_left = 0.0
+	arms_forced_open_left = 0.0
+	stealth_quiet_timer = 0.0
 	body_area.collision_layer = 0
 	core_area.collision_layer = 0
 	guard_area.collision_layer = 0
@@ -530,30 +543,29 @@ func _update_articulation(delta: float):
 	var target_h := Vector3.ZERO
 	var speed := 10.0
 
-	if state == "stunned":
-		speed = 14.0
-		target_l = Vector3(0.32, 0.48, -0.52)
-		target_r = Vector3(0.32, -0.48, 0.52)
-		target_h = Vector3(-0.42, sin(elapsed * 8.0) * 0.14, 0.0)
-	elif guard_arms:
+	if arms_forced_open_left > 0.0:
 		speed = 16.0
+		target_l = Vector3(0.28, -0.46, -0.52)
+		target_r = Vector3(0.28, 0.46, 0.52)
+		target_h = Vector3(-0.34, sin(elapsed * 9.0) * 0.14, 0.0)
+	elif guard_arms:
+		speed = 18.0
 		var jolt := 0.14 if deflect_flash_left > 0.0 else 0.0
-		# Interlocking X-brace: both thick stone arm-shields fold tightly across the chest covering the 0.30m blue core!
-		target_l = Vector3(-0.88 + jolt, 0.92, 0.22)
-		target_r = Vector3(-0.98 + jolt, -0.92, -0.22)
+		# Tight interlocking X-brace shielding the 0.30m blue chest core
+		target_l = Vector3(-0.78 + jolt, 1.04, 0.24)
+		target_r = Vector3(-0.86 + jolt, -1.04, -0.24)
 		target_h = Vector3(0.20, 0.0, 0.0)
 	elif state == "hunt":
 		speed = 12.0
 		var stride := sin(elapsed * 7.2)
-		# Active pursuit charge: arms flung WIDE OPEN to sides, exposing chest core completely!
-		target_l = Vector3(-0.26 + stride * 0.46, -0.34, -0.46)
-		target_r = Vector3(-0.26 - stride * 0.46, 0.34, 0.46)
+		target_l = Vector3(-0.24 + stride * 0.44, -0.34, -0.44)
+		target_r = Vector3(-0.24 - stride * 0.44, 0.34, 0.44)
 		target_h = Vector3(-0.10, sin(elapsed * 4.2) * 0.10, 0.0)
 	else:
-		speed = 8.0
+		speed = 8.5
 		var sw := sin(elapsed * 2.4)
-		target_l = Vector3(sw * 0.16, -0.06, -0.10)
-		target_r = Vector3(-sw * 0.16, 0.06, 0.10)
+		target_l = Vector3(sw * 0.16, -0.10, -0.14)
+		target_r = Vector3(-sw * 0.16, 0.10, 0.14)
 		target_h = Vector3(0.04, sin(elapsed * (3.6 if state == "investigate" else 1.5)) * (0.36 if state == "investigate" else 0.18), 0.0)
 
 	var w := minf(delta * speed, 1.0)
@@ -577,14 +589,16 @@ func update(delta: float):
 		hit_flash_left = maxf(0.0, hit_flash_left - delta)
 	if deflect_flash_left > 0.0:
 		deflect_flash_left = maxf(0.0, deflect_flash_left - delta)
+	if arms_forced_open_left > 0.0:
+		arms_forced_open_left = maxf(0.0, arms_forced_open_left - delta)
 
-	# Pulsing compact 0.30m cyan chest crystal (dimmer while shielded, blazing bright when exposed in chase/stun!)
+	# Compact 0.30m cyan chest crystal visual feedback
 	if is_instance_valid(core_crystal_mat):
 		if hit_flash_left > 0.0 and deflect_flash_left <= 0.0:
 			core_crystal_mat.albedo_color = Color("ffffff")
 			core_crystal_mat.emission = Color("ffd86b")
 			core_crystal_mat.emission_energy_multiplier = 4.2
-		elif state == "stunned":
+		elif arms_forced_open_left > 0.0:
 			core_crystal_mat.albedo_color = Color("ffd86b")
 			core_crystal_mat.emission = Color("ffae34")
 			core_crystal_mat.emission_energy_multiplier = 3.2 + sin(elapsed * 14.0) * 0.8
@@ -603,20 +617,6 @@ func update(delta: float):
 		if to_cam.length_squared() > 0.04:
 			hp_bar_root.global_rotation.y = atan2(to_cam.x, to_cam.z)
 
-	if state == "stunned":
-		stun_left -= delta
-		if is_instance_valid(model_node):
-			model_node.rotation.x = lerpf(model_node.rotation.x, -0.26, minf(delta * 10.0, 1.0))
-			model_node.position.z = lerpf(model_node.position.z, -0.14 if hit_flash_left > 0.0 else 0.0, minf(delta * 16.0, 1.0))
-		_update_articulation(delta)
-		_sync_label()
-		if stun_left <= 0.0:
-			state = "patrol"
-			if is_instance_valid(model_node):
-				model_node.rotation.x = 0.0
-			_sync_label()
-		return
-
 	var ppos: Vector3 = game.player.position
 	var dist_p := root_node.position.distance_to(ppos)
 	var player_in_cave := _player_inside_cave_territory(ppos)
@@ -627,59 +627,65 @@ func update(delta: float):
 			game._notice("✦ 已离开烟霞古洞范围，古洞循音石卫退回洞内巡逻。", game.MINT)
 		state = "patrol"
 		noise_meter = 0.0
-		pursuit_open_left = 0.0
+		stealth_quiet_timer = 0.0
 		set_guard_arms(false, 0.0)
 		_sync_label()
 
-	# Guard timer countdown: kiting further away inside cave accelerates guard drop into an open-core pursuit charge!
-	if guard_arms:
-		var kite_mult := 1.55 if (player_in_cave and dist_p > 4.6) else 1.0
+	# Acoustic sensing vs 1.5s Stealth Silence Disengage!
+	var hspeed := Vector2(game.player.velocity.x, game.player.velocity.z).length()
+	var stance: int = game.player.stance
+	var in_smoke: bool = is_instance_valid(game.combat) and game.combat.player_in_smoke()
+	var player_is_noisy: bool = (
+		player_in_cave
+		and dist_p <= HEAR_RADIUS
+		and not in_smoke
+		and stance == game.player.STANCE_STAND
+		and hspeed > 0.35
+	)
+
+	if player_is_noisy:
+		stealth_quiet_timer = 0.0
+		var rate := 36.0 if hspeed > 5.0 else 18.0
+		register_noise(ppos, rate * delta, false)
+	else:
+		# Player is crouched ([C]), prone ([Z]), standing still, or masked in smoke -> SILENT!
+		noise_meter = maxf(0.0, noise_meter - 24.0 * delta)
+		if state in ["hunt", "investigate"] or guard_arms:
+			stealth_quiet_timer += delta
+			if stealth_quiet_timer >= STEALTH_DISENGAGE_SECONDS:
+				state = "patrol"
+				noise_meter = 0.0
+				stealth_quiet_timer = 0.0
+				set_guard_arms(false, 0.0)
+				game._notice("✦ 潜行静默 1.5 秒生效！古洞循音石卫放弃搜索并放开双臂，趁机瞄准胸口蓝核！", Color("7ceeff"))
+				_sync_label()
+			else:
+				_sync_label()
+
+	# Guard timer countdown when player keeps making noise (non-stealth kiting still eventually opens arms on pursuit)
+	if guard_arms and player_is_noisy:
+		var kite_mult := 1.45 if (player_in_cave and dist_p > 4.6) else 0.75
 		guard_left = maxf(0.0, guard_left - delta * kite_mult)
 		if guard_left <= 0.0:
 			set_guard_arms(false, 0.0)
-			if player_in_cave and state in ["hunt", "investigate"]:
-				state = "hunt"
-				noise_meter = maxf(noise_meter, 82.0)
-				pursuit_open_left = 3.2
-				pursuit_hits_taken = 0
-				spawn_sonar_ring(root_node.position, Color("ff5c5c"), 10.5)
-				game.play_sfx("warden_sonar", -9)
-				game._notice("⚠ 石卫张开双臂大步追击！胸口 0.30m 蓝核已暴露，立刻反击暴击！", Color("7ceeff"))
-				_sync_label()
-	elif pursuit_open_left > 0.0:
-		pursuit_open_left = maxf(0.0, pursuit_open_left - delta)
-
-	# Continuous footstep noise sensing strictly inside Yanxia Cave!
-	var hspeed := Vector2(game.player.velocity.x, game.player.velocity.z).length()
-	if player_in_cave and dist_p <= HEAR_RADIUS and hspeed > 0.35:
-		var stance: int = game.player.stance
-		var rate := 0.6 if stance == game.player.STANCE_PRONE else (2.8 if stance == game.player.STANCE_CROUCH else (34.0 if hspeed > 5.0 else 15.0))
-		register_noise(ppos, rate * delta, false)
-	elif player_in_cave and dist_p < 3.4 and game.player.stance != game.player.STANCE_PRONE:
-		register_noise(ppos, 24.0 * delta, false)
-	else:
-		var drain := 18.0 if state == "patrol" else (13.0 if state == "investigate" else 8.0)
-		noise_meter = maxf(0.0, noise_meter - drain * delta)
-		calm_timer += delta
-		if state == "investigate" and (noise_meter <= 8.0 or calm_timer >= 4.5):
-			state = "patrol"
+			spawn_sonar_ring(root_node.position, Color("ff5c5c"), 10.5)
+			game.play_sfx("warden_sonar", -9)
 			_sync_label()
 
-	# Movement & fair sonic attack rhythm (strictly confined inside Yanxia Cave!)
+	# Movement & sonic wave attack rhythm (strictly confined inside Yanxia Cave!)
 	var move_target := root_node.position
 	var move_speed := 1.65
 	if state == "hunt":
-		move_target = _ground_pos(_clamp_to_cave(ppos))
+		move_target = _ground_pos(_clamp_to_cave(investigate_pos if not player_is_noisy else ppos))
 		var is_conf_m: bool = game.rules.is_confidential()
-		# Slower braced shuffle while guarding; fast aggressive stride with arms flung open when chasing!
-		move_speed = (1.35 if is_conf_m else 1.15) if guard_arms else (4.55 if is_conf_m else 3.85)
+		move_speed = (1.30 if is_conf_m else 1.10) if guard_arms else (4.20 if is_conf_m else 3.60)
 		if sonar_cd <= 0.0:
 			sonar_cd = 2.4
 			game.play_sfx("warden_sonar", -9)
 			spawn_sonar_ring(root_node.position, Color("ffd166") if guard_arms else Color("ff5c5c"), 11.0)
 		var blast_range := 11.0 if is_conf_m else 9.5
-		if player_in_cave and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode and not guard_arms:
-			_deliver_sonic_retaliation(dist_p < 3.8)
+		if player_in_cave and player_is_noisy and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode:
+			_deliver_sonic_retaliation(dist_p < 3.8, guard_arms)
 	elif state == "investigate":
 		move_target = _ground_pos(_clamp_to_cave(investigate_pos))
 		move_speed = 1.20 if guard_arms else 2.55
@@ -688,10 +694,10 @@ func update(delta: float):
 			game.play_sfx("warden_sonar", -12)
 			spawn_sonar_ring(root_node.position, Color("54f0ff"), 9.5)
 	else:
-		var wp := _ground_pos(PATROL_PTS[patrol_idx])
+		var wp := _ground_pos(_patrol_pt(patrol_idx))
 		if Vector2(wp.x - root_node.position.x, wp.z - root_node.position.z).length() < 0.75:
-			patrol_idx = (patrol_idx + 1) % PATROL_PTS.size()
-			wp = _ground_pos(PATROL_PTS[patrol_idx])
+			patrol_idx = (patrol_idx + 1) % PATROL_OFFSETS.size()
+			wp = _ground_pos(_patrol_pt(patrol_idx))
 		move_target = wp
 		move_speed = 1.65
 
@@ -702,7 +708,8 @@ func update(delta: float):
 		var next_xz := _clamp_to_cave(Vector3(root_node.position.x + step.x, 0.0, root_node.position.z + step.y))
 		root_node.position = _ground_pos(next_xz)
 	if state == "hunt" or guard_arms:
-		var face_p := Vector2(ppos.x - root_node.position.x, ppos.z - root_node.position.z)
+		var face_target := ppos if player_is_noisy else investigate_pos
+		var face_p := Vector2(face_target.x - root_node.position.x, face_target.z - root_node.position.z)
 		if face_p.length() > 0.25:
 			root_node.rotation.y = lerp_angle(root_node.rotation.y, atan2(face_p.x, face_p.y), minf(delta * 7.2, 1.0))
 	elif flat_delta.length() > 0.25:

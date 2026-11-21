@@ -142,7 +142,7 @@ const CHARACTER_CARDS := [
 		"icon": "🔊",
 		"color": Color("56e8ff"),
 		"bio": "沉眠于烟霞古洞一线天石窟的古老机关石卫，双目已盲却能凭借幽蓝声纹肋骨捕捉洞内每一丝脚步与枪响，世代守护先民耕读岩画与寒潭茶灶。",
-		"tactical": "仅在烟霞古洞范围内巡逻追击（撤出洞口即脱战）。受击会立即合拢双臂青石盾护住胸前 0.30m 蓝核（正面射击仅擦伤）；拉开走位诱其大步追击张臂露核，或用 [G] 烟雾 EMP / [V] 天生神力 震开双臂后速射蓝核高额暴击！",
+		"tactical": "仅在烟霞古洞范围内巡逻追击（撤出洞口即脱战）。击中其 0.30m 胸前蓝核不会使其晕厥，反而会触发立刻双臂护核并释放声波反击！此时迅速按 [C]/[Z] 进入潜行静默 1.5 秒，石卫便会放弃搜索并再度放开双臂；可用 [G] 烟雾助消声脱搜，或用少羽 [V] 天生神力短暂震开双臂 1.0 秒抢打核心。",
 		"unlock_hint": "在正式战斗中击败「古洞循音石卫」解锁",
 	},
 	{
@@ -211,7 +211,7 @@ func setup(g):
 func _build_camp_npc():
 	camp_npc_node = Node3D.new()
 	camp_npc_node.name = "CampBountyGuideNPC"
-	var at: Vector3 = game.Layout.on_ground(Vector3(3.6, 0.0, 2.2))
+	var at: Vector3 = game.Layout.on_ground(game.Layout.SPAWN + Vector3(3.6, 0.0, -2.3))
 	camp_npc_node.position = at
 	camp_npc_node.rotation.y = -0.78
 	camp_npc_node.set_meta("camp_bounty_npc", true)
@@ -532,12 +532,12 @@ func activate_skill() -> bool:
 					s.stun(dur)
 					knocked += 1
 
-	# 2) Stagger / briefly blind Yanxia Cave Acoustic Warden for 2.5s (breaking arm-guard!) if within shockwave range!
+	# 2) v0.8.5: Briefly jolt Yanxia Cave Acoustic Warden's arm-shields open for 1.0s (NO stun!) if within shockwave range!
 	if is_instance_valid(game.cave_warden) and game.cave_warden.is_alive():
 		var cw_pos: Vector3 = game.cave_warden.root_node.position
 		var cw_d := Vector2(cw_pos.x - origin.x, cw_pos.z - origin.z).length()
 		if cw_d <= rad + 0.8:
-			game.cave_warden.apply_stun(2.5)
+			game.cave_warden.force_open_arms(1.0)
 			staggered_bosses += 1
 		elif cw_d <= 15.0:
 			game.cave_warden.register_noise(origin, 42.0, true)
