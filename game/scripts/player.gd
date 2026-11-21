@@ -32,6 +32,9 @@ var grenades = 1
 var stims = 1
 var stim_left = 0.0
 var reload_left = 0.0
+var reload_sfx_stage := 0
+var screen_shake := 0.0
+var shake_clock := 0.0
 var cooldown = 0.0
 var knife_cooldown = 0.0
 var quick_melee_left = 0.0
@@ -147,7 +150,8 @@ func _unhandled_input(event):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var optic_id: String = game.rules.active_optic()
-		var base_sens = 0.0014 if (aiming and optic_id == "scope_2x") else (0.0017 if aiming else 0.0023)
+		var sens_mult: float = float(game.rules.setting("mouse_sensitivity", 1.0))
+		var base_sens = (0.0014 if (aiming and optic_id == "scope_2x") else (0.0017 if aiming else 0.0023)) * sens_mult
 		yaw -= event.relative.x * base_sens
 		pitch = clampf(pitch - event.relative.y * base_sens, -1.35, 1.35)
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -188,6 +192,8 @@ func _unhandled_input(event):
 			game.loot_ui.toggle_backpack()
 		elif code == KEY_I and is_instance_valid(game.loot_ui):
 			game.loot_ui.inspect_best_in_bag()
+		elif code == KEY_J and is_instance_valid(game.prologue) and game.prologue.active:
+			game.prologue.open_task_log()
 
 func toggle_crouch():
 	if not active or game.paused:
@@ -274,7 +280,9 @@ func has_infinite_ammo() -> bool:
 func add_reserve_ammo(amount: int):
 	if amount <= 0 or has_infinite_ammo():
 		return
-	var cap = game.rules.magazine() * 8
+	var cap: int = game.rules.max_reserve_ammo()
+	if cap <= 0:
+		cap = game.rules.magazine() * 3
 	reserve_ammo = mini(reserve_ammo + amount, cap)
 
 func select_weapon(slot: int):
@@ -410,7 +418,15 @@ func _physics_process(delta):
 	recoil = lerpf(recoil, 0, delta * recoil_recover)
 	if reload_left > 0 and weapon_slot == 0:
 		reload_left -= delta
+		var u_rel := clampf(1.0 - reload_left / RELOAD_SECONDS, 0.0, 1.0)
+		if reload_sfx_stage < 1 and u_rel >= 0.52:
+			reload_sfx_stage = 1
+			game.play_sfx("reload_mag_in", -10)
+		elif reload_sfx_stage < 2 and u_rel >= 0.76:
+			reload_sfx_stage = 2
+			game.play_sfx("reload_bolt", -10)
 		if reload_left <= 0:
+			reload_sfx_stage = 0
 			if has_infinite_ammo():
 				ammo = game.rules.magazine()
 			else:
@@ -418,6 +434,9 @@ func _physics_process(delta):
 				var take: int = mini(need, maxi(0, reserve_ammo))
 				ammo += take
 				reserve_ammo -= take
+	if screen_shake > 0.0:
+		screen_shake = maxf(0.0, screen_shake - delta * 2.4)
+		shake_clock += delta * 46.0
 	rotation.y = yaw
 
 	var direction = Vector2(
@@ -434,12 +453,17 @@ func _physics_process(delta):
 
 	_update_stance_and_lean(delta)
 
-	var recoil_pitch = 0.021 if optic_id in ["red_dot", "scope_2x"] else 0.034
+	var reduce_shake: bool = bool(game.rules.setting("reduce_screen_shake", false)) if is_instance_valid(game) else false
+	var recoil_pitch = (0.021 if optic_id in ["red_dot", "scope_2x"] else 0.034) * (0.25 if reduce_shake else 1.0)
 	if muzzle_id == "compensator":
 		recoil_pitch *= 0.65
 	var max_pitch_down := -0.78 if stance == STANCE_PRONE else -1.35
 	pitch = clampf(pitch, max_pitch_down, 1.35)
-	camera.rotation.x = pitch + recoil * recoil_pitch
+	var eff_shake := 0.0 if reduce_shake else screen_shake
+	var shake_p := sin(shake_clock * 1.37) * eff_shake * eff_shake * 0.055 if eff_shake > 0.0 else 0.0
+	var shake_r := cos(shake_clock * 1.91) * eff_shake * eff_shake * 0.048 if eff_shake > 0.0 else 0.0
+	camera.rotation.x = pitch + recoil * recoil_pitch + shake_p
+	camera.rotation.z = -effective_lean * LEAN_MAX_ROLL + shake_r
 
 	var ads_active := aiming and weapon_slot == 0
 	var target_fov = (36.0 if optic_id == "scope_2x" else (48.0 if optic_id == "red_dot" else 58.0)) if ads_active else 75.0
@@ -506,6 +530,12 @@ func _physics_process(delta):
 			game.play_sound("land", step_vol)
 			footstep_clock = 0.33 if speed > 5 else (0.62 if stance == STANCE_PRONE else 0.46)
 
+func add_screen_shake(amount: float):
+	if is_instance_valid(game) and bool(game.rules.setting("reduce_screen_shake", false)):
+		screen_shake = 0.0
+		return
+	screen_shake = clampf(maxf(screen_shake, amount), 0.0, 1.2)
+
 func reload():
 	if weapon_slot != 0:
 		return
@@ -515,7 +545,8 @@ func reload():
 			game._notice("备弹耗尽！按 [2] 切换战术匕首近战补弹，或搜集 5.56 弹药箱", Color("ffd27d"))
 			return
 		reload_left = RELOAD_SECONDS
-		game.play_sound("weapon_change", -14)
+		reload_sfx_stage = 0
+		game.play_sfx("reload_mag_out", -10)
 
 func _perform_knife_slash():
 	knife_cooldown = 0.38
@@ -550,8 +581,9 @@ func shoot():
 	recoil = (0.65 if muzzle_id == "compensator" else (0.85 if grip_id == "angled_grip" else 1.0)) * stance_recoil
 	if is_instance_valid(weapon_view):
 		weapon_view.shot()
+	add_screen_shake(0.14 if muzzle_id == "suppressor" else (0.19 if muzzle_id == "compensator" else 0.25))
 	if muzzle_id == "suppressor":
-		game.play_sfx("shot_suppressed", -10)
+		game.play_sfx("shot_suppressed", -7)
 	else:
-		game.play_sound("blaster_repeater", -16)
+		game.play_sfx("shot_rifle", -6)
 	game.fire(camera)

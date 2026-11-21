@@ -1,12 +1,12 @@
 @echo off
 setlocal
-set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.8.1\diagnostics"
+set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.8.2_dev2\diagnostics"
 if /I "%~1"=="standard" goto standard
 if /I "%~1"=="balanced" goto balanced
-start "" "%~dp0playtest\windows-v0.8.1\YanshanBase.exe" --rendering-method gl_compatibility -- --qa --hardware-check --low-quality
+start "" "%~dp0playtest\windows-v0.8.2_dev2\YanshanBase.exe" --rendering-method gl_compatibility -- --qa --hardware-check --low-quality
 exit /b
 :standard
-start "" "%~dp0playtest\windows-v0.8.1\YanshanBase.exe" -- --qa --hardware-check
+start "" "%~dp0playtest\windows-v0.8.2_dev2\YanshanBase.exe" -- --qa --hardware-check
 exit /b
 :balanced
-start "" "%~dp0playtest\windows-v0.8.1\YanshanBase.exe" -- --qa --hardware-check --low-quality
+start "" "%~dp0playtest\windows-v0.8.2_dev2\YanshanBase.exe" -- --qa --hardware-check --low-quality

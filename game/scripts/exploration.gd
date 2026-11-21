@@ -322,22 +322,49 @@ func _ui():
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.color = Color(0.03, 0.055, 0.035, 0.91)
 	overlay.add_child(veil)
-	game._panel(overlay, Rect2(240, 68, 800, 586), Color("162822"), Color(0.48, 0.78, 0.62, 0.45))
-	title = game._text(overlay, "", Vector2(275, 88), Vector2(730, 42), 28, game.MINT)
-	body = game._text(overlay, "", Vector2(275, 142), Vector2(730, 128), 22)
+	# v0.8.2 V81-4: Taller adaptive panel (840x646) + dynamic layout in _reflow_ui() so long heritage mural
+	# stories NEVER collide with option buttons, explanation, or source line!
+	game._panel(overlay, Rect2(220, 36, 840, 648), Color("162822"), Color(0.48, 0.78, 0.62, 0.45))
+	title = game._text(overlay, "", Vector2(256, 54), Vector2(768, 38), 26, game.MINT)
+	body = game._text(overlay, "", Vector2(256, 102), Vector2(768, 192), 19)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.clip_text = true
 	for i in 3:
-		buttons.append(game._button(overlay, "", Rect2(275, 286 + i * 48, 730, 42), choose.bind(i)))
-	explanation = game._text(overlay, "", Vector2(275, 430), Vector2(730, 112), 16, game.GOLD)
+		buttons.append(game._button(overlay, "", Rect2(256, 308 + i * 48, 768, 42), choose.bind(i)))
+	explanation = game._text(overlay, "", Vector2(256, 460), Vector2(768, 110), 15, game.GOLD)
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	explanation.clip_text = true
-	source = game._text(overlay, "", Vector2(275, 548), Vector2(730, 38), 13, Color("a7b8a2"))
+	source = game._text(overlay, "", Vector2(256, 578), Vector2(768, 34), 13, Color("a7b8a2"))
 	source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	game._button(overlay, "返回山路  [Esc]", Rect2(790, 594, 215, 37), close)
-	swap_button = game._button(overlay, "替换最低值物资", Rect2(550, 594, 220, 37), replace_reward)
+	game._button(overlay, "返回山路  [Esc]", Rect2(808, 624, 216, 38), close)
+	swap_button = game._button(overlay, "替换最低值物资", Rect2(566, 624, 224, 38), replace_reward)
 	swap_button.hide()
-	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(275, 598), Vector2(300, 30), 14, game.MINT)
+	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(256, 630), Vector2(300, 28), 14, game.MINT)
 	overlay.hide()
+
+func _reflow_ui(has_buttons: bool):
+	var txt_len := body.text.length()
+	var fsize := 17 if txt_len > 155 else (19 if txt_len > 95 else 21)
+	body.add_theme_font_size_override("font_size", fsize)
+	var measured_h := 120.0
+	if is_instance_valid(game) and game.font != null:
+		measured_h = game.font.get_multiline_string_size(body.text, HORIZONTAL_ALIGNMENT_LEFT, 768.0, fsize).y + 14.0
+	else:
+		measured_h = ceilf(float(txt_len) / 34.0) * float(fsize + 9) + 18.0
+	var body_h := clampf(measured_h, 88.0, 232.0)
+	body.position = Vector2(256, 100)
+	body.size = Vector2(768, body_h)
+	var btn_top := 100.0 + body_h + 14.0
+	if has_buttons:
+		for i in 3:
+			buttons[i].position = Vector2(256, btn_top + float(i) * 46.0)
+			buttons[i].size = Vector2(768, 40)
+		var exp_top := btn_top + 3.0 * 46.0 + 10.0
+		explanation.position = Vector2(256, exp_top)
+		explanation.size = Vector2(768, maxf(54.0, 574.0 - exp_top))
+	else:
+		explanation.position = Vector2(256, btn_top + 12.0)
+		explanation.size = Vector2(768, maxf(96.0, 574.0 - btn_top - 12.0))
 
 func _prepare_puzzle(id: String, pool_key: String):
 	var pool: Array = data.get(pool_key, [])
@@ -418,6 +445,10 @@ func update(delta: float):
 
 func open(node: Node3D):
 	var id: String = node.get_meta("explore_id")
+	if id in ["cave_mural", "cave_hearth"] and is_instance_valid(game.cave_warden) and game.cave_warden.is_alive() and game.cave_warden.state == "hunt":
+		game.play_sfx("warning_lock", -10)
+		game._notice("⚠ 古洞循音石卫正在追击！请先潜行甩开、[G]烟雾EMP致盲或将其击败后再探查古迹！", Color("ff8080"))
+		return
 	if id == "english":
 		if not states.clue:
 			game._notice("补给箱贴着封条！先看附近巡护员纸条上的方位提示。")
@@ -458,6 +489,7 @@ func open(node: Node3D):
 		for i in 3:
 			buttons[i].hide()
 		explanation.text = "提示：next to = 在……旁边。找到封存箱按 [F] 即可领取稀有物资！"
+		_reflow_ui(false)
 		game.speak_english("next to")
 	else:
 		var item = current_items[id]
@@ -471,6 +503,7 @@ func open(node: Node3D):
 			buttons[i].show()
 			buttons[i].text = opts[i]
 			buttons[i].disabled = locked_now
+		_reflow_ui(true)
 		if not locked_now:
 			buttons[0].grab_focus()
 		if item.has("tts"):
@@ -535,19 +568,38 @@ func choose(index: int):
 		radar_scan_active = true
 		game.rules.score += 45
 		game.player.grenades += 1
+		var radio_ammo := 6 if game.rules.is_confidential() else 8
 		if not game.player.has_infinite_ammo():
-			game.player.add_reserve_ammo(game.rules.magazine())
+			game.player.add_reserve_ammo(radio_ammo)
 		game.play_sfx("radio_scan", -10)
-		game._notice("东岭雷达全图扫描已激活！+45分 +1烟雾EMP +1备弹匣", Color("7ceeff"))
+		game._notice("东岭雷达全图扫描已激活！+45分 +1烟雾EMP +%d备弹" % radio_ammo, Color("7ceeff"))
 	elif first_solve and active_id == "airdrop_beacon":
 		game.rules.score += 40
+		var drop_ammo := 12 if game.rules.is_confidential() else 10
 		if not game.player.has_infinite_ammo():
-			game.player.add_reserve_ammo(game.rules.magazine() * 2)
+			game.player.add_reserve_ammo(drop_ammo)
 		game.play_sfx("airdrop_call", -10)
-		game._notice("北脊卫星空投已解锁！+40分 +2备弹匣", game.GOLD)
+		game._notice("北脊卫星空投已解锁！+40分 +%d备弹" % drop_ammo, game.GOLD)
 	else:
 		game.play_sfx("cipher_unlock", -11)
 	_reward(active_id)
+
+func _resolved_reward(id: String, item: Dictionary) -> Dictionary:
+	# v0.8.2_dev2 D2-4: Calibrate guaranteed exploration rewards so Normal mode stays at T4 Epic
+	# while Confidential mode upgrades to T5/T6 calibrated treasures (no free guaranteed Big Gold in Normal!).
+	if id == "cave_hearth":
+		if game.rules.is_confidential():
+			return {"title": "翡翠节节高玉佩", "value": 255, "rarity": 5}
+		return {"title": "先民青铜茶铫", "value": 198, "rarity": 4}
+	if id == "airdrop_beacon":
+		if game.rules.is_confidential():
+			return {"title": str(item.reward_title), "value": int(item.reward_value), "rarity": int(item.get("reward_rarity", 5))}
+		return {"title": "军用黑匣子", "value": 165, "rarity": 4}
+	return {
+		"title": str(item.reward_title),
+		"value": int(item.reward_value),
+		"rarity": int(item.get("reward_rarity", 3)),
+	}
 
 func _reward(id: String):
 	var item = current_items[id]
@@ -559,16 +611,19 @@ func _reward(id: String):
 			b.disabled = true
 		return
 	var key = id + "_claimed"
-	var rarity = int(item.get("reward_rarity", 3))
+	var rw := _resolved_reward(id, item)
+	var rw_title: String = str(rw.title)
+	var rw_value: int = int(rw.value)
+	var rarity: int = int(rw.rarity)
 	swap_button.hide()
 	var suffix = "这处探索奖励已领取。"
 	if not states.get(key, false):
 		if not game.rules.can_loot():
 			states[key] = true
-			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可领取【%s】%s！" % [game.Rules.RARITY_NAMES[rarity], item.reward_title]
-		elif game.rules.add_loot(item.reward_title, int(item.reward_value), rarity):
+			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可领取【%s】%s！" % [game.Rules.RARITY_NAMES[rarity], rw_title]
+		elif game.rules.add_loot(rw_title, rw_value, rarity):
 			states[key] = true
-			suffix = "已获得【%s】%s（估值 %d 币）！" % [game.Rules.RARITY_NAMES[rarity], item.reward_title, int(item.reward_value)]
+			suffix = "已获得【%s】%s（估值 %d 币）！" % [game.Rules.RARITY_NAMES[rarity], rw_title, rw_value]
 		else:
 			suffix = "背包已满！可点下方「替换最低值物资」换入高价值奖励，或直接返回。"
 			swap_button.show()
@@ -588,8 +643,8 @@ func replace_reward():
 	var previous = game.rules.bag[lowest]
 	game.rules.bag.remove_at(lowest)
 	var item = current_items[active_id]
-	var rarity = int(item.get("reward_rarity", 3))
-	if game.rules.add_loot(item.reward_title, int(item.reward_value), rarity):
+	var rw := _resolved_reward(active_id, item)
+	if game.rules.add_loot(str(rw.title), int(rw.value), int(rw.rarity)):
 		states[active_id + "_claimed"] = true
 		game.play_sfx("cipher_unlock", -12)
 	else:

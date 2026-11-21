@@ -135,7 +135,9 @@ func run():
 	game.rules.profile.coins = 0
 	verify(game.rules.unlock_blueprint("tactical_belt") and ("tactical_belt" in game.rules.profile.owned), "Boss blueprint unlocks tactical_belt even with 0 coins")
 	game.start_action(true)
-	verify(game.player.reserve_ammo == 4 * game.rules.magazine() and game.player.grenades == 2 and game.player.stims == 2, "tactical_rig + tactical_belt grant 4 reserve mags, 2 smoke/EMP, and 2 stims in combat")
+	verify(game.player.reserve_ammo == 24 and game.rules.max_reserve_ammo() == 60 and game.player.grenades == 2 and game.player.stims == 2, "v0.8.2_dev2 D2-2: tactical_rig + tactical_belt grant 24 starter reserve (60 cap), 2 smoke/EMP, and 2 stims in Normal combat")
+	game.player.add_reserve_ammo(999)
+	verify(game.player.reserve_ammo == 60, "v0.8.2_dev2 D2-2: reserve ammo is strictly clamped to max_reserve_ammo() cap")
 	var wv = game.player.weapon_view
 	verify(wv.att_nodes["att_scope_2x"].visible and wv.att_nodes["att_suppressor"].visible and wv.att_nodes["att_angled_grip"].visible and not wv.att_nodes["att_compensator"].visible, "equipped Gunsmith 2.0 attachments render visibly on YS-04 carbine")
 	game._end_run(false)
@@ -189,8 +191,9 @@ func run():
 			still_has_epic = true
 	verify(still_has_epic, "sell_unlocked_junk preserves unlocked Epic/Gold/Red treasures")
 	var epic_idx := -1
-	for wi2 in game.rules.profile.warehouse.size():
-		if str(game.rules.profile.warehouse[wi2].get("title", "")) == "端溪雕云古砚":
+	for wi2 in range(game.rules.profile.warehouse.size() - 1, -1, -1):
+		var cand: Dictionary = game.rules.profile.warehouse[wi2]
+		if str(cand.get("title", "")) == "端溪雕云古砚" and int(cand.get("value", 0)) == 192:
 			epic_idx = wi2
 			break
 	var single_earned: int = game.rules.sell_warehouse_item(epic_idx)

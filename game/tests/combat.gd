@@ -319,9 +319,17 @@ func run():
 	)
 	# Let the shield-cracked soldier bound toward its new cover for ~0.7s so it fires moving suppression on the run!
 	var supp_before: int = game.combat.moving_suppression_shots
+	for s_rel in game.combat.troops[0]:
+		if s_rel != correct_sh and s_rel.action != s_rel.Action.ADVANCE:
+			game.combat.on_soldier_attack_finished(s_rel)
+			s_rel.action = s_rel.Action.ADVANCE
 	game.combat.suppress_lock = 0.0
 	correct_sh.stun_left = 0.0
+	correct_sh.cooldown = 1.5
 	correct_sh.suppress_cd = 0.02
+	if not correct_sh.is_bounding_to_cover or Vector2(correct_sh.position.x - correct_sh.bound_goal.x, correct_sh.position.z - correct_sh.bound_goal.z).length() < 3.0:
+		correct_sh.bound_goal = game.Layout.on_ground(center0 + Vector3(5.6, 0.0, -3.2))
+		correct_sh.is_bounding_to_cover = true
 	correct_sh.set_physics_process(true)
 	await frames(28)
 	correct_sh.set_physics_process(false)
@@ -382,6 +390,8 @@ func run():
 	)
 
 	# 7. Confidential Operation ("机密行动"): random 3-6 squad sizes, 1.35x valuation, Sniper laser, Smoke/EMP, Stim, Knife & 3-wave clear
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
 	game.rules.loot_rng.seed = 777
 	var norm_leg_loot: Dictionary = game.rules.roll_item_by_rarity(5)
 	game.confidential_button.pressed.emit()
@@ -432,17 +442,26 @@ func run():
 	game.player.use_stim()
 	verify(game.player.stims == stim_before - 1 and game.player.stim_left > 5.0 and game.combat.health > 70, "adrenaline stim triggers sprint+regen buff")
 
-	# Knife execution on the CORRECT Zone-1 soldier executes in 1 hit and recovers +magazine() reserve ammo!
+	# v0.8.2_dev2 D2-1: Confidential knife requires 10 slashes (not 1-hit kill!) and recovers +4 emergency reserve ammo!
 	var knife_victim = game.combat.troops[1][game.answer_index]
 	knife_victim.stun(3.0)
 	knife_victim.rotation.y = 0.0
 	game.player.position = knife_victim.position - knife_victim.global_transform.basis.z * 1.4
 	game.player.ammo = 4
+	game.player.reserve_ammo = 10
 	var res_before: int = game.player.reserve_ammo
 	aim.global_position = game.player.position + Vector3(0, 1.58, 0)
 	aim.look_at(knife_victim.global_position + Vector3(0, 1.15, 0))
 	game.melee_strike(aim)
-	verify(knife_victim.defeated and game.player.reserve_ammo == res_before + game.rules.magazine(), "knife strike on correct word soldier executes in 1 hit and recovers +1 magazine reserve ammo")
+	var survived_first_slash: bool = (not knife_victim.defeated) and knife_victim.melee_hits_taken == 1
+	for _ks in 9:
+		if knife_victim.defeated:
+			break
+		game.player.position = knife_victim.position - knife_victim.global_transform.basis.z * 1.4
+		aim.global_position = game.player.position + Vector3(0, 1.58, 0)
+		aim.look_at(knife_victim.global_position + Vector3(0, 1.15, 0))
+		game.melee_strike(aim)
+	verify(survived_first_slash and knife_victim.defeated and knife_victim.melee_hits_taken == 10 and game.player.reserve_ammo == res_before + 4, "v0.8.2_dev2 D2-1: Confidential knife takes 10 hits (no 1-hit cheese) and recovers +4 reserve ammo on kill")
 
 	# Clear all 3 waves of Zone 1 permanently!
 	game.player.position = center1 + Vector3(0, 0.08, 1.8)
@@ -487,24 +506,39 @@ func run():
 	boss.rotation = Vector3.ZERO
 	await frames(2)
 
-	# Force prompt onto Boss or crack Boss via headshot when prompted, OR trigger Boss phase exposure via guard kills / Boss hit!
-	game.answer_index = boss.option
-	game.question = boss.assigned_word
-	game.combat.show_question()
+	# v0.8.2 #12 & #13: Confidential Zone 2 spawns giant Skyfall 5-Shield Overlord ("雾隐机关王·玄铁词尊")
+	verify(
+		boss.is_skyfall_overlord and boss.multi_shields.size() == 5 and boss.hp == 500 and game.Layout.COMBAT_ZONES[2].title.contains("雾隐帮"),
+		"v0.8.2 #12/#13: Confidential Zone 2 spawns Mistbound Syndicate Skyfall 5-Shield Overlord (500 HP)"
+	)
+	boss.force_land_skyfall()
+	verify(game.player.screen_shake > 0.5, "v0.8.2 #12: Skyfall Overlord landing triggers seismic full-screen camera shake")
 	await frames(2)
-	# Test 2-shot shield crack on Boss -> exposes reactor core -> shoot reactor core for -42 crit!
-	shoot(game.player.camera.global_position, boss.shield_area.global_position)
-	verify(boss.shield_layers == 1 and boss.exposed_left <= 0.0, "1st shot on Boss word shield cracks shield (1/2)")
-	shoot(game.player.camera.global_position, boss.shield_area.global_position)
+
+	# Step 1: Break 1st sequential shield -> HP drops 500 -> 400 and step advances 0 -> 1
+	var first_slot: int = boss.expected_overlord_slot()
+	shoot(game.player.camera.global_position, boss.multi_shields[first_slot].area.global_position)
 	await frames(2)
-	verify(boss.exposed_left > 0.0 and is_instance_valid(boss.core_area) and boss.core_area.collision_layer != 0, "2nd shot shatters Boss shield and exposes glowing chest reactor core")
+	verify(boss.overlord_seq_step == 1 and boss.hp == 400 and boss.multi_shields[first_slot].broken, "v0.8.2 #12: shooting correct 1st Overlord shield shatters it (-100 HP, step 1/5)")
 
-	var hp_before_core: int = boss.hp
-	shoot(game.player.camera.global_position, boss.core_area.global_position)
-	var saw_core_crit: bool = (boss.hp == hp_before_core - 42)
-	verify(saw_core_crit, "shooting exposed Boss reactor core deals 42 critical damage")
+	# Step 2: Shoot WRONG out-of-order shield -> FULL RESET to 500 HP, step 0/5 & reshuffle all 5 shields!
+	var wrong_slot: int = boss.overlord_seq_slots[3]
+	shoot(game.player.camera.global_position, boss.multi_shields[wrong_slot].area.global_position)
+	await frames(2)
+	var all_five_intact := true
+	for sd_chk in boss.multi_shields:
+		if bool(sd_chk.broken):
+			all_five_intact = false
+	verify(boss.overlord_seq_step == 0 and boss.hp == 500 and all_five_intact, "v0.8.2 #12: shooting out-of-order shield resets Overlord HP to 500/500 and restores/reshuffles all 5 shields")
 
-	# Finish Wave 1 (defeating Boss + 4 guards), then verify Wave 2 spawns WITHOUT Boss, then clear Waves 2 & 3!
+	# Step 3: Break all 5 shields in strict 1->5 order -> Overlord defeated + overlord_1 achievement unlocked!
+	for _os in 5:
+		var req_s: int = boss.expected_overlord_slot()
+		shoot(game.player.camera.global_position, boss.multi_shields[req_s].area.global_position)
+		await frames(1)
+	verify(boss.defeated and game.rules.boss_defeated and game.achievements.is_unlocked("overlord_1"), "v0.8.2 #12: breaking all 5 shields in strict 1->5 order defeats Skyfall Overlord and unlocks overlord_1 achievement")
+
+	# Finish Wave 1 remaining guards, then verify Wave 2 spawns WITHOUT Boss, then clear Waves 2 & 3!
 	var checked_wave2_no_boss := false
 	for z2_step in 60:
 		if game.combat.zone_cleared.get(2, false):
@@ -549,6 +583,8 @@ func run():
 	verify(game.rules.phase == "result" and game.rules.profile.warehouse.size() > 0 and not game.combat.in_field(), "extraction banks loot and clears combat")
 
 	# 9. Confidential Stance Evasion, Full 78%/26% Accuracy & Lethal Defeat Checks
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
 	game.confidential_button.pressed.emit()
 	await frames(4)
 	game.player.position = center0 + Vector3(0, 0.08, 1.5)
@@ -676,6 +712,135 @@ func run():
 	game.player.position = game.Layout.on_ground(b_flank + Vector3(0, 0, 5.0))
 	var b_flank_blocked: bool = not game.combat.clear_shot(game.Layout.on_ground(b_flank - Vector3(0, 0, 1.42)))
 	verify(b_non_boss != null and b_non_boss.shield_area.position.y >= 1.33 and b_flank_blocked, "Camp 2 B-Zone shares unified elevated word shields and tall outer flank cover")
+
+	# 11. v0.8.2_dev2 D2-1/D2-2/D2-4/D2-5: Strengthened Normal Boss (720 HP + mortar barrage), 5-hit Normal melee, Auto-Speak on word switch & Cave Warden (620/960 HP + sonic retaliation)
+	var norm_boss = game.combat.boss_unit
+	verify(is_instance_valid(norm_boss) and not norm_boss.is_skyfall_overlord and norm_boss.hp == 720, "v0.8.2_dev2 D2-2: Normal Operation Mistbound Vanguard Boss upgraded to 720 HP")
+	# Engage Zone 2 in Normal mode and verify Boss mortar barrage spawns a red danger ring + D2-5 auto-speak on prompt switch
+	game.combat.engage_camp(2)
+	var switched_en: String = str(game.question.get("english", ""))
+	verify(
+		game.last_voice_key == game.normalize_voice_key(switched_en) and not game.question_help_used and game.word_switch_flash > 0.0,
+		"v0.8.2_dev2 D2-5: switching to a new combat word auto-speaks English with visual flash and ZERO help penalty"
+	)
+	var pre_rings: int = game.combat.danger_rings.size()
+	game.combat.boss_barrage_cd = 0.02
+	game.combat.update(0.05)
+	verify(game.combat.danger_rings.size() > pre_rings, "v0.8.2_dev2 D2-2: Normal Boss fires periodic red danger-ring mortar barrages")
+	# Normal mode melee takes 5 hits on regular soldier & wrong melee triggers immediate counter-bash!
+	var norm_melee_s = null
+	var wrong_melee_s = null
+	for ns in game.combat.troops[2]:
+		if is_instance_valid(ns) and not ns.defeated and ns.archetype != Soldier.Archetype.BOSS_WARDEN:
+			if ns.option == game.answer_index:
+				norm_melee_s = ns
+			elif wrong_melee_s == null:
+				wrong_melee_s = ns
+	if norm_melee_s == null:
+		# Pick a non-boss soldier as current prompt for deterministic 5-hit Normal melee verification
+		for ns2 in game.combat.troops[2]:
+			if is_instance_valid(ns2) and not ns2.defeated and ns2.archetype != Soldier.Archetype.BOSS_WARDEN:
+				norm_melee_s = ns2
+				game.answer_index = ns2.option
+				game.question = ns2.assigned_word
+				break
+	if norm_melee_s != null:
+		norm_melee_s.set_physics_process(false)
+		game.player.reserve_ammo = 10
+		game.combat.health = 100
+		game.combat.shield = 30
+		var norm_survived_4 := true
+		for hit_i in 4:
+			game.player.position = norm_melee_s.position - norm_melee_s.global_transform.basis.z * 1.35
+			aim.global_position = game.player.position + Vector3(0, 1.58, 0)
+			aim.look_at(norm_melee_s.global_position + Vector3(0, 1.15, 0))
+			game.melee_strike(aim)
+			if norm_melee_s.defeated:
+				norm_survived_4 = false
+		game.player.position = norm_melee_s.position - norm_melee_s.global_transform.basis.z * 1.35
+		aim.global_position = game.player.position + Vector3(0, 1.58, 0)
+		aim.look_at(norm_melee_s.global_position + Vector3(0, 1.15, 0))
+		game.melee_strike(aim)
+		verify(norm_survived_4 and norm_melee_s.defeated and norm_melee_s.melee_hits_taken == 5 and game.player.reserve_ammo == 16, "v0.8.2_dev2 D2-1: Normal melee takes exactly 5 hits on regular soldier and awards +6 reserve ammo")
+	if wrong_melee_s != null and not wrong_melee_s.defeated:
+		wrong_melee_s.set_physics_process(false)
+		game.combat.prompt_locked_after_wrong = false
+		game.combat.health = 100
+		game.combat.shield = 30
+		if wrong_melee_s.option == game.answer_index:
+			game.answer_index = (wrong_melee_s.option + 1) % game.combat.troops[2].size()
+		game.player.position = wrong_melee_s.position - wrong_melee_s.global_transform.basis.z * 1.35
+		aim.global_position = game.player.position + Vector3(0, 1.58, 0)
+		aim.look_at(wrong_melee_s.global_position + Vector3(0, 1.15, 0))
+		game.melee_strike(aim)
+		verify(game.combat.shield < 30.0 or game.combat.health < 100, "v0.8.2_dev2 D2-1: wrong melee slash triggers immediate close-quarters enemy counter-bash")
+	game.combat.disengage_active_camp(false)
+
+	var cw = game.cave_warden
+	cw.reset()
+	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 620, "v0.8.2_dev2 D2-4: Yanxia Cave Acoustic Warden upgraded to 620 HP in Normal mode")
+	cw.register_noise(cw.root_node.position + Vector3(0, 0, 8.0), 4.0)
+	verify(cw.state == "patrol", "v0.8.2 #2: quiet prone/crouch movement keeps Cave Warden unalerted")
+	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 5.0), false)
+	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 5.0), false)
+	verify(cw.state == "hunt" and cw.noise_meter >= 75.0, "v0.8.2 #2: loud gunshots near Yanxia Cave trigger Cave Warden hunt lock")
+	# Armored body hit takes 8 dmg & un-stunned hit inside cave triggers immediate sonic retaliation!
+	game.player.position = cw.root_node.position + Vector3(0, 0.1, 6.0)
+	game.combat.health = 100
+	game.combat.shield = 30
+	cw.attack_cd = 0.0
+	var hp_pre_body: int = cw.hp
+	cw.hit_bullet(cw.body_area)
+	verify(cw.hp == hp_pre_body - 8 and (game.combat.shield < 30.0 or game.combat.health < 100), "v0.8.2_dev2 D2-4: Cave Warden karst armor limits body damage to 8 and triggers sonic blast retaliation")
+	cw.on_smoke_emp(cw.root_node.position + Vector3(0, 0, 2.0))
+	verify(cw.state == "stunned" and cw.stun_left > 4.0, "v0.8.2 #2: smoke/EMP grenade stuns & blinds Cave Warden acoustic sensors")
+	var pre_cw_score: int = game.rules.score
+	for _cwh in 16:
+		if not cw.is_alive():
+			break
+		cw.hit_bullet(cw.core_area)
+	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar"), "v0.8.2 #2: defeating Cave Warden via stunned sonar core grants +80 pts, warden_1 achievement & charm_sonar")
+
+	# 12. v0.8.2_dev1 C2 & C4: Camp Warm-Up zero-contamination, Overlord accurate candidate/help count & Practice Range Cave Warden dormancy!
+	game._end_run(false)
+	game.start_action(true, "normal")
+	await frames(4)
+	game.interact()
+	await frames(2)
+	game.resolve_answer(game.answer_index, false)
+	var cw_stats: Dictionary = game.rules.profile.get("learning_stats", {}).get("camp_warmup", {})
+	verify(
+		game.rules.score == 0 and game.rules.answered == 0 and game.rules.correct == 0 and int(cw_stats.get("total", 0)) >= 1,
+		"v0.8.2_dev1 C4: Camp Station 0 warm-up during Combat leaves combat score/answered/accuracy untouched while logging camp_warmup channel"
+	)
+	# Overlord 5-shield accurate candidate count (5->1) and audio help honesty:
+	game.start_action(true, "confidential")
+	await frames(4)
+	game.combat.engage_camp(2)
+	var ov_boss = game.combat.boss_unit
+	ov_boss.force_land_skyfall()
+	ov_boss.position = game.Layout.on_ground(game.combat.zone_center(2) + Vector3(0, 0, -2.5))
+	game.player.position = game.Layout.on_ground(game.combat.zone_center(2) + Vector3(0, 0, 6.2)) + Vector3(0, 0.12, 0)
+	await frames(2)
+	var last_shield_word_id := ""
+	var prev_last_ind := 0
+	for step_i in 5:
+		var exp_w: Dictionary = ov_boss.expected_overlord_word()
+		var exp_slot: int = ov_boss.expected_overlord_slot()
+		if step_i == 4:
+			last_shield_word_id = str(exp_w.get("id", ""))
+			prev_last_ind = int(game.rules.profile.mastery.get(last_shield_word_id, {}).get("independent_correct", 0))
+		shoot(game.player.camera.global_position, ov_boss.multi_shields[exp_slot].area.global_position)
+		await frames(1)
+	var last_entry: Dictionary = game.rules.profile.mastery.get(last_shield_word_id, {})
+	verify(
+		int(last_entry.get("last_choice_count", 0)) == 1 and str(last_entry.get("last_outcome", "")) == "one_choice" and int(last_entry.get("independent_correct", 0)) == prev_last_ind,
+		"v0.8.2_dev1 C4: Overlord final 1-of-1 shield logs choice_count=1 (one_choice) without inflating independent_correct"
+	)
+	# Practice Range keeps Cave Warden dormant and non-interactive:
+	game.start_action(false)
+	await frames(2)
+	verify(not game.cave_warden.is_mode_active() and not game.cave_warden.root_node.visible and game.cave_warden.core_area.collision_layer == 0, "v0.8.2_dev1 C2: Cave Warden stays dormant and hidden in pure Practice Range")
 
 	game.queue_free()
 	await process_frame

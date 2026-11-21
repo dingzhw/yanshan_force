@@ -28,16 +28,19 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.1 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.2_dev2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.2_dev2 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
+	var active_ammo_norm := 0
 	var supply_count := 0
 	for p in game.pickup_nodes:
 		var t_id := str(p.get_meta("tactical_item", ""))
 		if tac_counts.has(t_id):
 			tac_counts[t_id] += 1
+			if t_id == "ammo_crate" and p.visible:
+				active_ammo_norm += 1
 		else:
 			supply_count += 1
-	verify(supply_count == 11 and tac_counts["ammo_crate"] >= 9 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.6.2 places 11 supply caches plus parkour tactical ammo/smoke/stims")
+	verify(supply_count == 11 and tac_counts["ammo_crate"] >= 9 and active_ammo_norm <= 6 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.8.2_dev2 D2-2: places 11 supply caches and limits active Normal ground ammo crates to <= 6")
 	verify(game.exploration.nodes.size() == 13, "v0.6.2 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon + 3 Yanxia heritage")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
@@ -216,13 +219,14 @@ func run():
 	game.exploration.choose(game.exploration.answer_button_index("recon_radio"))
 	game.exploration.close()
 	verify(game.exploration.radar_scan_active and game.minimap._is_discovered(game.crate_nodes[2]) and game.minimap._is_discovered(game.crate_nodes[1]), "East Recon Radio triggers global minimap radar reveal")
-	verify(game.player.grenades == pre_gren + 1 and game.player.reserve_ammo >= 15 + game.rules.magazine(), "Recon Radio grants +1 smoke/EMP and reserve ammo")
+	verify(game.player.grenades == pre_gren + 1 and game.player.reserve_ammo >= 15 + 8, "v0.8.2_dev2 D2-2: Recon Radio grants +1 smoke/EMP and +8 calibrated reserve ammo")
 	var pre_ammo2 := int(game.player.reserve_ammo)
 	var ab_node: Node3D = node_for.call("airdrop_beacon")
 	game.exploration.open(ab_node)
 	game.exploration.choose(game.exploration.answer_button_index("airdrop_beacon"))
 	game.exploration.close()
-	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2, "North Airdrop Beacon delivers double mags and Gold/Epic loot")
+	var ab_loot: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
+	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2 and int(ab_loot.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: North Airdrop Beacon grants calibrated +10 ammo and T4 Epic loot in Normal mode")
 	for iid in ["intel_cleft", "intel_cave", "intel_roof"]:
 		var inod: Node3D = node_for.call(iid)
 		game.exploration.open(inod)
@@ -516,7 +520,7 @@ func run():
 	var wayside_shrine: Node = game.landscape.find_child("WaysideShrine", true, false)
 	var flagstones: MultiMeshInstance3D = game.landscape.find_child("BluestoneFlagstones", true, false) as MultiMeshInstance3D
 	verify(arch_bridge != null and boundary_stele != null and wangdao_pav != null and camphor_shrine != null and wayside_shrine != null, "v0.6.0 spawns StoneArchBridge, BoundaryStele, WangdaoPavilion, CamphorShrine, and WaysideShrine")
-	verify(flagstones != null and flagstones.multimesh != null and flagstones.multimesh.instance_count >= 25, "v0.6.0 batches historic bluestone flagstones in a single MultiMesh")
+	verify(flagstones == null, "v0.8.2 V81-2: legacy overlapping 3D BluestoneFlagstones trail slabs removed in favor of crisp ground bluestone shader")
 	var poem_node = node_for("poem")
 	var poem_pav = poem_node.find_child("poem_stele_pavilion", true, false) if poem_node != null else null
 	var obelisk = poem_node.find_child("statue_obelisk", true, false) if poem_node != null else null
@@ -659,7 +663,7 @@ func run():
 	var bag_titles: Array[String] = []
 	for b_item in game.rules.bag:
 		bag_titles.append(str(b_item.get("title", "")))
-	verify("烟山先民竹简" in bag_titles and "烟霞岩画残拓" in bag_titles, "Yanxia rock petroglyph & hearth award Epic & Legendary heritage collectibles into raid bag")
+	verify("先民青铜茶铫" in bag_titles and "烟霞岩画残拓" in bag_titles, "v0.8.2_dev2 D2-4: Yanxia rock petroglyph & hearth award balanced T4 Epic heritage collectibles in Normal mode")
 
 	# 4) v0.8.0 World Looting (14 ultra-hidden nooks, zero open-road Gold/Red, blind-box crates, clean wildlife tags), [B] Backpack+SafeBox, [I] 3D Turntable, Warehouse Vault & Compendium
 	var active_loose := 0
@@ -768,6 +772,144 @@ func run():
 			if camphor_tree_mesh.surface_get_material(si) is ShaderMaterial and (int(camphor_tree_mesh.surface_get_format(si)) & Mesh.ARRAY_FORMAT_COLOR) != 0:
 				has_qinglu_shader = true
 	verify(has_qinglu_shader and game.world_loot.drop_case_mesh != null, "v0.6.4 binds Qinglu volumetric ShaderMaterial with baked COLOR_0 on trees and sculpted v064_world_props meshes")
+
+	# v0.8.2 Scene Polish, Reload Optic Lock, Cave Perimeter Seal, Achievements & 3D Physical Weapon Charms (V81-1..11)
+	# V81-4: Cave Mural heritage popup has zero overlap between story body and option buttons
+	var mural_nd = node_for("cave_mural")
+	if mural_nd != null:
+		game.exploration.open(mural_nd)
+		await frames(2)
+		var body_bottom: float = game.exploration.body.position.y + game.exploration.body.size.y
+		var btn0_top: float = game.exploration.buttons[0].position.y
+		verify(btn0_top >= body_bottom + 4.0, "v0.8.2 V81-4: Yanxia Cave mural body text clears option button 0 with zero overlap (gap=%.1fpx)" % (btn0_top - body_bottom))
+		game.exploration.close()
+	# V81-6: Exterior Yanxia Cave West/East walls & Maze row-6 corners block raycast penetration cleanly
+	var sp82: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var cave_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-50.0, 8.0, -61.0), Vector3(-43.0, 8.0, -61.0), 1)
+	var cave_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-33.0, 8.0, -61.0), Vector3(-40.0, 8.0, -61.0), 1)
+	var seam_w_ray := PhysicsRayQueryParameters3D.create(Vector3(-47.5, 8.0, -56.2), Vector3(-47.5, 8.0, -60.5), 1)
+	var seam_e_ray := PhysicsRayQueryParameters3D.create(Vector3(-35.7, 8.0, -56.2), Vector3(-35.7, 8.0, -60.5), 1)
+	var cave_sealed: bool = (not sp82.intersect_ray(cave_w_ray).is_empty()) and (not sp82.intersect_ray(cave_e_ray).is_empty()) and (not sp82.intersect_ray(seam_w_ray).is_empty()) and (not sp82.intersect_ray(seam_e_ray).is_empty())
+	verify(cave_sealed, "v0.8.2 V81-6: Yanxia Ancient Cave exterior rock cliffs and Maze row-6 corner seams are watertight solid")
+	# V81-7: Zero spoiler label "迷踪竹石阵 · 东侧幽径" in maze
+	var has_secret_spoiler := false
+	for lbl3 in game.landscape.find_children("*", "Label3D", true, false):
+		if (lbl3 as Label3D).text.contains("东侧幽径"):
+			has_secret_spoiler = true
+	verify(not has_secret_spoiler, "v0.8.2 V81-7: secret Bamboo Maze east entrance has zero spoiler floating text")
+	# V81-9: Mid-reload optic stays rigidly locked to rifle inside gun_pivot (0.000m drift!)
+	game.player.select_weapon(0)
+	wv64.animate(0.016, 0.0, 0.0, false)
+	var optic_rel_idle: Vector3 = wv64.rifle.to_local(wv64.optic_root.global_position)
+	wv64.animate(0.016, 0.50, 0.0, false)
+	var optic_rel_reload: Vector3 = wv64.rifle.to_local(wv64.optic_root.global_position)
+	verify(optic_rel_idle.distance_to(optic_rel_reload) < 0.001 and wv64.optic_root.get_parent() == wv64.gun_pivot, "v0.8.2 V81-9: optic stays rigidly locked to rifle rail during reload animation (zero drift)")
+	# V81-10 & V81-11: Achievements (boar_1 / sq_10), 3D dangling weapon charm mount, & simplified Compendium with Achievements tab
+	game.achievements.record_wildlife_kill("boar")
+	for _sqk in 10:
+		game.achievements.record_wildlife_kill("squirrel")
+	var ach_unlocked_ok: bool = game.achievements.is_unlocked("boar_1") and game.achievements.is_unlocked("sq_10") and game.achievements.is_charm_unlocked("charm_roast")
+	game.achievements.equip_charm("charm_roast")
+	verify(ach_unlocked_ok and wv64.equipped_charm_id == "charm_roast" and wv64.charm_anchor.visible and wv64.charm_visual_root.get_child_count() >= 2, "v0.8.2 V81-10: wildlife kills unlock humorous achievements and mount visible 3D swinging charm beneath rifle")
+	game._end_run(false)
+	game.loot_ui.open_compendium("achievements")
+	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.achievements.CATALOG.size(), "v0.8.2 V81-10/11: Compendium exposes Achievements & Weapon Charms Hall with all 24 achievement cards")
+	game.loot_ui.close_compendium()
+
+	# 7) v0.8.2_dev1 C1/C6: Editable Prologue Scene E2E, Comfort Settings & Dual-Layer Cultural Specimen Card!
+	var pro_packed = load("res://scenes/prologue_chapter.tscn")
+	verify(pro_packed is PackedScene and is_instance_valid(game.prologue), "v0.8.2_dev1 C1: editable prologue_chapter.tscn loads cleanly and mounts Prologue controller")
+	game.rules.profile["prologue_completed"] = false
+	var coins_before_pro: int = int(game.rules.profile.coins)
+	game.start_prologue_chapter(true)
+	await frames(4)
+	verify(game.rules.prologue_mode and game.prologue.active and game.prologue.busy and game.prologue.stage == "skirmish", "v0.8.2_dev1 C1: Prologue opens Camp Guide briefing modal cleanly")
+	game.prologue.close_modal()
+	# Wrong scout hit gives friendly hint (no wipe), then clearing all 3 scouts advances to Wangdao Beacon clue!
+	var wrong_sc_idx: int = (game.prologue.active_scout_idx + 1) % game.prologue.scouts.size()
+	game.prologue.hit_bullet(game.prologue.scouts[wrong_sc_idx].area)
+	verify(game.prologue.scouts_cleared == 0 and game.prologue.stage == "skirmish", "v0.8.2_dev1 C1: wrong prologue scout hit gives friendly feedback without wiping player")
+	for _ps in 3:
+		var t_idx: int = game.prologue.active_scout_idx
+		game.prologue.hit_bullet(game.prologue.scouts[t_idx].area)
+	verify(game.prologue.scouts_cleared == 3 and game.prologue.stage == "beacon_clue", "v0.8.2_dev1 C1: clearing 3 East Ridge scouts unlocks Wangdao Beacon investigation")
+	# Wangdao Beacon bilingual clue: gentle retry on wrong choice -> records non-first-try honestly -> solve -> Yanxia Cave cliffhanger!
+	game.prologue.open_beacon_clue()
+	game.prologue.modal_choice_btns[1].pressed.emit()
+	verify(not game.prologue.clue_solved and game.prologue.modal_choice_btns[1].disabled, "v0.8.2_dev1 C1: wrong prologue clue choice grants hint and allows gentle retry (no hard lock)")
+	game.prologue.modal_choice_btns[0].pressed.emit()
+	verify(game.prologue.clue_solved and not game.prologue.clue_first_try_correct and game.prologue.stage == "return_camp" and game.prologue.modal_body.text.contains("器物考据"), "v0.8.2_dev1 C1/C6: solving Wangdao clue shows dual-layer celadon lore, Yanxia Cave lead & advances to camp hand-in")
+	game.prologue.close_modal()
+	# Task Log [J] re-read check
+	game.prologue.open_task_log()
+	verify(game.prologue.busy and game.prologue.modal_body.text.contains("烟霞古洞"), "v0.8.2_dev1 C1: Prologue Task Log allows re-reading dialogue and clues anytime")
+	game.prologue.close_modal()
+	# Return to Camp NPC to hand in beacon & trigger settlement
+	game.prologue.open_npc_dialogue()
+	verify(bool(game.rules.profile.get("prologue_completed", false)) and int(game.rules.profile.coins) >= coins_before_pro + 120 and game.menu_summary.text.contains("烟霞古洞"), "v0.8.2_dev1 C1: Camp NPC hand-in completes Prologue, awards starter coins & sets up Yanxia Cave hook")
+
+	# Comfort & Accessibility Settings (reduce_screen_shake, audio sliders, sensitivity)
+	game.rules.set_setting("reduce_screen_shake", true)
+	game.rules.set_setting("sfx_volume", 0.5)
+	game.rules.set_setting("voice_volume", 0.85)
+	game.rules.set_setting("mouse_sensitivity", 1.55)
+	game._sync_settings_ui()
+	game.player.screen_shake = 0.0
+	game.player.add_screen_shake(0.95)
+	verify(is_equal_approx(game.player.screen_shake, 0.0) and game.setting_shake_cb.button_pressed and is_equal_approx(game.setting_sens_slider.value, 1.55), "v0.8.2_dev1 C6: reduce_screen_shake zeroes camera shake and comfort settings sync cleanly to UI")
+	game.rules.set_setting("reduce_screen_shake", false)
+
+	# Dual-layer Cultural Specimen Card in 3D Compendium Inspector
+	game.loot_ui.open_inspect_item(game.Rules.LOOT_TABLE[7][0]) # 越窑秘色青瓷盏
+	verify(game.loot_ui.inspect_lore_label.text.contains("【烟山物语（游戏设定）】") and game.loot_ui.inspect_lore_label.text.contains("【器物考据（历史资料）】"), "v0.8.2_dev1 C6: 3D Relic Inspector separates in-game fiction from verifiable historical museum notes")
+	game.loot_ui.close_inspect()
+
+	# 8) v0.8.2_dev2 D2-4 & D2-6: Forest Outpost Board Terrain Clearance, Cave Warden Hunt Lock & Normal/Conf Cave Reward Balance!
+	var all_boards_clear := true
+	for st_node in game.stations:
+		for bi in st_node.boards.size():
+			var bd: Node3D = st_node.boards[bi]
+			var b_pos: Vector3 = bd.global_position
+			var b_right: Vector3 = bd.global_transform.basis.x
+			var b_fwd: Vector3 = bd.global_transform.basis.z
+			var b_bottom_y := b_pos.y - 0.80
+			var max_local_y := -999.0
+			for sx in [-1.62, 0.0, 1.62]:
+				for sz in [-0.14, 0.14]:
+					var wp: Vector3 = b_pos + b_right * sx + b_fwd * sz
+					max_local_y = maxf(max_local_y, float(game.terrain_height(wp.x, wp.z)))
+			if b_bottom_y < max_local_y + 0.50:
+				all_boards_clear = false
+				print("BOARD_CLIP ", st_node.station_id, " idx=", bi, " bottom=", b_bottom_y, " terrain=", max_local_y)
+	verify(all_boards_clear, "v0.8.2_dev2 D2-6: all 12 word target boards across all 3 stations sit strictly above hillside terrain with zero clipping")
+
+	# Cave Warden hunt blocks cave_hearth interaction; Normal cave_hearth yields T4 Epic (NOT T6 Big Gold!), Confidential upgrades to T5 Small Gold!
+	game.start_action(true, "normal")
+	await frames(2)
+	var hearth_nd = node_for("cave_hearth")
+	game.cave_warden.state = "hunt"
+	game.exploration.open(hearth_nd)
+	verify(not game.exploration.busy, "v0.8.2_dev2 D2-4: Cave Warden active hunt blocks casual interaction with cave_hearth")
+	game.cave_warden.state = "patrol"
+	game.exploration.open(hearth_nd)
+	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
+	game.exploration.close()
+	var norm_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
+	verify(str(norm_cave_item.get("title", "")) == "先民青铜茶铫" and int(norm_cave_item.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: Normal cave_hearth awards T4 Epic Bronze Tea Kettle (no free Big Gold)")
+
+	game._end_run(false)
+	game.start_action(true, "confidential")
+	await frames(2)
+	var active_ammo_conf := 0
+	for p2 in game.pickup_nodes:
+		if str(p2.get_meta("tactical_item", "")) == "ammo_crate" and p2.visible:
+			active_ammo_conf += 1
+	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 960, "v0.8.2_dev2 D2-2/D2-4: Confidential mode limits ground ammo crates to <= 4 and upgrades Cave Warden to 960 HP")
+	game.exploration.open(hearth_nd)
+	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
+	game.exploration.close()
+	var conf_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
+	verify(str(conf_cave_item.get("title", "")) == "翡翠节节高玉佩" and int(conf_cave_item.get("rarity", 0)) == 5, "v0.8.2_dev2 D2-4: Confidential cave_hearth upgrades to T5 Small Gold Jade Bamboo Pendant")
 	game._end_run(false)
 
 	game.queue_free()

@@ -72,6 +72,25 @@ def git_head_short() -> str:
         return "working-tree"
 
 
+def git_dirty_summary() -> dict:
+    try:
+        status = subprocess.check_output(
+            ["git", "-c", "core.quotepath=false", "status", "--porcelain"],
+            cwd=ROOT,
+            text=True,
+            encoding="utf-8",
+        ).splitlines()
+        h = hashlib.sha256()
+        for src in sorted((ROOT / "game").rglob("*")):
+            if src.is_file() and not any(p in {".godot", ".git", "__pycache__", "diagnostics"} for p in src.parts):
+                rel = src.relative_to(ROOT).as_posix()
+                h.update(rel.encode("utf-8"))
+                h.update(hashlib.sha256(src.read_bytes()).digest())
+        return {"dirty_entries": len(status), "game_tree_sha256": h.hexdigest()}
+    except Exception:
+        return {"dirty_entries": -1, "game_tree_sha256": ""}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("version")
@@ -88,13 +107,24 @@ def main():
     manifest_path = ROOT / "docs" / f"release-{args.version}.json"
     if not args.overwrite and any(p.exists() for p in [folder, archive_path, manifest_path]):
         raise RuntimeError(f"Release files already exist for {args.version}; pass --overwrite to replace")
+    if args.overwrite and folder.exists():
+        shutil.rmtree(folder, onexc=_handle_ro)
 
     if args.prepared_build is not None:
         for name in ["YanshanBase.exe", "YanshanBase.pck"]:
             if not (args.prepared_build / name).is_file():
                 raise FileNotFoundError(args.prepared_build / name)
 
-    result: dict = {"version": args.version, "git_base": git_head_short()}
+    prov = git_dirty_summary()
+    result: dict = {
+        "version": args.version,
+        "engine": "Godot 4.7.2.stable",
+        "export_preset": "Windows Desktop",
+        "git_base": git_head_short(),
+        "working_tree_dirty_entries": prov["dirty_entries"],
+        "game_tree_sha256": prov["game_tree_sha256"],
+        "clean_whitelist_stage": args.prepared_build is None,
+    }
     if args.prepared_build is None:
         cfg = ROOT / "docs/runtime-local.json"
         if cfg.exists():
@@ -130,7 +160,7 @@ def main():
         env["APPDATA"] = str(qa_appdata)
         env["LOCALAPPDATA"] = str(qa_appdata)
 
-        subprocess.run([runtime["python_used"], str(ROOT / "tools/build_playtest.py")], check=True, env=env)
+        subprocess.run([runtime["python_used"], str(ROOT / "tools/build_playtest.py"), "--clean"], check=True, env=env)
         folder.mkdir(parents=True, exist_ok=True)
         command = [runtime["console_executable"], "--headless", "--path", runtime["game_working_copy"], "--editor", "--import", "--quit"]
         with (qa_logs / f"v{args.version}-import.log").open("w", encoding="utf-8") as log:
@@ -158,9 +188,28 @@ def main():
         shutil.copy2(override, folder / "试玩说明.txt")
     shutil.copy2(ROOT / "game/THIRD_PARTY.txt", folder)
     shutil.copytree(ROOT / "game/licenses", folder / "licenses", dirs_exist_ok=True)
+    exe_sha = hashlib.sha256((folder / "YanshanBase.exe").read_bytes()).hexdigest()
+    pck_sha = hashlib.sha256((folder / "YanshanBase.pck").read_bytes()).hexdigest()
+    (folder / "BUILD_INFO.txt").write_text(
+        f"烟山行动 · Yanshan Force 发行构建溯源\n"
+        f"版本号: v{args.version}\n"
+        f"引擎与模板: Godot 4.7.2.stable (Windows Desktop)\n"
+        f"Git 基线: {result['git_base']} (dirty_entries={result['working_tree_dirty_entries']})\n"
+        f"game/ 源码树摘要 SHA256: {result['game_tree_sha256']}\n"
+        f"YanshanBase.exe SHA256: {exe_sha}\n"
+        f"YanshanBase.pck SHA256: {pck_sha}\n\n"
+        f"启动入口说明:\n"
+        f"- 开始试玩.cmd: 默认 Forward+ (Vulkan)，独显或现代核显推荐\n"
+        f"- 低负载启动.cmd: GL Compatibility (OpenGL) + 低画质，集成显卡/低配电脑推荐\n"
+        f"- 性能巡检.cmd: 自动跑完自由靶场、正式行动与四景帧时，报告写入 diagnostics/\n\n"
+        f"存档与备份位置:\n"
+        f"- %APPDATA%\\Godot\\app_userdata\\烟山基地 · 英语搜撤试玩\\profile-v070.json\n"
+        f"- 升级旧档前自动创建 profile-backup-pre-v3.json\n",
+        encoding="utf-8-sig",
+    )
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for source in sorted(folder.rglob("*")):
-            if source.is_file():
+            if source.is_file() and "diagnostics" not in source.relative_to(folder).parts:
                 archive.write(source, source.relative_to(folder))
 
     result["files"] = [

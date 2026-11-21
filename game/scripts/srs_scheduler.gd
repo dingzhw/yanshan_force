@@ -6,6 +6,7 @@ const DAY_SECONDS := 86400
 const STAGE_INTERVAL_DAYS := [0, 1, 3, 7, 15]
 const MAX_STAGE := 4
 const OUTCOME_INDEPENDENT := "independent"
+const OUTCOME_PRACTICED := "practiced_completion"
 const OUTCOME_HINTED := "hinted"
 const OUTCOME_COPIED := "copied_scaffold"
 const OUTCOME_INCORRECT := "incorrect"
@@ -39,6 +40,11 @@ static func apply_outcome(entry: Dictionary, outcome: String, is_retest := false
 			due_ts = now + interval_seconds(stage)
 		elif due_ts <= 0:
 			due_ts = now + interval_seconds(stage)
+	elif outcome == OUTCOME_PRACTICED:
+		# Completed after seeing the answer in review: clears immediate lock without inflating independent mastery or advancing SRS to tomorrow.
+		streak = 0
+		stage = 0
+		due_ts = 0
 	elif outcome == OUTCOME_HINTED:
 		streak = 0
 		stage = maxi(0, stage - 1)

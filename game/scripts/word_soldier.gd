@@ -21,6 +21,7 @@ var action = Action.PATROL
 var defeated = false
 
 var max_hp: int = 90
+var melee_hits_taken: int = 0
 var hp: int = 90
 var max_shield_layers: int = 2
 var shield_layers: int = 2
@@ -30,6 +31,25 @@ var wrong_flash_left: float = 0.0
 var boss_phase: int = 3
 var boss_ring_cd: float = 4.2
 var shield_intact: bool = true
+
+# v0.8.2 #12: Confidential Skyfall Giant 5-Shield Overlord ("雾隐机关王·玄铁词尊")
+var is_skyfall_overlord: bool = false
+var multi_shields: Array = []          # 5 dicts: {slot, part_name, area, word_label, tag_label, frame_mat, screen_mat, broken}
+var overlord_seq_words: Array = []     # 5 Dictionaries in strict required break order [0..4]
+var overlord_seq_slots: Array = []     # slot index [0..4] corresponding to each step 0..4
+var overlord_seq_step: int = 0
+var skyfall_state: String = "landed"   # "idle" | "dropping" | "landed"
+var skyfall_y_offset: float = 0.0
+var skyfall_vel: float = 0.0
+var overlord_shields_root: Node3D
+
+const OVERLORD_SHIELD_SPECS := [
+	{"part": "左肩甲", "pos": Vector3(-2.15, 3.12, 0.92)},
+	{"part": "右肩甲", "pos": Vector3(2.15, 3.12, 0.92)},
+	{"part": "左臂盾", "pos": Vector3(-2.35, 1.72, 1.05)},
+	{"part": "右臂盾", "pos": Vector3(2.35, 1.72, 1.05)},
+	{"part": "胸核盾", "pos": Vector3(0.00, 2.38, 1.24)},
+]
 
 var visual_root: Node3D
 var shield_area: Area3D
@@ -86,7 +106,7 @@ func move_speed() -> float:
 
 func base_shot_damage() -> int:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 20
+		return 24
 	if archetype == Archetype.SNIPER_GUARD:
 		return 16
 	if archetype == Archetype.SCOUT_DRONE:
@@ -95,7 +115,7 @@ func base_shot_damage() -> int:
 
 func fire_interval() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 2.45
+		return 2.15
 	if archetype == Archetype.SCOUT_DRONE:
 		return 2.55
 	if archetype == Archetype.SNIPER_GUARD:
@@ -104,7 +124,7 @@ func fire_interval() -> float:
 
 func aim_windup() -> float:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 0.80
+		return 0.72
 	if archetype == Archetype.SNIPER_GUARD:
 		return 1.08
 	if archetype == Archetype.SCOUT_DRONE:
@@ -113,20 +133,25 @@ func aim_windup() -> float:
 
 func _base_max_hp() -> int:
 	if archetype == Archetype.BOSS_WARDEN:
-		return 450
+		return 500 if is_skyfall_overlord else 720
 	if archetype == Archetype.SCOUT_DRONE:
 		return 70
 	if archetype == Archetype.SNIPER_GUARD:
 		return 90
 	return 90
 
-func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: int = Archetype.ASSAULT_BOT):
+func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: int = Archetype.ASSAULT_BOT, skyfall_mode: bool = false):
 	combat = controller
 	zone = zone_index
 	option = index
 	archetype = bot_type
+	is_skyfall_overlord = (bot_type == Archetype.BOSS_WARDEN and skyfall_mode)
+	skyfall_state = "idle" if is_skyfall_overlord else "landed"
+	skyfall_y_offset = 0.0
+	skyfall_vel = 0.0
 	max_hp = _base_max_hp()
 	hp = max_hp
+	melee_hits_taken = 0
 	max_shield_layers = 2
 	shield_layers = max_shield_layers
 	boss_phase = 3
@@ -229,18 +254,18 @@ func _build_model():
 	head_area.collision_mask = 0
 	head_area.monitoring = false
 	head_area.monitorable = false
-	var head_y := 2.30 if archetype == Archetype.BOSS_WARDEN else (1.88 if archetype == Archetype.SNIPER_GUARD else (1.88 if archetype == Archetype.SCOUT_DRONE else 1.78))
+	var head_y := (3.42 if is_skyfall_overlord else 2.30) if archetype == Archetype.BOSS_WARDEN else (1.88 if archetype == Archetype.SNIPER_GUARD else (1.88 if archetype == Archetype.SCOUT_DRONE else 1.78))
 	head_area.position = Vector3(0, head_y, 0.14)
 	add_child(head_area)
 	var hshape = SphereShape3D.new()
-	hshape.radius = 0.40 if archetype == Archetype.BOSS_WARDEN else 0.34
+	hshape.radius = (0.52 if is_skyfall_overlord else 0.40) if archetype == Archetype.BOSS_WARDEN else 0.34
 	var hcol = CollisionShape3D.new()
 	hcol.shape = hshape
 	head_area.add_child(hcol)
 
 	# 2. Overhead Compact 3D Health / Shield-Layer Bar
 	hp_bar_root = Node3D.new()
-	hp_bar_root.position = Vector3(0, 2.82 if archetype == Archetype.BOSS_WARDEN else 2.26, 0)
+	hp_bar_root.position = Vector3(0, (4.55 if is_skyfall_overlord else 2.82) if archetype == Archetype.BOSS_WARDEN else 2.26, 0)
 	add_child(hp_bar_root)
 	var bg = MeshInstance3D.new()
 	var bg_quad = QuadMesh.new()
@@ -304,7 +329,7 @@ func _build_model():
 	shield_material = screen_box.material_override
 	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	var role_text = ["突击护盾兵", "迅捷侦察机", "重装狙击卫", "★ 烟山统领"][archetype]
+	var role_text = ["雾隐突击兵", "雾隐侦察蜂", "雾隐狙击卫", "★ 雾隐机关王·玄铁词尊" if is_skyfall_overlord else "★ 雾隐先锋·铁面词卫"][archetype]
 	base_tag_text = "%s · %s" % [char(65 + (option % 8)), role_text]
 	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.22 if archetype == Archetype.BOSS_WARDEN else 0.20, 0.055), 18, Color("143832"))
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
@@ -333,6 +358,8 @@ func _build_model():
 	laser_beam.material_override = laser_mat
 	laser_beam.hide()
 	add_child(laser_beam)
+	if is_skyfall_overlord:
+		_build_overlord_multi_shields(game)
 	_refresh_hp_bar()
 
 func _build_drone_chassis(game):
@@ -421,6 +448,41 @@ func _build_sniper_chassis(game):
 		legs.append(leg)
 
 func _build_boss_chassis(game):
+	if is_skyfall_overlord:
+		var path := "res://assets/slice/v082_bosses.glb"
+		var loaded_mesh := false
+		if ResourceLoader.exists(path):
+			if not game.scene_cache.has(path):
+				game.scene_cache[path] = load(path)
+			var inst: Node3D = game.scene_cache[path].instantiate()
+			var tgt = inst.find_child("skyfall_overlord", true, false)
+			if tgt is MeshInstance3D:
+				var mi := MeshInstance3D.new()
+				mi.mesh = (tgt as MeshInstance3D).mesh
+				mi.name = "SkyfallOverlordMesh"
+				visual_root.add_child(mi)
+				loaded_mesh = true
+			inst.queue_free()
+		# Glowing visor handle for rage/stun color shifts
+		var v_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.38, 0.42), Vector3(0.56, 0.16, 0.06), Color("ff2838"))
+		visor = v_box.material_override
+		visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var c_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.42, 0.62), Vector3(0.50, 0.50, 0.16), Color("ff6c24"))
+		core_material = c_box.material_override
+		core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		core_area = Area3D.new()
+		core_area.set_meta("hit_zone", "core")
+		core_area.position = Vector3(0, 2.42, 0.68)
+		core_area.collision_layer = 0
+		core_area.collision_mask = 0
+		add_child(core_area)
+		var ccol_o := CollisionShape3D.new()
+		var cshp_o := BoxShape3D.new()
+		cshp_o.size = Vector3(0.66, 0.66, 0.36)
+		ccol_o.shape = cshp_o
+		core_area.add_child(ccol_o)
+		if loaded_mesh:
+			return
 	var obsidian_mat = _ceramic_plate_mat(Color("222c30"), false)
 	var gold_mat = _bronze_trim_mat(Color("d6a648"))
 	var armor_mat = _ceramic_plate_mat(Color("2f4b44"), true)
@@ -575,7 +637,7 @@ func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool 
 			frame_material.albedo_color = _active_border_col()
 		expose_boss_core(4.5)
 		stun(1.25)
-		var next_phase := 3 if hp > 300 else (2 if hp > 150 else 1)
+		var next_phase := 3 if hp > int(max_hp * 0.66) else (2 if hp > int(max_hp * 0.33) else 1)
 		if next_phase < boss_phase and hp > 0:
 			boss_phase = next_phase
 			if combat.has_method("on_boss_phase_shift"):
@@ -589,9 +651,181 @@ func apply_damage(amount: int, from_english_shield: bool = false, is_crit: bool 
 		return true
 	return false
 
+func _build_overlord_multi_shields(game):
+	multi_shields.clear()
+	overlord_shields_root = Node3D.new()
+	overlord_shields_root.name = "OverlordMultiShields"
+	add_child(overlord_shields_root)
+	# Hide legacy single chest shield on giant multi-shield overlord!
+	if is_instance_valid(shield_area):
+		shield_area.hide()
+		shield_area.collision_layer = 0
+
+	var bw := 2.02
+	var bh := 0.72
+	for idx in OVERLORD_SHIELD_SPECS.size():
+		var sp: Dictionary = OVERLORD_SHIELD_SPECS[idx]
+		var area := Area3D.new()
+		area.name = "OverlordShield_%d" % idx
+		area.position = sp.pos
+		area.collision_layer = HIT_LAYER
+		area.collision_mask = 0
+		area.monitoring = false
+		area.monitorable = false
+		area.set_meta("hit_zone", "multi_shield")
+		area.set_meta("shield_slot", idx)
+		overlord_shields_root.add_child(area)
+
+		var bshp := BoxShape3D.new()
+		bshp.size = Vector3(bw, bh, 0.24)
+		var bcol := CollisionShape3D.new()
+		bcol.shape = bshp
+		area.add_child(bcol)
+
+		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.02), Vector3(bw, bh, 0.06), Color("ffd15c"))
+		var fmat: StandardMaterial3D = bezel.material_override
+		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+		var screen: MeshInstance3D = game._mesh_box(area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.14, bh - 0.14, 0.05), Color("fff6e0"))
+		var smat: StandardMaterial3D = screen.material_override
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+		var tlbl: Label3D = game._label3d(area, "玄铁·%s" % str(sp.part), Vector3(0, 0.21, 0.06), 17, Color("7a3500"))
+		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		tlbl.pixel_size = 0.0044
+		tlbl.outline_size = 0
+		tlbl.visibility_range_end = 98.0
+
+		var wlbl: Label3D = game._label3d(area, "", Vector3(0, -0.06, 0.064), 56, Color("141a18"))
+		wlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		wlbl.pixel_size = 0.0052
+		wlbl.width = 345
+		wlbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wlbl.outline_size = 2
+		wlbl.outline_modulate = Color("fffaf0")
+		wlbl.visibility_range_end = 105.0
+
+		multi_shields.append({
+			"slot": idx,
+			"part": str(sp.part),
+			"area": area,
+			"word_label": wlbl,
+			"tag_label": tlbl,
+			"frame_mat": fmat,
+			"screen_mat": smat,
+			"broken": false,
+			"word": {},
+		})
+
+func configure_overlord_sequence(five_words: Array):
+	if not is_skyfall_overlord or multi_shields.is_empty():
+		return
+	overlord_seq_words.clear()
+	for i in mini(5, five_words.size()):
+		overlord_seq_words.append(five_words[i])
+	# Shuffle spatial placement across the 5 body hardpoints so players genuinely read every English shield!
+	overlord_seq_slots = [0, 1, 2, 3, 4]
+	overlord_seq_slots.shuffle()
+	overlord_seq_step = 0
+	hp = max_hp
+	for step_i in mini(overlord_seq_words.size(), overlord_seq_slots.size()):
+		var slot_idx: int = overlord_seq_slots[step_i]
+		var sd: Dictionary = multi_shields[slot_idx]
+		sd.broken = false
+		sd.word = overlord_seq_words[step_i]
+		var area: Area3D = sd.area
+		area.show()
+		area.collision_layer = HIT_LAYER
+		(sd.frame_mat as StandardMaterial3D).albedo_color = Color("ffd15c")
+		(sd.screen_mat as StandardMaterial3D).albedo_color = Color("fff6e0")
+		(sd.tag_label as Label3D).text = "玄铁·%s" % str(sd.part)
+		combat.game._fit_word(sd.word_label, str(sd.word.get("english", "")), 108)
+	if not overlord_seq_words.is_empty():
+		assigned_word = overlord_seq_words[0]
+	_refresh_hp_bar()
+
+func expected_overlord_slot() -> int:
+	if not is_skyfall_overlord or overlord_seq_step < 0 or overlord_seq_step >= overlord_seq_slots.size():
+		return -1
+	return int(overlord_seq_slots[overlord_seq_step])
+
+func expected_overlord_word() -> Dictionary:
+	if not is_skyfall_overlord or overlord_seq_step < 0 or overlord_seq_step >= overlord_seq_words.size():
+		return {}
+	return overlord_seq_words[overlord_seq_step]
+
+func remaining_overlord_shields() -> int:
+	if not is_skyfall_overlord or multi_shields.is_empty():
+		return 0
+	var intact := 0
+	for sd in multi_shields:
+		if not bool(sd.get("broken", false)):
+			intact += 1
+	return intact
+
+func break_overlord_shield(slot_idx: int) -> bool:
+	if not is_skyfall_overlord or defeated or slot_idx < 0 or slot_idx >= multi_shields.size():
+		return false
+	var sd: Dictionary = multi_shields[slot_idx]
+	sd.broken = true
+	var area: Area3D = sd.area
+	area.hide()
+	area.collision_layer = 0
+	overlord_seq_step += 1
+	hp = maxi(0, (5 - overlord_seq_step) * 100)
+	_spawn_shatter_fx(area.global_position)
+	if overlord_seq_step < overlord_seq_words.size():
+		assigned_word = overlord_seq_words[overlord_seq_step]
+	_refresh_hp_bar()
+	if overlord_seq_step >= overlord_seq_words.size() or hp <= 0:
+		neutralize()
+		return true
+	return false
+
+func reset_overlord_sequence(new_five_words: Array):
+	if not is_skyfall_overlord or defeated:
+		return
+	configure_overlord_sequence(new_five_words)
+	wrong_flash_left = 0.55
+	for sd in multi_shields:
+		(sd.frame_mat as StandardMaterial3D).albedo_color = Color("ff3b30")
+	if is_instance_valid(combat) and is_instance_valid(combat.game.player):
+		combat.game.player.add_screen_shake(0.62)
+
+func trigger_skyfall():
+	if not is_skyfall_overlord or skyfall_state != "idle":
+		return
+	skyfall_state = "dropping"
+	skyfall_y_offset = 24.0
+	skyfall_vel = -18.0
+	visual_root.position.y = skyfall_y_offset
+	if is_instance_valid(overlord_shields_root):
+		overlord_shields_root.position.y = skyfall_y_offset
+	combat.game.play_sfx("boss_skyfall", -5)
+
+func force_land_skyfall():
+	if not is_skyfall_overlord or skyfall_state == "landed":
+		return
+	skyfall_state = "landed"
+	skyfall_y_offset = 0.0
+	skyfall_vel = 0.0
+	visual_root.position.y = 0.0
+	if is_instance_valid(overlord_shields_root):
+		overlord_shields_root.position.y = 0.0
+	if is_instance_valid(combat):
+		if is_instance_valid(combat.game.player):
+			combat.game.player.add_screen_shake(0.95)
+		combat.spawn_danger_ring(position, 6.2, 0)
+
 func show_word(word: String, _new_question: bool):
 	# NEVER revive a defeated soldier mid-wave! Dead units stay eliminated until the whole wave is cleared.
 	if defeated:
+		return
+	if is_skyfall_overlord:
+		if is_instance_valid(shield_area):
+			shield_area.hide()
+			shield_area.collision_layer = 0
+		_refresh_hp_bar()
 		return
 	var has_word := word != ""
 	if has_word and (archetype != Archetype.BOSS_WARDEN or exposed_left <= 0):
@@ -620,6 +854,11 @@ func neutralize():
 		head_area.collision_layer = 0
 	if is_instance_valid(core_area):
 		core_area.collision_layer = 0
+	for sd in multi_shields:
+		var m_area: Area3D = sd.area
+		if is_instance_valid(m_area):
+			m_area.collision_layer = 0
+			m_area.hide()
 	velocity = Vector3.ZERO
 	action = Action.PATROL
 	laser_beam.hide()
@@ -638,11 +877,11 @@ func neutralize():
 			hide()
 	)
 
-func _spawn_shatter_fx():
+func _spawn_shatter_fx(custom_origin: Vector3 = Vector3.INF):
 	if not is_instance_valid(combat) or not is_instance_valid(combat.arena):
 		return
 	var game = combat.game
-	var origin = shield_area.global_position
+	var origin = custom_origin if custom_origin.is_finite() else shield_area.global_position
 	var fx_col := Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else Color("7af5cc")
 	var count := 10 if archetype == Archetype.BOSS_WARDEN else 5
 	for i in count:
@@ -747,6 +986,21 @@ func _physics_process(delta: float):
 		return
 
 	hover_clock += delta
+	if is_skyfall_overlord and skyfall_state == "dropping":
+		skyfall_vel -= 92.0 * delta
+		skyfall_y_offset += skyfall_vel * delta
+		if skyfall_y_offset <= 0.0:
+			force_land_skyfall()
+		else:
+			visual_root.position.y = skyfall_y_offset
+			if is_instance_valid(overlord_shields_root):
+				overlord_shields_root.position.y = skyfall_y_offset
+	if is_skyfall_overlord and wrong_flash_left > 0.0:
+		wrong_flash_left = maxf(0.0, wrong_flash_left - delta)
+		if wrong_flash_left <= 0.0:
+			for sd in multi_shields:
+				if not bool(sd.broken):
+					(sd.frame_mat as StandardMaterial3D).albedo_color = Color("ffd15c")
 	if archetype == Archetype.SCOUT_DRONE:
 		visual_root.position.y = sin(hover_clock * 4.4) * 0.10
 
@@ -781,11 +1035,11 @@ func _physics_process(delta: float):
 	var goal := position
 	var speed := move_speed() * (1.32 if rage_hunting else 1.0)
 
-	if archetype == Archetype.BOSS_WARDEN and engaged:
+	if archetype == Archetype.BOSS_WARDEN and engaged and is_skyfall_overlord:
 		boss_ring_cd = maxf(0, boss_ring_cd - delta)
-		if boss_ring_cd <= 0 and distance < attack_range() and not combat.player_in_smoke() and combat.is_designated_attacker(self):
-			boss_ring_cd = (7.8 if combat.is_single_attacker_mode() else 6.2) if boss_phase >= 2 else (6.0 if combat.is_single_attacker_mode() else 4.6)
-			combat.spawn_danger_ring(player_at, 3.4, 18 if combat.is_single_attacker_mode() else 24)
+		if boss_ring_cd <= 0 and distance < attack_range() and not combat.player_in_smoke():
+			boss_ring_cd = 5.4 if boss_phase >= 2 else 4.2
+			combat.spawn_danger_ring(player_at, 3.6, 34)
 
 	if not engaged:
 		# Standby Garrison at Camp Origin: patrol quietly around camp, DO NOT chase player until aggroed!

@@ -1,7 +1,13 @@
 extends Node3D
-## Tactical YS-04 Carbine & Held Combat Knife viewmodel with Blender CC0 arms (fp_arms.glb) and Gunsmith 2.0 attachments.
+## Tactical YS-04 Carbine & Held Combat Knife viewmodel (v0.8.2):
+## - Rigid gun_pivot locking rifle, optics, muzzle, grips, bolt, muzzle flash & dangling 3D charm together (zero reload optic drift!)
+## - Upgraded anodized gunmetal / matte carbon polymer PBR materials, reciprocating bolt carrier, brass shell ejection, star muzzle flash
+## - Physically damped 2-axis swinging 3D Achievement Weapon Charm mounted beneath the forward rail!
+
+const Achievements = preload("res://scripts/achievements.gd")
 
 var game
+var gun_pivot: Node3D
 var rifle: Node3D
 var rifle_meshes: Array[MeshInstance3D] = []
 var attachments_root: Node3D
@@ -10,6 +16,22 @@ var optic_root: Node3D
 var optic_housing: Node3D
 var reticle_dot: MeshInstance3D
 var support_grip: Node3D
+var bolt_carrier: MeshInstance3D
+var bolt_base_pos := Vector3(0.015, 0.162, -0.025)
+
+# Physically swinging 3D Achievement Weapon Charm
+var charm_anchor: Node3D
+var charm_pendulum: Node3D
+var charm_visual_root: Node3D
+var equipped_charm_id := ""
+var charm_angle := Vector2.ZERO
+var charm_vel := Vector2.ZERO
+var prev_world_yaw := 0.0
+var prev_yaw_ready := false
+
+# Brass shell casings pool
+var shell_casings: Array = []
+var shell_mat: StandardMaterial3D
 
 # Skinned first-person arms nodes & knife attachment
 var arms_root: Node3D
@@ -23,10 +45,13 @@ var knife_root: Node3D
 var slash_arc: MeshInstance3D
 var slash_arc_mat: ShaderMaterial
 
-var flash: MeshInstance3D
+var flash: Node3D
 var light: OmniLight3D
 var magazine: Node3D
 var shot_left := 0.0
+var bolt_kick := 0.0
+var recoil_z := 0.0
+var recoil_rot_x := 0.0
 var slash_left := 0.0
 var slash_duration := 0.34
 var slash_combo := 0
@@ -41,7 +66,13 @@ var pose_cache := {}
 func _ready():
 	var has_skin = "forest_skin" in game.rules.profile.owned
 
-	rifle = game._model(self, "res://assets/slice/rifle.glb", Vector3.ZERO, 0.22, 0)
+	# v0.8.2 V81-9: Unified rigid gun_pivot (scale 1,1,1) so rifle, optics, attachments, muzzle flash, bolt & charm
+	# ALL rotate as ONE solid firearm during reload, recoil & ADS — zero optic detachment!
+	gun_pivot = Node3D.new()
+	gun_pivot.name = "GunPivot"
+	add_child(gun_pivot)
+
+	rifle = game._model(gun_pivot, "res://assets/slice/rifle.glb", Vector3.ZERO, 0.22, 0)
 	magazine = rifle.find_child("YS04_magazine", true, false)
 	var has_mag2 = "magazine2" in game.rules.profile.owned
 	var has_mag1 = "magazine" in game.rules.profile.owned
@@ -63,10 +94,18 @@ func _ready():
 					var fmt_s: int = int(mi.mesh.surface_get_format(s_idx))
 					if (fmt_s & Mesh.ARRAY_FORMAT_COLOR) != 0:
 						dup.vertex_color_use_as_albedo = true
-					dup.metallic_specular = 0.18
 					var mname := String(base_m.resource_name)
-					if has_skin and ("HandguardStock" in mname or "Magazine" in mname):
-						dup.albedo_color = Color("376c55")
+					if "HandguardStock" in mname or "Magazine" in mname or "Grip" in mname:
+						dup.metallic = 0.08
+						dup.roughness = 0.72
+						dup.metallic_specular = 0.22
+						if has_skin and ("HandguardStock" in mname or "Magazine" in mname):
+							dup.albedo_color = Color("376c55")
+					else:
+						# Machined anodized gunmetal steel receiver, barrel & Picatinny rail
+						dup.metallic = 0.74
+						dup.roughness = 0.30
+						dup.metallic_specular = 0.55
 					mi.set_surface_override_material(s_idx, dup)
 		rifle_meshes.append(mi)
 
@@ -79,47 +118,98 @@ func _ready():
 	mlok_box.size = Vector3(0.030, 0.006, 0.095)
 	mlok_panel.mesh = mlok_box
 	var mlok_mat := StandardMaterial3D.new()
-	mlok_mat.albedo_color = Color("376c55") if has_skin else Color("324d45")
-	mlok_mat.roughness = 0.78
-	mlok_mat.metallic = 0.05
-	mlok_mat.metallic_specular = 0.12
+	mlok_mat.albedo_color = Color("376c55") if has_skin else Color("2b3538")
+	mlok_mat.roughness = 0.72
+	mlok_mat.metallic = 0.08
+	mlok_mat.metallic_specular = 0.18
 	mlok_panel.material_override = mlok_mat
 	mlok_panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	support_grip.add_child(mlok_panel)
 	rifle_meshes.append(mlok_panel)
 
+	# Reciprocating brushed-steel bolt carrier visible in the right ejection port!
+	bolt_carrier = MeshInstance3D.new()
+	var bolt_box := BoxMesh.new()
+	bolt_box.size = Vector3(0.008, 0.016, 0.046)
+	bolt_carrier.mesh = bolt_box
+	bolt_carrier.position = bolt_base_pos
+	var bolt_mat := StandardMaterial3D.new()
+	bolt_mat.albedo_color = Color("a8b2b8")
+	bolt_mat.metallic = 0.90
+	bolt_mat.roughness = 0.24
+	bolt_carrier.material_override = bolt_mat
+	bolt_carrier.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gun_pivot.add_child(bolt_carrier)
+	rifle_meshes.append(bolt_carrier)
+
+	# Polished 5.56mm brass casing material
+	shell_mat = StandardMaterial3D.new()
+	shell_mat.albedo_color = Color("d8b252")
+	shell_mat.metallic = 0.92
+	shell_mat.roughness = 0.22
+
 	_build_reflex_optic()
 	_build_attachments()
+	_build_charm_mount()
 	_setup_skinned_arms(has_skin)
 	_setup_knife_attachment()
 	_build_slash_arc()
-
-	# Muzzle flash aligned with YS-04 barrel centerline (y = 0.158)
-	flash = MeshInstance3D.new()
-	var sphere = SphereMesh.new()
-	sphere.radius = 0.026
-	sphere.height = 0.12
-	flash.mesh = sphere
-	flash.rotation.x = PI / 2
-	flash.position = Vector3(0, 0.158, -0.37)
-	flash.material_override = game._material(Color("ffe29a"), true)
-	flash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	flash.hide()
-	add_child(flash)
-
-	light = OmniLight3D.new()
-	light.position = flash.position
-	light.omni_range = 3.2
-	light.light_color = Color("ffd699")
-	light.light_energy = 0.0
-	add_child(light)
+	_build_muzzle_flash()
 
 	refresh_loadout()
 	set_weapon_slot(0)
 
+func _build_muzzle_flash():
+	flash = Node3D.new()
+	flash.name = "MuzzleFlashRig"
+	flash.position = Vector3(0, 0.158, -0.37)
+	gun_pivot.add_child(flash)
+
+	var core_mat := StandardMaterial3D.new()
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	core_mat.albedo_color = Color(1.0, 0.96, 0.78, 0.96)
+	core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	core_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var fin_mat := StandardMaterial3D.new()
+	fin_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fin_mat.albedo_color = Color(1.0, 0.76, 0.34, 0.88)
+	fin_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fin_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var core := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.018
+	sph.height = 0.088
+	core.mesh = sph
+	core.rotation.x = PI * 0.5
+	core.material_override = core_mat
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	flash.add_child(core)
+
+	for rot_z in [0.0, PI * 0.333, PI * 0.666]:
+		var fin := MeshInstance3D.new()
+		var q := BoxMesh.new()
+		q.size = Vector3(0.095, 0.012, 0.032)
+		fin.mesh = q
+		fin.rotation.z = rot_z
+		fin.position = Vector3(0.0, 0.0, -0.018)
+		fin.material_override = fin_mat
+		fin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		flash.add_child(fin)
+	flash.hide()
+
+	light = OmniLight3D.new()
+	light.position = flash.position
+	light.omni_range = 3.8
+	light.light_color = Color("ffd28a")
+	light.light_energy = 0.0
+	gun_pivot.add_child(light)
+
 func _build_attachments():
 	attachments_root = Node3D.new()
-	add_child(attachments_root)
+	attachments_root.name = "AttachmentsRoot"
+	gun_pivot.add_child(attachments_root)
 	var path := "res://assets/slice/rifle_attachments.glb"
 	if not ResourceLoader.exists(path):
 		return
@@ -142,10 +232,212 @@ func _build_attachments():
 								glass_ov.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 								glass_ov.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 								glass_ov.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-								glass_ov.albedo_color = Color(0.10, 0.32, 0.28, 0.04)
+								glass_ov.albedo_color = Color(0.10, 0.34, 0.30, 0.05)
 								mesh_i.set_surface_override_material(s_idx, glass_ov)
+							elif smat is BaseMaterial3D:
+								var mdup := (smat as BaseMaterial3D).duplicate() as BaseMaterial3D
+								mdup.metallic = maxf(mdup.metallic, 0.65)
+								mdup.roughness = minf(mdup.roughness, 0.34)
+								mesh_i.set_surface_override_material(s_idx, mdup)
 			node.hide()
 			att_nodes[key] = node
+
+func _build_charm_mount():
+	# Tactical under-handguard steel Picatinny sling lug + pendulum pivot visible below rifle forend!
+	charm_anchor = Node3D.new()
+	charm_anchor.name = "WeaponCharmAnchor"
+	charm_anchor.position = Vector3(-0.022, 0.132, -0.155)
+	gun_pivot.add_child(charm_anchor)
+
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.albedo_color = Color("2a3236")
+	ring_mat.metallic = 0.88
+	ring_mat.roughness = 0.28
+
+	var lug := MeshInstance3D.new()
+	var lug_b := BoxMesh.new()
+	lug_b.size = Vector3(0.014, 0.010, 0.018)
+	lug.mesh = lug_b
+	lug.material_override = ring_mat
+	lug.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	charm_anchor.add_child(lug)
+
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.0045
+	torus.outer_radius = 0.0072
+	torus.rings = 12
+	torus.ring_segments = 8
+	ring.mesh = torus
+	ring.position = Vector3(-0.005, -0.008, 0.0)
+	ring.rotation.z = PI * 0.5
+	ring.material_override = ring_mat
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	charm_anchor.add_child(ring)
+
+	charm_pendulum = Node3D.new()
+	charm_pendulum.name = "WeaponCharmPendulum"
+	charm_pendulum.position = Vector3(-0.005, -0.011, 0.0)
+	charm_anchor.add_child(charm_pendulum)
+
+	charm_visual_root = Node3D.new()
+	charm_visual_root.name = "WeaponCharmVisual"
+	charm_pendulum.add_child(charm_visual_root)
+	charm_anchor.hide()
+
+func _rebuild_charm_mesh(charm_id: String):
+	equipped_charm_id = charm_id
+	if not is_instance_valid(charm_visual_root):
+		return
+	for ch in charm_visual_root.get_children():
+		ch.queue_free()
+	if charm_id == "" or not Achievements.CHARMS.has(charm_id):
+		if is_instance_valid(charm_anchor):
+			charm_anchor.hide()
+		return
+	var spec: Dictionary = Achievements.CHARMS[charm_id]
+	var main_mat := StandardMaterial3D.new()
+	main_mat.albedo_color = spec.color
+	main_mat.metallic = 0.78
+	main_mat.roughness = 0.24
+	var acc_mat := StandardMaterial3D.new()
+	acc_mat.albedo_color = spec.accent
+	acc_mat.metallic = 0.62
+	acc_mat.roughness = 0.30
+	if str(spec.shape) in ["sonar", "star", "crosshair"]:
+		acc_mat.emission_enabled = true
+		acc_mat.emission = spec.color
+		acc_mat.emission_energy_multiplier = 0.9
+
+	# Delicate hanging chain link connecting ring to charm body
+	var link := MeshInstance3D.new()
+	var lc := CylinderMesh.new()
+	lc.top_radius = 0.0014
+	lc.bottom_radius = 0.0014
+	lc.height = 0.016
+	link.mesh = lc
+	link.position = Vector3(0.0, -0.008, 0.0)
+	link.material_override = acc_mat
+	link.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	charm_visual_root.add_child(link)
+
+	var shape := str(spec.shape)
+	var body := Node3D.new()
+	body.position = Vector3(0.0, -0.028, 0.0)
+	charm_visual_root.add_child(body)
+
+	match shape:
+		"acorn", "crown":
+			var nut := MeshInstance3D.new()
+			var sp := SphereMesh.new()
+			sp.radius = 0.011
+			sp.height = 0.025
+			nut.mesh = sp
+			nut.material_override = main_mat
+			nut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(nut)
+			var cap := MeshInstance3D.new()
+			var cp := CylinderMesh.new()
+			cp.top_radius = 0.013
+			cp.bottom_radius = 0.011
+			cp.height = 0.009
+			cap.mesh = cp
+			cap.position = Vector3(0, 0.009, 0)
+			cap.material_override = acc_mat
+			cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(cap)
+		"roast", "tusk":
+			var medallion := MeshInstance3D.new()
+			var mc := CylinderMesh.new()
+			mc.top_radius = 0.014
+			mc.bottom_radius = 0.014
+			mc.height = 0.005
+			medallion.mesh = mc
+			medallion.rotation.z = PI * 0.5
+			medallion.material_override = main_mat
+			medallion.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(medallion)
+			for side in [-1.0, 1.0]:
+				var rib := MeshInstance3D.new()
+				var rb := BoxMesh.new()
+				rb.size = Vector3(0.007, 0.018, 0.004)
+				rib.mesh = rb
+				rib.position = Vector3(0.0, 0.0, side * 0.008)
+				rib.rotation.x = side * 0.35
+				rib.material_override = acc_mat
+				rib.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				body.add_child(rib)
+		"bell":
+			var bell := MeshInstance3D.new()
+			var bc := SphereMesh.new()
+			bc.radius = 0.012
+			bc.height = 0.024
+			bell.mesh = bc
+			bell.material_override = main_mat
+			bell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(bell)
+			var band := MeshInstance3D.new()
+			var bt := TorusMesh.new()
+			bt.inner_radius = 0.010
+			bt.outer_radius = 0.0135
+			band.mesh = bt
+			band.material_override = acc_mat
+			band.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(band)
+		"koi", "feather", "blade":
+			var fin := MeshInstance3D.new()
+			var fb := BoxMesh.new()
+			fb.size = Vector3(0.004, 0.032, 0.012)
+			fin.mesh = fb
+			fin.material_override = main_mat
+			fin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(fin)
+			var guard := MeshInstance3D.new()
+			var gb := BoxMesh.new()
+			gb.size = Vector3(0.007, 0.005, 0.020)
+			guard.mesh = gb
+			guard.position = Vector3(0.0, 0.010, 0.0)
+			guard.material_override = acc_mat
+			guard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(guard)
+		"crosshair", "sonar":
+			var ring_m := MeshInstance3D.new()
+			var rt := TorusMesh.new()
+			rt.inner_radius = 0.009
+			rt.outer_radius = 0.014
+			ring_m.mesh = rt
+			ring_m.rotation.z = PI * 0.5
+			ring_m.material_override = main_mat
+			ring_m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(ring_m)
+			var core_m := MeshInstance3D.new()
+			var cs := SphereMesh.new()
+			cs.radius = 0.006
+			cs.height = 0.012
+			core_m.mesh = cs
+			core_m.material_override = acc_mat
+			core_m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(core_m)
+		_:
+			# Tactical dogtag / iron crown / mythic star
+			var plate := MeshInstance3D.new()
+			var pb := BoxMesh.new()
+			pb.size = Vector3(0.004, 0.026, 0.018)
+			plate.mesh = pb
+			plate.material_override = main_mat
+			plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(plate)
+			var emblem := MeshInstance3D.new()
+			var eb := BoxMesh.new()
+			eb.size = Vector3(0.006, 0.012, 0.012)
+			emblem.mesh = eb
+			emblem.rotation.x = PI * 0.25
+			emblem.material_override = acc_mat
+			emblem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(emblem)
+
+	if is_instance_valid(charm_anchor):
+		charm_anchor.visible = weapon_slot == 0
 
 func _setup_knife_attachment():
 	if not is_instance_valid(arms_skeleton):
@@ -174,7 +466,7 @@ func _setup_knife_attachment():
 						var kdup := (km as BaseMaterial3D).duplicate() as BaseMaterial3D
 						if (int(mi.mesh.surface_get_format(s_idx)) & Mesh.ARRAY_FORMAT_COLOR) != 0:
 							kdup.vertex_color_use_as_albedo = true
-						kdup.metallic_specular = 0.24
+						kdup.metallic_specular = 0.28
 						mi.set_surface_override_material(s_idx, kdup)
 		knife_root.hide()
 
@@ -200,15 +492,21 @@ func refresh_loadout():
 	if is_instance_valid(flash):
 		if muzzle_id == "suppressor":
 			flash.position = Vector3(0, 0.158, -0.505)
-			flash.scale = Vector3(0.45, 0.55, 0.45)
+			flash.scale = Vector3(0.32, 0.38, 0.32)
 		elif muzzle_id == "compensator":
 			flash.position = Vector3(0, 0.158, -0.415)
-			flash.scale = Vector3(0.75, 0.78, 0.75)
+			flash.scale = Vector3(0.72, 0.72, 0.72)
 		else:
 			flash.position = Vector3(0, 0.158, -0.37)
 			flash.scale = Vector3.ONE
 		if is_instance_valid(light):
 			light.position = flash.position
+
+	var desired_charm := str(game.rules.profile.get("equipped_charm", ""))
+	if desired_charm != equipped_charm_id:
+		_rebuild_charm_mesh(desired_charm)
+	if is_instance_valid(charm_anchor):
+		charm_anchor.visible = weapon_slot == 0 and equipped_charm_id != ""
 
 func set_weapon_slot(slot: int):
 	weapon_slot = clampi(slot, 0, 1)
@@ -220,6 +518,8 @@ func set_weapon_slot(slot: int):
 		optic_root.visible = is_rifle
 	if is_instance_valid(attachments_root):
 		attachments_root.visible = is_rifle
+	if is_instance_valid(charm_anchor):
+		charm_anchor.visible = is_rifle and equipped_charm_id != ""
 	if is_instance_valid(knife_root):
 		knife_root.visible = not is_rifle
 	if is_instance_valid(slash_arc) and is_rifle:
@@ -272,7 +572,6 @@ func _setup_skinned_arms(has_skin: bool):
 					dup.albedo_texture = load("res://assets/slice/arm_sleeve_forest.jpg")
 					arms_mesh.set_surface_override_material(surf_idx, dup)
 
-	# Cache bone pose tracks from Blender NLA animations for fast, zero-alloc frame blending
 	pose_cache.clear()
 	var anim_players = arms_root.find_children("*", "AnimationPlayer", true, false)
 	if anim_players.size() > 0 and is_instance_valid(arms_skeleton):
@@ -303,7 +602,6 @@ func _setup_skinned_arms(has_skin: bool):
 					bone_map[bidx]["rot"] = anim.rotation_track_interpolate(t, 0.0)
 			pose_cache[String(anim_name)] = bone_map
 
-	# Compatibility markers for external inspection & tests
 	right_arm_rig = arms_root
 	left_sleeve = arms_mesh
 	left_hand_pivot = Node3D.new()
@@ -378,21 +676,23 @@ func _apply_arm_pose(ads_w: float, dip: float, fire_w: float):
 
 	if left_hand_bone >= 0 and is_instance_valid(left_hand_pivot):
 		var hand_in_skel := arms_skeleton.get_bone_global_pose(left_hand_bone).origin
-		left_hand_pivot.position = rifle.transform * (arms_skeleton.transform * hand_in_skel)
+		left_hand_pivot.position = gun_pivot.transform * (rifle.transform * (arms_skeleton.transform * hand_in_skel))
 
 func _build_reflex_optic():
+	# Parented directly under gun_pivot -> rigidly locked to Picatinny rail during reload & recoil!
 	optic_root = Node3D.new()
+	optic_root.name = "ReflexOpticRoot"
 	optic_root.position = Vector3(0.0, 0.212, 0.03)
-	add_child(optic_root)
+	gun_pivot.add_child(optic_root)
 	optic_housing = Node3D.new()
 	optic_root.add_child(optic_housing)
 
 	var upgraded = "red_dot" in game.rules.profile.owned
-	var frame_color = Color("233833") if upgraded else Color("1e2428")
+	var frame_color = Color("233833") if upgraded else Color("1d2328")
 	var frame_mat = StandardMaterial3D.new()
 	frame_mat.albedo_color = frame_color
-	frame_mat.metallic = 0.65
-	frame_mat.roughness = 0.35
+	frame_mat.metallic = 0.78
+	frame_mat.roughness = 0.28
 
 	var base = game._mesh_box(optic_housing, Vector3(0, 0.0, 0), Vector3(0.036, 0.012, 0.075), frame_color)
 	base.material_override = frame_mat
@@ -412,7 +712,7 @@ func _build_reflex_optic():
 	glass.position = Vector3(0, 0.022, -0.01)
 	var glass_mat = StandardMaterial3D.new()
 	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass_mat.albedo_color = Color(0.35, 0.88, 0.82, 0.11)
+	glass_mat.albedo_color = Color(0.28, 0.86, 0.80, 0.10)
 	glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glass.material_override = glass_mat
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -490,41 +790,143 @@ void fragment() {
 	slash_arc.hide()
 	add_child(slash_arc)
 
+func _eject_brass_shell():
+	if DisplayServer.get_name() == "headless":
+		return
+	var casing := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.0032
+	cm.bottom_radius = 0.0038
+	cm.height = 0.019
+	cm.radial_segments = 6
+	casing.mesh = cm
+	casing.material_override = shell_mat
+	casing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	casing.position = Vector3(0.026, 0.168, -0.025)
+	casing.rotation = Vector3(0.3, 0.2, 1.2)
+	add_child(casing)
+	shell_casings.append({
+		"node": casing,
+		"vel": Vector3(randf_range(0.62, 0.96), randf_range(0.42, 0.72), randf_range(0.16, 0.36)),
+		"spin": Vector3(randf_range(16.0, 26.0), randf_range(-18.0, 18.0), randf_range(18.0, 32.0)),
+		"left": 0.44,
+	})
+
 func shot():
-	shot_left = 0.065
+	shot_left = 0.055
+	bolt_kick = 1.0
+	var comp_mult := 0.68 if game.rules.active_muzzle() == "compensator" else 1.0
+	recoil_z = minf(0.042, recoil_z + 0.026 * comp_mult)
+	recoil_rot_x = minf(0.11, recoil_rot_x + 0.052 * comp_mult)
+	charm_vel.x += randf_range(-3.2, 3.2)
+	charm_vel.y += 8.8 * comp_mult
+	if is_instance_valid(flash):
+		flash.rotation.z = randf_range(0.0, TAU)
+	_eject_brass_shell()
+
+func _update_shells(delta: float):
+	for i in range(shell_casings.size() - 1, -1, -1):
+		var sc: Dictionary = shell_casings[i]
+		sc.left -= delta
+		var nd: MeshInstance3D = sc.node
+		if sc.left <= 0.0 or not is_instance_valid(nd):
+			if is_instance_valid(nd):
+				nd.queue_free()
+			shell_casings.remove_at(i)
+			continue
+		sc.vel.y -= 4.8 * delta
+		nd.position += sc.vel * delta
+		nd.rotation += sc.spin * delta
+
+func _update_charm_physics(delta: float, moving: float, reload_dip: float):
+	if not is_instance_valid(charm_pendulum) or not is_instance_valid(charm_anchor) or not charm_anchor.visible:
+		return
+	var cur_yaw := global_rotation.y if is_inside_tree() else 0.0
+	var yaw_vel := 0.0
+	if prev_yaw_ready and delta > 0.0001:
+		yaw_vel = clampf(wrapf(cur_yaw - prev_world_yaw, -PI, PI) / delta, -12.0, 12.0)
+	prev_world_yaw = cur_yaw
+	prev_yaw_ready = true
+
+	# Spring-damper 2-axis pendulum responding to turning inertia, footstep bob, recoil & reload roll!
+	var stiffness := 34.0
+	var damping := 5.6
+	var target_x := clampf(reload_dip * 0.42 + yaw_vel * 0.065, -0.75, 0.75)
+	var target_y := clampf(sin(elapsed * 7.5) * moving * 0.045, -0.35, 0.35)
+	charm_vel.x += ((target_x - charm_angle.x) * stiffness - charm_vel.x * damping) * delta
+	charm_vel.y += ((target_y - charm_angle.y) * stiffness - charm_vel.y * damping) * delta
+	charm_angle.x = clampf(charm_angle.x + charm_vel.x * delta, -0.92, 0.92)
+	charm_angle.y = clampf(charm_angle.y + charm_vel.y * delta, -0.82, 0.82)
+	charm_pendulum.rotation = Vector3(charm_angle.y, 0.0, charm_angle.x)
 
 func animate(delta: float, reload_progress: float, moving: float, aimed: bool):
 	elapsed += delta
 	shot_left = maxf(0, shot_left - delta)
+	bolt_kick = maxf(0.0, bolt_kick - delta * 14.0)
+	recoil_z = lerpf(recoil_z, 0.0, minf(delta * 20.0, 1.0))
+	recoil_rot_x = lerpf(recoil_rot_x, 0.0, minf(delta * 18.0, 1.0))
 	slash_left = maxf(0, slash_left - delta)
+	_update_shells(delta)
+
 	var firing := shot_left > 0 and weapon_slot == 0
-	flash.visible = firing
+	if is_instance_valid(flash):
+		flash.visible = firing
 	var muzzle_id: String = game.rules.active_muzzle()
-	light.light_energy = (0.55 if muzzle_id == "suppressor" else 1.6) if firing else 0.0
+	if is_instance_valid(light):
+		light.light_energy = (0.45 if muzzle_id == "suppressor" else 1.85) if firing else 0.0
 	aim_blend = move_toward(aim_blend, 1.0 if (aimed and weapon_slot == 0) else 0.0, delta * 10.0)
 
 	if weapon_slot == 0:
-		var dip = sin(reload_progress * PI)
-		rifle.rotation.z = dip * -0.26
-		optic_root.rotation.z = rifle.rotation.z
-		if is_instance_valid(attachments_root):
-			attachments_root.rotation.z = rifle.rotation.z
+		# reload_progress runs 1.0 -> 0.0 over RELOAD_SECONDS; u runs 0.0 -> 1.0 forward in time!
+		var reloading := reload_progress > 0.001
+		var u := (1.0 - reload_progress) if reloading else 0.0
+		var dip := sin(reload_progress * PI)
+		var bolt_slap := 0.0
+		if reloading and u > 0.74:
+			bolt_slap = sin(clampf((u - 0.74) / 0.24, 0.0, 1.0) * PI)
+
+		# Rotate ENTIRE gun_pivot rigidly (rifle + optics + attachments + flash + charm move as 1 solid unit!)
+		gun_pivot.rotation = Vector3(recoil_rot_x + dip * 0.075 - bolt_slap * 0.035, dip * 0.045, dip * -0.25)
+		gun_pivot.position = Vector3(0.0, -bolt_slap * 0.006, recoil_z)
+
+		# Reciprocating bolt carrier kicks backward on shot & cycles cleanly on final bolt-release phase!
+		if is_instance_valid(bolt_carrier):
+			var b_travel := maxf(bolt_kick, bolt_slap) * 0.038
+			bolt_carrier.position = bolt_base_pos + Vector3(0.0, 0.0, b_travel)
+
+		# Realistic 3-phase magazine detach / swap / crisp seat
 		if is_instance_valid(magazine):
-			magazine.position = Vector3(0, -dip * 0.16, dip * 0.07)
-			magazine.rotation.x = -dip * 0.14
-		var fire_w := clampf(shot_left / 0.065, 0.0, 1.0)
+			var mag_out := 0.0
+			if reloading:
+				if u < 0.30:
+					mag_out = smoothstep(0.0, 0.30, u)
+				elif u < 0.56:
+					mag_out = 1.0
+				elif u < 0.74:
+					mag_out = 1.0 - smoothstep(0.56, 0.74, u)
+				else:
+					mag_out = 0.0
+			magazine.position = Vector3(0.0, -mag_out * 0.17, mag_out * 0.065)
+			magazine.rotation.x = -mag_out * 0.15
+
+		var fire_w := clampf(shot_left / 0.055, 0.0, 1.0)
 		_apply_arm_pose(aim_blend, dip, fire_w)
-		position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0035)
-		position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0025)
+		_update_charm_physics(delta, moving, dip)
+
+		# Subtle organic breathing sway + movement figure-8 bob (damped when ADS)
+		var breath_x := sin(elapsed * 1.45) * (0.00035 if aimed else 0.0011)
+		var breath_y := cos(elapsed * 2.15) * (0.00035 if aimed else 0.0012)
+		position.x = sin(elapsed * 7.5) * moving * (0.0006 if aimed else 0.0036) + breath_x
+		position.y = absf(sin(elapsed * 7.5)) * moving * (0.0005 if aimed else 0.0026) + breath_y
 		position.z = 0.0
 		rotation = rotation.lerp(Vector3.ZERO, minf(delta * 18.0, 1.0))
 	else:
-		rifle.rotation.z = 0.0
+		gun_pivot.rotation = Vector3.ZERO
+		gun_pivot.position = Vector3.ZERO
 		_apply_arm_pose(0.0, 0.0, 0.0)
 		var raw_t := clampf(1.0 - (slash_left / slash_duration), 0.0, 1.0) if slash_left > 0.0 else 0.0
 		var cleave_env := sin(clampf((raw_t - 0.12) / 0.56, 0.0, 1.0) * PI) if slash_left > 0.0 else 0.0
 		var dir_sign := -1.0 if slash_combo == 0 else 1.0
-		# Subtle upper-body martial torque ONLY — shoulders stay strictly behind the camera lens!
 		position.x = sin(elapsed * 8.2) * moving * 0.0040 + dir_sign * cleave_env * 0.016
 		position.y = absf(sin(elapsed * 8.2)) * moving * 0.0032 - cleave_env * 0.008
 		position.z = -cleave_env * 0.015

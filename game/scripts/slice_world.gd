@@ -1435,11 +1435,15 @@ void vertex(){
 void fragment(){
  vec2 uv = vec2(UV.x * 2.0, UV.y);
  vec4 t = texture(pano, uv);
- float bottom_mist = smoothstep(0.70, 0.95, UV.y);
- vec3 mist_white = vec3(0.86, 0.91, 0.94);
- vec3 ridge_col = mix(t.rgb, mist_white, bottom_mist * 0.86);
+ if (t.a < 0.04) {
+  discard;
+ }
+ float bottom_mist = smoothstep(0.76, 0.98, UV.y);
+ vec3 mist_white = vec3(0.84, 0.89, 0.92);
+ vec3 ridge_col = mix(t.rgb, mist_white, bottom_mist * 0.72);
  ALBEDO = ridge_col;
- ALPHA = t.a * (1.0 - smoothstep(0.86, 0.98, UV.y));
+ // v0.8.2 V81-8: 100% solid opaque mountain body below skyline — zero ghost sky bleed!
+ ALPHA = smoothstep(0.04, 0.22, t.a);
 }
 """
 		var rmat := ShaderMaterial.new()
@@ -1461,10 +1465,11 @@ func rock(at: Vector3, height: float, index: int):
 		(mi as MeshInstance3D).material_override = rock_mat
 	return rnode
 
-func signpost(at: Vector3, text: String):
-	var base_y = game.Layout.min_ground_height(at.x, at.z, 0.35) - 0.05
+func signpost(at: Vector3, text: String, yaw: float = 0.0, y_override: float = NAN):
+	var base_y: float = y_override if not is_nan(y_override) else (game.Layout.min_ground_height(at.x, at.z, 0.35) - 0.05)
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
+	root.rotation.y = yaw
 	add_child(root)
 	var post = game._mesh_box(root, Vector3(0, 0.98, 0), Vector3(0.15, 2.0, 0.15), Color.WHITE, true)
 	post.material_override = wood_post_mat
@@ -2182,26 +2187,27 @@ func _build_jiangnan_heritage():
 	var pav_ground: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
 	var deck_y: float = pav_ground.y + 2.75
 	var deck_center := Vector3(35.2, deck_y, 22.4)
-	wangdao_deck_pos = Vector3(35.2, deck_y, 25.0)
+	wangdao_deck_pos = Vector3(35.2, deck_y + 0.015, 25.45)
 
 	var overlook_root := Node3D.new()
 	overlook_root.name = "WangdaoOverlookTerrace"
 	add_child(overlook_root)
 	var stone_mat := _get_ink_arch_material("bluestone")
 
-	# Solid carved bluestone masonry pedestal deeply grounded into hillside slope (top strictly flush at deck_y)
-	# Visual pedestal spans x=32.4..38.0; collider sits 0.20m inset on West face so stairs land flush with ZERO lip!
+	# Solid carved bluestone masonry pedestal deeply grounded into hillside slope (top strictly at deck_y; ZERO coplanar overlap!)
+	# Visual pedestal spans x=32.40..38.00, z=19.60..25.20; collider sits 0.20m inset on West face so stairs land flush with ZERO lip!
 	var ped_h := 5.20
 	var ped_box: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - ped_h * 0.5, deck_center.z), Vector3(5.60, ped_h, 5.60), Color.WHITE, false)
 	ped_box.material_override = stone_mat
 	var ped_col_shp := BoxShape3D.new()
 	ped_col_shp.size = Vector3(5.40, ped_h, 5.60)
 	game.Props.shape_body(overlook_root, ped_col_shp, Vector3(deck_center.x + 0.10, deck_y - ped_h * 0.5, deck_center.z))
-	# Flush top landing slab bridging stair top (x=31.70) seamlessly onto the main deck top (top at deck_y, thin 0.14m lip)
-	var landing_slab: MeshInstance3D = game._mesh_box(overlook_root, Vector3(32.15, deck_y - 0.08, 21.65), Vector3(1.15, 0.16, 2.55), Color.WHITE, true)
-	landing_slab.material_override = stone_mat
-	var cornice: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.11, deck_center.z), Vector3(5.86, 0.22, 5.86), Color.WHITE, false)
+	# v0.8.2 V81-1: Recessed cornice molding (top strictly 3cm BELOW deck_y -> zero Z-fighting with stone top!)
+	var cornice: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.14, deck_center.z), Vector3(5.86, 0.22, 5.86), Color.WHITE, false)
 	cornice.material_override = stone_mat
+	# v0.8.2 V81-1: Non-overlapping west stair landing slab (x=31.48..32.39, stops flush before ped_box x=32.40!)
+	var landing_slab: MeshInstance3D = game._mesh_box(overlook_root, Vector3(31.935, deck_y - 0.08, 21.65), Vector3(0.91, 0.16, 2.55), Color.WHITE, true)
+	landing_slab.material_override = stone_mat
 
 	# Wide walkable NW bluestone staircase reaching full deck_y at x=31.75 (0.75m clear of masonry wall -> ZERO snag!)
 	var stair_foot := Vector3(27.8, float(game.terrain_height(27.8, 17.5)) - 0.10, 17.5)
@@ -2237,30 +2243,35 @@ func _build_jiangnan_heritage():
 		cheek.rotation.x = -stair_pitch
 		cheek.material_override = stone_mat
 
-	# Cantilevered South Timber Viewing Balcony extending to z = 25.88 (eye height 10.93m clears south fence & trees!)
-	var balc_z := 25.35
-	var balc_floor: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.10, balc_z), Vector3(4.90, 0.20, 1.20), Color.WHITE, true)
+	# v0.8.2 V81-1: Cantilevered South Timber Viewing Balcony strictly SOUTH of masonry pedestal (z=25.21..26.15, top at deck_y+0.015 -> ZERO Z-fighting!)
+	var balc_z := 25.68
+	var balc_floor: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.095, balc_z), Vector3(4.92, 0.22, 0.94), Color.WHITE, true)
 	balc_floor.material_override = wood_plank_mat
+	# Clean dark timber threshold sill bridging stone deck (z=25.20) to timber balcony (z=25.21)
+	var sill_trim: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.012, 25.205), Vector3(4.94, 0.026, 0.10), Color.WHITE, false)
+	sill_trim.material_override = wood_post_mat
 	for bx in [-1.95, 0.0, 1.95]:
-		var strut: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + bx, deck_y - 0.72, 25.25), Vector3(0.18, 1.48, 0.18), Color.WHITE, false)
+		var strut: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + bx, deck_y - 0.72, 25.45), Vector3(0.18, 1.48, 0.18), Color.WHITE, false)
 		strut.rotation.x = -0.68
 		strut.material_override = wood_post_mat
-	# Waist-high viewing balcony railings (low enough at 0.86m so standing sightline over valley is 100% open!)
-	var rail_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.86, 25.84), Vector3(4.92, 0.10, 0.14), Color.WHITE, true)
+	# Waist-high viewing balcony railings (low enough at 0.88m so standing sightline over valley is 100% open!)
+	var rail_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.88, 26.08), Vector3(4.94, 0.10, 0.14), Color.WHITE, true)
 	rail_s.material_override = wood_post_mat
-	var mid_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.44, 25.84), Vector3(4.84, 0.07, 0.10), Color.WHITE, false)
+	var mid_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.45, 26.08), Vector3(4.84, 0.07, 0.10), Color.WHITE, false)
 	mid_s.material_override = wood_plank_mat
 	for px_r in [-2.36, -1.18, 0.0, 1.18, 2.36]:
-		var post_r: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + px_r, deck_y + 0.46, 25.84), Vector3(0.14, 0.96, 0.14), Color.WHITE, true)
+		var post_r: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + px_r, deck_y + 0.47, 26.08), Vector3(0.14, 0.96, 0.14), Color.WHITE, true)
 		post_r.material_override = wood_post_mat
 	for side_r in [-2.36, 2.36]:
-		var side_top: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + side_r, deck_y + 0.86, 25.28), Vector3(0.14, 0.10, 1.24), Color.WHITE, true)
+		var side_top: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + side_r, deck_y + 0.88, 25.62), Vector3(0.14, 0.10, 0.96), Color.WHITE, true)
 		side_top.material_override = wood_post_mat
 	# Low guard rails along exposed East & North deck perimeter (leaving NW staircase landing completely open!)
 	var east_guard: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + 2.72, deck_y + 0.46, deck_center.z), Vector3(0.16, 0.92, 5.44), Color.WHITE, true)
 	east_guard.material_override = stone_mat
 	var north_guard: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + 0.85, deck_y + 0.46, deck_center.z - 2.72), Vector3(3.70, 0.92, 0.16), Color.WHITE, true)
 	north_guard.material_override = stone_mat
+	# v0.8.2 V81-3: Relocate "东岭梯田观景台 · 望稻亭" wooden signpost beside Wangdao Pavilion's stone stair approach (clear of walking lane & zero balcony obstruction!)
+	signpost(Vector3(25.6, 0.0, 17.8), "东岭梯田观景台 · 望稻亭\n登石阶俯瞰梯田与诚庄村落 ↗", 0.52)
 
 	# Wangdao Pavilion ("望稻亭") itself resting atop the elevated +2.75m overlook terrace, opening West (stairs) & South (balcony)!
 	var pav := Node3D.new()
@@ -2344,77 +2355,8 @@ func _build_jiangnan_heritage():
 	shrine_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	shrine_lbl.visibility_range_end = 10.5
 
-	# 3) MultiMesh Bluestone Ancient Footpath Slabs tilted flush to hillside slopes in 1 draw call
-	var flag_vis := _instantiate_v060_mesh("bluestone_flagstone")
-	var flag_mesh: Mesh = null
-	if flag_vis is MeshInstance3D:
-		flag_mesh = flag_vis.mesh
-	elif flag_vis:
-		for child in flag_vis.find_children("*", "MeshInstance3D", true, false):
-			var mi := child as MeshInstance3D
-			if mi and mi.mesh:
-				flag_mesh = mi.mesh
-				break
-	if flag_vis:
-		flag_vis.queue_free()
-	if flag_mesh != null:
-		var trail_polylines := [
-			[Vector3(3.5, 0, -18.0), Vector3(7.4, 0, -21.2), Vector3(10.8, 0, -24.0)],
-			[Vector3(22.2, 0, -24.0), Vector3(26.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), Vector3(28.0, 0, 16.5)],
-			[Vector3(5.5, 0, 6.2), Vector3(13.0, 0, 7.0)],
-			[Vector3(23.8, 0, 7.0), Vector3(27.2, 0, 13.5), Vector3(27.8, 0, 16.8)],
-			[Vector3(5.5, 0, -49.0), Vector3(13.0, 0, -46.5)],
-			[Vector3(23.6, 0, -46.5), Vector3(27.2, 0, -46.5), Vector3(27.0, 0, -35.5), Vector3(26.5, 0, -25.2)],
-			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)],
-			[Vector3(-28.0, 0, -29.0), Vector3(-33.5, 0, -33.2), Vector3(-41.6, 0, -32.2), Vector3(-41.6, 0, -36.5)],
-			[Vector3(-25.0, 0, -31.5), Vector3(-33.2, 0, -44.0), Vector3(-35.2, 0, -44.0)],
-			[Vector3(-41.6, 0, -36.6), Vector3(-41.6, 0, -38.1)],
-			[Vector3(-41.6, 0, -54.4), Vector3(-41.6, 0, -57.4)]
-		]
-		var xfs: Array[Transform3D] = []
-		var rng_t := RandomNumberGenerator.new()
-		rng_t.seed = 2026060
-		for poly in trail_polylines:
-			for i in poly.size() - 1:
-				var a: Vector3 = poly[i]
-				var b: Vector3 = poly[i + 1]
-				var delta := Vector2(b.x - a.x, b.z - a.z)
-				var dist := delta.length()
-				var steps_f := maxi(1, int(dist / 0.96))
-				var base_yaw := atan2(delta.y, delta.x)
-				for k in steps_f:
-					var t := (float(k) + 0.5) / float(steps_f)
-					var zig := rng_t.randf_range(-0.14, 0.14) + (0.09 if k % 2 == 0 else -0.09)
-					var px := lerpf(a.x, b.x, t) + zig * sin(base_yaw)
-					var pz := lerpf(a.z, b.z, t) - zig * cos(base_yaw)
-					var py := float(game.terrain_height(px, pz)) - 0.015
-					var hx0 := float(game.terrain_height(px - 0.45, pz))
-					var hx1 := float(game.terrain_height(px + 0.45, pz))
-					var hz0 := float(game.terrain_height(px, pz - 0.45))
-					var hz1 := float(game.terrain_height(px, pz + 0.45))
-					var surf_up := Vector3(hx0 - hx1, 0.90, hz0 - hz1).normalized()
-					var yaw := -base_yaw + rng_t.randf_range(-0.10, 0.10)
-					var right := Vector3(cos(yaw), 0.0, -sin(yaw))
-					var fwd := surf_up.cross(right).normalized()
-					right = fwd.cross(surf_up).normalized()
-					var basis := Basis(right, surf_up, fwd).scaled(Vector3(
-						rng_t.randf_range(0.88, 1.08),
-						1.0,
-						rng_t.randf_range(0.88, 1.06)
-					))
-					xfs.append(Transform3D(basis, Vector3(px, py, pz)))
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = flag_mesh
-		mm.instance_count = xfs.size()
-		for idx in xfs.size():
-			mm.set_instance_transform(idx, xfs[idx])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "BluestoneFlagstones"
-		mmi.multimesh = mm
-		mmi.material_override = _get_ink_arch_material("bluestone")
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mmi)
+	# v0.8.2 V81-2: Legacy 3D BluestoneFlagstones trail slabs removed — the seamless 1024x1024
+	# world-space bluestone shader already paves every mountain trail cleanly with zero z-clipping slabs.
 
 func _prepare_v062_mesh_materials(src_mesh: Mesh) -> Mesh:
 	if src_mesh == null:
@@ -2651,14 +2593,11 @@ func _build_bamboo_maze_and_yanxia_cave():
 			var cy := float(game.terrain_height(cp.x, cp.z)) - 0.05
 			maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * 0.72), Vector3(cp.x, cy, cp.z)))
 
-	# East Side Gate framing monoliths & hint at (-35.10, y, -44.00)
+	# East Side Gate framing monoliths at (-35.10, y, -44.00) — v0.8.2 V81-7: NO spoiler text sign so players discover the hidden pass organically!
 	for ez_off in [-1.22, 1.22]:
 		var ez := float(ez_off)
 		var egy := float(game.terrain_height(-35.10, -44.00 + ez)) - 0.18
 		karst_b_tx.append(Transform3D(Basis(Vector3.UP, PI * 0.5).scaled(Vector3(0.88, 1.04, 0.88)), Vector3(-35.10, egy, -44.00 + ez)))
-	var egate_lbl: Label3D = game._label3d(maze_root, "迷踪竹石阵 · 东侧幽径", Vector3(-34.85, float(game.terrain_height(-35.10, -44.00)) + 2.35, -44.00), 22, Color("e8dfc0"))
-	egate_lbl.pixel_size = 0.0038
-	egate_lbl.visibility_range_end = 15.0
 
 	# West Secret Alcove (0, 3): Ancient Bluestone Sundial Pedestal at (-46.80, y, -46.25)
 	var sun_gy := float(game.terrain_height(-46.80, -46.25)) - 0.02
@@ -2727,23 +2666,37 @@ func _build_bamboo_maze_and_yanxia_cave():
 		hearth_vis.position = Vector3(0.55, 0.026, -3.35)
 		cave_root.add_child(hearth_vis)
 
-	# Analytical cavern physics colliders (walkable wet limestone floor at y_local=+0.026m, 3.24m x 3.25m portal, walls & roof)
+	# Analytical cavern physics colliders (v0.8.2 V81-6: watertight exterior rock envelope covering FULL visual karst bluff mass
+	# x_local = [-6.85..+6.85], z_local = [-7.35..+6.85], leaving ONLY the intentional central 3.24m x 3.25m South portal open!)
 	var cave_boxes := [
 		[Vector3(0.0, -0.174, 0.25), Vector3(7.60, 0.40, 12.30)],   # Walkable wet limestone floor slab (top = +0.026m = 6.526m world)
 		[Vector3(-2.05, 0.70, -2.85), Vector3(2.08, 1.35, 3.08)],   # Sunken Jade Spring Pool rim guard
-		[Vector3(-3.40, 2.60, 5.68), Vector3(3.56, 5.60, 1.68)],    # South portal West cliff buttress (leaves x >= -1.62 open)
-		[Vector3(3.40, 2.60, 5.68), Vector3(3.56, 5.60, 1.68)],     # South portal East cliff buttress (leaves x <= +1.62 open)
-		[Vector3(0.0, 4.50, 5.68), Vector3(3.60, 2.50, 1.68)],      # South portal over-arch brow (bottom = 3.25m)
-		[Vector3(-4.35, 2.70, -0.15), Vector3(2.20, 5.80, 12.20)],  # West cavern cliff wall (inner face = -3.25)
-		[Vector3(4.35, 2.70, -0.15), Vector3(2.20, 5.80, 12.20)],   # East cavern cliff wall (inner face = +3.25)
-		[Vector3(0.0, 2.70, -6.15), Vector3(9.60, 5.80, 2.00)],     # North cavern back wall (inner face = -5.15)
-		[Vector3(0.0, 4.95, 0.0), Vector3(9.60, 2.00, 12.40)],      # Vaulted mountain roof cap (bottom = 3.95m)
+		[Vector3(-4.24, 2.75, 5.95), Vector3(5.24, 6.10, 2.25)],    # South portal West cliff buttress (inner edge x=-1.62, outer x=-6.86, z=+4.82..+7.08)
+		[Vector3(4.24, 2.75, 5.95), Vector3(5.24, 6.10, 2.25)],     # South portal East cliff buttress (inner edge x=+1.62, outer x=+6.86, z=+4.82..+7.08)
+		[Vector3(0.0, 4.60, 5.95), Vector3(3.60, 2.70, 2.25)],      # South portal over-arch brow (bottom = 3.25m)
+		[Vector3(-5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)],  # West cavern cliff mass (inner face = -3.25, outer = -6.85 -> zero exterior clip!)
+		[Vector3(5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)],   # East cavern cliff mass (inner face = +3.25, outer = +6.85 -> zero exterior clip!)
+		[Vector3(0.0, 2.85, -6.25), Vector3(13.80, 6.20, 2.20)],    # North cavern back cliff mass (inner face = -5.15, outer = -7.35)
+		[Vector3(0.0, 4.95, 0.0), Vector3(13.60, 2.00, 14.20)],     # Vaulted mountain roof cap (bottom = 3.95m)
 		[Vector3(-0.33, 0.46, -3.70), Vector3(1.04, 0.88, 0.94)]    # Ancestral stone tea hearth
 	]
 	for cb in cave_boxes:
 		var c_shp := BoxShape3D.new()
 		c_shp.size = cb[1]
 		game.Props.shape_body(cave_root, c_shp, cb[0]).add_to_group("solid_props")
+
+	# v0.8.2 V81-6: Seal BambooStoneMaze row-6 forecourt corners (z = -57.5..-59.2, x = -48.5..-44.5 & -38.7..-34.7)
+	# with solid overlapping rock walls + matching karst monoliths so ZERO unintended crevices exist around Yanxia Cave!
+	for side_sgn in [-1.0, 1.0]:
+		var sgn_f := float(side_sgn)
+		var seal_x := -41.60 + sgn_f * 5.65
+		var seal_z := -57.65
+		var seal_gy := float(game.terrain_height(seal_x, seal_z))
+		var seal_shp := BoxShape3D.new()
+		seal_shp.size = Vector3(2.80, 5.20, 3.20)
+		game.Props.shape_body(maze_root, seal_shp, Vector3(seal_x, seal_gy + 2.30, seal_z)).add_to_group("solid_props")
+		karst_a_tx.append(Transform3D(Basis(Vector3.UP, sgn_f * 0.42).scaled(Vector3(1.22, 1.34, 1.18)), Vector3(seal_x, seal_gy - 0.25, seal_z + 0.15)))
+		karst_b_tx.append(Transform3D(Basis(Vector3.UP, sgn_f * 1.15).scaled(Vector3(1.14, 1.24, 1.12)), Vector3(-41.60 + sgn_f * 6.45, seal_gy - 0.25, seal_z - 1.15)))
 
 	var tbl_shp := CylinderShape3D.new()
 	tbl_shp.radius = 0.68
@@ -3033,4 +2986,4 @@ func _boundary():
 		game.Props.shape_body(self, shape, w[0]).name = "FencePerimeterWall"
 
 	signpost(Vector3(-3.2, 0, 23.2), "烟山观景木栏\n山下稻田 · 诚庄村落 ↓")
-	signpost(Vector3(46.2, 0, -21.5), "东岭梯田观景台\n金色水田 · 溪流远山 →")
+	# v0.8.2 V81-3: "东岭梯田观景台" relocated onto WangdaoOverlookTerrace where golden paddies & village are genuinely visible!

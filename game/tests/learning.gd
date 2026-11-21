@@ -223,6 +223,114 @@ func run():
 	verify(has_no_os_tts and spoke_phrase and game.last_voice_backend == "ogg" and stream_ok, "offline OGG voice works cleanly with zero OS English TTS voices installed")
 	game.tts_voice_id = prev_tts
 
+	# v0.8.2 V81-12: Mandatory Daily Review Gate before deployment (blocks menu deploy when due words exist, unlocks once cleared!)
+	game._end_run(false)
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
+	var gate_word: Dictionary = game.words[2]
+	game.rules.profile.review_due[str(gate_word.id)] = "incorrect"
+	game._refresh_progress()
+	var blocked_deploy: bool = not game.try_menu_deploy(true, "normal")
+	var opened_retest: bool = game.cipher_terminal.busy and game.cipher_terminal.mode == "retest"
+	verify(game.daily_review_required() and blocked_deploy and opened_retest and game.rules.phase != "active", "v0.8.2 V81-12: pending daily review blocks menu deployment and opens mandatory retest terminal")
+	game.cipher_terminal.submit_text(str(gate_word.english))
+	game.cipher_terminal.close()
+	var unlocked_deploy: bool = game.try_menu_deploy(true, "normal")
+	verify(not game.daily_review_required() and unlocked_deploy and game.rules.phase == "active", "v0.8.2 V81-12: completing all daily review items immediately unlocks menu deployment")
+	game._end_run(false)
+
+	# v0.8.2_dev1 C3: Complete 6-case Strict Daily Review Matrix & Anti-Inflation Guard!
+	game.rules.set_setting("strict_daily_review", true)
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
+	var u1_word: Dictionary = game.words[0] # Unit 1 word
+	for wc in game.words:
+		if int(wc.get("unit", 0)) == 1:
+			u1_word = wc
+			break
+	var u1_id: String = str(u1_word.id)
+	game.rules.profile.review_due[u1_id] = "incorrect"
+	game.unit_picker.selected = 2 # Switch to Unit 2 + exclude extra!
+	game.include_extra.button_pressed = false
+	game._refresh_progress()
+	var blk_norm: bool = not game.try_menu_deploy(true, "normal")
+	game.cipher_terminal.close()
+	var blk_conf: bool = not game.try_menu_deploy(true, "confidential")
+	game.cipher_terminal.close()
+	var blk_prac: bool = not game.try_menu_deploy(false, "normal")
+	verify(blk_norm and blk_conf and blk_prac and game.daily_review_required(), "v0.8.2_dev1 C3: strict daily review blocks all 3 modes even after switching to another unit")
+	# Wrong answer in retest reveals answer, re-queues word, and voluntary close preserves pending due!
+	game.cipher_terminal.submit_text("__totally_wrong__")
+	verify(game.rules.profile.review_due.has(u1_id) and game.rules.learning.was_recently_revealed(u1_id), "v0.8.2_dev1 C3: wrong retest answer reveals answer, preserves review_due & marks recently revealed")
+	game.cipher_terminal.close()
+	verify(game.rules.profile.review_due.has(u1_id) and game.daily_review_required(), "v0.8.2_dev1 C3: voluntary exit from retest keeps unfinished due word locked")
+	# Re-entering immediately and typing the just-shown answer records practiced_completion (NOT independent_correct, NOT stage 1!)
+	game._open_retest()
+	game.cipher_terminal.submit_text(str(u1_word.english))
+	game.cipher_terminal.close()
+	var m_u1: Dictionary = game.rules.profile.mastery.get(u1_id, {})
+	verify(
+		str(m_u1.get("last_outcome", "")) == "practiced_completion" and int(m_u1.get("independent_correct", 0)) == 0 and int(m_u1.get("srs_stage", 0)) == 0 and not game.rules.profile.review_due.has(u1_id),
+		"v0.8.2_dev1 C3: re-entering after answer reveal logs practiced_completion without inflating independent_correct or tomorrow SRS"
+	)
+	# Continuing the exact same active run while paused is NOT blocked by newly recorded due words
+	game.unit_picker.selected = 0
+	game.include_extra.button_pressed = true
+	var dep_ok: bool = game.try_menu_deploy(true, "normal")
+	game.rules.profile.review_due[u1_id] = "incorrect"
+	game.paused = true
+	var resume_ok: bool = game.try_menu_deploy(true, "normal")
+	verify(dep_ok and resume_ok and game.rules.phase == "active", "v0.8.2_dev1 C3: resuming the same paused active run is never falsely blocked")
+	game._end_run(false)
+
+	# v0.8.2_dev1 C7: Save Lifecycle Matrix (Schema v2 -> v3 backup, unknown-field preservation & visible save failure warning!)
+	var mig_path := "user://qa-v082dev1-lifecycle.json"
+	var bak_path := mig_path + ".pre-v3.bak"
+	if FileAccess.file_exists(bak_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(bak_path))
+	var legacy_v2 := {
+		"schema_version": 2,
+		"coins": 333,
+		"achievements": ["boar_1"],
+		"unlocked_charms": ["charm_roast"],
+		"equipped_charm": "charm_roast",
+		"future_custom_tag": "preserve_me_v9"
+	}
+	var legacy_file := FileAccess.open(mig_path, FileAccess.WRITE)
+	legacy_file.store_string(JSON.stringify(legacy_v2, "\t"))
+	legacy_file.close()
+	game.profile_path_override = mig_path
+	game._load_profile()
+	var backup_created: bool = FileAccess.file_exists(bak_path)
+	var saved_v3: bool = game._save()
+	var raw_v3 = JSON.parse_string(FileAccess.get_file_as_string(mig_path))
+	verify(
+		backup_created and saved_v3 and raw_v3 is Dictionary and int(raw_v3.get("schema_version", 0)) == 3 and str(raw_v3.get("future_custom_tag", "")) == "preserve_me_v9" and "boar_1" in raw_v3.get("achievements", []),
+		"v0.8.2_dev1 C7: legacy v2->v3 upgrade creates pre-upgrade backup, upgrades schema cleanly & preserves unknown future fields"
+	)
+	game.start_action(true, "normal")
+	game.force_save_fail_for_test = true
+	game._end_run(false, "存档故障检测")
+	verify(game.menu_summary.text.contains("存档写入失败"), "v0.8.2_dev1 C7: save failure displays prominent warning directly in settlement summary")
+	game.force_save_fail_for_test = false
+
+	# v0.8.2_dev2 D2-3: Continuous Retest typing keeps focus & editing active after pressing Enter!
+	game.rules.profile.review_due.clear()
+	var w_a: Dictionary = game.words[0]
+	var w_b: Dictionary = game.words[1]
+	game.rules.profile.review_due[str(w_a.id)] = "incorrect"
+	game.rules.profile.review_due[str(w_b.id)] = "incorrect"
+	game._open_retest()
+	await process_frame
+	var first_t: String = str(game.cipher_terminal.target_word.english)
+	game.cipher_terminal.submit_text(first_t)
+	await process_frame
+	verify(
+		game.cipher_terminal.busy and game.cipher_terminal.stage_index == 1 and game.cipher_terminal.input_box.keep_editing_on_text_submit and game.cipher_terminal.input_box.editable and game.cipher_terminal.input_box.text == "",
+		"v0.8.2_dev2 D2-3: retest input keeps editing active and clears cleanly onto next word after Enter"
+	)
+	game.cipher_terminal.close()
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

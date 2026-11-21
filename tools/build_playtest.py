@@ -32,6 +32,7 @@ def copy_asset(source, target):
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
+    clean_mode = "--clean" in sys.argv[1:]
     assets = ROOT / "game/assets"
     nature = ROOT / "third_party/kenney-nature-kit/Models/GLTF format"
     survival = ROOT / "third_party/kenney-survival-kit/Models/GLB format"
@@ -55,12 +56,21 @@ def main():
         copy_asset(source, ROOT/"game/licenses"/target)
     destination = RUNTIME / "yanshan-v01"
     assert destination.parent == RUNTIME and not destination.is_symlink() and not destination.is_junction()
+    if clean_mode and destination.exists():
+        shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    whitelist_top = {"assets", "data", "licenses", "scenes", "scripts", "tests"}
+    whitelist_root_files = {"project.godot", "main.tscn", "export_presets.cfg", "THIRD_PARTY.txt", "icon.svg", ".gdignore"}
     count = 0
     for source in (ROOT/"game").rglob("*"):
-        if not source.is_file() or any(p in {".godot", ".git", "__pycache__"} for p in source.parts):
+        if not source.is_file() or any(p in {".godot", ".git", "__pycache__", "diagnostics"} for p in source.parts):
             continue
         relative = source.relative_to(ROOT/"game")
+        if len(relative.parts) == 1:
+            if relative.name not in whitelist_root_files:
+                continue
+        elif relative.parts[0] not in whitelist_top:
+            continue
         target = destination/relative
         if target.exists():
             old = target.read_bytes()
@@ -75,7 +85,7 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source,target)
         count += 1
-    print(json.dumps({"staged":str(destination),"changed_files":count},ensure_ascii=False))
+    print(json.dumps({"staged":str(destination),"clean":clean_mode,"changed_files":count},ensure_ascii=False))
 
 
 if __name__ == "__main__":

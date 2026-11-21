@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-21",
-  "stage": "v0.8.1 · 远距精准狙词、严律轮换、3连错狂暴围剿、撤离正确率门槛与场景质感精修",
+  "stage": "v0.8.2_dev2 · 近战5/10刀平衡、定量弹药稀缺与刷新、720HP红圈Boss、古洞620/960HP石卫、复测光标常驻、换词自动读音与山坡靶牌修复",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -38,19 +38,23 @@
         60
       ],
       "archetypes": [
-        "突击护盾机甲 (ASSAULT_BOT)",
-        "迅捷侦察无人机 (SCOUT_DRONE)",
-        "重装激光狙击卫兵 (SNIPER_GUARD)",
-        "重装甲首领 · 铁甲词尊 (BOSS_WARDEN)"
+        "雾隐突击兵 (ASSAULT_BOT)",
+        "雾隐侦察蜂 (SCOUT_DRONE)",
+        "雾隐狙击卫 (SNIPER_GUARD)",
+        "雾隐先锋·铁面词卫 / 机密天降五盾巨型Boss 雾隐机关王·玄铁词尊 (BOSS_WARDEN)",
+        "烟霞古洞听声 Boss · 古洞循音石卫 (CAVE_WARDEN)"
       ],
       "zones": [
-        "林间古道营地",
-        "山道拦截营地",
-        "B 区竹林统领营",
-        "西岭山坡营地",
-        "东坡茶岭营地",
-        "西北高地营地"
+        "雾隐帮·林间古道营",
+        "雾隐帮·山道拦截营",
+        "雾隐帮·B区竹林总坛",
+        "雾隐帮·西岭山坡营",
+        "雾隐帮·东坡茶岭营",
+        "雾隐帮·西北高地营"
       ],
+      "daily_review_gate": true,
+      "achievements_count": 24,
+      "weapon_charms_count": 13,
       "practice_available": true,
       "waves_per_camp": 3,
       "normal_wave_size": [
@@ -90,9 +94,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 279 条美式自然女声离线 OGG 语音包 + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，开发基线 v0.8.0 / 371e7b3（承接 v0.8.1 本地验收包）"
+    "version_control": "Git，开发基线 v0.8.1 / 51a3bc5（承接 v0.8.2_dev2 本地验收包）"
   },
-  "playtest": "playtest/windows-v0.8.1/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.8.2_dev2/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

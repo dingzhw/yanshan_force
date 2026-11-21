@@ -224,7 +224,7 @@
     {
       "title": "东岭侦察电台抢修 · 频段校验",
       "tts": "Our scouts are in front of the green bamboo forest right now.",
-      "question": "修复东岭侦察雷达需破译敌前哨密电：\n\"Our scouts are in front of the green bamboo forest right now.\"\n这句话汇报我方侦察员正在哪里？",
+      "question": "修复东岭侦察雷达需破译雾隐帮前哨密电：\n\"Our scouts are in front of the green bamboo forest right now.\"\n这句话汇报我方侦察员正在哪里？",
       "options": [
         "正位于绿色竹林的正前方",
         "已经撤离到地图围栏外的水田里",

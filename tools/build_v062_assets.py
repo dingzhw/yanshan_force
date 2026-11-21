@@ -59,13 +59,14 @@ def make_mat(
 ) -> bpy.types.Material:
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
     bsdf.inputs["Base Color"].default_value = _srgb_to_lin(srgb, alpha)
     bsdf.inputs["Metallic"].default_value = metallic
     bsdf.inputs["Roughness"].default_value = roughness
     if alpha < 0.999:
         bsdf.inputs["Alpha"].default_value = alpha
-        mat.blend_method = "BLEND"
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "BLEND"
     if emission_srgb is not None and emission_strength > 0.0:
         bsdf.inputs["Emission Color"].default_value = _srgb_to_lin(emission_srgb)
         bsdf.inputs["Emission Strength"].default_value = emission_strength
@@ -85,7 +86,7 @@ def make_tex_mat(
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nt = mat.node_tree
-    bsdf = nt.nodes.get("Principled BSDF")
+    bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
     bsdf.inputs["Roughness"].default_value = roughness
     if "Specular IOR Level" in bsdf.inputs:
         bsdf.inputs["Specular IOR Level"].default_value = 0.22
@@ -103,7 +104,8 @@ def make_tex_mat(
     nt.links.new(color_out, bsdf.inputs["Base Color"])
     if use_alpha:
         nt.links.new(tex_node.outputs["Alpha"], bsdf.inputs["Alpha"])
-        mat.blend_method = "BLEND"
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "BLEND"
     if emission_strength > 0.0:
         nt.links.new(color_out, bsdf.inputs["Emission Color"])
         bsdf.inputs["Emission Strength"].default_value = emission_strength
@@ -663,23 +665,52 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
                     vx_out = base_x + jitter * math.cos(theta)
             # Carve upward skylight dome chimney near (x ≈ -1.25, z ≈ -2.85)
             sky_d = math.hypot(vx_out - (-1.25), zg - (-2.85))
-            if base_y > 2.8 and sky_d < 1.35:
-                base_y += (1.0 - sky_d / 1.35) * 0.95
+            if base_y > 2.8 and sky_d < 1.55:
+                base_y += (1.0 - sky_d / 1.55) * 0.72
             v = bm_in.verts.new(gd_to_bl(Vector((vx_out, base_y + jitter * 0.6, zg))))
             row.append(v)
         rings_verts.append(row)
 
-    # Connect rings with INWARD-facing winding (toward cavern centerline (0, 1.5, zg))
+    # Connect rings with INWARD-facing winding, leaving a REAL open Karst Skylight ("一线天窗")
+    # above the Jade Spring Pool (r_idx in {11, 12}: z = -1.90..-3.80, a_idx in {7, 8, 9}: x = -2.30..0.0)!
+    skylight_cells = {(11, 7), (11, 8), (11, 9), (12, 7), (12, 8), (12, 9)}
     for r_idx in range(len(z_rings) - 1):
         r0 = rings_verts[r_idx]
         r1 = rings_verts[r_idx + 1]
         for a_idx in range(arch_n):
+            if (r_idx, a_idx) in skylight_cells:
+                continue
             f = bm_in.faces.new([r0[a_idx], r1[a_idx], r1[a_idx + 1], r0[a_idx + 1]])
             center_bl = gd_to_bl(Vector((0.0, 1.5, 0.5 * (z_rings[r_idx] + z_rings[r_idx + 1]))))
             face_mid = sum((v.co for v in f.verts), Vector()) * 0.25
             f.normal_update()
             if f.normal.dot(center_bl - face_mid) < 0.0:
                 f.normal_flip()
+
+    # Build a natural watertight karst stone skylight chimney shaft connecting the open ceiling rim up to sky level (y = 6.05m)!
+    chimney_rim_verts = [
+        rings_verts[11][7], rings_verts[11][8], rings_verts[11][9], rings_verts[11][10],
+        rings_verts[12][10], rings_verts[13][10],
+        rings_verts[13][9], rings_verts[13][8], rings_verts[13][7],
+        rings_verts[12][7],
+    ]
+    chimney_top_verts: list[bmesh.types.BMVert] = []
+    shaft_center_gd = Vector((-1.18, 5.2, -2.85))
+    for v_rim in chimney_rim_verts:
+        p_gd = bl_to_gd(v_rim.co)
+        # Taper slightly inward toward the upper karst fissure so the opening looks carved by water erosion
+        tx = p_gd.x * 0.78 + shaft_center_gd.x * 0.22 + rng.uniform(-0.08, 0.08)
+        tz = p_gd.z * 0.80 + shaft_center_gd.z * 0.20 + rng.uniform(-0.08, 0.08)
+        chimney_top_verts.append(bm_in.verts.new(gd_to_bl(Vector((tx, 6.08, tz)))))
+    shaft_center_bl = gd_to_bl(shaft_center_gd)
+    n_rim = len(chimney_rim_verts)
+    for k in range(n_rim):
+        k_next = (k + 1) % n_rim
+        f = bm_in.faces.new([chimney_rim_verts[k], chimney_rim_verts[k_next], chimney_top_verts[k_next], chimney_top_verts[k]])
+        face_mid = sum((v.co for v in f.verts), Vector()) * 0.25
+        f.normal_update()
+        if f.normal.dot(shaft_center_bl - face_mid) < 0.0:
+            f.normal_flip()
 
     # Close North back apse wall at z_rings[-1] facing +Z (inward)
     back_row = rings_verts[-1]
@@ -771,20 +802,24 @@ def build_yanxia_cave_complex(mats: dict[str, bpy.types.Material]) -> bpy.types.
     for bx, by, bz, sx_s, sy_s, sz_s in roof_blocks:
         add_box(bm_out, (bx, by, bz), (sx_s, sy_s, sz_s))
 
-    # Sculpted karst crags & mossy crown boulders atop the roof around the skylight opening
+    # Sculpted karst crags & mossy crown boulders atop the roof around the skylight opening (keep skylight x=-2.3..0.0, z=-4.0..-1.7 completely open to the sky!)
     crown_lobes = [
         (0.2, 5.55, 3.2, 2.4, 0.85, 2.1),
         (-2.2, 5.45, 1.8, 1.9, 0.80, 1.8),
-        (2.2, 5.75, -1.6, 2.1, 0.95, 2.2),
-        (1.6, 5.80, -4.2, 2.0, 0.90, 1.8),
-        (-3.2, 5.65, -2.8, 1.5, 0.82, 2.2),
+        (2.45, 5.75, -1.6, 1.95, 0.95, 2.1),
+        (1.85, 5.80, -4.55, 1.85, 0.90, 1.65),
+        (-3.85, 5.65, -2.85, 1.35, 0.82, 2.1),
     ]
     for idx, (cx, cy, cz, rx, ry, rz) in enumerate(crown_lobes):
         add_karst_lobe(bm_out, (cx, cy, cz), (rx, ry, rz), subdiv=2, seed=710 + idx, amp=0.20)
         add_karst_lobe(bm_moss, (cx, cy + ry * 0.72, cz), (rx * 0.78, 0.34, rz * 0.78), subdiv=1, seed=730 + idx, amp=0.15)
 
-    # Translucent Volumetric-Style Skylight Mist Beam ("一线天光雾柱") slanting from skylight to Jade Spring Pool
-    add_cyl(bm_beam, (-1.25, 5.05, -2.85), (-1.95, 0.10, -2.85), 0.56, 1.18, segs=14, cap_ends=False)
+    # Mossy karst collar stones framing the top edge of the open skylight so looking up reveals rugged natural stone opening straight into blue sky
+    for rim_i, (rx, rz) in enumerate([(-2.25, -2.85), (-0.15, -2.85), (-1.20, -1.78), (-1.20, -3.92)]):
+        add_karst_lobe(bm_moss, (rx, 5.95, rz), (0.42, 0.28, 0.42), subdiv=1, seed=745 + rim_i, amp=0.16)
+
+    # Translucent Volumetric-Style Skylight Mist Beam ("一线天光雾柱") slanting cleanly down from the open skylight to Jade Spring Pool
+    add_cyl(bm_beam, (-1.18, 5.85, -2.85), (-1.92, 0.08, -2.85), 0.62, 1.16, segs=16, cap_ends=False)
 
     # 4) Outer Gallery Flush Chiseled Rock Petroglyph ("先民岩凿壁画", carved directly into living West cavern rock wall!)
     add_flush_cavern_carving_gd(bm_mq, -1.0, 1.72, 2.85, 3.60, 1.92, nx=24, ny=14)

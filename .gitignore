@@ -21,4 +21,5 @@ docs/v*-checks/
 docs/*.log
 docs/runtime-local.json
 docs/试玩记录及要求/
+docs/review-v082/
 tools/generated_v*/

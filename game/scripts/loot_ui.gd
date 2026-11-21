@@ -221,10 +221,13 @@ var inspect_yaw: float = 0.35
 var inspect_pitch: float = 0.24
 var inspect_cam_dist: float = 1.62
 
-# Camp Bilingual Treasure Compendium ('烟山奇珍图鉴 · 64件')
+# Camp Bilingual Treasure Compendium & Achievements/Charms Hall ('烟山奇珍图鉴')
 var comp_overlay: Control
 var comp_stats_label: Label
 var comp_grid: GridContainer
+var comp_tab := "relics"
+var comp_tab_relics_btn: Button
+var comp_tab_ach_btn: Button
 
 
 func setup(g):
@@ -1035,15 +1038,15 @@ func _build_inspect_modal():
 	inspect_meta_label = game._text(inspect_overlay, "", Vector2(738, 180), Vector2(316, 54), 15, game.GOLD)
 	inspect_meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	inspect_lore_label = game._text(inspect_overlay, "", Vector2(638, 250), Vector2(412, 188), 17, game.CREAM)
+	inspect_lore_label = game._text(inspect_overlay, "", Vector2(638, 242), Vector2(416, 266), 14, game.CREAM)
 	inspect_lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	game._button(inspect_overlay, "🔊 朗读宝物英文名称", Rect2(638, 460, 240, 46), func():
+	game._button(inspect_overlay, "🔊 朗读宝物英文名称", Rect2(638, 520, 248, 46), func():
 		if not inspect_item_data.is_empty():
 			game.speak_english(str(inspect_item_data.get("en", "")))
 	, true)
 
-	game._text(inspect_overlay, "带出撤离信标（或存入 2 格安全箱）即可永久点亮营地【烟山奇珍图鉴】，随时回味 64 件独立建模奇珍！", Vector2(238, 608), Vector2(810, 26), 14, Color("9ec4b5"))
+	game._text(inspect_overlay, "带出撤离信标（或存入 2 格安全箱）即可永久点亮营地【烟山奇珍图鉴】，随时 360° 赏玩独立建模奇珍！", Vector2(238, 608), Vector2(810, 26), 14, Color("9ec4b5"))
 	inspect_overlay.hide()
 
 
@@ -1095,7 +1098,12 @@ func open_inspect_item(item: Dictionary):
 	inspect_meta_label.text = "鉴定成色：%s  |  占格：%s\n当前估值：%d 币" % [
 		str(item.get("cond", "标准")), str(item.get("grid", "1×1")), int(item.get("value", 0))
 	]
-	inspect_lore_label.text = "【烟山风物与战术档案】\n" + str(item.get("lore", ""))
+	var item_title := str(item.get("title", ""))
+	if game.Rules.CULTURAL_NOTES.has(item_title):
+		var cnote: Dictionary = game.Rules.CULTURAL_NOTES[item_title]
+		inspect_lore_label.text = "【烟山物语（游戏设定）】\n" + str(cnote.fiction) + "\n\n【器物考据（历史资料）】\n" + str(cnote.fact)
+	else:
+		inspect_lore_label.text = "【烟山风物与战术档案】\n" + str(item.get("lore", ""))
 
 	for ch in inspect_icon_holder.get_children():
 		ch.queue_free()
@@ -1233,10 +1241,18 @@ func _build_compendium_modal():
 	comp_overlay.add_child(veil)
 
 	game._panel(comp_overlay, Rect2(86, 48, 1108, 624), Color(0.04, 0.088, 0.108, 0.98), Color("ffd15c"))
-	game._text(comp_overlay, "🏆 烟山奇珍图鉴 · 64 件摸金博物与江南风物双语馆", Vector2(122, 68), Vector2(780, 36), 26, Color("ffd15c"))
+	game._text(comp_overlay, "🏆 烟山奇珍图鉴", Vector2(122, 68), Vector2(240, 36), 26, Color("ffd15c"))
+	comp_tab_relics_btn = game._button(comp_overlay, "奇珍藏品", Rect2(370, 68, 134, 36), func():
+		comp_tab = "relics"
+		_refresh_compendium_ui()
+	)
+	comp_tab_ach_btn = game._button(comp_overlay, "🎖 成就与挂件", Rect2(514, 68, 174, 36), func():
+		comp_tab = "achievements"
+		_refresh_compendium_ui()
+	)
 	game._button(comp_overlay, "返回营地", Rect2(1020, 68, 138, 38), close_compendium)
 
-	comp_stats_label = game._text(comp_overlay, "", Vector2(122, 108), Vector2(1036, 26), 14, game.MINT)
+	comp_stats_label = game._text(comp_overlay, "", Vector2(122, 110), Vector2(1036, 26), 14, game.MINT)
 	comp_stats_label.clip_text = true
 
 	var scroll := ScrollContainer.new()
@@ -1252,8 +1268,9 @@ func _build_compendium_modal():
 	comp_overlay.hide()
 
 
-func open_compendium():
+func open_compendium(initial_tab: String = "relics"):
 	close_all_modals()
+	comp_tab = initial_tab
 	busy_compendium = true
 	_refresh_compendium_ui()
 	comp_overlay.show()
@@ -1266,7 +1283,24 @@ func close_compendium():
 
 func _refresh_compendium_ui():
 	for ch in comp_grid.get_children():
+		comp_grid.remove_child(ch)
 		ch.queue_free()
+	if is_instance_valid(comp_tab_relics_btn) and is_instance_valid(comp_tab_ach_btn):
+		game._style_tactical_button(
+			comp_tab_relics_btn,
+			Color("3c341a") if comp_tab == "relics" else Color("17282c"),
+			Color("ffd15c") if comp_tab == "relics" else Color("4a6e6a"),
+			Color("fff2c4") if comp_tab == "relics" else Color("b8d2c8")
+		)
+		game._style_tactical_button(
+			comp_tab_ach_btn,
+			Color("3c341a") if comp_tab == "achievements" else Color("17282c"),
+			Color("ffd15c") if comp_tab == "achievements" else Color("4a6e6a"),
+			Color("fff2c4") if comp_tab == "achievements" else Color("b8d2c8")
+		)
+	if comp_tab == "achievements":
+		_render_achievements_tab()
+		return
 	var col_arr: Array = game.rules.profile.collection
 	var total_col: int = game.Rules.total_collectible_count()
 	var total_all: int = game.Rules.total_catalog_count()
@@ -1326,3 +1360,80 @@ func _refresh_compendium_ui():
 				)
 				b_view.add_theme_font_size_override("font_size", 12)
 			comp_grid.add_child(card)
+
+
+func _render_achievements_tab():
+	var ach = game.achievements
+	if not is_instance_valid(ach):
+		comp_stats_label.text = "成就系统初始化中…"
+		return
+	var eq_id: String = ach.equipped_charm()
+	var eq_name: String = str(ach.CHARMS.get(eq_id, {}).get("name", "未挂载")) if eq_id != "" else "未挂载"
+	comp_stats_label.text = "已解锁成就 %d/%d  |  已解锁枪械挂件 %d/%d  |  当前枪下挂件：%s（点击已解锁徽章即可挂上步枪！）" % [
+		ach.unlocked_count(), ach.total_count(), ach.unlocked_charm_count(), ach.CHARMS.size(), eq_name
+	]
+
+	for item in ach.CATALOG:
+		var aid := str(item.id)
+		var is_done: bool = ach.is_unlocked(aid)
+		var cur_v: int = ach.stat_value(str(item.stat))
+		var tgt_v: int = maxi(1, int(item.target))
+		var ratio: float = clampf(float(cur_v) / float(tgt_v), 0.0, 1.0)
+		var cid := str(item.get("charm", ""))
+		var charm_spec: Dictionary = ach.CHARMS.get(cid, {})
+		var charm_name := str(charm_spec.get("name", ""))
+		var is_equipped: bool = cid != "" and eq_id == cid
+
+		var card := Panel.new()
+		card.custom_minimum_size = Vector2(332, 126)
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(0.14, 0.12, 0.055, 0.96) if is_done else Color(0.032, 0.062, 0.072, 0.86)
+		st.border_color = Color("ffd15c") if is_done else Color(0.32, 0.45, 0.42, 0.42)
+		st.set_border_width_all(2 if is_done else 1)
+		st.set_corner_radius_all(8)
+		card.add_theme_stylebox_override("panel", st)
+
+		var badge_bg := ColorRect.new()
+		badge_bg.position = Vector2(10, 10)
+		badge_bg.size = Vector2(46, 46)
+		badge_bg.color = Color(0.26, 0.20, 0.07, 0.95) if is_done else Color(0.08, 0.12, 0.14, 0.90)
+		card.add_child(badge_bg)
+		var icon_l: Label = game._text(card, str(item.get("icon", "🏆")), Vector2(10, 12), Vector2(46, 42), 24, Color("ffd866") if is_done else Color("69827a"))
+		icon_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+		var head: Label = game._text(card, "[%s] %s" % [str(item.cat), str(item.title)], Vector2(64, 8), Vector2(258, 22), 14, Color("ffd866") if is_done else Color("b4cdc3"))
+		head.clip_text = true
+		var desc_l: Label = game._text(card, str(item.desc), Vector2(64, 30), Vector2(258, 20), 11, Color("e6f2e8") if is_done else Color("779188"))
+		desc_l.clip_text = true
+
+		# Progress bar
+		var pb_bg := ColorRect.new()
+		pb_bg.position = Vector2(12, 62)
+		pb_bg.size = Vector2(216, 10)
+		pb_bg.color = Color(0.06, 0.11, 0.12, 0.95)
+		card.add_child(pb_bg)
+		var pb_fill := ColorRect.new()
+		pb_fill.position = Vector2(12, 62)
+		pb_fill.size = Vector2(216.0 * ratio, 10)
+		pb_fill.color = Color("ffd15c") if is_done else Color("4ec9a4")
+		card.add_child(pb_fill)
+		var prog_l: Label = game._text(card, "%d / %d" % [mini(cur_v, tgt_v), tgt_v], Vector2(234, 57), Vector2(88, 18), 11, Color("ffd866") if is_done else Color("89a69d"))
+		prog_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+		var reward_lbl: Label = game._text(card, "挂件：%s" % (charm_name if charm_name != "" else "荣誉称号"), Vector2(12, 82), Vector2(214, 34), 12, game.MINT if is_done else Color("607a72"))
+		reward_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		reward_lbl.clip_text = true
+
+		if is_done and cid != "":
+			var btn_txt := "✓ 已挂载" if is_equipped else "装配挂件"
+			var b_eq: Button = game._button(card, btn_txt, Rect2(232, 82, 88, 32), func():
+				ach.equip_charm(cid)
+				_refresh_compendium_ui()
+			)
+			b_eq.add_theme_font_size_override("font_size", 12)
+			if is_equipped:
+				game._style_tactical_button(b_eq, Color("204d3e"), Color("7af5cc"), Color("e8fff5"))
+		else:
+			var lock_l: Label = game._text(card, "待解锁", Vector2(232, 88), Vector2(88, 22), 12, Color("5a7068"))
+			lock_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		comp_grid.add_child(card)

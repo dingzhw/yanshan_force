@@ -35,12 +35,12 @@ const WEST_CAMP = Vector3(-38.0, 0, -9.5)
 const EAST_CAMP = Vector3(37.5, 0, -34.0)
 const NW_CAMP = Vector3(-31.0, 0, -85.0)
 const COMBAT_ZONES = [
-	{"id": "forest", "title": "林间古道营地", "at": Vector3(-12.0, 0, -42.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": false},
-	{"id": "pass", "title": "山道拦截营地", "at": PASS_OUTPOST, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
-	{"id": "bamboo", "title": "B区竹林统领营", "at": Vector3(6.5, 0, -90.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": true},
-	{"id": "west_ridge", "title": "西岭山坡营地", "at": WEST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
-	{"id": "east_ridge", "title": "东坡茶岭营地", "at": EAST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
-	{"id": "nw_plateau", "title": "西北高地营地", "at": NW_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false}
+	{"id": "forest", "title": "雾隐帮·林间古道营", "at": Vector3(-12.0, 0, -42.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": false},
+	{"id": "pass", "title": "雾隐帮·山道拦截营", "at": PASS_OUTPOST, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "bamboo", "title": "雾隐帮·B区竹林总坛", "at": Vector3(6.5, 0, -90.0), "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": true},
+	{"id": "west_ridge", "title": "雾隐帮·西岭山坡营", "at": WEST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "east_ridge", "title": "雾隐帮·东坡茶岭营", "at": EAST_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false},
+	{"id": "nw_plateau", "title": "雾隐帮·西北高地营", "at": NW_CAMP, "waves": 3, "squad": 5, "aggro": 15.2, "pursuit": 86.0, "boss": false}
 ]
 const EXIT = Vector3(18, 0, -76)
 const ROUTE = [SPAWN, Vector3(-7, 0, -15), Vector3(-18, 0, -27), Vector3(-12, 0, -42), Vector3(-7, 0, -54), PASS_OUTPOST, Vector3(8, 0, -86), EXIT]

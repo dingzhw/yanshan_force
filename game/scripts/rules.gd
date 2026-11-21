@@ -21,6 +21,51 @@ const CONFIDENTIAL_CRATE_BONUS = 0.12
 const SAFE_BOX_SLOTS = 2
 const MAX_DISPLAY_STAND = 4
 const MAX_RARITY = 7
+const PROFILE_SCHEMA_VERSION = 3
+
+const DEFAULT_SETTINGS = {
+	"strict_daily_review": true,
+	"auto_speak_on_switch": true,
+	"reduce_screen_shake": false,
+	"sfx_volume": 1.0,
+	"voice_volume": 1.0,
+	"mouse_sensitivity": 1.0
+}
+
+const CULTURAL_NOTES = {
+	"越窑秘色青瓷盏": {
+		"fiction": "相传由诚庄先民自古窑旧埠请回，曾供奉于烟霞古洞石案之上。",
+		"fact": "唐代越窑「秘色瓷」以浙江上林湖窑系为代表，釉色青碧莹润如玉。1987 年陕西法门寺唐代地宫出土的 13 件秘色瓷与物账碑首次印证了这一名品（参考：陕西历史博物馆 / 浙江省博物馆藏品研究资料）。"
+	},
+	"诚庄先民双龙玉璧": {
+		"fiction": "烟山族谱传说此璧曾用于秋收祈丰，后为雾隐帮觊觎而秘藏深林。",
+		"fact": "玉璧是中国古代重要礼器，江南太湖流域自良渚文化起便有精良治玉传统，常见璧、琮等形制（参考：良渚博物院 / 南京博物院公开馆藏说明）。"
+	},
+	"烟霞岩画残拓": {
+		"fiction": "拓印自烟霞古洞原生石壁《烟山耕读》阴刻，记录诚庄先民采茶耕读往事。",
+		"fact": "传拓（墨拓）是用宣纸贴覆金石碑刻并扑墨显字的传统文献复制技艺，2006 年以来多地碑刻传拓技艺列入各级非物质文化遗产名录。"
+	},
+	"端溪雕云古砚": {
+		"fiction": "诚庄私塾先生留下的镇案老砚，常与竹简古诗碑刻相伴。",
+		"fact": "端砚产自广东肇庆端溪，始于唐代，以石质致密、发墨细腻不损毫著称，位列中国四大名砚之首（参考：故宫博物院文房四宝器物志）。"
+	},
+	"海兽葡萄错银铜镜": {
+		"fiction": "古道商队遗落烟山溪畔的传家古镜，被巡护队收入秘藏。",
+		"fact": "海兽葡萄镜盛行于盛唐，纹饰融合瑞兽与西域葡萄蔓叶，见证丝绸之路中西工艺交流（参考：中国国家博物馆唐代铜镜展陈资料）。"
+	},
+	"宜兴朱泥水平壶": {
+		"fiction": "诚庄春茶上市时山村茶坊待客所用的传世紫砂水平小壶。",
+		"fact": "江苏宜兴丁蜀镇紫砂陶始兴于明代中叶，朱泥小壶因胎质细密、透气聚香而擅泡工夫茶（参考：宜兴陶瓷博物馆公开资料）。"
+	},
+	"望稻亭鎏金香炉": {
+		"fiction": "昔年乡贤登东岭望稻亭观秋熟时所设雅器，与望稻亭信标并称东岭双景。",
+		"fact": "博山炉造型兴于汉代，炉盖镂空叠嶂如海中仙山，焚香时轻烟自峰隙袅袅而出（参考：河北博物院满城汉墓错金博山炉展陈资料）。"
+	},
+	"烟山先民竹简": {
+		"fiction": "藏于烟霞古洞寒潭茶灶旁石室的古旧墨书简册，记述「烟山」得名由来。",
+		"fact": "竹简是纸张普及前中国主要的书写载体，以韦编或丝绳编联成册，湖南里耶、湖北睡虎地等地出土简牍为研究古代基层生活提供了珍贵一手文献。"
+	}
+}
 
 const RARITY_NAMES = {
 	1: "常规",
@@ -118,7 +163,7 @@ const LOOT_TABLE = {
 		{"title": "特级金质勋章", "en": "Supreme Gold Medal", "value": 365, "rarity": 6, "grid": "1×1", "icon": "medal", "lore": "【传说·大金】表彰卓越战术识词先锋的纯金浮雕荣誉勋章。"},
 		{"title": "量子词典原型机", "en": "Quantum Dictionary", "value": 395, "rarity": 6, "grid": "2×2", "icon": "quantum", "lore": "【传说·大金】搭载全息声纹解码核心的实验级双语终端原型机。"},
 		{"title": "烟山先民竹简", "en": "Ancient Bamboo Slips", "value": 420, "rarity": 6, "grid": "2×2", "icon": "slips", "lore": "【传说·大金】烟霞古洞石案遗留的千年墨书竹简，记载诚庄耕读往事。"},
-		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 460, "rarity": 6, "grid": "2×2", "icon": "core", "lore": "【传说·大金】铁甲词尊胸腔卸载的高纯度聚变黄金能源核心。"},
+		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 460, "rarity": 6, "grid": "2×2", "icon": "core", "lore": "【传说·大金】雾隐帮统领（玄铁词尊 / 铁面词卫）胸腔卸载的高纯度聚变黄金能源核心。"},
 		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 495, "rarity": 6, "grid": "2×2", "icon": "censer", "lore": "【传说·大金】镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
 	],
 	7: [
@@ -163,6 +208,7 @@ const BOSS_BLUEPRINTS = ["scope_2x", "suppressor", "compensator", "angled_grip",
 
 var phase = "camp"
 var combat_mode = false
+var prologue_mode = false
 var operation_tier: String = "normal"
 var score = 0
 var correct = 0
@@ -183,7 +229,8 @@ var supplies_opened = []
 var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
-	"schema_version": 2,
+	"schema_version": PROFILE_SCHEMA_VERSION,
+	"saved_by_version": "0.8.2_dev2",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
@@ -192,9 +239,17 @@ var profile = {
 	"owned": [],
 	"equipped": {"optic": "", "muzzle": "", "grip": ""},
 	"extractions": 0,
+	"prologue_completed": false,
+	"prologue_best_seconds": 0,
 	"mastery": {},
 	"review_due": {},
+	"learning_stats": {},
+	"settings": DEFAULT_SETTINGS.duplicate(true),
 	"last_run": {},
+	"stats": {},
+	"achievements": [],
+	"unlocked_charms": [],
+	"equipped_charm": "",
 	"collection": [],
 	"red_extracted": 0,
 	"gold_extracted": 0,
@@ -229,8 +284,27 @@ func starter_medkits() -> int:
 func starter_reserve_ammo() -> int:
 	if not combat_mode:
 		return -1
-	var mags = 4 if "tactical_rig" in profile.owned else 2
-	return mags * magazine()
+	var has_rig: bool = "tactical_rig" in profile.owned
+	if is_confidential():
+		return 18 if has_rig else 12
+	return 24 if has_rig else 16
+
+func max_reserve_ammo() -> int:
+	if not combat_mode:
+		return -1
+	var has_rig: bool = "tactical_rig" in profile.owned
+	if is_confidential():
+		return 48 if has_rig else 36
+	return 60 if has_rig else 48
+
+func ground_ammo_gain() -> int:
+	return 6 if is_confidential() else 8
+
+func ammo_crate_respawn_seconds() -> float:
+	return 150.0 if is_confidential() else 90.0
+
+func melee_hits_to_kill() -> int:
+	return 10 if is_confidential() else 5
 
 func starter_grenades() -> int:
 	return 2 if "tactical_belt" in profile.owned else 1
@@ -287,6 +361,30 @@ func unlock_blueprint(id: String) -> bool:
 		profile["equipped"][slot] = id
 	return true
 
+func ensure_settings() -> Dictionary:
+	if not profile.has("settings") or not (profile["settings"] is Dictionary):
+		profile["settings"] = DEFAULT_SETTINGS.duplicate(true)
+	var st: Dictionary = profile["settings"]
+	for k in DEFAULT_SETTINGS:
+		if not st.has(k):
+			st[k] = DEFAULT_SETTINGS[k]
+	st["strict_daily_review"] = bool(st.get("strict_daily_review", true))
+	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", true))
+	st["reduce_screen_shake"] = bool(st.get("reduce_screen_shake", false))
+	st["sfx_volume"] = clampf(float(st.get("sfx_volume", 1.0)), 0.0, 1.0)
+	st["voice_volume"] = clampf(float(st.get("voice_volume", 1.0)), 0.0, 1.0)
+	st["mouse_sensitivity"] = clampf(float(st.get("mouse_sensitivity", 1.0)), 0.4, 2.2)
+	return st
+
+func setting(key: String, fallback = null):
+	var st := ensure_settings()
+	return st.get(key, DEFAULT_SETTINGS.get(key, fallback))
+
+func set_setting(key: String, value):
+	var st := ensure_settings()
+	st[key] = value
+	ensure_settings()
+
 func level() -> int:
 	return 1 + int(profile.xp / 120)
 
@@ -294,8 +392,8 @@ func is_confidential() -> bool:
 	return combat_mode and operation_tier == "confidential"
 
 func can_loot() -> bool:
-	# v0.8.1 #15: Practice Range ('自由靶场') is pure training with ZERO loot collection!
-	return combat_mode
+	# v0.8.1 #15: Practice Range ('自由靶场') & Prologue have no field loot boxes
+	return combat_mode and not prologue_mode
 
 func required_extract_accuracy() -> float:
 	if not combat_mode:
@@ -308,6 +406,8 @@ func accuracy_gate_met() -> bool:
 	return answered > 0 and accuracy() >= required_extract_accuracy() - 0.0001
 
 func mode_label() -> String:
+	if prologue_mode:
+		return "烟山初行·序章"
 	if not combat_mode:
 		return "自由靶场"
 	return "机密行动" if operation_tier == "confidential" else "普通行动"
@@ -330,8 +430,9 @@ func migrate_legacy_items():
 					item["rarity"] = clampi(int(item.get("rarity", meta.get("rarity", 1))), 1, MAX_RARITY)
 				if not item.has("locked"):
 					item["locked"] = int(item.get("rarity", 1)) >= 6
-	for int_key in ["red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value"]:
+	for int_key in ["red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value", "prologue_best_seconds"]:
 		profile[int_key] = maxi(0, int(profile.get(int_key, 0)))
+	profile["prologue_completed"] = bool(profile.get("prologue_completed", false))
 	profile["best_item_title"] = str(profile.get("best_item_title", ""))
 	if not profile.has("display_stand") or not (profile.display_stand is Array):
 		profile["display_stand"] = []
@@ -343,7 +444,10 @@ func migrate_legacy_items():
 			if cleaned_stand.size() >= MAX_DISPLAY_STAND:
 				break
 	profile["display_stand"] = cleaned_stand
-	profile["schema_version"] = 2
+	if not profile.has("learning_stats") or not (profile["learning_stats"] is Dictionary):
+		profile["learning_stats"] = {}
+	ensure_settings()
+	profile["schema_version"] = PROFILE_SCHEMA_VERSION
 
 static func catalog_meta(title: String) -> Dictionary:
 	for r in LOOT_TABLE:
@@ -363,8 +467,9 @@ static func total_catalog_count() -> int:
 
 func start_run(as_combat = false, tier: String = "normal"):
 	phase = "active"
-	combat_mode = as_combat
-	operation_tier = "confidential" if (as_combat and tier == "confidential") else "normal"
+	prologue_mode = (tier == "prologue")
+	combat_mode = as_combat and not prologue_mode
+	operation_tier = "prologue" if prologue_mode else ("confidential" if (combat_mode and tier == "confidential") else "normal")
 	score = 0
 	correct = 0
 	answered = 0
@@ -381,11 +486,12 @@ func start_run(as_combat = false, tier: String = "normal"):
 	crates = []
 	supplies_opened = []
 	question_open = false
+	learning.reset_run_stats()
 
 func open_question():
 	question_open = phase == "active"
 
-func answer(is_correct: bool, word_id: String = "", choice_count := 4, used_help := false) -> bool:
+func answer(is_correct: bool, word_id: String = "", choice_count := 4, used_help := false, scene := "combat_word", modality := "recognition") -> bool:
 	if phase != "active" or not question_open:
 		return false
 	question_open = false
@@ -399,7 +505,7 @@ func answer(is_correct: bool, word_id: String = "", choice_count := 4, used_help
 	else:
 		streak = 0
 	if word_id != "":
-		learning.record_recognition(word_id, is_correct, choice_count, used_help)
+		learning.record_recognition(word_id, is_correct, choice_count, used_help, -1, scene, modality)
 	return true
 
 func word_priority(word_id: String) -> float:
@@ -410,6 +516,8 @@ func word_priority(word_id: String) -> float:
 	var m = profile.mastery[word_id]
 	if not (m is Dictionary):
 		return 2.0
+	if str(m.get("last_outcome", "")) == LearningStore.PRACTICED and int(m.get("srs_stage", 0)) == 0:
+		return 2.9
 	var c = int(m.get("independent_correct", m.get("correct", 0)))
 	var w = int(m.get("wrong", 0))
 	var stage = int(m.get("srs_stage", 0))

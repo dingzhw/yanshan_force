@@ -17,6 +17,8 @@ var stage_index = 0
 var target_word: Dictionary = {}
 var attempts = 0
 var spelling_help_used := false
+var retest_revealed_ids: Dictionary = {}
+var retest_requeued_ids: Dictionary = {}
 var all_stages_perfect = true
 var unlocked = false
 var perfect_crack = false
@@ -31,6 +33,7 @@ var prompt_label: Label
 var mask_label: Label
 var input_box: LineEdit
 var status_label: Label
+var footer_hint: Label
 var submit_button: Button
 var speak_button: Button
 var hint_button: Button
@@ -78,6 +81,7 @@ func _build_ui():
 	input_box.size = Vector2(506, 52)
 	input_box.placeholder_text = "输入准确的英文内容，按 Enter 验证…"
 	input_box.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	input_box.keep_editing_on_text_submit = true
 	input_box.add_theme_font_size_override("font_size", 22)
 	var input_style = StyleBoxFlat.new()
 	input_style.bg_color = Color("0d1c22")
@@ -110,7 +114,7 @@ func _build_ui():
 	loot_container.add_theme_constant_override("separation", 12)
 	overlay.add_child(loot_container)
 
-	game._text(overlay, "开箱后可按 Space 跳过物资搜索。", Vector2(232, 598), Vector2(628, 30), 12, Color("8fb2a4"))
+	footer_hint = game._text(overlay, "开箱后可按 Space 跳过物资搜索。", Vector2(232, 598), Vector2(628, 30), 12, Color("8fb2a4"))
 	close_button = game._button(overlay, "关闭返回 [Esc]", Rect2(868, 590, 174, 38), close)
 	overlay.hide()
 
@@ -259,6 +263,14 @@ func _enter_modal():
 	speak_button.show()
 	overlay.show()
 
+func _focus_input_box():
+	if not is_instance_valid(input_box) or not input_box.editable:
+		return
+	input_box.grab_focus()
+	input_box.set_caret_column(input_box.text.length())
+	input_box.call_deferred("grab_focus")
+	input_box.call_deferred("set_caret_column", input_box.text.length())
+
 func _refresh_stage_ui():
 	target_word = stages[stage_index]
 	attempts = 0
@@ -308,15 +320,19 @@ func _refresh_stage_ui():
 	submit_button.text = ("验证下一关 [Enter]" if stage_index + 1 < total else "破译开箱 [Enter]")
 	if mode == "retest":
 		submit_button.text = "提交复测 [Enter]"
+	if is_instance_valid(footer_hint):
+		footer_hint.text = "提示：直接连续打字并按 Enter 自动切换下一复测词条（无需重新点击输入框）。" if mode == "retest" else "开箱后可按 Space 跳过物资搜索。"
 	close_button.text = "关闭返回 [Esc]"
-	input_box.grab_focus()
+	_focus_input_box()
 
 func open_retest(entries: Array):
 	if busy or entries.is_empty():
 		return
 	mode = "retest"
-	stages = entries
+	stages = entries.duplicate()
 	stage_index = 0
+	retest_revealed_ids.clear()
+	retest_requeued_ids.clear()
 	active_crate = null
 	unlocked = false
 	busy = true
@@ -324,7 +340,7 @@ func open_retest(entries: Array):
 	swap_button.hide()
 	overlay.show()
 	title_label.text = "单词与句型复测"
-	status_label.text = "根据中文写出英文。每题提交一次。"
+	status_label.text = "根据中文独立写出英文。答错后先学习正解，稍后换序练习（看答案后输入仅计练习完成，不虚计独立答对）。"
 	status_label.add_theme_color_override("font_color", game.CREAM)
 	_refresh_stage_ui()
 
@@ -578,6 +594,7 @@ func submit():
 	var raw_typed := input_box.text.strip_edges()
 	if raw_typed == "":
 		status_label.text = "输入不能为空，请输入对应的英文内容！"
+		_focus_input_box()
 		return
 	attempts += 1
 	if mode == "retest":
@@ -689,13 +706,31 @@ func submit():
 func _submit_retest(typed: String):
 	var is_correct := _is_match(typed, target_word)
 	var tid := str(target_word.id)
-	game.rules.learning.record_spelling(tid, LearningStore.INDEPENDENT if is_correct else LearningStore.INCORRECT, true)
-	game._save()
-	var entry: Dictionary = game.rules.profile.mastery.get(tid, {})
-	var stage := int(entry.get("srs_stage", 0))
 	var cloze: Dictionary = game.cloze_for_word(tid)
 	var example_suffix := (" · 例句：%s" % cloze.english) if not cloze.is_empty() else ""
-	var feedback := "写对了！已排入【%s】复习计划。" % SrsScheduler.stage_label(stage) if is_correct else "已留待下次复测。参考答案：%s%s" % [target_word.english, example_suffix]
+	var feedback := ""
+	if is_correct:
+		var was_revealed: bool = retest_revealed_ids.has(tid) or game.rules.learning.was_recently_revealed(tid)
+		if was_revealed:
+			game.rules.learning.record_spelling(tid, LearningStore.PRACTICED, true, -1, true, "retest_spell")
+			feedback = "✓ 练习完成（看答案后拼出，不计入独立答对；下次继续巩固）。"
+		else:
+			game.rules.learning.record_spelling(tid, LearningStore.INDEPENDENT, true, -1, true, "retest_spell")
+			var entry: Dictionary = game.rules.profile.mastery.get(tid, {})
+			var stage := int(entry.get("srs_stage", 0))
+			feedback = "★ 独立答对！已排入【%s】复习计划。" % SrsScheduler.stage_label(stage)
+		game.play_sfx("hit_correct", -11)
+	else:
+		retest_revealed_ids[tid] = true
+		game.rules.learning.mark_answer_revealed(tid)
+		game.rules.learning.record_spelling(tid, LearningStore.INCORRECT, true, -1, true, "retest_spell")
+		if not retest_requeued_ids.has(tid):
+			retest_requeued_ids[tid] = true
+			stages.append(target_word)
+		feedback = "先学习正解：%s%s · 稍后将换序巩固练习。" % [target_word.english, example_suffix]
+		game.play_sfx("hit_wrong", -12)
+		game.speak_english(str(target_word.english))
+	game._save()
 	if stage_index + 1 < stages.size():
 		stage_index += 1
 		_refresh_stage_ui()
@@ -703,7 +738,14 @@ func _submit_retest(typed: String):
 		unlocked = true
 		input_box.editable = false
 		submit_button.disabled = true
-		stage_label.text = "本次复测结束"
+		var rem_due: int = game._pending_retest().size()
+		if rem_due == 0:
+			stage_label.text = "今日复习全部完成！"
+			feedback += "\n🎉 今日到期复习已清零，所有行动模式现已解锁！"
+			game.play_sfx("cipher_unlock", -10)
+		else:
+			stage_label.text = "本组复测结束（仍余 %d 题）" % rem_due
+		game._refresh_progress()
 	status_label.text = feedback
 
 func _swap_lowest():

@@ -26,19 +26,41 @@ func setup(game, data: Dictionary):
 		var board = StaticBody3D.new()
 		board.collision_layer = 3
 		board.collision_mask = 0
-		board.set_meta("answer_index",i)
-		board.set_meta("station_id",station_id)
-		board.position = Vector3(-5.7+i*3.8,1.9,-10)
-		if station_id=="camp":board.position=Vector3(-1.7+i*3.8,1.9,-13)
+		board.set_meta("answer_index", i)
+		board.set_meta("station_id", station_id)
+		var local_pos := Vector3(-5.7 + i * 3.8, 1.9, -10.0)
+		var yaw_rot := 0.0
+		if station_id == "camp":
+			local_pos = Vector3(-1.7 + i * 3.8, 1.9, -13.0)
+		elif station_id == "forest":
+			# v0.8.2_dev2 D2-6: Shift Forest Outpost board row slightly East off the western hillside so Board D never clips into terrain!
+			local_pos = Vector3(-7.4, 1.9, -5.7 + i * 3.8)
+			yaw_rot = PI / 2.0
 		else:
-			board.position=Vector3(-10,1.9,-5.7+i*3.8)
-			board.rotation.y=PI/2
+			local_pos = Vector3(-10.0, 1.9, -5.7 + i * 3.8)
+			yaw_rot = PI / 2.0
+		# Sample actual terrain across full 3.25m board width + thickness footprint so every corner sits cleanly >= 0.90m above hillside terrain!
+		var wx: float = position.x + local_pos.x
+		var wz: float = position.z + local_pos.z
+		var max_ground_y: float = float(game.terrain_height(wx, wz))
+		var min_ground_y: float = max_ground_y
+		for s_off in [-1.65, -0.85, 0.0, 0.85, 1.65]:
+			for d_off in [-0.30, 0.0, 0.30]:
+				var sx: float = wx + (d_off if yaw_rot > 0.5 else s_off)
+				var sz: float = wz + (s_off if yaw_rot > 0.5 else d_off)
+				var h_pt: float = float(game.terrain_height(sx, sz))
+				max_ground_y = maxf(max_ground_y, h_pt)
+				min_ground_y = minf(min_ground_y, h_pt)
+		var board_rel_y: float = maxf(1.9, (max_ground_y - position.y) + 1.72)
+		board.position = Vector3(local_pos.x, board_rel_y, local_pos.z)
+		board.rotation.y = yaw_rot
 		add_child(board)
 		boards.append(board)
-		var mesh = game._mesh_box(board,Vector3.ZERO,Vector3(3.25,1.6,0.24),Color("182e30"))
+		var mesh = game._mesh_box(board, Vector3.ZERO, Vector3(3.25, 1.6, 0.24), Color("182e30"))
 		mesh.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		materials.append(mesh.material_override)
-		game._mesh_box(board,Vector3(0,-1.3,0),Vector3(0.12,1.4,0.16),Color("4e6557"),true)
+		var post_drop: float = maxf(1.4, (board_rel_y - (min_ground_y - position.y)) + 0.35)
+		game._mesh_box(board, Vector3(0, -0.75 - post_drop * 0.5, 0), Vector3(0.14, post_drop, 0.16), Color("4e6557"), true)
 		var shape = BoxShape3D.new()
 		shape.size = Vector3(3.25,1.6,0.3)
 		var collision = CollisionShape3D.new()

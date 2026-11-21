@@ -932,7 +932,9 @@ func _start_flee(a: Dictionary, away_from: Vector3, by_proximity: bool = false):
 			discovered_species[a.kind] = true
 			game.speak_english(a.tts)
 			var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else "靠近惊动会敏捷逃逸！"
-			game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
+			var can_toast: bool = (not game.rules.prologue_mode) and (game.closest_interaction == null) and not (is_instance_valid(game.threat_banner) and game.threat_banner.visible)
+			if can_toast:
+				game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
 	if a.kind == "squirrel" and start_squirrel_tree_climb(a):
 		return
 	a.state = "fly" if a.kind == "bird" else "flee"
@@ -1169,6 +1171,8 @@ func _down_sky_egret(eg: Dictionary):
 		add_child(m)
 		hit_fx.append({"node": m, "vel": Vector3(cos(i * 1.1) * 1.6, 1.3 + float(i % 3) * 0.4, sin(i * 1.1) * 1.6), "left": 1.15})
 	game._notice("✦ 精准击中高空【白鹭 · White Egret】！漫天白羽化光消散…", Color("ffe8a3"))
+	if is_instance_valid(game.achievements) and game.rules.combat_mode:
+		game.achievements.record_wildlife_kill("bird")
 
 func melee_strike(camera: Camera3D) -> bool:
 	var cam_pos := camera.global_position
@@ -1204,6 +1208,8 @@ func _down_animal(a: Dictionary):
 	game.play_sfx("animal_hit", -10)
 	_spawn_vanish_motes(a.pos + Vector3(0, 0.28, 0))
 	game._notice("✦ 击中【%s · %s】！正化作林间微光消失…" % [a.en, a.zh], Color("ffe09e"))
+	if is_instance_valid(game.achievements) and game.rules.combat_mode:
+		game.achievements.record_wildlife_kill(str(a.kind))
 
 func _spawn_vanish_motes(at: Vector3):
 	for i in 5:

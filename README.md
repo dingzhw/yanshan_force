@@ -5,11 +5,18 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.8.1-teal.svg)
+![Version](https://img.shields.io/badge/Version-v0.8.2__dev2-teal.svg)
 
-## v0.8.1 试玩
+## v0.8.2_dev2 试玩（战斗数值校准 · 听音索敌 · 复测连打 · 山坡靶牌修复）
 
-双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版全面升级战斗识词严谨度与江南山野实景品质：支持 **`98m` 远距词盾预览与精准狙词**、**错题 1.4 秒公布正解后强制换新词 + 普通 10s / 机密 7s 自动轮换倒计时**、**连续打错 3 次触发 12 秒全营「狂暴围剿」（普通 ×2.0 / 机密 ×4.0 伤害）**、**普通 ≥60% / 机密 ≥80% 撤离正确率门槛**、**自由靶场纯训练不刷物资**、**探索线报单局一错锁死**；同步完成 **东岭「望稻亭」拔高观景台**、**1024×1024 三平面高清山石与江南青石板路面**、**移除营地 4 块遗留空靶牌** 及 **数学近道全宽木栅栏实体防线**。[试玩说明](docs/v0.8.1-试玩说明.txt) · [阶段计划](docs/v0.8.1-阶段计划.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
+双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版基于 `v0.8.2_dev1` 实机试玩反馈完成 6 项精准打磨与路线图建档：
+- **路线图常驻归档**：新增永久维护的 **[游戏发展路线图](docs/游戏发展路线图.md)**（位于 `docs/` 目录，覆盖 `v0.6.x → v0.8.2_dev2 → v0.8.3 → v0.9.0 → v1.0.0` 全景规划）；
+- **近战平衡重做**：匕首由“一刀秒杀”调整为普通 **5 刀** / 机密 **10 刀** 击杀常规词兵，砍错或贴身连砍触发敌方近身反击与击退，玄铁词尊装甲反弹匕首，回归“缺弹应急回弹”定位；
+- **弹药稀缺与 Boss 压迫感强化**：收紧开局备弹（普通 `16/24`、机密 `12/18`）、备弹上限（`48/60` 与 `36/48`）、击杀/清波/地面弹药箱补给与刷新冷却（普通 6 箱/90s、机密 4 箱/150s）；普通行动 B 区「雾隐先锋·铁面词卫」升至 **720 HP** 并新增每 `5.5s` 周期重炮红圈轰炸（半血双圈）；
+- **烟霞古洞守卫与掉落校准**：「古洞循音石卫」升至 **620 HP（普通）/ 960 HP（机密）**，岩甲减伤且未致盲受击立即声波反击，追击状态锁定洞内探索点；普通模式寒潭竹简与北脊空投改为 **T4 史诗**，机密模式升级 **T5 珍品·小金**，杜绝白嫖大金；
+- **复测连续输入 + 换词立即自动读音 + 山坡靶牌修复**：单词复测按 Enter 切换下一题时输入框光标常驻不失焦；新词出现瞬间立即自动朗读英文并伴随顶部金框脉冲提示（不扣独立答对，可在「⚙ 设置」开关）；修复「林间前哨」D 靶牌插入西侧山坡穿模。
+
+[游戏发展路线图](docs/游戏发展路线图.md) · [试玩说明](docs/v0.8.2_dev2-试玩说明.txt) · [阶段计划](docs/v0.8.2_dev2-阶段计划.md) · [验收记录](docs/v0.8.2_dev2-验收记录.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
 
 ---
 
@@ -19,11 +26,43 @@
 
 因此我们把 **家乡江南小村与丘陵山野**（诚庄村外的成片稻田、白墙黑瓦农舍、蜿蜒竹林山溪）搬进了 3D 世界，结合孩子喜欢的第一人称战术“搜打撤”（搜刮 → 作战破译 → 撤离）玩法，借助 AI 工具在代码、3D 建模（Blender 4.5）、程序化贴图与音效合成上协同推进，做成了这套 **完全离线、轻量流畅（面向核显优化）、可自由扩展词库** 的学习游戏。
 
-本项目代码以 **[MIT License](LICENSE)** 完全开源，美术/音频资产均遵循 `CC0` / `CC BY 4.0` / `OFL-1.1` / `MIT` 等开放协议，**欢迎各位家长、老师、学生和开发者任意 Fork、魔改、替换词库与二次开发！**
+本项目源码以 **[MIT License](LICENSE)** 开源，第三方 3D 模型、贴图、字体与程序化音效遵循 `CC0` / `CC BY 4.0` / `OFL-1.1` / `MIT` 等开放协议；随包预合成的 279 条 `en-US-JennyNeural` 离线美式英文语音仅供个人/家庭离线教育试用（不属于开源再分发资产，外部公开分发前请通过 `tools/build_voice_pack.py` 替换为开源语音模型或已获授权录音），示例词库与句库来源标注详见 [`game/THIRD_PARTY.txt`](game/THIRD_PARTY.txt) 与 [`game/data/learning/jiangsu-5a-sentences.json`](game/data/learning/jiangsu-5a-sentences.json)。
 
 ---
 
-## 实机画面 · Screenshots (`v0.8.1`)
+## 实机画面 · Screenshots (`v0.8.2_dev2`)
+
+| 「林间前哨」4 块英文靶牌离地重排：A/B/C/D 零穿坡 + 换词金框脉冲（`v0.8.2_dev2`） | B 区「雾隐先锋 720 HP」周期重炮红圈轰炸 + 收紧备弹 HUD（`v0.8.2_dev2`） |
+| :---: | :---: |
+| ![林间前哨靶牌零穿坡v082dev2](docs/media/v082dev2_forest_boards_clear.png) | ![首领重炮红圈与备弹平衡v082dev2](docs/media/v082dev2_boss_barrage_ammo.png) |
+
+| 「⚙ 设置」新增「切换新词时立即自动朗读英文读音」开关（`v0.8.2_dev2`） | 单词复测光标常驻连续回车提交（无需重新点击输入框 · `v0.8.2_dev2`） |
+| :---: | :---: |
+| ![自动读音设置开关v082dev2](docs/media/v082dev2_settings_autospeak.png) | ![复测光标常驻连续输入v082dev2](docs/media/v082dev2_retest_input.png) |
+
+| 主菜单「烟山初行·单人序章」入口与「⚙ 舒适、音量与学习设置」面板（`v0.8.2_dev1`） | 单人序章营地联络员「陈向导」接任务与清爽单目标 HUD（`v0.8.2_dev1`） |
+| :---: | :---: |
+| ![主菜单与舒适设置v082dev1](docs/media/v082dev1-menu-settings.png) | ![序章陈向导NPCv082dev1](docs/media/v082dev1-prologue-npc.png) |
+
+| 序章东岭暖金路灯导引与 3 名雾隐斥候英文词盾（`v0.8.2_dev1`） | 望稻亭失联信标双层风物/越窑青瓷考据与烟霞古洞悬念（`v0.8.2_dev1`） |
+| :---: | :---: |
+| ![序章东岭斥候v082dev1](docs/media/v082dev1-prologue-scouts.png) | ![望稻亭线索与青瓷考据v082dev1](docs/media/v082dev1-prologue-beacon-clue.png) |
+
+| 3D 奇珍检视台双层卡片：【烟山物语】与【器物考据】分离排版（`v0.8.2_dev1`） | 清爽无干扰「自由靶场」纯训练 HUD（零虚假倒计时与撤离差分 · `v0.8.2_dev1`） |
+| :---: | :---: |
+| ![3D检视双层考据卡v082dev1](docs/media/v082dev1-celadon-dual-card.png) | ![清爽自由靶场HUDv082dev1](docs/media/v082dev1-clean-practice-hud.png) |
+
+| 机密行动天降巨型 Boss「雾隐机关王·玄铁词尊」5 词盾严格顺序破盾（`v0.8.2`） | 烟霞古洞听声 Boss「古洞循音石卫」与青蓝 3D 声波搜寻环（`v0.8.2`） |
+| :---: | :---: |
+| ![玄铁词尊五盾顺序战v082](docs/media/v082-skyfall-overlord.png) | ![古洞循音石卫声波环v082](docs/media/v082-cave-warden.png) |
+
+| 换弹瞄具零偏移 + 枪下 3D「赤狐铜铃」挂件 + 中上方鎏金成就横幅（`v0.8.2`） | 精简版「🏆 烟山奇珍图鉴」与「🎖 成就与挂件」24 项趣味成就大厅（`v0.8.2`） |
+| :---: | :---: |
+| ![枪械换弹挂件与成就横幅v082](docs/media/v082-rifle-charm-banner.png) | ![烟山成就与挂件大厅v082](docs/media/v082-achievement-hall.png) |
+
+| 烟霞古洞真通透喀斯特石顶天窗（实景晴空翠竹与天光 · `v0.8.2`） | 望稻亭零闪烁观景台 + 100% 实心四重青绿远山（`v0.8.2`） |
+| :---: | :---: |
+| ![古洞真天窗v082](docs/media/v082-cave-skylight.png) | ![望稻亭零闪烁与实心远山v082](docs/media/v082-solid-horizon-wangdao.png) |
 
 | 东岭「望稻亭」拔高观景台：无遮挡俯瞰诚庄梯田与溪村（`v0.8.1`） | 高清 1024×1024 江南青石板路 + 清理 4 块遗留空靶牌（`v0.8.1`） |
 | :---: | :---: |
@@ -201,7 +240,7 @@
 ### 4. 自动化回归验证
 本机安装 Godot 4.7.2 后，可将运行时路径填入 `docs/runtime-local.json`（参考 [`docs/runtime-local.example.json`](docs/runtime-local.example.json)），运行：
 ```bash
-python -X utf8 tools/check_slice.py --stage --ver 0.7.0 smoke learning economy movement navigation physics challenges combat slice
+python -X utf8 tools/check_slice.py --stage --ver 0.8.2 smoke learning economy movement navigation physics challenges combat slice
 ```
 
 ---
@@ -209,5 +248,5 @@ python -X utf8 tools/check_slice.py --stage --ver 0.7.0 smoke learning economy m
 ## 开源协议与致谢 · License & Third-Party Credits
 
 - 本项目源码采用 **[MIT License](LICENSE)** 开源发布，你可以自由使用、修改、分发和二次创作。
-- 第三方模型、材质、字体与引擎模板均遵循 `MIT`、`CC0`、`CC BY 4.0`（含 Polyfork / Lucas Martinic 野生动物与草木基础网格）、`OFL-1.1` 等开放许可，完整溯源与原文许可证详见 [`game/THIRD_PARTY.txt`](game/THIRD_PARTY.txt) 与 [`game/licenses/`](game/licenses/)。
+- 第三方 3D 模型、材质、字体、程序化音效与引擎模板均遵循 `MIT`、`CC0`、`CC BY 4.0`（含 Polyfork / Lucas Martinic 野生动物与草木基础网格）、`OFL-1.1` 等开放许可；随包预合成的 279 条 `en-US-JennyNeural` 离线英语语音包仅供个人/家庭离线教育试玩，对外公开发行前请通过 `tools/build_voice_pack.py` 替换为开源语音模型或自录授权音频。完整溯源、教材例句说明与原文许可证详见 [`game/THIRD_PARTY.txt`](game/THIRD_PARTY.txt) 与 [`game/licenses/`](game/licenses/)。
 - 欢迎提 Issue 或 PR 分享你改造的新地图、新词库或教学玩法！

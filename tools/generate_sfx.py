@@ -228,19 +228,230 @@ def gen_boss_phase() -> None:
     _write_wav("boss_phase.wav", out, 0.54)
 
 
-def gen_shot_suppressed() -> None:
-    dur = 0.14
+def _make_noise(n: int, seed: int = 12345) -> list[float]:
+    state = seed & 0x7FFFFFFF
+    out = [0.0] * n
+    for i in range(n):
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        out[i] = (state / 0x3FFFFFFF) - 1.0
+    return out
+
+
+def _one_pole_lp(samples: list[float], cutoff_hz: float) -> list[float]:
+    rc = 1.0 / (2.0 * math.pi * max(cutoff_hz, 20.0))
+    dt = 1.0 / SAMPLE_RATE
+    alpha = dt / (rc + dt)
+    out = [0.0] * len(samples)
+    y = 0.0
+    for i, x in enumerate(samples):
+        y += alpha * (x - y)
+        out[i] = y
+    return out
+
+
+def _one_pole_hp(samples: list[float], cutoff_hz: float) -> list[float]:
+    rc = 1.0 / (2.0 * math.pi * max(cutoff_hz, 20.0))
+    dt = 1.0 / SAMPLE_RATE
+    alpha = rc / (rc + dt)
+    out = [0.0] * len(samples)
+    y = 0.0
+    prev_x = 0.0
+    for i, x in enumerate(samples):
+        y = alpha * (y + x - prev_x)
+        prev_x = x
+        out[i] = y
+    return out
+
+
+def gen_shot_rifle() -> None:
+    """Realistic 5.56mm tactical carbine gunshot: supersonic crack + chamber punch + bolt clack + mountain valley slapback."""
+    dur = 0.44
     n = int(SAMPLE_RATE * dur)
-    out = []
-    state = 777
+    raw_a = _make_noise(n, 55601)
+    raw_b = _make_noise(n, 55609)
+    crack_hi = _one_pole_hp(_one_pole_lp(raw_a, 5400.0), 820.0)
+    body_mid = _one_pole_lp(raw_b, 920.0)
+    tail_lp = _one_pole_lp(raw_a, 620.0)
+    out = [0.0] * n
     for i in range(n):
         t = i / SAMPLE_RATE
-        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
-        noise = ((state / 0x3FFFFFFF) - 1.0)
-        env = _envelope(t, 0.002, dur, 2.8)
-        thump = math.sin(2 * math.pi * (320.0 * math.exp(-t * 28.0) + 110.0) * t)
-        out.append((0.55 * thump + 0.45 * noise) * env)
-    _write_wav("shot_suppressed.wav", out, 0.48)
+        # 1) Sharp supersonic ballistic muzzle blast (0..28ms)
+        env_crack = math.exp(-t * 108.0) * (min(1.0, t / 0.0006))
+        crack = crack_hi[i] * env_crack * 2.35
+        # 2) Resonant 5.56mm chamber low-mid punch (195Hz -> 48Hz)
+        env_punch = math.exp(-t * 36.0) * min(1.0, t / 0.0012)
+        f_punch = 48.0 + 155.0 * math.exp(-t * 42.0)
+        punch = (math.sin(2.0 * math.pi * f_punch * t) + 0.65 * body_mid[i]) * env_punch * 1.45
+        # 3) Crisp mechanical steel bolt-carrier clack at t = 14ms..42ms
+        bolt = 0.0
+        if 0.012 <= t <= 0.065:
+            tb = t - 0.012
+            eb = math.exp(-tb * 95.0)
+            bolt = (math.sin(2.0 * math.pi * 2380.0 * tb) + 0.55 * math.sin(2.0 * math.pi * 4120.0 * tb)) * eb * 0.32
+        # 4) Mountain-valley slapback reverb reflections (60ms, 128ms, 215ms)
+        echo = 0.0
+        for dly, amp in ((0.055, 0.34), (0.125, 0.22), (0.210, 0.12)):
+            if t >= dly:
+                te = t - dly
+                echo += tail_lp[i] * math.exp(-te * 11.5) * amp
+        out[i] = math.tanh((crack + punch + bolt + echo) * 1.45)
+    _write_wav("shot_rifle.wav", out, 0.72)
+
+
+def gen_shot_suppressed() -> None:
+    """Realistic suppressed 5.56mm carbine: muted subsonic baffle puff + crisp steel bolt cycle + tight mechanical thump."""
+    dur = 0.22
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 7771)
+    gas_puff = _one_pole_hp(_one_pole_lp(raw, 2900.0), 420.0)
+    low_baffle = _one_pole_lp(raw, 480.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # Tight baffled gas vent
+        e_gas = math.exp(-t * 46.0) * min(1.0, t / 0.0014)
+        gas = gas_puff[i] * e_gas * 1.25
+        # Muted chamber thump
+        e_thump = math.exp(-t * 58.0) * min(1.0, t / 0.001)
+        f_sub = 74.0 + 130.0 * math.exp(-t * 65.0)
+        thump = (math.sin(2.0 * math.pi * f_sub * t) * 0.78 + low_baffle[i] * 0.6) * e_thump
+        # Audible metallic bolt-carrier snap (distinctive signature of a suppressed rifle!)
+        bolt = 0.0
+        if 0.009 <= t <= 0.075:
+            tb = t - 0.009
+            eb = math.exp(-tb * 82.0)
+            bolt = (math.sin(2.0 * math.pi * 2650.0 * tb) + 0.65 * math.sin(2.0 * math.pi * 4350.0 * tb)) * eb * 0.52
+        out[i] = math.tanh((gas + thump + bolt) * 1.35)
+    _write_wav("shot_suppressed.wav", out, 0.60)
+
+
+def gen_reload_mag_out() -> None:
+    """Metallic magazine catch release + polymer mag sliding clear."""
+    dur = 0.24
+    n = int(SAMPLE_RATE * dur)
+    raw = _one_pole_hp(_one_pole_lp(_make_noise(n, 8101), 3200.0), 650.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        click = (math.sin(2.0 * math.pi * 1850.0 * t) + 0.6 * math.sin(2.0 * math.pi * 3400.0 * t)) * math.exp(-t * 140.0) * 0.85
+        slide = raw[i] * _envelope(t - 0.035, 0.02, 0.17, 1.8) * 0.55 if t >= 0.035 else 0.0
+        out[i] = math.tanh((click + slide) * 1.3)
+    _write_wav("reload_mag_out.wav", out, 0.52)
+
+
+def gen_reload_mag_in() -> None:
+    """Firm magazine seating thud + steel locking latch snap."""
+    dur = 0.22
+    n = int(SAMPLE_RATE * dur)
+    raw = _one_pole_lp(_make_noise(n, 8102), 1600.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        thud = (math.sin(2.0 * math.pi * 165.0 * t) + 0.5 * raw[i]) * math.exp(-t * 52.0) * 0.9
+        latch = 0.0
+        if t >= 0.068:
+            tl = t - 0.068
+            latch = (math.sin(2.0 * math.pi * 2420.0 * tl) + 0.7 * math.sin(2.0 * math.pi * 4180.0 * tl)) * math.exp(-tl * 130.0) * 1.0
+        out[i] = math.tanh((thud + latch) * 1.35)
+    _write_wav("reload_mag_in.wav", out, 0.56)
+
+
+def gen_reload_bolt() -> None:
+    """Crisp two-stage steel bolt release slap / charging handle rack."""
+    dur = 0.28
+    n = int(SAMPLE_RATE * dur)
+    raw = _one_pole_hp(_one_pole_lp(_make_noise(n, 8103), 4800.0), 1100.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        pull = (raw[i] * 0.65 + math.sin(2.0 * math.pi * 1950.0 * t) * 0.5) * math.exp(-t * 48.0) * 0.85
+        slam = 0.0
+        if t >= 0.095:
+            ts = t - 0.095
+            slam = (
+                math.sin(2.0 * math.pi * 2850.0 * ts)
+                + 0.75 * math.sin(2.0 * math.pi * 4680.0 * ts)
+                + 0.55 * math.sin(2.0 * math.pi * 240.0 * ts)
+                + 0.5 * raw[i]
+            ) * math.exp(-ts * 75.0) * 1.1
+        out[i] = math.tanh((pull + slam) * 1.35)
+    _write_wav("reload_bolt.wav", out, 0.58)
+
+
+def gen_shell_clink() -> None:
+    """High-pitched spinning 5.56mm brass casing double bounce on bluestone."""
+    dur = 0.26
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    for hit_t, amp in ((0.0, 0.9), (0.095, 0.45), (0.165, 0.22)):
+        start = int(hit_t * SAMPLE_RATE)
+        for j in range(int(0.08 * SAMPLE_RATE)):
+            if start + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = math.exp(-t * 68.0)
+            s = math.sin(2.0 * math.pi * 5120.0 * t) + 0.65 * math.sin(2.0 * math.pi * 7680.0 * t) + 0.35 * math.sin(2.0 * math.pi * 9840.0 * t)
+            out[start + j] += s * env * amp
+    _write_wav("shell_clink.wav", out, 0.34)
+
+
+def gen_achievement_unlock() -> None:
+    """Heroic Jiangnan gilded medal chime + crisp ascending triad shimmer."""
+    dur = 0.88
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    notes = [(0.0, 523.25, 0.42), (0.09, 659.25, 0.46), (0.18, 783.99, 0.52), (0.28, 1046.50, 0.60), (0.28, 1567.98, 0.55)]
+    for st, freq, ndur in notes:
+        si = int(st * SAMPLE_RATE)
+        for j in range(int(ndur * SAMPLE_RATE)):
+            if si + j >= n:
+                break
+            t = j / SAMPLE_RATE
+            env = _envelope(t, 0.006, ndur, 1.65)
+            tone = math.sin(2.0 * math.pi * freq * t) + 0.38 * math.sin(4.0 * math.pi * freq * t) + 0.16 * math.sin(6.0 * math.pi * freq * t)
+            out[si + j] += tone * env * 0.55
+    _write_wav("achievement_unlock.wav", out, 0.60)
+
+
+def gen_warden_sonar() -> None:
+    """Haunting deep karst cavern acoustic pulse for Yanxia Cave Acoustic Warden."""
+    dur = 0.78
+    n = int(SAMPLE_RATE * dur)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.018, dur, 1.45)
+        f1 = 115.0 + 265.0 * math.exp(-t * 5.2)
+        f2 = 540.0 + 420.0 * math.exp(-t * 7.5)
+        pulse = math.sin(2.0 * math.pi * f1 * t) * 0.8 + math.sin(2.0 * math.pi * f2 * t) * 0.36 * math.exp(-t * 3.8)
+        wobble = 0.82 + 0.18 * math.sin(2.0 * math.pi * 16.0 * t)
+        out[i] = math.tanh(pulse * wobble * 1.4) * env
+    _write_wav("warden_sonar.wav", out, 0.62)
+
+
+def gen_boss_skyfall() -> None:
+    """Descending turbine shriek (0..0.42s) into seismic earth-shattering iron landing slam (0.42..1.35s)."""
+    dur = 1.35
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 9988)
+    rumble_lp = _one_pole_lp(raw, 280.0)
+    shriek_bp = _one_pole_hp(_one_pole_lp(raw, 2600.0), 600.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        if t < 0.42:
+            u = t / 0.42
+            f_wh = 980.0 - 640.0 * u
+            wh = (math.sin(2.0 * math.pi * f_wh * t) * 0.42 + shriek_bp[i] * 0.55) * (u ** 1.4)
+            out[i] = wh * 0.72
+        else:
+            ti = t - 0.42
+            env_sub = math.exp(-ti * 3.2) * min(1.0, ti / 0.004)
+            f_sub = 38.0 + 125.0 * math.exp(-ti * 14.0)
+            impact = (math.sin(2.0 * math.pi * f_sub * ti) * 1.35 + rumble_lp[i] * 1.65) * env_sub
+            clang = (math.sin(2.0 * math.pi * 620.0 * ti) + 0.6 * math.sin(2.0 * math.pi * 945.0 * ti)) * math.exp(-ti * 11.0) * 0.45
+            out[i] = math.tanh((impact + clang) * 1.5)
+    _write_wav("boss_skyfall.wav", out, 0.74)
 
 
 def gen_radio_scan() -> None:
@@ -460,7 +671,15 @@ def main() -> None:
     gen_ammo_pickup()
     gen_smoke_emp()
     gen_boss_phase()
+    gen_shot_rifle()
     gen_shot_suppressed()
+    gen_reload_mag_out()
+    gen_reload_mag_in()
+    gen_reload_bolt()
+    gen_shell_clink()
+    gen_achievement_unlock()
+    gen_warden_sonar()
+    gen_boss_skyfall()
     gen_radio_scan()
     gen_airdrop_call()
     gen_animal_flee()
@@ -472,7 +691,7 @@ def main() -> None:
     gen_loot_reveal_common()
     gen_loot_reveal_rare()
     gen_loot_mythic_red()
-    print("Generated 26 procedural SFX files in", OUT_DIR)
+    print("Generated 34 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

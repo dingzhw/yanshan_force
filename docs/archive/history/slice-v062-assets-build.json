@@ -1,6 +1,6 @@
 {
   "output": "game/assets/slice/v062_bamboo_cave.glb",
-  "total_triangles": 9052,
+  "total_triangles": 9144,
   "assets": {
     "bamboo_maze_gate": {
       "triangles": 416,
@@ -122,7 +122,7 @@
       }
     },
     "yanxia_cave_complex": {
-      "triangles": 5690,
+      "triangles": 5782,
       "godot_bounds_m": {
         "x": [
           -7.156,

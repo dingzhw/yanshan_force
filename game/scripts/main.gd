@@ -13,11 +13,14 @@ const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
-const VERSION = "0.8.1"
+const Achievements = preload("res://scripts/achievements.gd")
+const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
+const VERSION = "0.8.2_dev2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
 const Wildlife = preload("res://scripts/wildlife.gd")
+const CaveWarden = preload("res://scripts/cave_warden.gd")
 
 const INK = Color("101f29")
 const MINT = Color("8de8c0")
@@ -61,6 +64,10 @@ var listening_mode = false
 var question_help_used := false
 var run_started_ms := -1
 var profile_read_failed := false
+var last_save_error := ""
+var last_backup_path := ""
+var _unknown_profile_fields: Dictionary = {}
+var force_save_fail_for_test := false
 var distractor_rng := RandomNumberGenerator.new()
 
 var ui: Control
@@ -72,6 +79,18 @@ var menu_finance: Label
 var menu_status: Label
 var start_button: Button
 var confidential_button: Button
+var prologue_button: Button
+var settings_button: Button
+var settings_panel: Control
+var setting_strict_cb: CheckBox
+var setting_autospeak_cb: CheckBox
+var setting_shake_cb: CheckBox
+var setting_sfx_slider: HSlider
+var setting_sfx_lbl: Label
+var setting_voice_slider: HSlider
+var setting_voice_lbl: Label
+var setting_sens_slider: HSlider
+var setting_sens_lbl: Label
 var terminal_title_label: Label
 var sell_button: Button
 var armory_panel: Control
@@ -80,6 +99,9 @@ var retest_button: Button
 var shop_buttons = {}
 var unit_picker: OptionButton
 var include_extra: CheckBox
+var question_panel: Panel
+var word_switch_flash: float = 0.0
+var ammo_respawn_timers: Dictionary = {}
 var question_label: Label
 var cloze_label: Label
 var unit_label: Label
@@ -132,6 +154,9 @@ var combat_label: Label
 var exploration
 var wildlife
 var cipher_terminal
+var achievements
+var cave_warden
+var prologue
 var loot_ui
 var world_loot
 var landscape
@@ -141,6 +166,7 @@ var startup_menu_frame_ms := 0
 
 func _ready():
 	var startup_begin := Time.get_ticks_msec()
+	startup_ms["boot_to_ready"] = startup_begin
 	var step_begin := startup_begin
 	qa_mode = "--qa" in OS.get_cmdline_user_args() or "--hardware-check" in OS.get_cmdline_user_args()
 	get_tree().auto_accept_quit = false
@@ -176,6 +202,9 @@ func _ready():
 	wildlife = Wildlife.new()
 	add_child(wildlife)
 	wildlife.setup(self)
+	cave_warden = CaveWarden.new()
+	add_child(cave_warden)
+	cave_warden.setup(self)
 	startup_ms["exploration_wildlife"] = Time.get_ticks_msec() - step_begin
 	step_begin = Time.get_ticks_msec()
 	world_loot = WorldLoot.new()
@@ -187,8 +216,15 @@ func _ready():
 	loot_ui = LootUI.new()
 	add_child(loot_ui)
 	loot_ui.setup(self)
+	achievements = Achievements.new()
+	add_child(achievements)
+	achievements.setup(self)
+	prologue = PrologueScene.instantiate()
+	add_child(prologue)
+	prologue.setup(self)
 	_build_camp_display_stand()
 	refresh_camp_display_stand()
+	_sync_settings_ui()
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	startup_ms["loot_and_menu"] = Time.get_ticks_msec() - step_begin
@@ -196,12 +232,15 @@ func _ready():
 	var args := OS.get_cmdline_user_args()
 	if "--startup-check" in args or "--hardware-check" in args:
 		await get_tree().process_frame
+		startup_ms["first_process_frame"] = Time.get_ticks_msec()
 		if DisplayServer.get_name() != "headless":
 			await RenderingServer.frame_post_draw
 		startup_menu_frame_ms = Time.get_ticks_msec()
+		startup_ms["playable_ready_ms"] = startup_menu_frame_ms
 		print("STARTUP_REPORT ", JSON.stringify({
 			"version": VERSION, "renderer": RenderingServer.get_current_rendering_method(),
-			"menu_frame_ms": startup_menu_frame_ms, "stages_ms": startup_ms,
+			"menu_frame_ms": startup_menu_frame_ms, "playable_ready_ms": startup_menu_frame_ms,
+			"stages_ms": startup_ms,
 			"tts_setting_enabled": bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)),
 			"tts_voice_ready": tts_voice_id != "",
 			"voice_pack_count": voice_manifest.size(),
@@ -293,16 +332,17 @@ func speak_english(text: String) -> bool:
 	if key == "":
 		last_voice_backend = "none"
 		return false
+	var voice_gain: float = float(rules.setting("voice_volume", 1.0))
 	var stream := load_voice_stream(text)
 	if stream != null:
 		last_voice_backend = "ogg"
-		if qa_mode or DisplayServer.get_name() == "headless":
+		if qa_mode or DisplayServer.get_name() == "headless" or voice_gain <= 0.005:
 			return true
 		DisplayServer.tts_stop()
 		if not is_instance_valid(voice_player):
 			voice_player = AudioStreamPlayer.new()
-			voice_player.volume_db = -1.5
 			add_child(voice_player)
+		voice_player.volume_db = -1.5 + linear_to_db(voice_gain)
 		voice_player.stop()
 		voice_player.stream = stream
 		voice_player.play()
@@ -310,6 +350,9 @@ func speak_english(text: String) -> bool:
 	if qa_mode or DisplayServer.get_name() == "headless":
 		last_voice_backend = "tts" if tts_voice_id != "" else "none"
 		return tts_voice_id != ""
+	if voice_gain <= 0.005:
+		last_voice_backend = "tts" if tts_voice_id != "" else "none"
+		return true
 	if tts_voice_id == "":
 		_init_tts()
 	if tts_voice_id == "":
@@ -319,7 +362,7 @@ func speak_english(text: String) -> bool:
 		voice_player.stop()
 	var clean := text.replace("...", " ").replace("…", " ").replace("’", "'").replace("‘", "'").strip_edges()
 	DisplayServer.tts_stop()
-	DisplayServer.tts_speak(clean, tts_voice_id, 90, 1.0, 0.96)
+	DisplayServer.tts_speak(clean, tts_voice_id, clampi(roundi(90.0 * voice_gain), 0, 100), 1.0, 0.96)
 	last_voice_backend = "tts"
 	return true
 
@@ -351,10 +394,25 @@ func _save_path() -> String:
 		return profile_path_override
 	return "user://qa-profile.json" if qa_mode else "user://profile-v070.json"
 
+func _backup_pre_upgrade_profile(_source_path: String, raw_text: String):
+	var bak_path: String = (profile_path_override + ".pre-v3.bak") if profile_path_override != "" else "user://profile-backup-pre-v3.json"
+	if FileAccess.file_exists(bak_path):
+		last_backup_path = bak_path
+		return
+	var bf := FileAccess.open(bak_path, FileAccess.WRITE)
+	if bf != null:
+		bf.store_string(raw_text)
+		bf.close()
+		last_backup_path = bak_path
+
 func _load_profile():
 	if qa_mode and profile_path_override == "":
 		return
+	profile_read_failed = false
+	last_save_error = ""
+	_unknown_profile_fields.clear()
 	var path := _save_path()
+	var loaded_from_legacy_file := false
 	if not FileAccess.file_exists(path):
 		if profile_path_override != "":
 			return
@@ -366,18 +424,28 @@ func _load_profile():
 		if fallback == "":
 			return
 		path = fallback
-	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+		loaded_from_legacy_file = true
+	var raw_text := FileAccess.get_file_as_string(path)
+	var data = JSON.parse_string(raw_text)
 	if not (data is Dictionary):
 		profile_read_failed = true
+		last_save_error = "存档损坏或无法解析：" + path
 		push_warning("Cannot read save profile: " + path)
 		return
 	if data is Dictionary:
+		var incoming_schema: int = int(data.get("schema_version", 1))
+		if loaded_from_legacy_file or incoming_schema < Rules.PROFILE_SCHEMA_VERSION:
+			_backup_pre_upgrade_profile(path, raw_text)
+		for k in data.keys():
+			if not rules.profile.has(k):
+				_unknown_profile_fields[k] = data[k]
 		for key in rules.profile:
 			if data.has(key) and typeof(data[key]) == typeof(rules.profile[key]):
 				rules.profile[key] = data[key]
-		rules.profile["schema_version"] = int(data.get("schema_version", 1))
-		for key in ["coins", "xp", "points", "runs", "extractions", "red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value"]:
-			rules.profile[key] = maxi(0, int(data.get(key, 0)))
+		rules.profile["schema_version"] = incoming_schema
+		for key in ["coins", "xp", "points", "runs", "extractions", "red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value", "prologue_best_seconds"]:
+			if data.has(key) or rules.profile.has(key):
+				rules.profile[key] = maxi(0, int(data.get(key, rules.profile.get(key, 0))))
 		var normalized_wh = []
 		for item in rules.profile.warehouse:
 			if item is Dictionary:
@@ -401,20 +469,32 @@ func _load_profile():
 func _save() -> bool:
 	if qa_mode and profile_path_override == "":
 		return true
+	if force_save_fail_for_test:
+		last_save_error = "模拟磁盘写入受阻（QA 测试）"
+		return false
 	if profile_read_failed:
+		last_save_error = "原存档读取失败，为防止覆盖已中止写入"
 		return false
 	var path := _save_path()
 	var temp := path + ".tmp"
 	var file := FileAccess.open(temp, FileAccess.WRITE)
 	if file == null:
+		last_save_error = "无法创建临时存档：" + temp
 		push_warning("Cannot create temporary save: " + temp)
 		return false
-	file.store_string(JSON.stringify(rules.profile, "\t"))
+	rules.profile["schema_version"] = Rules.PROFILE_SCHEMA_VERSION
+	rules.profile["saved_by_version"] = VERSION
+	var payload: Dictionary = _unknown_profile_fields.duplicate(true)
+	for k in rules.profile.keys():
+		payload[k] = rules.profile[k]
+	file.store_string(JSON.stringify(payload, "\t"))
 	var write_error := file.get_error()
 	file.close()
 	if write_error != OK or DirAccess.rename_absolute(temp, path) != OK:
+		last_save_error = "无法替换存档文件：" + path
 		push_warning("Cannot replace save profile: " + path)
 		return false
+	last_save_error = ""
 	return true
 
 func _notification(what: int):
@@ -691,6 +771,9 @@ func attach_weapon(parent: Node3D):
 func play_sound(id: String, volume = -16):
 	if DisplayServer.get_name() == "headless":
 		return
+	var gain: float = float(rules.setting("sfx_volume", 1.0))
+	if gain <= 0.005:
+		return
 	var path = "res://assets/fps/sounds/" + id + ".ogg"
 	if not ResourceLoader.exists(path):
 		return
@@ -698,13 +781,16 @@ func play_sound(id: String, volume = -16):
 		sound_cache[id] = load(path)
 	var sound = AudioStreamPlayer.new()
 	sound.stream = sound_cache[id]
-	sound.volume_db = volume
+	sound.volume_db = volume + linear_to_db(gain)
 	add_child(sound)
 	sound.finished.connect(sound.queue_free)
 	sound.play()
 
 func play_sfx(id: String, volume = -13):
 	if DisplayServer.get_name() == "headless":
+		return
+	var gain: float = float(rules.setting("sfx_volume", 1.0))
+	if gain <= 0.005:
 		return
 	var path = "res://assets/sfx/" + id + ".wav"
 	if not ResourceLoader.exists(path):
@@ -713,7 +799,7 @@ func play_sfx(id: String, volume = -13):
 		sfx_cache[id] = load(path)
 	var sound = AudioStreamPlayer.new()
 	sound.stream = sfx_cache[id]
-	sound.volume_db = volume
+	sound.volume_db = volume + linear_to_db(gain)
 	add_child(sound)
 	sound.finished.connect(sound.queue_free)
 	sound.play()
@@ -822,7 +908,7 @@ func _build_ui():
 	guide_label.clip_text = true
 
 	# ZONE 2: Top-Center Sleek Word Prompt Card (with optional Textbook Cloze Context line)
-	_panel(hud, Rect2(398, 16, 514, 116), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
+	question_panel = _panel(hud, Rect2(398, 16, 514, 116), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
 	question_label = _text(hud, "", Vector2(412, 18), Vector2(486, 46), 25, CREAM)
 	question_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	question_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -950,22 +1036,29 @@ func _build_ui():
 	menu.add_child(veil)
 	_panel(menu, Rect2(86, 56, 534, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
 
-	menu_title = _text(menu, "烟山基地", Vector2(120, 76), Vector2(280, 44), 28, MINT)
+	menu_title = _text(menu, "烟山基地", Vector2(120, 76), Vector2(204, 44), 28, MINT)
 	menu_title.clip_text = true
-	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 126), Vector2(460, 24), 16, GOLD)
+	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 124), Vector2(460, 22), 15, GOLD)
+	settings_button = _button(menu, "⚙ 设置", Rect2(328, 86, 72, 36), func():
+		armory_panel.hide()
+		settings_panel.visible = not settings_panel.visible
+		if settings_panel.visible:
+			_sync_settings_ui()
+	)
+	settings_button.add_theme_font_size_override("font_size", 13)
 	_button(menu, "退出", Rect2(518, 86, 64, 36), _quit_game)
 	abandon_button = _button(menu, "放弃本局", Rect2(406, 86, 104, 36), func(): _end_run(false, "放弃本局"))
 	abandon_button.hide()
 
-	menu_summary = _text(menu, "", Vector2(122, 156), Vector2(460, 154), 14)
+	menu_summary = _text(menu, "", Vector2(122, 150), Vector2(460, 124), 14)
 	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	menu_summary.clip_text = false
-	review_button = _button(menu, "查看本局错词与例句（含页码）", Rect2(122, 316, 456, 30), _show_review)
+	review_button = _button(menu, "查看本局错词与例句（含页码）", Rect2(122, 278, 456, 28), _show_review)
 	review_button.hide()
 
 	unit_picker = OptionButton.new()
-	unit_picker.position = Vector2(122, 354)
-	unit_picker.size = Vector2(290, 38)
+	unit_picker.position = Vector2(122, 312)
+	unit_picker.size = Vector2(290, 36)
 	unit_picker.add_item("全部单元 · %d 条词汇" % words.size())
 	for i in range(1, 9):
 		unit_picker.add_item("Unit " + str(i))
@@ -973,39 +1066,142 @@ func _build_ui():
 
 	include_extra = CheckBox.new()
 	include_extra.text = "含拓展词与专名"
-	include_extra.position = Vector2(422, 356)
+	include_extra.position = Vector2(422, 314)
 	include_extra.button_pressed = true
 	include_extra.add_theme_font_size_override("font_size", 15)
 	menu.add_child(include_extra)
 	unit_picker.item_selected.connect(func(_index): _refresh_progress())
 	include_extra.toggled.connect(func(_on): _refresh_progress())
 
-	start_button = _button(menu, "开始普通行动", Rect2(122, 404, 154, 50), func():
-		var in_active: bool = rules.phase in ["active", "extracting"]
-		start_action(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
-	, true)
-	confidential_button = _button(menu, "机密行动", Rect2(284, 404, 154, 50), func(): start_action(true, "confidential"))
-	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
-	practice_button = _button(menu, "自由靶场", Rect2(446, 404, 132, 50), func(): start_action(false, "normal"))
+	prologue_button = _button(menu, "✨ 烟山初行 · 单人序章（推荐首玩 · 5–8分钟）", Rect2(122, 356, 456, 42), func():
+		try_menu_deploy(false, "prologue")
+	)
+	_style_tactical_button(prologue_button, Color("1f4f42"), Color("8de8c0"), Color("f4fffa"))
 
-	_button(menu, "战备与改装", Rect2(122, 462, 146, 38), func():
+	start_button = _button(menu, "开始普通行动", Rect2(122, 406, 154, 46), func():
+		var in_active: bool = rules.phase in ["active", "extracting"]
+		try_menu_deploy(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
+	, true)
+	confidential_button = _button(menu, "机密行动", Rect2(284, 406, 154, 46), func(): try_menu_deploy(true, "confidential"))
+	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
+	practice_button = _button(menu, "自由靶场", Rect2(446, 406, 132, 46), func(): try_menu_deploy(false, "normal"))
+
+	_button(menu, "战备与改装", Rect2(122, 460, 146, 36), func():
+		settings_panel.hide()
 		armory_panel.visible = not armory_panel.visible
 	)
-	warehouse_button = _button(menu, "我的仓库", Rect2(276, 462, 148, 38), func():
+	warehouse_button = _button(menu, "我的仓库", Rect2(276, 460, 148, 36), func():
 		if is_instance_valid(loot_ui):
 			armory_panel.hide()
+			settings_panel.hide()
 			loot_ui.open_warehouse()
 	)
 	_style_tactical_button(warehouse_button, Color("3c341a"), Color("f6c34e"), Color("fff2c4"))
-	compendium_button = _button(menu, "奇珍图鉴", Rect2(432, 462, 146, 38), func():
+	compendium_button = _button(menu, "奇珍图鉴", Rect2(432, 460, 146, 36), func():
 		if is_instance_valid(loot_ui):
 			armory_panel.hide()
+			settings_panel.hide()
 			loot_ui.open_compendium()
 	)
-	retest_button = _button(menu, "无提示复测", Rect2(122, 510, 456, 38), _open_retest)
-	menu_finance = _text(menu, "", Vector2(122, 558), Vector2(460, 54), 15, GOLD)
-	menu_status = _text(menu, "", Vector2(122, 619), Vector2(460, 37), 14, Color("a9c4b6"))
+	retest_button = _button(menu, "无提示复测", Rect2(122, 504, 456, 36), _open_retest)
+	menu_finance = _text(menu, "", Vector2(122, 548), Vector2(460, 50), 14, GOLD)
+	menu_status = _text(menu, "", Vector2(122, 602), Vector2(460, 50), 13, Color("a9c4b6"))
 	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	# Comfort, Audio, Sensitivity & Strict Review Settings Drawer (Right side of Menu/Pause)
+	settings_panel = Control.new()
+	settings_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	settings_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.add_child(settings_panel)
+	_panel(settings_panel, Rect2(634, 56, 560, 608), Color(0.038, 0.082, 0.102, 0.97), Color("8de8c0"))
+	_text(settings_panel, "⚙ 舒适、音量与学习设置", Vector2(662, 86), Vector2(390, 36), 24, MINT)
+	_button(settings_panel, "收起", Rect2(1104, 86, 64, 36), func(): settings_panel.hide())
+
+	setting_shake_cb = CheckBox.new()
+	setting_shake_cb.text = "减震动 / 关闭镜头震动（降低晕动，保留清晰文字与命中提示）"
+	setting_shake_cb.position = Vector2(662, 146)
+	setting_shake_cb.size = Vector2(506, 36)
+	setting_shake_cb.add_theme_font_size_override("font_size", 15)
+	setting_shake_cb.toggled.connect(func(on: bool):
+		rules.set_setting("reduce_screen_shake", on)
+		_save()
+	)
+	settings_panel.add_child(setting_shake_cb)
+
+	setting_sfx_lbl = _text(settings_panel, "枪械与环境音效音量：100%", Vector2(662, 202), Vector2(500, 26), 15, CREAM)
+	setting_sfx_slider = HSlider.new()
+	setting_sfx_slider.position = Vector2(662, 232)
+	setting_sfx_slider.size = Vector2(500, 26)
+	setting_sfx_slider.min_value = 0.0
+	setting_sfx_slider.max_value = 1.0
+	setting_sfx_slider.step = 0.05
+	setting_sfx_slider.value = 1.0
+	setting_sfx_slider.value_changed.connect(func(v: float):
+		rules.set_setting("sfx_volume", v)
+		setting_sfx_lbl.text = "枪械与环境音效音量：%d%%" % roundi(v * 100.0)
+		_save()
+	)
+	settings_panel.add_child(setting_sfx_slider)
+
+	setting_voice_lbl = _text(settings_panel, "英语语音读音音量：100%", Vector2(662, 276), Vector2(336, 26), 15, MINT)
+	_button(settings_panel, "🔊 试听英语读音", Rect2(1012, 272, 150, 34), func(): speak_english("Dragon Boat Festival"))
+	setting_voice_slider = HSlider.new()
+	setting_voice_slider.position = Vector2(662, 310)
+	setting_voice_slider.size = Vector2(500, 26)
+	setting_voice_slider.min_value = 0.0
+	setting_voice_slider.max_value = 1.0
+	setting_voice_slider.step = 0.05
+	setting_voice_slider.value = 1.0
+	setting_voice_slider.value_changed.connect(func(v: float):
+		rules.set_setting("voice_volume", v)
+		setting_voice_lbl.text = "英语语音读音音量：%d%%" % roundi(v * 100.0)
+		_save()
+	)
+	settings_panel.add_child(setting_voice_slider)
+
+	setting_sens_lbl = _text(settings_panel, "鼠标视角灵敏度：1.00x", Vector2(662, 356), Vector2(500, 26), 15, GOLD)
+	setting_sens_slider = HSlider.new()
+	setting_sens_slider.position = Vector2(662, 386)
+	setting_sens_slider.size = Vector2(500, 26)
+	setting_sens_slider.min_value = 0.4
+	setting_sens_slider.max_value = 2.2
+	setting_sens_slider.step = 0.05
+	setting_sens_slider.value = 1.0
+	setting_sens_slider.value_changed.connect(func(v: float):
+		rules.set_setting("mouse_sensitivity", v)
+		setting_sens_lbl.text = "鼠标视角灵敏度：%.2fx" % v
+		_save()
+	)
+	settings_panel.add_child(setting_sens_slider)
+
+	setting_strict_cb = CheckBox.new()
+	setting_strict_cb.text = "严格今日到期复习门禁（跨单元全词库必做，切单元不可跳过）"
+	setting_strict_cb.position = Vector2(662, 434)
+	setting_strict_cb.size = Vector2(506, 34)
+	setting_strict_cb.add_theme_font_size_override("font_size", 15)
+	setting_strict_cb.toggled.connect(func(on: bool):
+		rules.set_setting("strict_daily_review", on)
+		_save()
+		_refresh_progress()
+	)
+	settings_panel.add_child(setting_strict_cb)
+
+	setting_autospeak_cb = CheckBox.new()
+	setting_autospeak_cb.text = "切换新词时立即自动朗读英文读音（听音索敌，不扣独立答对）"
+	setting_autospeak_cb.position = Vector2(662, 474)
+	setting_autospeak_cb.size = Vector2(506, 34)
+	setting_autospeak_cb.add_theme_font_size_override("font_size", 15)
+	setting_autospeak_cb.toggled.connect(func(on: bool):
+		rules.set_setting("auto_speak_on_switch", on)
+		_save()
+	)
+	settings_panel.add_child(setting_autospeak_cb)
+
+	var set_note: Label = _text(settings_panel,
+		"说明：\n• 局内随时按 [Esc] 即可打开本设置并立即生效。\n• 同一 Windows 账户共用独立存档（升级旧档前自动创建 .pre-v3 备份）。\n• 低配核显可按 [F6] 关闭实时阴影，或使用「低负载启动.cmd」。",
+		Vector2(662, 520), Vector2(502, 126), 13, Color("9ec4b5"))
+	set_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	settings_panel.hide()
 
 	armory_panel = Control.new()
 	armory_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1065,17 +1261,94 @@ func _warehouse_total_value() -> int:
 		sum += int(item.get("value", 0))
 	return sum
 
+func _sync_settings_ui():
+	var st: Dictionary = rules.ensure_settings()
+	if is_instance_valid(setting_shake_cb):
+		setting_shake_cb.set_pressed_no_signal(bool(st.get("reduce_screen_shake", false)))
+	if is_instance_valid(setting_strict_cb):
+		setting_strict_cb.set_pressed_no_signal(bool(st.get("strict_daily_review", true)))
+	if is_instance_valid(setting_autospeak_cb):
+		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", true)))
+	if is_instance_valid(setting_sfx_slider):
+		var sv: float = float(st.get("sfx_volume", 1.0))
+		setting_sfx_slider.set_value_no_signal(sv)
+		setting_sfx_lbl.text = "枪械与环境音效音量：%d%%" % roundi(sv * 100.0)
+	if is_instance_valid(setting_voice_slider):
+		var vv: float = float(st.get("voice_volume", 1.0))
+		setting_voice_slider.set_value_no_signal(vv)
+		setting_voice_lbl.text = "英语语音读音音量：%d%%" % roundi(vv * 100.0)
+	if is_instance_valid(setting_sens_slider):
+		var ms: float = float(st.get("mouse_sensitivity", 1.0))
+		setting_sens_slider.set_value_no_signal(ms)
+		setting_sens_lbl.text = "鼠标视角灵敏度：%.2fx" % ms
+
 func _pending_retest() -> Array:
+	if bool(rules.setting("strict_daily_review", true)):
+		return rules.learning.pending(words + sentences, 0, true)
 	return rules.learning.pending(words + sentences, unit_picker.selected, include_extra.button_pressed)
+
+func daily_review_required() -> bool:
+	return (rules.phase not in ["active", "extracting"]) and not _pending_retest().is_empty()
+
+func try_menu_deploy(as_combat: bool, op_tier: String = "normal") -> bool:
+	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == bool(as_combat)) and (rules.operation_tier == op_tier)
+	if same_active_run:
+		start_action(as_combat, op_tier)
+		return true
+	if op_tier == "prologue":
+		# First-time players can always enter the standalone Prologue directly from a clean save!
+		if not bool(rules.profile.get("prologue_completed", false)) or _pending_retest().is_empty():
+			start_prologue_chapter(true)
+			return true
+	if not _pending_retest().is_empty():
+		var rem := _pending_retest().size()
+		var scope_note := "（全词库严格模式）" if bool(rules.setting("strict_daily_review", true)) else "（当前单元范围）"
+		menu_status.text = "🔒 请先完成今日到期复习%s（剩 %d 题），全部通过后自动解锁出击！" % [scope_note, rem]
+		play_sfx("warning_lock", -12)
+		_open_retest()
+		return false
+	if op_tier == "prologue":
+		start_prologue_chapter(true)
+		return true
+	start_action(as_combat, op_tier)
+	return true
+
+func start_prologue_chapter(auto_briefing: bool = true):
+	start_action(false, "prologue")
+	if is_instance_valid(prologue):
+		prologue.start_prologue(auto_briefing)
 
 func _open_retest():
 	if rules.phase not in ["active", "extracting"]:
-		cipher_terminal.open_retest(_pending_retest().slice(0, 3))
+		var todo := _pending_retest()
+		if not todo.is_empty():
+			cipher_terminal.open_retest(todo)
 
 func _refresh_progress():
 	var pending := _pending_retest().size()
-	retest_button.text = "今日到期复测 · %d 题待练" % pending
-	retest_button.disabled = pending == 0 or rules.phase in ["active", "extracting"]
+	var in_run: bool = rules.phase in ["active", "extracting"]
+	var blocked_by_review: bool = (not in_run) and pending > 0
+	var strict_on: bool = bool(rules.setting("strict_daily_review", true))
+	if is_instance_valid(prologue_button):
+		var done_p: bool = bool(rules.profile.get("prologue_completed", false))
+		prologue_button.visible = not in_run
+		if done_p:
+			prologue_button.text = "🔒 重温序章 · 烟山初行" if blocked_by_review else "✓ 烟山初行 · 重温单人序章（望稻亭失联信标）"
+		else:
+			prologue_button.text = "✨ 烟山初行 · 单人序章（推荐新玩家首玩 · 5–8分钟）"
+	if blocked_by_review:
+		retest_button.text = "🔒 必做 · 完成今日到期复习（%s剩 %d 题）" % ["全词库" if strict_on else "本单元", pending]
+		_style_tactical_button(retest_button, Color("6c4318"), Color("ffd15c"), Color("fff4d1"))
+		start_button.text = "🔒 普通行动"
+		confidential_button.text = "🔒 机密行动"
+		practice_button.text = "🔒 自由靶场"
+	else:
+		retest_button.text = "今日到期复测 · 0 题待练（已全部完成）" if pending == 0 else "今日到期复测 · %d 题待练" % pending
+		_style_tactical_button(retest_button, Color("173138"), Color("4a7570"), Color("b8d8ce"))
+		start_button.text = ("继续%s" % rules.mode_label()) if in_run else "开始普通行动"
+		confidential_button.text = "机密行动"
+		practice_button.text = "自由靶场"
+	retest_button.disabled = pending == 0 or in_run
 	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d · 到期 %d\n货币 %d · 家长奖励券 %d 张" % [
 		rules.learning.mastered_count(words), words.size(), rules.learning.mastered_count(sentences),
 		sentences.size(), pending, rules.profile.coins, rules.profile.points
@@ -1085,15 +1358,24 @@ func _refresh_menu(result = ""):
 	_refresh_progress()
 	var collected = rules.profile.collection.size()
 	var total_collectibles = Rules.total_collectible_count()
-	compendium_button.text = "图鉴 %d/%d" % [collected, total_collectibles]
+	var ach_cnt: int = int(achievements.unlocked_count()) if is_instance_valid(achievements) else 0
+	compendium_button.text = "图鉴·成就(%d)" % ach_cnt
+	compendium_button.tooltip_text = "高阶奇珍 %d/%d · 成就与枪械挂件" % [collected, total_collectibles]
 	var wh_count = rules.profile.warehouse.size()
 	if is_instance_valid(warehouse_button):
 		warehouse_button.text = "我的仓库 · %d" % wh_count
 		warehouse_button.disabled = rules.phase in ["active", "extracting"]
 	menu_title.text = result if result != "" else "烟山基地"
 	if result == "":
-		menu_summary.text = "认词、搜盲盒、把大金/大红放进安全箱带回营地！\n可在「我的仓库」单件出售、🔒锁存珍宝或摆上营地 3D 展台。\n刚开始玩？先到自由靶场练习。"
-		menu_status.text = "掌握数按独立答对且正确高于错误，或跨间隔复习通过统计。"
+		var done_p: bool = bool(rules.profile.get("prologue_completed", false))
+		menu_summary.text = (
+			"首次来烟山？推荐先体验上方「烟山初行 · 单人序章」（5–8 分钟）熟悉听词、路线与交锋！\n正式行动中认词、搜盲盒、把珍宝存进安全箱带回营地；按「⚙ 设置」可调减震动与音量。"
+			if not done_p else
+			"认词、搜盲盒、把大金/大红放进安全箱带回营地！\n可在「我的仓库」单件出售、🔒锁存珍宝或摆上营地 3D 展台；按「⚙ 设置」可调舒适选项。"
+		)
+		menu_status.text = "学习统计区分「独立答对」与「提示/练习完成」，避免虚高。"
+		if profile_read_failed or last_save_error != "":
+			menu_summary.text = "⚠ 存档状态提醒：" + (last_save_error if last_save_error != "" else "存档读取异常，已保护原文件不覆盖。") + "\n" + menu_summary.text
 
 	var unlocked_cnt: int = rules.unlocked_warehouse_count()
 	var unlocked_val: int = rules.unlocked_warehouse_value()
@@ -1140,11 +1422,13 @@ func _refresh_menu(result = ""):
 			can_click = not in_run and not owned and not prereq_missing and rules.profile.coins >= item.cost
 		shop_buttons[id].disabled = not can_click
 
-	start_button.text = ("继续%s" % rules.mode_label()) if in_run else "开始普通行动"
-	start_button.size = Vector2(274 if in_run else 154, 54)
+	start_button.text = ("继续%s" % rules.mode_label()) if in_run else ("🔒 普通行动" if daily_review_required() else "开始普通行动")
+	start_button.size = Vector2(274 if in_run else 154, 46)
 	if is_instance_valid(confidential_button):
 		confidential_button.visible = not in_run
 	practice_button.visible = not in_run
+	if is_instance_valid(prologue_button):
+		prologue_button.visible = not in_run
 	abandon_button.visible = in_run
 	unit_picker.disabled = in_run
 	include_extra.disabled = unit_picker.disabled
@@ -1184,18 +1468,23 @@ func _build_weighted_queue() -> Array:
 func _refresh_terminal_title():
 	if not is_instance_valid(terminal_title_label):
 		return
-	if rules.is_confidential():
+	if rules.prologue_mode:
+		terminal_title_label.text = "YANSHAN · 烟山初行（单人序章）"
+		terminal_title_label.add_theme_color_override("font_color", Color("ffd166"))
+	elif rules.is_confidential():
 		terminal_title_label.text = "YANSHAN · 机密行动 (估值×1.35)"
 		terminal_title_label.add_theme_color_override("font_color", Color("ffd15c"))
 	elif rules.combat_mode:
 		terminal_title_label.text = "YANSHAN · 普通行动 (单兵轮攻)"
 		terminal_title_label.add_theme_color_override("font_color", MINT)
 	else:
-		terminal_title_label.text = "YANSHAN · 自由靶场练习"
+		terminal_title_label.text = "YANSHAN · 自由靶场（纯训练）"
 		terminal_title_label.add_theme_color_override("font_color", MINT)
 
 func start_action(as_combat = false, op_tier: String = "normal"):
-	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == bool(as_combat)) and (rules.operation_tier == op_tier)
+	var is_prologue_req: bool = (op_tier == "prologue")
+	var eff_combat: bool = as_combat and not is_prologue_req
+	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == eff_combat) and (rules.operation_tier == op_tier)
 	if not same_active_run:
 		if rules.phase in ["active", "extracting"]:
 			_end_run(false, "切换行动")
@@ -1203,12 +1492,18 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		review_button.hide()
 		review_overlay.hide()
 		armory_panel.hide()
+		if is_instance_valid(settings_panel):
+			settings_panel.hide()
 		tutorial_moved = false
 		_leave_station()
-		rules.start_run(as_combat, op_tier)
+		rules.start_run(eff_combat, op_tier)
+		if is_instance_valid(prologue) and not is_prologue_req:
+			prologue.set_active(false)
 		exploration.reset()
 		if is_instance_valid(wildlife):
 			wildlife.reset()
+		if is_instance_valid(cave_warden):
+			cave_warden.reset()
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
 		player.medkits = rules.starter_medkits()
@@ -1245,16 +1540,25 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		player.cooldown = 0.0
 		player.knife_cooldown = 0.0
 		player.recoil = 0.0
+		ammo_respawn_timers.clear()
+		var ammo_crate_idx := 0
 		for node in pickup_nodes:
-			# v0.8.1 #15: Practice Range hides field supply loot boxes (pure shooting/word training only!)
-			var enable_pickup: bool = as_combat or node.has_meta("tactical_item")
+			# v0.8.1 #15 & v0.8.2_dev2 D2-2: Practice/Prologue hide field supply loot boxes;
+			# Combat selectively enables scarce ground ammo crates (6 Normal / 4 Confidential, with respawn cooldown).
+			var enable_pickup: bool = eff_combat or (not is_prologue_req and node.has_meta("tactical_item"))
+			if eff_combat and str(node.get_meta("tactical_item", "")) == "ammo_crate":
+				if rules.is_confidential():
+					enable_pickup = (ammo_crate_idx % 3 == 0)
+				else:
+					enable_pickup = (ammo_crate_idx % 2 == 0)
+				ammo_crate_idx += 1
 			Props.set_enabled(node, enable_pickup)
 		if is_instance_valid(loot_ui):
 			loot_ui.reset_run()
 		if is_instance_valid(world_loot):
 			world_loot.reset_for_run()
 		for node in crate_nodes:
-			Props.set_enabled(node, as_combat)
+			Props.set_enabled(node, eff_combat)
 			var tier = int(node.get_meta("tier"))
 			node.get_child(node.get_child_count() - 1).modulate = _crate_accent(tier)
 			if node.has_meta("lid_node") and is_instance_valid(node.get_meta("lid_node")):
@@ -1262,11 +1566,12 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		for child in player.weapon_root.get_children():
 			child.queue_free()
 		player.weapon_view = attach_weapon(player.weapon_root)
-		if as_combat:
+		if eff_combat:
 			combat.begin()
 		else:
 			combat.stop()
-			_next_question()
+			if not is_prologue_req:
+				_next_question()
 	if is_instance_valid(loot_ui):
 		loot_ui.close_all_modals()
 	paused = false
@@ -1322,6 +1627,14 @@ func _pick_smart_distractors(target: Dictionary, desired_count: int = 4) -> Arra
 			break
 	return picked
 
+func flash_word_switch_banner():
+	word_switch_flash = 0.48
+	if is_instance_valid(question_panel):
+		var st = question_panel.get_theme_stylebox("panel")
+		if st is StyleBoxFlat:
+			st.border_color = Color("ffd86b")
+			st.set_border_width_all(2)
+
 func _next_question():
 	question_help_used = false
 	if question_queue.is_empty():
@@ -1341,8 +1654,12 @@ func _next_question():
 	station_prompt_timer_max = 10.0
 	station_prompt_timer_left = station_prompt_timer_max if active_station >= 0 else 0.0
 	_sync_question()
-	if listening_mode and not paused:
-		speak_english(question.english)
+	if active_station >= 0:
+		flash_word_switch_banner()
+		if (listening_mode or bool(rules.setting("auto_speak_on_switch", true))) and not paused:
+			speak_english(str(question.get("english", "")))
+	elif listening_mode and not paused:
+		speak_english(str(question.get("english", "")))
 
 func _sync_question():
 	if combat.in_field() and combat.zone >= 0:
@@ -1399,10 +1716,18 @@ func _activate_station(index: int):
 	stations[index].set_boards_visible(true)
 	targets = stations[index].targets
 	target_materials = stations[index].materials
+	var rolled_fresh := false
+	if choices.is_empty() or not rules.question_open:
+		_next_question()
+		rolled_fresh = true
 	station_prompt_timer_max = 10.0
 	station_prompt_timer_left = station_prompt_timer_max if rules.question_open else 0.0
 	_sync_question()
-	_notice(stations[index].title + " · 看中文射击对应英文靶牌（按 X 可听发音）", MINT)
+	if not rolled_fresh and not question.is_empty():
+		flash_word_switch_banner()
+		if (listening_mode or bool(rules.setting("auto_speak_on_switch", true))) and not paused:
+			speak_english(str(question.get("english", "")))
+	_notice(stations[index].title + " · 看中文或听读音射击对应英文靶牌（按 X 重听发音）", MINT)
 
 func _leave_station():
 	if active_station >= 0:
@@ -1465,7 +1790,9 @@ func deploy_smoke_emp(camera: Camera3D):
 		combat.deploy_smoke_emp(target)
 	else:
 		play_sfx("smoke_emp", -10)
-		_notice("已投掷训练烟雾/EMP 手雷（实战中可瘫痪敌方并遮蔽狙击激光）", Color("7ceeff"))
+		_notice("已投掷训练烟雾/EMP 手雷（实战中可瘫痪雾隐帮词兵与古洞循音石卫）", Color("7ceeff"))
+	if is_instance_valid(cave_warden):
+		cave_warden.on_smoke_emp(target)
 
 func fire(camera: Camera3D):
 	if rules.phase != "active" or paused:
@@ -1477,6 +1804,23 @@ func fire(camera: Camera3D):
 	var query = PhysicsRayQueryParameters3D.create(from, to, 7 if shooting_field else 3, [player.get_rid()])
 	query.collide_with_areas = shooting_field
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
+	if is_instance_valid(prologue) and prologue.active:
+		var pq := PhysicsRayQueryParameters3D.create(from, to, 1 | prologue.HIT_LAYER, [player.get_rid()])
+		pq.collide_with_areas = true
+		var phit := get_world_3d().direct_space_state.intersect_ray(pq)
+		if phit and phit.collider is Area3D:
+			if result.is_empty() or from.distance_to(phit.position) <= from.distance_to(result.position) + 0.05:
+				if prologue.hit_bullet(phit.collider):
+					return
+	if is_instance_valid(cave_warden) and cave_warden.is_mode_active():
+		cave_warden.on_gunshot(player.position, rules.active_muzzle() == "suppressor")
+		var cwq := PhysicsRayQueryParameters3D.create(from, to, 1 | CaveWarden.HIT_LAYER, [player.get_rid()])
+		cwq.collide_with_areas = true
+		var cwhit := get_world_3d().direct_space_state.intersect_ray(cwq)
+		if cwhit and cwhit.collider is Area3D:
+			if result.is_empty() or from.distance_to(cwhit.position) <= from.distance_to(result.position) + 0.05:
+				if cave_warden.hit_bullet(cwhit.collider):
+					return
 	if is_instance_valid(wildlife):
 		wildlife.on_gunshot_near(player.position, rules.active_muzzle() == "suppressor")
 		var wq = PhysicsRayQueryParameters3D.create(from, to, 1 | Wildlife.HIT_LAYER, [player.get_rid()])
@@ -1500,12 +1844,20 @@ func resolve_answer(index: int, mobile = false):
 		return
 	var correct = index == answer_index
 	var prev_score = rules.score
-	if not rules.answer(correct, str(question.get("id", "")), choices.size(), question_help_used):
-		return
-	# Block Camp Station 0 farming during real field combat runs!
+	# v0.8.2_dev1: Camp Station 0 warm-up during Combat Operations MUST NOT contaminate combat score, answered/correct, or extraction accuracy!
 	var camp_warmup_in_combat: bool = (not mobile and combat.in_field())
 	if camp_warmup_in_combat:
-		rules.score = prev_score
+		if rules.phase != "active" or not rules.question_open:
+			return
+		rules.question_open = false
+		var wid_w := str(question.get("id", ""))
+		if wid_w != "":
+			rules.learning.record_recognition(wid_w, correct, choices.size(), question_help_used, -1, "camp_warmup", "listening" if listening_mode else "recognition")
+	else:
+		var rec_scene := "combat_word" if mobile else "practice_station"
+		var rec_mod := "listening" if listening_mode else "recognition"
+		if not rules.answer(correct, str(question.get("id", "")), choices.size(), question_help_used, rec_scene, rec_mod):
+			return
 	var gained = rules.score - prev_score
 
 	hitmarker_left = 0.20
@@ -1527,6 +1879,8 @@ func resolve_answer(index: int, mobile = false):
 	if camp_warmup_in_combat:
 		_notice("营地热身：%s（%s）· 实战撤离积分与清哨需击杀前哨敌军" % [question.english, question.chinese], GOLD)
 	elif correct:
+		if is_instance_valid(achievements):
+			achievements.record_stat("best_streak", rules.streak, true)
 		var streak_tag = (" · 🔥%d连击!" % rules.streak) if rules.streak >= 3 else ""
 		if mobile and rules.streak >= 3 and combat.in_field():
 			combat.heal(0, 6)
@@ -1568,7 +1922,7 @@ func _refresh_bag_pills():
 		child.queue_free()
 	if rules.bag.is_empty() and rules.safe_box.is_empty():
 		var empty_lbl = Label.new()
-		empty_lbl.text = "搜刮盲盒物资箱/草丛桥角秘藏（按 [B] 存入安全箱！）" if rules.can_loot() else "自由靶场纯训练：无物资掉落，按 [F] 开靶牌练识词！"
+		empty_lbl.text = "序章任务：按 [J] 重温对话与英文线索，无物资压力！" if rules.prologue_mode else ("搜刮盲盒物资箱/草丛桥角秘藏（按 [B] 存入安全箱！）" if rules.can_loot() else "自由靶场纯训练：无物资掉落，按 [F] 开靶牌练识词！")
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color("89a89b"))
 		bag_slots_box.add_child(empty_lbl)
@@ -1607,6 +1961,12 @@ func _refresh_bag_pills():
 func _process(delta):
 	render_age += delta
 	camp_display_clock += delta
+	if is_instance_valid(achievements):
+		achievements.update(delta)
+	if is_instance_valid(cave_warden):
+		cave_warden.update(delta)
+	if is_instance_valid(prologue) and prologue.active:
+		prologue.update(delta)
 	if not camp_display_slots.is_empty():
 		for slot in camp_display_slots:
 			var mount: Node3D = slot.mount
@@ -1624,7 +1984,7 @@ func _process(delta):
 	combat.update(delta)
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) > 15:
 		_leave_station()
-	if rules.phase in ["active", "extracting"]:
+	if rules.phase in ["active", "extracting"] and not rules.prologue_mode:
 		time_left -= delta
 		if time_left <= 0:
 			_end_run(false)
@@ -1664,31 +2024,68 @@ func _process(delta):
 		if hitmarker_left <= 0:
 			hitmarker_label.hide()
 
+	if word_switch_flash > 0.0:
+		word_switch_flash = maxf(0.0, word_switch_flash - delta)
+		if is_instance_valid(question_panel):
+			var qst = question_panel.get_theme_stylebox("panel")
+			if qst is StyleBoxFlat:
+				var f_t := clampf(word_switch_flash / 0.48, 0.0, 1.0)
+				qst.border_color = Color(0.55, 0.90, 0.74, 0.55).lerp(Color("ffd86b"), f_t)
+				qst.set_border_width_all(2 if f_t > 0.25 else 1)
+
+	if rules.combat_mode and not ammo_respawn_timers.is_empty():
+		var ready_crates: Array = []
+		for crate_n in ammo_respawn_timers.keys():
+			if not is_instance_valid(crate_n):
+				ready_crates.append(crate_n)
+				continue
+			var rem_t: float = float(ammo_respawn_timers[crate_n]) - float(delta)
+			if rem_t <= 0.0:
+				Props.set_enabled(crate_n, true)
+				ready_crates.append(crate_n)
+			else:
+				ammo_respawn_timers[crate_n] = rem_t
+		for done_c in ready_crates:
+			ammo_respawn_timers.erase(done_c)
+
 	crosshair_label.text = "◆" if player.weapon_slot == 1 else "+"
 	crosshair_label.visible = not (player.aiming and player.weapon_slot == 0)
 
 	var streak_str = ("  🔥×%d" % rules.streak) if rules.streak >= 3 else ""
-	stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
-		rules.score, Rules.EXTRACTION_SCORE, roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
-	]
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
-
 	_refresh_terminal_title()
-	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场(纯训练)"
-	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
-	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
-	if rules.combat_mode:
+	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
+		stat_label.text = "烟山初行 · 斥候 %d/%d | 线索 %s" % [prologue.scouts_cleared, prologue.scouts.size(), "已解开" if prologue.clue_solved else "待查验"]
+		mission_label.text = "单人序章 · 备弹无限 · [J] 重查任务与英文线索\n[Esc] 可随时调减震动、独立音量与鼠标灵敏度"
+		question_label.text = prologue.current_objective_text()
+		if is_instance_valid(cloze_label):
+			cloze_label.text = ""
+		unit_label.text = prologue.current_subhint_text()
+	elif rules.combat_mode:
+		stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
+			rules.score, Rules.EXTRACTION_SCORE, roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
+		]
+		var outpost_part = "营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]
+		var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
+		var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
 		mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
 			outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 		]
 	else:
-		mission_label.text = "%s · 撤离：%s\n%s · %s" % [
-			outpost_part, extract_part, exploration.status_text(), eco_part
+		# Clean Practice Range HUD: pure word/shooting practice without distracting combat timers or extraction gaps!
+		stat_label.text = "已答 %d 题  |  正确率 %d%%  |  积分 %d%s" % [
+			rules.answered, roundi(rules.accuracy() * 100), rules.score, streak_str
+		]
+		var eco_part_p = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
+		mission_label.text = "自由靶场 · 纯识词练枪（无物资 / 无首领 / 无战绩成就）\n%s · %s" % [
+			exploration.status_text(), eco_part_p
 		]
 	_update_guide()
 	_update_combat_hud()
 
-	if rules.can_loot():
+	if rules.prologue_mode:
+		bag_label.text = "序章行囊 · 专注路线、识词与望稻亭信标调查 [J]"
+	elif rules.can_loot():
 		bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), Rules.SAFE_BOX_SLOTS, rules.total_carried_value()]
 	else:
 		bag_label.text = "自由靶场 · 纯射击识词训练（不可搜集物资）"
@@ -1708,9 +2105,9 @@ func _process(delta):
 	if rules.active_grip() == "angled_grip":
 		mods.append("直角握把")
 	var optic_tag = " · ".join(mods)
-	var active_tag = "[2] 战术匕首 (高移速+近战必回弹)" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪  |  [2] 匕首"
+	var active_tag = "[2] 战术匕首 (高移速 · 应急回弹)" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪  |  [2] 匕首"
 	var reserve_str = "∞" if player.has_infinite_ammo() else str(maxi(0, player.reserve_ammo))
-	var ammo_line = "近战状态  ·  [左键/V] 斩击（背后处决/回弹）" if player.weapon_slot == 1 else (
+	var ammo_line = "近战状态  ·  [左键/V] 斩击（普通5刀/机密10刀处决回弹）" if player.weapon_slot == 1 else (
 		"换弹装填中…" if player.reload_left > 0 else "弹药 %02d / 备弹 %s   [R]换弹" % [player.ammo, reserve_str]
 	)
 	var stim_suffix = ("  ⚡%.0fs" % player.stim_left) if player.stim_left > 0 else ""
@@ -1763,7 +2160,9 @@ func _crate_progress(tier: int) -> String:
 func _update_guide():
 	if player.position.distance_to(Vector3(0, 0, 4.5)) > 1.2:
 		tutorial_moved = true
-	if rules.can_extract():
+	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
+		guide_label.text = "[J] 打开任务记录与英文线索  ·  [X] 听读音  ·  [Esc] 舒适设置"
+	elif rules.can_extract():
 		guide_label.text = "★ 撤离条件已全达标！前往B点绿色信标按 [F] 坚守5秒"
 	elif combat.in_field() and combat.zone == 2 and is_instance_valid(combat.boss_unit) and not combat.boss_unit.defeated:
 		guide_label.text = "首领战：破词盾露核心，[G]烟雾可致盲躲红圈"
@@ -1800,7 +2199,7 @@ func _update_combat_hud():
 		hp_bar_fill.size.x = 316.0
 		hp_bar_fill.color = Color("6ae3a8")
 		var stance_p: String = player.stance_label() if is_instance_valid(player) else "站立"
-		combat_label.text = "自由靶场模式  ·  无限备弹  ·  姿态：" + stance_p
+		combat_label.text = ("烟山初行·单人序章  ·  无限备弹  ·  姿态：" if rules.prologue_mode else "自由靶场模式  ·  无限备弹  ·  姿态：") + stance_p
 
 func _extraction_blocker_text() -> String:
 	var missing := []
@@ -1833,6 +2232,16 @@ func _update_interaction():
 			closest_interaction = node
 			nearest = distance
 
+	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
+		var p_info: Dictionary = prologue.interaction_prompt_for(player.position)
+		if not p_info.is_empty():
+			interaction_panel.show()
+			interaction_label.text = str(p_info.prompt)
+		else:
+			interaction_panel.show()
+			interaction_label.text = "按 [J] 查看任务进度与英文线索 · 沿暖金路灯行进"
+		return
+	interaction_panel.show()
 	if rules.phase == "extracting":
 		interaction_label.text = "★ 撤离信标传输中 %.1f 秒 · 请留在光圈内！" % maxf(0, extraction_left)
 	elif player.position.distance_to(exit_position) < 3.6:
@@ -1842,7 +2251,7 @@ func _update_interaction():
 			var kind = str(closest_interaction.get_meta("tactical_item"))
 			var title = str(closest_interaction.get_meta("title", "战术补给"))
 			if kind == "ammo_crate":
-				interaction_label.text = "[F] 搜刮 %s（+%d 备弹）" % [title, rules.magazine()]
+				interaction_label.text = "[F] 搜刮 %s（+%d 备弹 · 上限%d）" % [title, rules.ground_ammo_gain(), rules.max_reserve_ammo()]
 			elif kind == "smoke_emp":
 				interaction_label.text = "[F] 拾取 %s（+1）" % title
 			else:
@@ -1876,14 +2285,22 @@ func _update_interaction():
 			else:
 				interaction_label.text = "[F] 单词拼写开盲盒 · " + sup_title
 	else:
-		interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
-			roundi(player.position.distance_to(exit_position)),
-			"已解锁可撤离" if rules.can_extract() else _extraction_blocker_short()
-		]
+		if rules.combat_mode:
+			interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
+				roundi(player.position.distance_to(exit_position)),
+				"已解锁可撤离" if rules.can_extract() else _extraction_blocker_short()
+			]
+		elif rules.can_extract():
+			interaction_label.text = "靶场积分已达标 · 可前往 B 点信标 (%d m) 结束或按 [Esc] 返回" % roundi(player.position.distance_to(exit_position))
+		else:
+			interaction_label.text = "靠近绿色终端按 [F] 开靶牌练词 · 按 [Esc] 随时返回营地"
 
 func interact():
 	if rules.phase != "active" or paused:
 		return
+	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
+		if prologue.try_interact(player.position):
+			return
 	if player.position.distance_to(exit_position) < 3.6:
 		if rules.request_extraction():
 			extraction_left = Rules.EXTRACTION_SECONDS
@@ -1904,8 +2321,11 @@ func interact():
 			if player.has_infinite_ammo():
 				_notice("当前自由靶场备弹无限 · " + title, MINT)
 			else:
-				player.add_reserve_ammo(rules.magazine())
-				_notice("已补给 %s · 备弹 +%d（当前 %d）" % [title, rules.magazine(), player.reserve_ammo], GOLD)
+				var gain: int = rules.ground_ammo_gain()
+				var cd: float = rules.ammo_crate_respawn_seconds()
+				player.add_reserve_ammo(gain)
+				ammo_respawn_timers[closest_interaction] = cd
+				_notice("已补给 %s · 备弹 +%d（当前 %d/%d · %.0f秒后刷新）" % [title, gain, player.reserve_ammo, rules.max_reserve_ammo(), cd], GOLD)
 		elif kind == "smoke_emp":
 			player.grenades += 1
 			_notice("拾取 %s · 按 [G] 投掷（当前 %d）" % [title, player.grenades], Color("7ceeff"))
@@ -1958,8 +2378,13 @@ func _end_run(success: bool, title = ""):
 		"due_remaining": due_now
 	}
 	var saved := _save()
+	if is_instance_valid(achievements) and int(rules.profile.get("red_extracted", 0)) > 0:
+		achievements.record_stat("red_extracted", int(rules.profile.get("red_extracted", 0)), true)
 	var banked_count = rules.profile.warehouse.size() - pre_wh
 	var safe_saved_count: int = rules.last_saved_safe_box_count
+	if is_instance_valid(prologue) and prologue.active:
+		prologue.set_active(false)
+	rules.prologue_mode = false
 	refresh_camp_display_stand()
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
@@ -1981,21 +2406,22 @@ func _end_run(success: bool, title = ""):
 	elif safe_saved_count > 0:
 		header = "%s 随身背包遗留烟山，但 🔒 安全箱成功保住 %d 件重宝（%d 币）入库！\n" % [mode_badge, safe_saved_count, safe_val_before]
 	else:
-		header = "%s 未撤离物资遗留在烟山，学习记录已保存（下次可放进 🔒 安全箱）。\n" % mode_badge
-	menu_summary.text = header + "识词 %d/%d（%d%%）· 最高 %d 连击 · 宿敌攻克 %d 词\n" % [
-		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak, rules.nemesis_cleared
+		header = "%s 本局已结束，学习记录已整理入档。\n" % mode_badge
+	var ind_cnt: int = rules.learning.run_independent
+	var ast_cnt: int = rules.learning.run_assisted
+	menu_summary.text = header + "挑战战绩 %d/%d（%d%%）· 最高 %d 连击 | 独立答对 %d · 提示/练习 %d · 下次待练 %d\n" % [
+		rules.correct, rules.answered, roundi(rules.accuracy() * 100), rules.best_streak, ind_cnt, ast_cnt, due_now
 	]
-	menu_summary.text += "实际用时 %d 分 %02d 秒 · 今日剩余到期 %d 题\n" % [int(duration) / 60, int(duration) % 60, due_now]
-	var eco_count: int = wildlife.eco_discoveries_total() if is_instance_valid(wildlife) else 0
-	menu_summary.text += "营地 %d/6 · 首领%s · 完美开箱 %d · 探索 %d/3 · 秘藏 %d/6 · 古迹 %d/3 · 生态 %d/12" % [
-		rules.outposts_cleared, "已败" if defeated_boss else "未败", rules.perfect_ciphers, exploration.completed(), exploration.secrets_completed(), exploration.heritage_completed(), eco_count
+	menu_summary.text += "实际用时 %d 分 %02d 秒 · 宿敌攻克 %d 词 · 营地 %d/6 · 首领%s · 完美开箱 %d" % [
+		int(duration) / 60, int(duration) % 60, rules.nemesis_cleared, rules.outposts_cleared, "已败" if defeated_boss else "未败", rules.perfect_ciphers
 	]
 	if wrong_words.size() > 0:
 		menu_status.text = "本局有 %d 条错词或借助提示的题目。" % wrong_words.size()
 	else:
 		menu_status.text = ""
 	if not saved:
-		menu_status.text = "本局记录暂未写入存档。请检查存档位置。"
+		menu_summary.text = "⚠ 警告：存档写入失败（" + (last_save_error if last_save_error != "" else "请检查磁盘/权限") + "），本次进度暂未持久化！\n" + menu_summary.text
+		menu_status.text = "本局记录暂未写入存档。请检查存档位置与写入权限。"
 
 func _input(event):
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -2014,12 +2440,20 @@ func _input(event):
 				loot_ui.close_inspect()
 				get_viewport().set_input_as_handled()
 				return
+		if is_instance_valid(prologue) and prologue.busy and is_esc:
+			prologue.close_modal()
+			get_viewport().set_input_as_handled()
+			return
 		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:
 			cipher_terminal.close()
 			get_viewport().set_input_as_handled()
 			return
 		if is_instance_valid(exploration) and exploration.busy and is_esc:
 			exploration.close()
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(settings_panel) and settings_panel.visible and is_esc:
+			settings_panel.hide()
 			get_viewport().set_input_as_handled()
 			return
 		if is_esc and rules.phase in ["active", "extracting"]:
