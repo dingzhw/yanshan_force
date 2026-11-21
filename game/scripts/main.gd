@@ -10,13 +10,14 @@ const Combat = preload("res://scripts/combat.gd")
 const PerformanceTour = preload("res://scripts/performance_tour.gd")
 const CipherTerminal = preload("res://scripts/cipher_terminal.gd")
 const LootUI = preload("res://scripts/loot_ui.gd")
+const LootContainerUI = preload("res://scripts/loot_container_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.8.3"
+const VERSION = "0.8.4"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -163,6 +164,7 @@ var rangers
 var cave_warden
 var prologue
 var loot_ui
+var loot_container_ui
 var world_loot
 var landscape
 var minimap
@@ -221,6 +223,9 @@ func _ready():
 	loot_ui = LootUI.new()
 	add_child(loot_ui)
 	loot_ui.setup(self)
+	loot_container_ui = LootContainerUI.new()
+	add_child(loot_container_ui)
+	loot_container_ui.setup(self)
 	achievements = Achievements.new()
 	add_child(achievements)
 	achievements.setup(self)
@@ -1535,6 +1540,8 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 			cave_warden.reset()
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
+		if is_instance_valid(loot_container_ui):
+			loot_container_ui.reset()
 		if is_instance_valid(rangers):
 			rangers.reset_for_run(eff_combat, is_prologue_req)
 		player.medkits = rules.starter_medkits()
@@ -2333,16 +2340,21 @@ func _update_interaction():
 			var f_verb := "温习植物" if (is_instance_valid(wildlife) and wildlife.collected_flora.has(fid)) else "辨识奇植"
 			interaction_label.text = "[F] %s · %s (%s)" % [f_verb, closest_interaction.get_meta("en"), closest_interaction.get_meta("zh")]
 		elif closest_interaction.has_meta("explore_id"):
-			interaction_label.text = "[F] " + closest_interaction.get_meta("prompt")
+			if closest_interaction.has_meta("pending_items") and not (closest_interaction.get_meta("pending_items") as Array).is_empty():
+				var rem_e: Array = closest_interaction.get_meta("pending_items")
+				interaction_label.text = "[F] 查看奖励物资（已开启·剩余 %d 件） · %s" % [rem_e.size(), str(closest_interaction.get_meta("prompt"))]
+			else:
+				interaction_label.text = "[F] " + closest_interaction.get_meta("prompt")
 		elif closest_interaction.has_meta("station_id"):
 			interaction_label.text = "[F] 开启识词靶场 · " + closest_interaction.title
 		elif closest_interaction.has_meta("tier"):
 			var title = closest_interaction.get_meta("title")
 			var tier = int(closest_interaction.get_meta("tier"))
-			if closest_interaction.has_meta("unclaimed_loot"):
-				interaction_label.text = "[F] 领取/替换战利品 · " + title
+			if closest_interaction.has_meta("pending_items") and not (closest_interaction.get_meta("pending_items") as Array).is_empty():
+				var rem_c: Array = closest_interaction.get_meta("pending_items")
+				interaction_label.text = "[F] 搜刮（已开启·剩余 %d 件） · %s" % [rem_c.size(), title]
 			elif title in rules.crates:
-				interaction_label.text = title + " · 已破译搜刮"
+				interaction_label.text = title + " · 已搜空"
 			elif rules.crate_ready(tier):
 				var mode_hint = "三重破译(词+词组+句)" if tier >= 3 else ("词组+短句破译" if tier == 2 else "单词+词组破译")
 				interaction_label.text = "[F] %s · %s" % [mode_hint, title]
@@ -2350,8 +2362,9 @@ func _update_interaction():
 				interaction_label.text = title + " · " + _crate_progress(tier)
 		else:
 			var sup_title = str(closest_interaction.get_meta("title", "野外物资箱"))
-			if closest_interaction.has_meta("unclaimed_loot"):
-				interaction_label.text = "[F] 领取待替换物资 · " + sup_title
+			if closest_interaction.has_meta("pending_items") and not (closest_interaction.get_meta("pending_items") as Array).is_empty():
+				var rem_s: Array = closest_interaction.get_meta("pending_items")
+				interaction_label.text = "[F] 搜刮（已开启·剩余 %d 件） · %s" % [rem_s.size(), sup_title]
 			else:
 				interaction_label.text = "[F] 单词拼写开盲盒 · " + sup_title
 	else:
@@ -2463,6 +2476,8 @@ func _end_run(success: bool, title = ""):
 	combat.stop()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
 		cipher_terminal.reset()
+	if is_instance_valid(loot_container_ui) and loot_container_ui.busy:
+		loot_container_ui.reset()
 	if is_instance_valid(rangers) and rangers.busy:
 		rangers.close_npc_modal()
 	if is_instance_valid(loot_ui):
@@ -2518,6 +2533,10 @@ func _input(event):
 				return
 		if is_instance_valid(prologue) and prologue.busy and is_esc:
 			prologue.close_modal()
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(loot_container_ui) and loot_container_ui.busy and is_esc:
+			loot_container_ui.close()
 			get_viewport().set_input_as_handled()
 			return
 		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:

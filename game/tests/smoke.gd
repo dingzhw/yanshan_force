@@ -100,8 +100,9 @@ func run():
 	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply" and game.cipher_terminal.stage_count() == 1, "F on regular supply box opens 1-word English unlock terminal")
 	var pre_sup_score = game.rules.score
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
-	game.cipher_terminal.close()
-	verify(not sup0.visible and game.rules.bag.size() == 1 and game.rules.score == pre_sup_score + Rules.SUPPLY_PERFECT_SCORE, "typing single English word unlocks supply box and awards +10 score")
+	verify(game.loot_container_ui.busy and game.rules.bag.size() == 0, "v0.8.4: unlocking supply box opens confirmation pickup panel without auto-stuffing bag")
+	game.loot_container_ui.take_all_for_qa()
+	verify(not sup0.visible and game.rules.bag.size() == 1 and game.rules.score == pre_sup_score + Rules.SUPPLY_PERFECT_SCORE, "confirming supply pickup collects item, hides box, and awards +10 score")
 
 	while game.rules.score < Rules.EXTRACTION_SCORE or game.rules.answered < 6:
 		game.rules.open_question()
@@ -118,7 +119,8 @@ func run():
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
 	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.stage_index == 1, "passing stage 1 advances to textbook phrase stage 2")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
-	game.cipher_terminal.close()
+	verify(game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 2, "v0.8.4: cracking Tier-1 crate hands off 2 items to selective confirmation panel")
+	game.loot_container_ui.take_all_for_qa()
 	verify(game.rules.crates.size() == 1, "completing word+phrase stages unlocks Tier-1 crate")
 
 	game.player.position = game.exit_position

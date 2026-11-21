@@ -96,60 +96,133 @@ def join_parts(final_name: str, objs: list[bpy.types.Object]) -> bpy.types.Objec
 
 
 def build_cave_warden() -> bpy.types.Object:
-    """古洞循音石卫 (~2.45m tall): Ancient craggy karst guardian with glowing cyan acoustic ribcage & sonar antlers."""
-    m_stone = make_mat("Mat_WardenStone", (0.16, 0.21, 0.24), metallic=0.14, roughness=0.84)
-    m_slate = make_mat("Mat_WardenSlate", (0.09, 0.14, 0.18), metallic=0.22, roughness=0.72)
-    m_moss = make_mat("Mat_WardenMoss", (0.18, 0.34, 0.25), metallic=0.05, roughness=0.88)
-    m_sonar = make_mat("Mat_WardenSonar", (0.28, 0.94, 0.98), metallic=0.15, roughness=0.18, em_srgb=(0.24, 0.92, 1.0), em_str=3.4)
-    m_bone = make_mat("Mat_WardenRib", (0.58, 0.68, 0.66), metallic=0.12, roughness=0.58)
+    """古洞循音石卫 (~2.55m tall, v0.8.4 articulated multi-part rig):
+    Hierarchy exported inside v082_bosses.glb:
+      - cave_warden (Empty root at origin)
+        ├── warden_body     (legs, pelvis, torso, moss carapace, 3 curved ribcage arcs, recessed core socket)
+        ├── head_crest      (pivoted at neck gd(0, 2.08, 0.08): eyeless carved stone head + twin sonar antlers)
+        ├── arm_left_pivot  (pivoted at shoulder gd(-0.84, 1.84, -0.02): pauldron + forearm + heavy beveled青石臂盾)
+        └── arm_right_pivot (pivoted at shoulder gd(+0.84, 1.84, -0.02): pauldron + forearm + heavy beveled青石臂盾)
+    """
+    m_stone = make_mat("Mat_WardenStone", (0.18, 0.24, 0.27), metallic=0.14, roughness=0.82)
+    m_slate = make_mat("Mat_WardenSlate", (0.10, 0.15, 0.20), metallic=0.24, roughness=0.68)
+    m_moss = make_mat("Mat_WardenMoss", (0.19, 0.37, 0.26), metallic=0.05, roughness=0.88)
+    m_sonar = make_mat("Mat_WardenSonar", (0.28, 0.94, 0.98), metallic=0.15, roughness=0.18, em_srgb=(0.24, 0.92, 1.0), em_str=3.2)
+    m_bone = make_mat("Mat_WardenRib", (0.60, 0.70, 0.67), metallic=0.12, roughness=0.56)
+    m_shield = make_mat("Mat_WardenShieldStone", (0.24, 0.31, 0.34), metallic=0.26, roughness=0.64)
 
+    root_empty = bpy.data.objects.new("cave_warden", None)
+    root_empty.empty_display_type = "PLAIN_AXES"
+    bpy.context.collection.objects.link(root_empty)
+
+    def _join_under_pivot(part_name: str, pivot_gd: tuple[float, float, float], mesh_parts: list[bpy.types.Object]) -> bpy.types.Object:
+        non_empty = [o for o in mesh_parts if len(o.data.vertices) > 0]
+        for o in mesh_parts:
+            if o not in non_empty:
+                bpy.data.objects.remove(o, do_unlink=True)
+        joined = join_parts(part_name, non_empty)
+        piv_bl = gd_to_bl(Vector(pivot_gd))
+        # Shift vertex coordinates into local pivot space, then place object origin at pivot!
+        for v in joined.data.vertices:
+            v.co -= piv_bl
+        joined.data.update()
+        joined.location = piv_bl
+        joined.parent = root_empty
+        return joined
+
+    # ------------------------------------------------------------------
+    # 1) warden_body (origin at gd(0, 0, 0))
+    # ------------------------------------------------------------------
     bm_stone, bm_slate, bm_moss, bm_sonar, bm_bone = (bmesh.new() for _ in range(5))
 
     # Heavy rooted legs & knee plates (y = 0.0 .. 1.05)
     for sx in (-1.0, 1.0):
-        add_rock_lobe(bm_stone, (sx * 0.42, 0.14, 0.04), (0.24, 0.16, 0.30), 101 + int(sx + 2))
+        add_rock_lobe(bm_stone, (sx * 0.42, 0.14, 0.04), (0.25, 0.16, 0.31), 101 + int(sx + 2))
         add_cyl(bm_slate, (sx * 0.40, 0.16, 0.0), (sx * 0.42, 0.62, 0.02), 0.18, 0.20, 10)
-        add_rock_lobe(bm_stone, (sx * 0.42, 0.58, 0.12), (0.20, 0.18, 0.20), 111 + int(sx + 2))
+        add_rock_lobe(bm_stone, (sx * 0.42, 0.58, 0.13), (0.21, 0.18, 0.21), 111 + int(sx + 2))
         add_cyl(bm_stone, (sx * 0.42, 0.60, 0.0), (sx * 0.36, 1.05, -0.02), 0.21, 0.24, 10)
 
     # Broad hunched karst pelvis & back carapace
     add_rock_lobe(bm_slate, (0.0, 1.08, -0.04), (0.56, 0.26, 0.38), 120)
-    add_rock_lobe(bm_stone, (0.0, 1.58, -0.22), (0.76, 0.56, 0.44), 121, subdiv=2, amp=0.18)
-    add_rock_lobe(bm_moss, (0.0, 2.02, -0.28), (0.62, 0.22, 0.34), 122, subdiv=1, amp=0.16)
+    add_rock_lobe(bm_stone, (0.0, 1.58, -0.20), (0.76, 0.56, 0.44), 121, subdiv=2, amp=0.18)
+    add_rock_lobe(bm_moss, (0.0, 2.02, -0.26), (0.64, 0.22, 0.34), 122, subdiv=1, amp=0.16)
+    # Recessed dark slate socket backing the compact 0.30m chest core (replaces old oversized glowing blob!)
+    add_cyl(bm_slate, (0.0, 1.56, 0.08), (0.0, 1.56, 0.24), 0.28, 0.22, 12)
+    add_rock_lobe(bm_sonar, (0.0, 1.56, 0.16), (0.11, 0.11, 0.08), 130, subdiv=1, amp=0.05)
 
-    # Hollow glowing cyan acoustic heart + 3 curved ribcage arcs framing the chest!
-    add_rock_lobe(bm_sonar, (0.0, 1.56, 0.16), (0.26, 0.30, 0.18), 130, subdiv=2, amp=0.08)
-    for r_i, ry in enumerate([1.36, 1.56, 1.76]):
+    # 3 curved bone-stone ribcage arcs framing the recessed chest core
+    for ry in [1.34, 1.56, 1.78]:
         for sx in (-1.0, 1.0):
-            add_cyl(bm_bone, (sx * 0.62, ry + 0.05, -0.06), (sx * 0.42, ry, 0.24), 0.065, 0.055, 8)
-            add_cyl(bm_bone, (sx * 0.42, ry, 0.24), (sx * 0.16, ry - 0.03, 0.30), 0.055, 0.040, 8)
+            add_cyl(bm_bone, (sx * 0.62, ry + 0.05, -0.06), (sx * 0.44, ry, 0.22), 0.068, 0.056, 8)
+            add_cyl(bm_bone, (sx * 0.44, ry, 0.22), (sx * 0.21, ry - 0.02, 0.28), 0.056, 0.038, 8)
 
-    # Massive stone shoulders & gorilla-like long stone forearms reaching down to y = 0.68
-    for sx in (-1.0, 1.0):
-        add_rock_lobe(bm_stone, (sx * 0.84, 1.88, -0.04), (0.34, 0.32, 0.32), 140 + int(sx + 2))
-        add_rock_lobe(bm_moss, (sx * 0.88, 2.12, -0.06), (0.24, 0.12, 0.24), 145 + int(sx + 2), subdiv=1)
-        add_cyl(bm_slate, (sx * 0.86, 1.76, 0.0), (sx * 0.96, 1.24, 0.14), 0.20, 0.18, 10)
-        add_rock_lobe(bm_stone, (sx * 0.98, 0.94, 0.24), (0.24, 0.38, 0.24), 150 + int(sx + 2))
-        # Glowing cyan acoustic knuckles
-        add_rock_lobe(bm_sonar, (sx * 0.98, 0.68, 0.32), (0.14, 0.10, 0.14), 155 + int(sx + 2), subdiv=1, amp=0.08)
+    _join_under_pivot("warden_body", (0.0, 0.0, 0.0), [
+        part_obj("WardenBodyStone", bm_stone, m_stone, smooth=True),
+        part_obj("WardenBodySlate", bm_slate, m_slate, smooth=True),
+        part_obj("WardenBodyMoss", bm_moss, m_moss, smooth=True),
+        part_obj("WardenBodySonar", bm_sonar, m_sonar, smooth=True),
+        part_obj("WardenBodyRib", bm_bone, m_bone, smooth=True),
+    ])
 
-    # Eyeless carved stone head (mouth cavity + twin flared glowing acoustic sensor antlers!)
-    add_rock_lobe(bm_stone, (0.0, 2.18, 0.14), (0.34, 0.30, 0.32), 160, subdiv=2, amp=0.12)
-    add_box(bm_slate, (0.0, 2.08, 0.38), (0.34, 0.14, 0.10))
-    add_box(bm_sonar, (0.0, 2.08, 0.41), (0.24, 0.07, 0.05))
+    # ------------------------------------------------------------------
+    # 2) head_crest (pivoted at neck gd(0.0, 2.08, 0.08))
+    # ------------------------------------------------------------------
+    hb_stone, hb_slate, hb_moss, hb_sonar = (bmesh.new() for _ in range(4))
+    add_rock_lobe(hb_stone, (0.0, 2.22, 0.14), (0.34, 0.30, 0.32), 160, subdiv=2, amp=0.12)
+    add_rock_lobe(hb_moss, (0.0, 2.46, 0.06), (0.24, 0.10, 0.20), 162, subdiv=1, amp=0.12)
+    add_box(hb_slate, (0.0, 2.12, 0.38), (0.34, 0.14, 0.10))
+    add_box(hb_sonar, (0.0, 2.12, 0.41), (0.24, 0.06, 0.05))
     # Flared acoustic listening antlers (left & right)
     for sx in (-1.0, 1.0):
-        add_cyl(bm_slate, (sx * 0.28, 2.24, 0.10), (sx * 0.62, 2.48, 0.04), 0.075, 0.055, 8)
-        add_cyl(bm_sonar, (sx * 0.62, 2.48, 0.04), (sx * 0.78, 2.74, 0.08), 0.055, 0.025, 8)
-        add_cyl(bm_sonar, (sx * 0.48, 2.38, 0.06), (sx * 0.56, 2.68, 0.14), 0.045, 0.020, 8)
+        add_cyl(hb_slate, (sx * 0.28, 2.28, 0.10), (sx * 0.62, 2.52, 0.04), 0.075, 0.055, 8)
+        add_cyl(hb_sonar, (sx * 0.62, 2.52, 0.04), (sx * 0.80, 2.78, 0.08), 0.055, 0.024, 8)
+        add_cyl(hb_sonar, (sx * 0.48, 2.42, 0.06), (sx * 0.58, 2.72, 0.15), 0.045, 0.020, 8)
 
-    return join_parts("cave_warden", [
-        part_obj("WardenStone", bm_stone, m_stone, smooth=True),
-        part_obj("WardenSlate", bm_slate, m_slate, smooth=True),
-        part_obj("WardenMoss", bm_moss, m_moss, smooth=True),
-        part_obj("WardenSonar", bm_sonar, m_sonar, smooth=True),
-        part_obj("WardenRib", bm_bone, m_bone, smooth=True),
+    _join_under_pivot("head_crest", (0.0, 2.08, 0.08), [
+        part_obj("WardenHeadStone", hb_stone, m_stone, smooth=True),
+        part_obj("WardenHeadSlate", hb_slate, m_slate, smooth=True),
+        part_obj("WardenHeadMoss", hb_moss, m_moss, smooth=True),
+        part_obj("WardenHeadSonar", hb_sonar, m_sonar, smooth=True),
     ])
+
+    # ------------------------------------------------------------------
+    # 3) arm_left_pivot (-X) & arm_right_pivot (+X) with massive beveled青石臂盾
+    # ------------------------------------------------------------------
+    for arm_name, sx, seed_off in (("arm_left_pivot", -1.0, 0), ("arm_right_pivot", 1.0, 30)):
+        ab_stone, ab_slate, ab_moss, ab_sonar, ab_shield = (bmesh.new() for _ in range(5))
+        piv = (sx * 0.84, 1.84, -0.02)
+
+        # Massive layered karst shoulder boulder + mossy top cap
+        add_rock_lobe(ab_stone, (sx * 0.86, 1.90, -0.02), (0.34, 0.31, 0.33), 140 + seed_off)
+        add_rock_lobe(ab_moss, (sx * 0.89, 2.14, -0.04), (0.24, 0.11, 0.24), 145 + seed_off, subdiv=1)
+
+        # Muscular dark-slate upper arm linking shoulder to forearm shield
+        add_cyl(ab_slate, (sx * 0.86, 1.76, 0.02), (sx * 0.94, 1.28, 0.16), 0.20, 0.18, 10)
+        add_rock_lobe(ab_stone, (sx * 0.96, 1.24, 0.18), (0.22, 0.20, 0.22), 148 + seed_off)
+
+        # Heavy beveled 青石臂盾 (stone gauntlet shield plate) mounted along forearm!
+        # Designed so when both arms fold inward across the chest, the two shields interlock cleanly in front of the 0.30m core!
+        add_box(ab_shield, (sx * 0.98, 0.98, 0.32), (0.36, 0.78, 0.24), (8.0, 0.0, sx * 6.0))
+        add_box(ab_slate, (sx * 1.02, 0.98, 0.42), (0.26, 0.64, 0.08), (8.0, 0.0, sx * 6.0))
+        # Carved horizontal dark-iron/slate reinforcement bands & beveled edge crest
+        for band_y in (1.24, 0.98, 0.72):
+            add_box(ab_slate, (sx * 0.99, band_y, 0.34), (0.40, 0.08, 0.28), (8.0, 0.0, sx * 6.0))
+        # Moss accent on upper shield shoulder & thin glowing cyan acoustic veins on outer shield face
+        add_rock_lobe(ab_moss, (sx * 1.04, 1.28, 0.36), (0.18, 0.10, 0.14), 152 + seed_off, subdiv=1)
+        add_box(ab_sonar, (sx * 1.03, 0.98, 0.46), (0.06, 0.50, 0.04), (8.0, 0.0, sx * 6.0))
+        # Heavy stone fist & glowing acoustic knuckles
+        add_rock_lobe(ab_stone, (sx * 0.94, 0.64, 0.30), (0.20, 0.18, 0.22), 154 + seed_off)
+        add_rock_lobe(ab_sonar, (sx * 0.94, 0.56, 0.38), (0.13, 0.08, 0.12), 155 + seed_off, subdiv=1, amp=0.08)
+
+        _join_under_pivot(arm_name, piv, [
+            part_obj(arm_name + "_Stone", ab_stone, m_stone, smooth=True),
+            part_obj(arm_name + "_Slate", ab_slate, m_slate, smooth=False),
+            part_obj(arm_name + "_Moss", ab_moss, m_moss, smooth=True),
+            part_obj(arm_name + "_Sonar", ab_sonar, m_sonar, smooth=False),
+            part_obj(arm_name + "_Shield", ab_shield, m_shield, smooth=False),
+        ])
+
+    return root_empty
 
 
 def build_skyfall_overlord() -> bpy.types.Object:
@@ -215,12 +288,20 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     w = build_cave_warden()
     o = build_skyfall_overlord()
-    for obj in (w, o):
+    bpy.context.view_layer.update()
+    for obj in list(w.children) + [o]:
+        if obj.type != "MESH":
+            continue
         verts = [obj.matrix_world @ v.co for v in obj.data.vertices]
         xs = [v.x for v in verts]
         ys = [v.y for v in verts]
         zs = [v.z for v in verts]
-        print(f"Built {obj.name}: {len(obj.data.polygons)} polys, gd_x=[{min(xs):.2f},{max(xs):.2f}] gd_y=[{min(zs):.2f},{max(zs):.2f}] gd_z=[{-max(ys):.2f},{-min(ys):.2f}]")
+        loc = obj.location
+        print(
+            f"Built {obj.name} (pivot gd=({loc.x:.2f},{loc.z:.2f},{-loc.y:.2f})): "
+            f"{len(obj.data.polygons)} polys, gd_x=[{min(xs):.2f},{max(xs):.2f}] "
+            f"gd_y=[{min(zs):.2f},{max(zs):.2f}] gd_z=[{-max(ys):.2f},{-min(ys):.2f}]"
+        )
 
     OUT_GLB.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(
@@ -229,7 +310,7 @@ def main():
         export_yup=True,
         export_materials="EXPORT",
     )
-    print(f"Exported v0.8.2 Boss models -> {OUT_GLB} ({OUT_GLB.stat().st_size} bytes)")
+    print(f"Exported v0.8.4 Boss models -> {OUT_GLB} ({OUT_GLB.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

@@ -245,45 +245,64 @@ func _build_attachments():
 			att_nodes[key] = node
 
 func _build_charm_mount():
-	# Tactical under-handguard steel Picatinny sling lug + pendulum pivot visible below rifle forend!
+	# v0.8.4 Left-flank exterior Picatinny side-rail outrigger lug & sling ring:
+	# Mounted on the camera-facing left side of the upper receiver (clear of the left hand & optic sightline)
+	# so all 13 achievement charms dangle prominently in hip-fire, combat, sprint, reload & ADS!
 	charm_anchor = Node3D.new()
 	charm_anchor.name = "WeaponCharmAnchor"
-	charm_anchor.position = Vector3(-0.022, 0.132, -0.155)
+	charm_anchor.position = Vector3(-0.030, 0.184, -0.068)
 	gun_pivot.add_child(charm_anchor)
 
 	var ring_mat := StandardMaterial3D.new()
-	ring_mat.albedo_color = Color("2a3236")
+	ring_mat.albedo_color = Color("323b40")
 	ring_mat.metallic = 0.88
-	ring_mat.roughness = 0.28
+	ring_mat.roughness = 0.24
 
-	var lug := MeshInstance3D.new()
-	var lug_b := BoxMesh.new()
-	lug_b.size = Vector3(0.014, 0.010, 0.018)
-	lug.mesh = lug_b
-	lug.material_override = ring_mat
-	lug.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	charm_anchor.add_child(lug)
+	var brass_mat := StandardMaterial3D.new()
+	brass_mat.albedo_color = Color("d4ad5a")
+	brass_mat.metallic = 0.90
+	brass_mat.roughness = 0.22
+
+	# Rail clamp block bolted to receiver left flank + outward cantilever arm
+	var clamp_blk := MeshInstance3D.new()
+	var cb := BoxMesh.new()
+	cb.size = Vector3(0.010, 0.014, 0.026)
+	clamp_blk.mesh = cb
+	clamp_blk.position = Vector3(-0.003, 0.0, 0.0)
+	clamp_blk.material_override = ring_mat
+	clamp_blk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	charm_anchor.add_child(clamp_blk)
+
+	var outrigger := MeshInstance3D.new()
+	var ob := BoxMesh.new()
+	ob.size = Vector3(0.024, 0.007, 0.010)
+	outrigger.mesh = ob
+	outrigger.position = Vector3(-0.016, -0.001, 0.0)
+	outrigger.material_override = brass_mat
+	outrigger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	charm_anchor.add_child(outrigger)
 
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
-	torus.inner_radius = 0.0045
-	torus.outer_radius = 0.0072
-	torus.rings = 12
+	torus.inner_radius = 0.0052
+	torus.outer_radius = 0.0084
+	torus.rings = 14
 	torus.ring_segments = 8
 	ring.mesh = torus
-	ring.position = Vector3(-0.005, -0.008, 0.0)
-	ring.rotation.z = PI * 0.5
-	ring.material_override = ring_mat
+	ring.position = Vector3(-0.028, -0.006, 0.0)
+	ring.rotation.x = PI * 0.5
+	ring.material_override = brass_mat
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	charm_anchor.add_child(ring)
 
 	charm_pendulum = Node3D.new()
 	charm_pendulum.name = "WeaponCharmPendulum"
-	charm_pendulum.position = Vector3(-0.005, -0.011, 0.0)
+	charm_pendulum.position = Vector3(-0.028, -0.010, 0.0)
 	charm_anchor.add_child(charm_pendulum)
 
 	charm_visual_root = Node3D.new()
 	charm_visual_root.name = "WeaponCharmVisual"
+	charm_visual_root.scale = Vector3.ONE * 1.45
 	charm_pendulum.add_child(charm_visual_root)
 	charm_anchor.hide()
 
@@ -298,34 +317,40 @@ func _rebuild_charm_mesh(charm_id: String):
 			charm_anchor.hide()
 		return
 	var spec: Dictionary = Achievements.CHARMS[charm_id]
+	var is_glowing: bool = str(spec.shape) in ["sonar", "star", "crosshair"]
 	var main_mat := StandardMaterial3D.new()
 	main_mat.albedo_color = spec.color
-	main_mat.metallic = 0.78
-	main_mat.roughness = 0.24
+	main_mat.metallic = 0.80
+	main_mat.roughness = 0.22
+	main_mat.metallic_specular = 0.65
+	main_mat.emission_enabled = true
+	main_mat.emission = spec.color
+	main_mat.emission_energy_multiplier = 0.55 if is_glowing else 0.26
 	var acc_mat := StandardMaterial3D.new()
 	acc_mat.albedo_color = spec.accent
-	acc_mat.metallic = 0.62
-	acc_mat.roughness = 0.30
-	if str(spec.shape) in ["sonar", "star", "crosshair"]:
-		acc_mat.emission_enabled = true
-		acc_mat.emission = spec.color
-		acc_mat.emission_energy_multiplier = 0.9
+	acc_mat.metallic = 0.72
+	acc_mat.roughness = 0.26
+	acc_mat.emission_enabled = true
+	acc_mat.emission = spec.color if is_glowing else spec.accent
+	acc_mat.emission_energy_multiplier = 1.05 if is_glowing else 0.20
 
 	# Delicate hanging chain link connecting ring to charm body
 	var link := MeshInstance3D.new()
 	var lc := CylinderMesh.new()
-	lc.top_radius = 0.0014
-	lc.bottom_radius = 0.0014
-	lc.height = 0.016
+	lc.top_radius = 0.0016
+	lc.bottom_radius = 0.0016
+	lc.height = 0.015
 	link.mesh = lc
-	link.position = Vector3(0.0, -0.008, 0.0)
+	link.position = Vector3(0.0, -0.0075, 0.0)
 	link.material_override = acc_mat
 	link.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	charm_visual_root.add_child(link)
 
 	var shape := str(spec.shape)
 	var body := Node3D.new()
-	body.position = Vector3(0.0, -0.028, 0.0)
+	body.position = Vector3(0.0, -0.026, 0.0)
+	# Gently cant charm face toward the first-person camera on the left flank!
+	body.rotation.y = 0.28
 	charm_visual_root.add_child(body)
 
 	match shape:
@@ -856,14 +881,15 @@ func _update_charm_physics(delta: float, moving: float, reload_dip: float):
 	prev_yaw_ready = true
 
 	# Spring-damper 2-axis pendulum responding to turning inertia, footstep bob, recoil & reload roll!
+	# Clamp inward Z-swing (+0.16 max) so exterior left-side charm NEVER clips into receiver body!
 	var stiffness := 34.0
-	var damping := 5.6
-	var target_x := clampf(reload_dip * 0.42 + yaw_vel * 0.065, -0.75, 0.75)
+	var damping := 5.8
+	var target_x := clampf(-0.08 - reload_dip * 0.36 + yaw_vel * 0.060, -0.78, 0.14)
 	var target_y := clampf(sin(elapsed * 7.5) * moving * 0.045, -0.35, 0.35)
 	charm_vel.x += ((target_x - charm_angle.x) * stiffness - charm_vel.x * damping) * delta
 	charm_vel.y += ((target_y - charm_angle.y) * stiffness - charm_vel.y * damping) * delta
-	charm_angle.x = clampf(charm_angle.x + charm_vel.x * delta, -0.92, 0.92)
-	charm_angle.y = clampf(charm_angle.y + charm_vel.y * delta, -0.82, 0.82)
+	charm_angle.x = clampf(charm_angle.x + charm_vel.x * delta, -0.88, 0.16)
+	charm_angle.y = clampf(charm_angle.y + charm_vel.y * delta, -0.74, 0.74)
 	charm_pendulum.rotation = Vector3(charm_angle.y, 0.0, charm_angle.x)
 
 func animate(delta: float, reload_progress: float, moving: float, aimed: bool):

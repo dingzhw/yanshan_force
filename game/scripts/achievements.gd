@@ -225,7 +225,13 @@ func _pop_next_banner():
 		game.play_sfx("achievement_unlock", -9)
 
 func update(delta: float):
-	if banner_active.is_empty() or not is_instance_valid(banner_panel):
+	if not is_instance_valid(banner_panel) or not is_instance_valid(banner_root):
+		return
+	if is_instance_valid(game) and game.paused:
+		banner_root.visible = false
+		return
+	banner_root.visible = true
+	if banner_active.is_empty():
 		return
 	banner_elapsed += delta
 	if banner_elapsed < 0.28:

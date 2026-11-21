@@ -337,7 +337,7 @@ func _ui():
 	source = game._text(overlay, "", Vector2(256, 578), Vector2(768, 34), 13, Color("a7b8a2"))
 	source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	game._button(overlay, "返回山路  [Esc]", Rect2(808, 624, 216, 38), close)
-	swap_button = game._button(overlay, "替换最低值物资", Rect2(566, 624, 224, 38), replace_reward)
+	swap_button = game._button(overlay, "📦 确认拾取奖励物资", Rect2(548, 624, 244, 38), open_reward_container, true)
 	swap_button.hide()
 	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(256, 630), Vector2(300, 28), 14, game.MINT)
 	overlay.hide()
@@ -427,6 +427,9 @@ func reset():
 		gate_plaque.visible = true
 	for n in nodes:
 		game.Props.set_enabled(n, true)
+		for mk in ["pending_items", "opened_remaining", "scanned"]:
+			if n.has_meta(mk):
+				n.remove_meta(mk)
 	for lid in node_labels:
 		var info: Dictionary = node_labels[lid]
 		var lbl: Label3D = info.label
@@ -434,10 +437,17 @@ func reset():
 			lbl.text = str(info.base_text)
 			lbl.modulate = info.base_color
 
+func _node_for_id(id: String) -> Node3D:
+	for n in nodes:
+		if is_instance_valid(n) and str(n.get_meta("explore_id", "")) == id:
+			return n
+	return null
+
 func safe() -> bool:
 	var cipher_busy = is_instance_valid(game.cipher_terminal) and game.cipher_terminal.busy
 	var ranger_busy = is_instance_valid(game.rangers) and game.rangers.busy
-	return busy or cipher_busy or ranger_busy or grace > 0 or game.player.position.distance_to(game.exit_position) < 4.7
+	var loot_box_busy = is_instance_valid(game.loot_container_ui) and game.loot_container_ui.busy
+	return busy or cipher_busy or ranger_busy or loot_box_busy or grace > 0 or game.player.position.distance_to(game.exit_position) < 4.7
 
 func update(delta: float):
 	grace = maxf(0, grace - delta)
@@ -462,15 +472,30 @@ func open(node: Node3D):
 			game.play_sfx("cipher_unlock", -11)
 			game.speak_english("next to")
 			game._notice("读懂 next to（在……旁边）！自由靶场仅纯练词不入包物资，实战中可领稀有无线电台！", game.MINT)
-		elif game.rules.add_loot("加密无线电台", 82, 3):
-			states.english = true
-			game.Props.set_enabled(node, false)
+		else:
+			var radio_items: Array = node.get_meta("pending_items", [])
+			if radio_items.is_empty():
+				radio_items = [game.rules._enrich_loot_dict({"title": "加密无线电台", "value": 82, "rarity": 3})]
+				node.set_meta("pending_items", radio_items)
+				node.set_meta("opened_remaining", true)
 			game.play_sfx("cipher_unlock", -11)
 			game.speak_english("next to")
-			game._notice("读懂 next to（在……旁边）！获得【稀有】加密无线电台（82币）", game.MINT)
-		else:
-			game._notice("背包已满，补给会留在这里。")
+			if is_instance_valid(game.loot_container_ui):
+				game.loot_container_ui.open_container(
+					node, "exploration", "路牌旁的封存补给", radio_items,
+					"读懂方位词 next to（在……旁边）已解开封条！请确认拾取、存安全箱或留在原地。", false, "english"
+				)
 		return
+	# v0.8.4: Revisiting a solved exploration stash with leftover reward items opens LootContainerUI directly!
+	if bool(states.get(id, false)) and node.has_meta("pending_items"):
+		var rem_exp: Array = node.get_meta("pending_items")
+		if not rem_exp.is_empty() and is_instance_valid(game.loot_container_ui):
+			var exp_title := str(current_items.get(id, {}).get("title", node.get_meta("prompt", "探索奖励")))
+			game.loot_container_ui.open_container(
+				node, "exploration", exp_title, rem_exp,
+				"已解开的探索秘藏奖励 · 自由选择拾取入包、存安全箱或留在原处", false, id
+			)
+			return
 	active_id = id
 	busy = true
 	game.paused = true
@@ -622,35 +647,45 @@ func _reward(id: String):
 		if not game.rules.can_loot():
 			states[key] = true
 			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可领取【%s】%s！" % [game.Rules.RARITY_NAMES[rarity], rw_title]
-		elif game.rules.add_loot(rw_title, rw_value, rarity):
-			states[key] = true
-			suffix = "已获得【%s】%s（估值 %d 币）！" % [game.Rules.RARITY_NAMES[rarity], rw_title, rw_value]
 		else:
-			suffix = "背包已满！可点下方「替换最低值物资」换入高价值奖励，或直接返回。"
+			var nd := _node_for_id(id)
+			var rw_item: Dictionary = game.rules._enrich_loot_dict(rw)
+			if is_instance_valid(nd):
+				if not nd.has_meta("pending_items") or (nd.get_meta("pending_items") as Array).is_empty():
+					nd.set_meta("pending_items", [rw_item])
+					nd.set_meta("opened_remaining", true)
+			suffix = "已解锁【%s】%s（估值 %d 币）！请点下方「📦 确认拾取奖励物资」选择入包、存安全箱或留原处。" % [game.Rules.RARITY_NAMES[rarity], rw_title, rw_value]
+			swap_button.text = "📦 确认拾取奖励物资"
 			swap_button.show()
 	explanation.text = item.explanation + "\n" + suffix
 	for b in buttons:
 		b.disabled = true
 
-func replace_reward():
-	if not busy or active_id not in current_items or not states[active_id] or states[active_id + "_claimed"]:
+func open_reward_container():
+	if not busy or active_id not in current_items or not bool(states.get(active_id, false)) or bool(states.get(active_id + "_claimed", false)):
 		return
-	if game.rules.bag.is_empty():
-		return
-	var lowest = 0
-	for i in range(1, game.rules.bag.size()):
-		if int(game.rules.bag[i].value) < int(game.rules.bag[lowest].value):
-			lowest = i
-	var previous = game.rules.bag[lowest]
-	game.rules.bag.remove_at(lowest)
-	var item = current_items[active_id]
-	var rw := _resolved_reward(active_id, item)
-	if game.rules.add_loot(str(rw.title), int(rw.value), int(rw.rarity)):
-		states[active_id + "_claimed"] = true
-		game.play_sfx("cipher_unlock", -12)
+	var eid: String = str(active_id)
+	var nd: Node3D = _node_for_id(eid)
+	var exp_title: String = str(current_items[eid].get("title", "探索奖励"))
+	var items_arr: Array = nd.get_meta("pending_items", []) if is_instance_valid(nd) else []
+	if items_arr.is_empty():
+		var rw := _resolved_reward(eid, current_items[eid])
+		items_arr = [game.rules._enrich_loot_dict(rw)]
+		if is_instance_valid(nd):
+			nd.set_meta("pending_items", items_arr)
+			nd.set_meta("opened_remaining", true)
+	busy = false
+	overlay.hide()
+	if is_instance_valid(game.loot_container_ui):
+		game.loot_container_ui.open_container(
+			nd, "exploration", exp_title, items_arr,
+			"探索秘藏奖励确认 · 可拾取入包、直存安全箱，或留原处稍后再取", false, eid
+		)
 	else:
-		game.rules.bag.insert(lowest, previous)
-	_reward(active_id)
+		close()
+
+func replace_reward():
+	open_reward_container()
 
 func close():
 	if not busy:

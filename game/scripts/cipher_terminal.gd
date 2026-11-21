@@ -347,31 +347,19 @@ func open_retest(entries: Array):
 func open_for_supply(pickup_node: Node3D):
 	if not is_instance_valid(pickup_node) or not pickup_node.visible:
 		return
+	# v0.8.4: Previously unlocked supply box with leftover items opens LootContainerUI directly (no re-spelling!)
+	if pickup_node.has_meta("pending_items"):
+		var saved_p: Array = pickup_node.get_meta("pending_items")
+		if not saved_p.is_empty() and is_instance_valid(game.loot_container_ui):
+			game.loot_container_ui.open_container(
+				pickup_node, "supply", str(pickup_node.get_meta("title", "野外物资箱")),
+				saved_p, "已解锁物资箱 · 自由选择拾取入包、存安全箱或留在箱内", false
+			)
+			return
 	mode = "supply"
 	active_crate = pickup_node
 	_clear_loot_cards()
 	swap_button.hide()
-
-	# If previously unlocked while bag was full, reopen directly to claim/swap
-	if pickup_node.has_meta("unclaimed_loot"):
-		var saved: Array = pickup_node.get_meta("unclaimed_loot")
-		if not saved.is_empty():
-			stages = [_pick_word_entry(false)]
-			stage_index = 0
-			target_word = stages[0]
-			unlocked = true
-			displayed_loot = saved.duplicate(true)
-			pending_loot = saved.duplicate(true)
-			_enter_modal()
-			title_label.text = "%s · 待领取物资" % str(pickup_node.get_meta("title", "常规物资箱"))
-			stage_label.text = "✓ 单词锁已破译 · 请整理背包领取"
-			prompt_label.text = "箱内物资尚未放入背包"
-			mask_label.text = ""
-			input_box.editable = false
-			submit_button.disabled = true
-			_render_loot_cards(displayed_loot, false)
-			_try_claim_pending()
-			return
 
 	stages = [_pick_word_entry(false)]
 	stage_index = 0
@@ -384,82 +372,46 @@ func open_for_supply(pickup_node: Node3D):
 	_enter_modal()
 	title_label.text = "%s · 单词拼写解锁" % str(pickup_node.get_meta("title", "野外物资箱"))
 	_refresh_stage_ui()
-	status_label.text = "输入英文单词解锁并启动【盲盒放大镜鉴定】（一次拼对触发幸运加成，按 Tab 听读音）！"
+	status_label.text = "输入英文单词解锁并进入【确认拾取面板】（一次拼对触发幸运加成，按 Tab 听读音）！"
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func open_for_drop_pouch(drop_node: Node3D):
 	if not is_instance_valid(drop_node) or not drop_node.visible:
 		return
-	mode = "drop_pouch"
-	active_crate = drop_node
-	_clear_loot_cards()
-	swap_button.hide()
-
 	var pouch_title: String = str(drop_node.get_meta("title", "词兵战术掉落包"))
 	var flawless: bool = bool(drop_node.get_meta("flawless", false))
 	var items_arr: Array = []
-	if drop_node.has_meta("unclaimed_loot"):
+	if drop_node.has_meta("pending_items"):
+		items_arr = drop_node.get_meta("pending_items").duplicate(true)
+	elif drop_node.has_meta("unclaimed_loot"):
 		items_arr = drop_node.get_meta("unclaimed_loot").duplicate(true)
 	else:
 		items_arr = drop_node.get_meta("drop_items", []).duplicate(true)
-
-	stages = [_pick_word_entry(false)]
-	stage_index = 0
-	target_word = stages[0]
-	unlocked = true
-	perfect_crack = flawless
-	displayed_loot = items_arr.duplicate(true)
-	pending_loot = items_arr.duplicate(true)
-	pending_loot.sort_custom(func(a, b): return int(a.value) > int(b.value))
-
-	_enter_modal()
-	title_label.text = "%s · 战利品放大镜搜索" % pouch_title
-	meta_label.text = "已肃清本波追兵 · 免拼写直接搜刮敌方黑匣挂包！"
-	stage_label.text = ("★ 零失误精准歼敌 · 掉落品质已升阶！" if flawless else "✓ 词兵小队已肃清 · 正在逐格搜索掉落物...")
-	prompt_label.text = "🔍 正在检索战术挂包内部隔层..."
-	mask_label.text = "按 [Space] 可瞬间揭晓全部槽位"
-	input_box.editable = false
-	input_box.text = "— 战斗缴获 · 免密码锁 —"
-	submit_button.disabled = true
-	close_button.text = "收下返回 [Esc]"
-
-	_render_loot_cards(displayed_loot, not game.qa_mode)
-	_try_claim_pending()
-	if not pending_loot.is_empty():
-		status_label.text = "随身背包已满（剩余 %d 件高价值物资），可点上方「替换最低物资」换入！" % pending_loot.size()
-		status_label.add_theme_color_override("font_color", Color("ffd166"))
-	else:
-		status_label.text = "已将缴获物资收入随身背包！观察下方放大镜揭晓品质..."
-		status_label.add_theme_color_override("font_color", game.MINT)
+	if items_arr.is_empty():
+		drop_node.visible = false
+		game.cached_interactables.clear()
+		return
+	var already_scanned: bool = bool(drop_node.get_meta("scanned", false))
+	var sub_txt := ("★ 零失误精准歼敌 · 掉落品质已升阶！请自由选择拾取或存安全箱。" if flawless else "✓ 战斗缴获黑匣挂包（免拼写）· 请自由选择拾取或留箱。")
+	if is_instance_valid(game.loot_container_ui):
+		game.loot_container_ui.open_container(drop_node, "squad_drop", pouch_title, items_arr, sub_txt, not already_scanned)
 
 func open_for_crate(crate_node: Node3D):
 	var crate_title: String = crate_node.get_meta("title")
 	var tier: int = int(crate_node.get_meta("tier"))
 
-	if crate_node.has_meta("unclaimed_loot"):
-		var saved: Array = crate_node.get_meta("unclaimed_loot")
-		if not saved.is_empty():
-			mode = "crate"
-			active_crate = crate_node
-			stages = [_pick_word_entry(false)]
-			stage_index = 0
-			target_word = stages[0]
-			unlocked = true
-			displayed_loot = saved.duplicate(true)
-			pending_loot = saved.duplicate(true)
-			_enter_modal()
-			title_label.text = "%s · 剩余高价值战利品" % crate_title
-			stage_label.text = "✓ 密码箱已解锁 · 可替换背包低价值物资"
-			prompt_label.text = "背包空间不足，剩余物资暂存箱内"
-			mask_label.text = ""
-			input_box.editable = false
-			submit_button.disabled = true
-			_render_loot_cards(displayed_loot, false)
-			_try_claim_pending()
+	# v0.8.4: Previously unlocked password crate with remaining items opens LootContainerUI directly!
+	if crate_node.has_meta("pending_items"):
+		var saved_c: Array = crate_node.get_meta("pending_items")
+		if not saved_c.is_empty() and is_instance_valid(game.loot_container_ui):
+			game.loot_container_ui.open_container(
+				crate_node, "crate", crate_title, saved_c,
+				"密码箱已解锁 · 自由勾选剩余高价值战利品，右侧可整理背包腾位", false
+			)
 			return
 
 	if crate_title in game.rules.crates:
-		game._notice(crate_title + " 已破译搜刮完毕。")
+		game._notice(crate_title + " 已破译并搜空。")
 		return
 	if not game.rules.crate_ready(tier):
 		var req = game.rules.crate_requirements(tier)
@@ -488,7 +440,7 @@ func open_for_crate(crate_node: Node3D):
 	_enter_modal()
 	title_label.text = "%s · 阶梯式英语破译" % crate_title
 	_refresh_stage_ui()
-	status_label.text = "完成全部 %d 关英语验证即启动放大镜开箱鉴定（完美破译大幅提升大金/大红概率）！" % stages.size()
+	status_label.text = "完成全部 %d 关英语验证即打开【确认拾取面板】（完美破译大幅提升大金/大红概率）！" % stages.size()
 	status_label.add_theme_color_override("font_color", game.GOLD)
 
 func _speak_hint():
@@ -622,7 +574,7 @@ func submit():
 			status_label.add_theme_color_override("font_color", game.MINT)
 			return
 
-		# Final stage cleared -> Unlock container & start Magnifying-Glass Reveal!
+		# Final stage cleared -> Unlock container & hand off cleanly to v0.8.4 Selective LootContainerUI!
 		unlocked = true
 		perfect_crack = all_stages_perfect
 		if is_instance_valid(game.rangers):
@@ -630,7 +582,6 @@ func submit():
 		input_box.editable = false
 		submit_button.disabled = true
 		hint_button.hide()
-		stage_label.text = ("★ 完美破译（爆率加成已激活）· 正在逐格搜索鉴定..." if perfect_crack else "✓ 电子锁已解除 · 正在逐格搜索鉴定...")
 
 		if mode == "supply":
 			var sid := str(active_crate.get_meta("supply_id", active_crate.name))
@@ -642,42 +593,24 @@ func submit():
 			var item: Dictionary = game.rules.roll_field_pickup(perfect_crack, is_over)
 			displayed_loot = [item]
 			pending_loot = [item]
-			_render_loot_cards(displayed_loot, not game.qa_mode)
-			_try_claim_pending()
 			game.play_sfx("cipher_unlock", -11)
-			if pending_loot.is_empty():
-				status_label.text = ("★ 单词准确！ +%d 分 · 放大镜正在鉴定箱内物资..." % game.Rules.SUPPLY_PERFECT_SCORE) if perfect_crack else ("物资箱已开启！记住拼写：%s" % target_word.english)
-				status_label.add_theme_color_override("font_color", game.MINT if perfect_crack else game.GOLD)
-			else:
-				status_label.text = "背包已满！可点上方「替换最低物资」换入 %s（%d币），或按 Esc 返回。" % [item.title, item.value]
-				status_label.add_theme_color_override("font_color", Color("ffd166"))
+			var sup_title := str(active_crate.get_meta("title", "野外物资箱"))
+			var sup_sub := ("★ 完美拼写破译 +%d 分（爆率加成已激活）· 请勾选是否拾取或存安全箱" % game.Rules.SUPPLY_PERFECT_SCORE) if perfect_crack else ("✓ 电子锁已解除（拼写：%s）· 请选择是否拾取或留在箱内" % str(target_word.english))
+			_handoff_to_loot_container(active_crate, "supply", sup_title, [item], sup_sub, true)
 		else:
 			var crate_title: String = active_crate.get_meta("title")
 			var tier: int = int(active_crate.get_meta("tier"))
 			var bonus_pts: int = game.Rules.CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
-			var res: Dictionary = game.rules.unlock_crate_full(crate_title, tier, perfect_crack)
-			displayed_loot = res.items
-			pending_loot = res.overflow
-			pending_loot.sort_custom(func(a, b): return int(a.value) > int(b.value))
+			var rolled_items: Array = game.rules.unlock_crate_pending(crate_title, tier, perfect_crack)
+			displayed_loot = rolled_items.duplicate(true)
+			pending_loot = rolled_items.duplicate(true)
 
-			active_crate.get_child(active_crate.get_child_count() - 1).modulate = game.MINT
 			if active_crate.has_meta("lid_node") and is_instance_valid(active_crate.get_meta("lid_node")):
 				active_crate.get_meta("lid_node").rotation.x = -0.55
 
 			game.play_sfx("cipher_unlock", -10)
-			_render_loot_cards(displayed_loot, not game.qa_mode)
-			_try_claim_pending()
-
-			if not pending_loot.is_empty():
-				status_label.text = "★ 密码箱已破译！随身背包已满（剩余 %d 件未装入），可点「替换最低物资」换入高价值大金/大红！" % pending_loot.size()
-				status_label.add_theme_color_override("font_color", Color("ffd166"))
-			elif perfect_crack:
-				status_label.text = "★ 完美破译全通！ +%d 分 — 放大镜正在逐格揭晓高爆率战利品！" % bonus_pts
-				status_label.add_theme_color_override("font_color", game.MINT)
-			else:
-				status_label.text = "密码箱已开启！正在逐格鉴定战利品..."
-				status_label.add_theme_color_override("font_color", game.GOLD)
-		close_button.text = "收下返回 [Esc]"
+			var crate_sub := ("★ 完美破译全通 +%d 分（爆率加成已激活）· 放大镜鉴定后自由选择要带走的物资！" % bonus_pts) if perfect_crack else "✓ 密码箱已解锁 · 放大镜鉴定后自由选择要带走的物资，未选物资将留在箱内！"
+			_handoff_to_loot_container(active_crate, "crate", crate_title, rolled_items, crate_sub, true)
 	else:
 		game.play_sfx("hit_wrong", -12)
 		var clean_exp := str(target_word.english).replace("’", "'").strip_edges()
@@ -972,6 +905,19 @@ func _process(delta: float):
 		if reveal_cursor < reveal_slots.size():
 			reveal_duration = _scan_duration_for(int(reveal_slots[reveal_cursor].rarity))
 			_apply_card_mystery_style(reveal_slots[reveal_cursor], true)
+
+func _handoff_to_loot_container(node: Node3D, kind: String, title: String, items: Array, subtitle: String, animate_scan: bool):
+	busy = false
+	overlay.hide()
+	stage_label.add_theme_color_override("font_color", Color("ffd166"))
+	close_button.text = "关闭返回 [Esc]"
+	if is_instance_valid(game.loot_container_ui) and not items.is_empty():
+		game.loot_container_ui.open_container(node, kind, title, items, subtitle, animate_scan)
+	else:
+		game.paused = false
+		game.player.active = true
+		game.hud.show()
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func close():
 	if not busy:

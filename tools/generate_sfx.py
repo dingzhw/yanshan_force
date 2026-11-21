@@ -681,6 +681,34 @@ def gen_skill_slam() -> None:
     _write_wav("skill_slam.wav", out, 0.72)
 
 
+def gen_warden_shield_deflect() -> None:
+    """Crisp armored stone-gauntlet bullet deflection clang + granite scrape ricochet for Cave Warden arm guard."""
+    dur = 0.28
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 88401)
+    sparks = _one_pole_hp(_one_pole_lp(raw, 6800.0), 1400.0)
+    thud_n = _one_pole_lp(raw, 420.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # 1) Dense stone-bronze plate clang (inharmonic metallic-stone partials)
+        env_clang = math.exp(-t * 24.0) * min(1.0, t / 0.0012)
+        clang = (
+            math.sin(2.0 * math.pi * 1120.0 * t)
+            + 0.72 * math.sin(2.0 * math.pi * 1890.0 * t)
+            + 0.48 * math.sin(2.0 * math.pi * 2960.0 * t)
+        ) * env_clang * 0.95
+        # 2) Sharp bullet ricochet whistle sweep (3200Hz -> 1350Hz)
+        env_ric = math.exp(-t * 16.0) * min(1.0, t / 0.003)
+        f_ric = 1350.0 + 1850.0 * math.exp(-t * 22.0)
+        ric = math.sin(2.0 * math.pi * f_ric * t) * env_ric * 0.55
+        # 3) Heavy stone impact thud + granite spark grit
+        thud = (math.sin(2.0 * math.pi * 145.0 * t) + 0.65 * thud_n[i]) * math.exp(-t * 34.0) * 0.75
+        grit = sparks[i] * math.exp(-t * 38.0) * 0.65
+        out[i] = math.tanh((clang + ric + thud + grit) * 1.35)
+    _write_wav("warden_shield_deflect.wav", out, 0.64)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -717,7 +745,8 @@ def main() -> None:
     gen_loot_reveal_rare()
     gen_loot_mythic_red()
     gen_skill_slam()
-    print("Generated 35 procedural SFX files in", OUT_DIR)
+    gen_warden_shield_deflect()
+    print("Generated 36 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

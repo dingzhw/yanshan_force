@@ -107,6 +107,8 @@ func run():
 	verify(cipher.unlocked and not cipher.perfect_crack and game.rules.profile.mastery[helped_id].last_outcome == "hinted", "a hint still allows looting without independent credit or perfect bonus")
 	verify(int(game.rules.profile.mastery[helped_id].get("independent_correct", 0)) == prior and game.rules.profile.review_due.has(helped_id), "hinted spelling remains queued for independent retest")
 	cipher.close()
+	if game.loot_container_ui.busy:
+		game.loot_container_ui.close()
 	cipher.open_for_supply(game.pickup_nodes[1])
 	var copied_id: String = cipher.target_word.id
 	var copied_prior: int = int(game.rules.profile.mastery.get(copied_id, {}).get("independent_correct", 0))
@@ -116,6 +118,8 @@ func run():
 	verify(cipher.unlocked and not cipher.perfect_crack and game.rules.profile.mastery[copied_id].last_outcome == "copied_scaffold", "copying the revealed answer can still open the supply box")
 	verify(int(game.rules.profile.mastery[copied_id].get("independent_correct", 0)) == copied_prior and game.rules.profile.review_due.has(copied_id), "copying the answer is distinct from spelling mastery")
 	cipher.close()
+	if game.loot_container_ui.busy:
+		game.loot_container_ui.close()
 
 	# v0.7.0 Stage 1 & 2: Deterministic cross-day SRS progression, anti-false-mastery, encounters vs seen, and verified Cloze targets!
 	var Srs = load("res://scripts/srs_scheduler.gd")

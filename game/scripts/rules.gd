@@ -230,7 +230,7 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.8.3",
+	"saved_by_version": "0.8.4",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
@@ -612,8 +612,14 @@ func add_loot_item(item: Dictionary) -> bool:
 	bag.append(_enrich_loot_dict(item))
 	return true
 
+func add_item_to_safe_box(item: Dictionary) -> bool:
+	if phase not in ["active", "extracting"] or not can_loot() or safe_box.size() >= SAFE_BOX_SLOTS:
+		return false
+	safe_box.append(_enrich_loot_dict(item))
+	return true
+
 func discard_bag_item(index: int) -> Dictionary:
-	if phase != "active" or index < 0 or index >= bag.size():
+	if phase not in ["active", "extracting"] or index < 0 or index >= bag.size():
 		return {}
 	var removed: Dictionary = bag[index]
 	bag.remove_at(index)
@@ -774,6 +780,20 @@ func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Arr
 		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 	crates.append(crate_id)
 	return awarded
+
+func unlock_crate_pending(crate_id: String, tier: int, perfect_spell: bool = false) -> Array:
+	var rolled := []
+	if not can_loot() or crate_id in crates or not crate_ready(tier):
+		return rolled
+	var req = crate_requirements(tier)
+	for i in int(req.slots):
+		var rarity = roll_crate_rarity(tier, perfect_spell and i == 0)
+		rolled.append(roll_item_by_rarity(rarity))
+	if perfect_spell:
+		perfect_ciphers += 1
+		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
+	crates.append(crate_id)
+	return rolled
 
 func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false) -> Dictionary:
 	var all_items := []

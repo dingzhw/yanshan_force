@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.3 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.4 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -60,7 +60,9 @@ func run():
 	game.exploration.close()
 
 	await enter("english")
-	verify(game.exploration.states.english and game.rules.bag.size() == 1 and not node_for("english").visible, "following next to collects the physical supply and removes its collider")
+	verify(game.loot_container_ui.busy and game.loot_container_ui.active_kind == "exploration" and game.rules.bag.size() == 0, "v0.8.4: following next to opens confirmation pickup panel for sealed radio supply")
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(game.exploration.states.english and game.rules.bag.size() == 1 and not node_for("english").visible, "confirming next to supply collects item and removes its collider")
 	var bag = game.rules.bag.size()
 	game.exploration.open(node_for("english"))
 	verify(game.rules.bag.size() == bag, "English discovery cannot be claimed twice")
@@ -69,10 +71,12 @@ func run():
 	verify(game.exploration.busy, "stone tablet is reachable from its branch")
 	var poem_ans = game.exploration.answer_button_index("poem")
 	game.exploration.buttons[poem_ans].pressed.emit()
-	verify(game.exploration.states.poem and game.exploration.states.poem_claimed and game.rules.bag.size() == bag + 1, "correct poem answer unlocks and rewards the stone compartment")
+	verify(game.exploration.states.poem and game.exploration.swap_button.visible and game.rules.bag.size() == bag, "v0.8.4: correct poem answer unlocks reward confirmation button without auto-stuffing")
+	game.exploration.open_reward_container()
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(game.exploration.states.poem and game.exploration.states.poem_claimed and game.rules.bag.size() == bag + 1, "confirming poem reward collects item and marks stone compartment claimed")
 	game.exploration.choose(poem_ans)
 	verify(game.rules.bag.size() == bag + 1, "repeated solved-puzzle click cannot duplicate loot")
-	game.exploration.close()
 	verify(game.question.id == old_id and game.rules.score == 0 and game.rules.answered == 0, "optional learning keeps the pending English question and its accuracy untouched")
 
 	# v0.8.1 FB-5: Wrong answer on Field Intel locks that node out for the rest of the run (no retry brute-force!)
@@ -105,12 +109,12 @@ func run():
 	verify(ray(gate_at + Vector3(0, 0, 3), gate_at - Vector3(0, 0, 3)).is_empty(), "solved math puzzle opens the gate's collision")
 	game.exploration.close()
 	await enter("math")
-	verify(not game.exploration.states.math_claimed and game.exploration.swap_button.visible, "revisiting a full-bag puzzle keeps its unclaimed reward")
-	game.exploration.swap_button.pressed.emit()
-	verify(game.exploration.states.math_claimed and game.rules.bag.size() == game.rules.capacity(), "full-bag UI swaps one lowest-value item for the pending reward")
-	game.exploration.swap_button.pressed.emit()
-	verify(game.rules.bag.size() == game.rules.capacity(), "repeated reward swap cannot duplicate an item")
-	game.exploration.close()
+	verify(not game.exploration.states.math_claimed and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 1, "v0.8.4: revisiting solved math node with unclaimed reward opens LootContainerUI directly")
+	game.loot_container_ui.discard_bag_slot(game.rules.bag.size() - 1)
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(game.exploration.states.math_claimed and game.rules.bag.size() == game.rules.capacity() and not game.loot_container_ui.busy, "v0.8.4: discarding 1 slot in LootContainerUI & confirming claims the pending math reward")
+	game.exploration.open_reward_container()
+	verify(game.rules.bag.size() == game.rules.capacity(), "repeated reward claim cannot duplicate an item")
 	verify(game.exploration.completed() == 3, "all three optional discoveries complete independently")
 
 	# Test CipherTerminal multi-stage progression (Tier 1: word+phrase, Tier 3: word+phrase+sentence)
@@ -130,11 +134,11 @@ func run():
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
 	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.stage_index == 1 and str(game.cipher_terminal.target_word.get("kind", "")) == "phrase", "stage 1 word pass transitions to stage 2 textbook phrase")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
-	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 1, "completing stage 2 phrase unlocks Tier-1 crate")
-	game.cipher_terminal.close()
-	verify(not game.cipher_terminal.busy and not game.paused, "closing cipher terminal resumes field play")
+	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 1 and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 2, "v0.8.4: completing stage 2 phrase unlocks Tier-1 crate and hands off 2 items to LootContainerUI")
+	game.loot_container_ui.take_all_for_qa()
+	verify(not game.cipher_terminal.busy and not game.loot_container_ui.busy and not game.paused, "taking all crate loot closes LootContainerUI and resumes field play")
 
-	# Test Tier-3 Legendary Gold Airdrop Pod (3 stages: word -> phrase -> sentence + contraction equivalence + full-bag overflow swap)
+	# Test Tier-3 Legendary Gold Airdrop Pod (3 stages: word -> phrase -> sentence + contraction equivalence + full-bag selective pickup)
 	verify(game.cipher_terminal._is_match("it is your turn", {"english": "It’s your turn."}) and game.cipher_terminal._is_match("it's your turn", {"english": "It’s your turn."}), "sentence matcher accepts contractions, expanded forms, and omitted punctuation")
 	game.player.position = game.crate_nodes[2].position + Vector3(0, 0.1, 1.6)
 	await frames(3)
@@ -142,10 +146,11 @@ func run():
 	verify(game.cipher_terminal.busy and game.cipher_terminal.stage_count() == 3, "Tier-3 gold airdrop pod requires 3-stage word+phrase+sentence unlock")
 	verify(str(game.cipher_terminal.stages[2].get("kind", "")) == "sentence", "Tier-3 final stage challenges a full Grade 5A sentence")
 	game.cipher_terminal.solve_all_for_qa()
-	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 2 and game.cipher_terminal.displayed_loot.size() == 3, "solving all 3 stages unlocks Tier-3 pod and rolls all 3 high-tier items even on full bag")
-	verify(game.cipher_terminal.swap_button.visible and game.crate_nodes[2].get_meta("lid_node").rotation.x < -0.4, "Tier-3 pod opens its armored lid and offers overflow swap for full bag")
-	game.cipher_terminal.swap_button.pressed.emit()
-	game.cipher_terminal.close()
+	verify(game.cipher_terminal.unlocked and game.rules.crates.size() == 2 and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 3, "v0.8.4: solving all 3 stages unlocks Tier-3 pod and shows all 3 high-tier items in LootContainerUI even on full bag")
+	verify(game.crate_nodes[2].get_meta("lid_node").rotation.x < -0.4, "Tier-3 pod opens its armored lid on unlock")
+	game.loot_container_ui.discard_bag_slot(game.rules.bag.size() - 1)
+	game.loot_container_ui.take_item_to_bag(0)
+	game.loot_container_ui.close()
 
 	game.player.ammo = 1
 	game.player.reload()
@@ -217,14 +222,22 @@ func run():
 	var radio_node: Node3D = node_for.call("recon_radio")
 	game.exploration.open(radio_node)
 	game.exploration.choose(game.exploration.answer_button_index("recon_radio"))
-	game.exploration.close()
+	game.exploration.open_reward_container()
+	if game.loot_container_ui.busy:
+		game.loot_container_ui.take_all_for_qa()
+	else:
+		game.exploration.close()
 	verify(game.exploration.radar_scan_active and game.minimap._is_discovered(game.crate_nodes[2]) and game.minimap._is_discovered(game.crate_nodes[1]), "East Recon Radio triggers global minimap radar reveal")
 	verify(game.player.grenades == pre_gren + 1 and game.player.reserve_ammo >= 15 + 8, "v0.8.2_dev2 D2-2: Recon Radio grants +1 smoke/EMP and +8 calibrated reserve ammo")
 	var pre_ammo2 := int(game.player.reserve_ammo)
 	var ab_node: Node3D = node_for.call("airdrop_beacon")
 	game.exploration.open(ab_node)
 	game.exploration.choose(game.exploration.answer_button_index("airdrop_beacon"))
-	game.exploration.close()
+	game.exploration.open_reward_container()
+	if game.loot_container_ui.busy:
+		game.loot_container_ui.take_all_for_qa()
+	else:
+		game.exploration.close()
 	var ab_loot: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
 	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2 and int(ab_loot.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: North Airdrop Beacon grants calibrated +10 ammo and T4 Epic loot in Normal mode")
 	for iid in ["intel_cleft", "intel_cave", "intel_roof"]:
@@ -652,7 +665,11 @@ func run():
 		var hev: Node3D = node_for.call(hid)
 		game.exploration.open(hev)
 		game.exploration.choose(game.exploration.answer_button_index(hid))
-		game.exploration.close()
+		game.exploration.open_reward_container()
+		if game.loot_container_ui.busy:
+			game.loot_container_ui.take_all_for_qa()
+		else:
+			game.exploration.close()
 	# Also solve cliff_inscription on this fresh Normal run so heritage_completed() == 3!
 	var moya_ev2: Node3D = node_for.call("cliff_inscription")
 	game.exploration.open(moya_ev2)
@@ -696,15 +713,20 @@ func run():
 			visible_eco_labels += 1
 	verify(visible_eco_labels == 0, "v0.8.0 hides all permanent wildlife and flora overhead labels by default for clean mountain scenery")
 
-	# Pickup open-world 3D loose relic at Camp Tent Table (loose_nodes[0] is guaranteed active!)
+	# v0.8.4: Open-world 3D single loose relic opens confirmation panel (leave in place OR pick up!)
 	var tent_loose: Node3D = game.world_loot.loose_nodes[0]
 	var pre_loose_bag: int = game.rules.bag.size()
 	game.player.position = tent_loose.position + Vector3(0, 0.1, 1.2)
 	await frames(3)
 	game.interact()
-	verify(game.rules.bag.size() == pre_loose_bag + 1 and not tent_loose.visible and game.loot_ui.toast_panel.visible, "pressing [F] on open-world 3D loose relic collects item immediately and triggers HUD toast")
+	verify(game.loot_container_ui.busy and game.loot_container_ui.active_kind == "loose" and game.rules.bag.size() == pre_loose_bag and tent_loose.visible, "v0.8.4: pressing [F] on single ground loose relic opens confirmation pickup panel instead of auto-stuffing")
+	game.loot_container_ui.close()
+	verify(not game.loot_container_ui.busy and tent_loose.visible and game.rules.bag.size() == pre_loose_bag, "v0.8.4: leaving single loose relic panel preserves the 3D relic on pedestal")
+	game.interact()
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(game.rules.bag.size() == pre_loose_bag + 1 and not tent_loose.visible and game.loot_ui.toast_panel.visible, "v0.8.4: confirming single loose relic collects item, hides relic & triggers HUD toast")
 
-	# Search a tactile Bird Nest ('掏鸟窝') via quick-search progress bar!
+	# Search a tactile Bird Nest ('掏鸟窝') via quick-search progress bar -> opens LootContainerUI!
 	var nest0: Node3D = game.world_loot.nest_nodes[0]
 	var pre_nest_bag: int = game.rules.bag.size()
 	game.player.position = nest0.position + Vector3(0, 0.1, 1.2)
@@ -712,18 +734,20 @@ func run():
 	game.interact()
 	verify(game.loot_ui.active_search_node == nest0 and game.loot_ui.search_panel.visible, "interacting with Bird Nest starts tactile magnifying-glass quick-search bar")
 	game.loot_ui.complete_active_search_for_qa()
-	verify(game.rules.bag.size() == pre_nest_bag + 1 and not nest0.visible, "completing Bird Nest search rolls and awards surprise loot item")
+	verify(game.loot_container_ui.busy and game.loot_container_ui.active_kind == "nest" and nest0.visible, "v0.8.4: completing Bird Nest search opens selective confirmation pickup panel")
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(game.rules.bag.size() == pre_nest_bag + 1 and not nest0.visible, "confirming Bird Nest pickup collects surprise loot and hides empty nest")
 
-	# Spawn & inspect an Enemy Squad Wave Drop Pouch via Magnifying-Glass Terminal!
+	# Spawn & inspect an Enemy Squad Wave Drop Pouch via LootContainerUI (selective leave + revisit!)
 	var pouch_pos: Vector3 = game.Layout.on_ground(Vector3(-6.0, 0.0, -12.0))
 	var pouch: Node3D = game.world_loot.spawn_squad_drop(pouch_pos, "林间古道营地", true, false)
 	var pre_pouch_bag: int = game.rules.bag.size()
 	game.player.position = pouch.position + Vector3(0, 0.1, 1.2)
 	await frames(3)
 	game.interact()
-	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "drop_pouch" and game.cipher_terminal.unlocked, "interacting with enemy wave drop pouch opens zero-typing magnifying-glass loot terminal")
+	verify(game.loot_container_ui.busy and game.loot_container_ui.active_kind == "squad_drop" and game.loot_container_ui.pending_items.size() >= 1, "v0.8.4: interacting with enemy wave drop pouch opens zero-typing selective LootContainerUI")
+	game.loot_container_ui.take_all_for_qa()
 	verify(game.rules.bag.size() > pre_pouch_bag and not pouch.visible, "claiming flawless enemy wave drop pouch transfers multi-slot battle loot into bag")
-	game.cipher_terminal.close()
 
 	# Test [B] Tactical Backpack modal & [I] 3D Relic Turntable Showcase + Camp Compendium
 	game.loot_ui.toggle_backpack()
@@ -810,7 +834,8 @@ func run():
 		game.achievements.record_wildlife_kill("squirrel")
 	var ach_unlocked_ok: bool = game.achievements.is_unlocked("boar_1") and game.achievements.is_unlocked("sq_10") and game.achievements.is_charm_unlocked("charm_roast")
 	game.achievements.equip_charm("charm_roast")
-	verify(ach_unlocked_ok and wv64.equipped_charm_id == "charm_roast" and wv64.charm_anchor.visible and wv64.charm_visual_root.get_child_count() >= 2, "v0.8.2 V81-10: wildlife kills unlock humorous achievements and mount visible 3D swinging charm beneath rifle")
+	var charm_world_x_clear: bool = (wv64.charm_anchor.position.x + wv64.charm_pendulum.position.x) <= -0.050 and wv64.charm_visual_root.scale.x >= 1.40
+	verify(ach_unlocked_ok and wv64.equipped_charm_id == "charm_roast" and wv64.charm_anchor.visible and wv64.charm_visual_root.get_child_count() >= 2 and charm_world_x_clear, "v0.8.4: wildlife kills unlock humorous achievements and mount enlarged 1.45x swinging charm prominently on left exterior rail")
 	game._end_run(false)
 	game.loot_ui.open_compendium("achievements")
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.achievements.CATALOG.size(), "v0.8.2 V81-10/11: Compendium exposes Achievements & Weapon Charms Hall with all 24 achievement cards")
@@ -893,7 +918,8 @@ func run():
 	game.cave_warden.state = "patrol"
 	game.exploration.open(hearth_nd)
 	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
-	game.exploration.close()
+	game.exploration.open_reward_container()
+	game.loot_container_ui.take_all_for_qa()
 	var norm_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
 	verify(str(norm_cave_item.get("title", "")) == "先民青铜茶铫" and int(norm_cave_item.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: Normal cave_hearth awards T4 Epic Bronze Tea Kettle (no free Big Gold)")
 
@@ -907,7 +933,8 @@ func run():
 	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 440, "v0.8.3 hotfix: Confidential mode limits ground ammo crates to <= 4 and sets Cave Warden to 440 HP")
 	game.exploration.open(hearth_nd)
 	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
-	game.exploration.close()
+	game.exploration.open_reward_container()
+	game.loot_container_ui.take_all_for_qa()
 	var conf_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
 	verify(str(conf_cave_item.get("title", "")) == "翡翠节节高玉佩" and int(conf_cave_item.get("rarity", 0)) == 5, "v0.8.2_dev2 D2-4: Confidential cave_hearth upgrades to T5 Small Gold Jade Bamboo Pendant")
 	game._end_run(false)

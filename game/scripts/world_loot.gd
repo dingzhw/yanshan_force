@@ -172,8 +172,9 @@ func reset_for_run():
 		var holder: Node3D = node.get_node("RelicHolder")
 		for ch in holder.get_children():
 			ch.queue_free()
-		if node.has_meta("loot_item"):
-			node.remove_meta("loot_item")
+		for mk in ["loot_item", "pending_items", "opened_remaining", "scanned"]:
+			if node.has_meta(mk):
+				node.remove_meta(mk)
 		if chosen.has(i):
 			var item: Dictionary = game.rules.roll_world_loose_item(bool(node.get_meta("high_tier", false)))
 			node.set_meta("loot_item", item)
@@ -182,13 +183,12 @@ func reset_for_run():
 		else:
 			node.visible = false
 
-	# 2) Reset all 6 Bird Nests & Crevices (each rolls fresh when searched!)
+	# 2) Reset all 14 Bird Nests & Crevices (each rolls fresh when searched!)
 	for raw_n in nest_nodes:
 		var nnode: Node3D = raw_n
-		if nnode.has_meta("searched"):
-			nnode.remove_meta("searched")
-		if nnode.has_meta("unclaimed_item"):
-			nnode.remove_meta("unclaimed_item")
+		for mk in ["searched", "unclaimed_item", "pending_items", "opened_remaining", "scanned"]:
+			if nnode.has_meta(mk):
+				nnode.remove_meta(mk)
 		var glint: Node3D = nnode.get_node_or_null("Glint")
 		if is_instance_valid(glint):
 			glint.visible = true
@@ -276,6 +276,48 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 	game.cached_interactables.clear()
 	return dnode
 
+func spawn_custom_drop(world_pos: Vector3, title: String, items: Array, high_glow: bool = true) -> Node3D:
+	var gp: Vector3 = world_pos
+	if gp.y <= 0.05:
+		gp = game.Layout.on_ground(world_pos)
+	var dnode := Node3D.new()
+	dnode.position = gp
+	dnode.set_meta("world_loot_kind", "squad_drop")
+	dnode.set_meta("title", title)
+	dnode.set_meta("flawless", high_glow)
+	dnode.set_meta("boss_camp", high_glow)
+	dnode.set_meta("drop_items", items.duplicate(true))
+	add_child(dnode)
+
+	var strip_col: Color = Color("ffd46e") if high_glow else Color("7ed6b8")
+	var body := MeshInstance3D.new()
+	if drop_case_mesh != null:
+		body.mesh = drop_case_mesh
+	else:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.68, 0.32, 0.46)
+		body.mesh = bm
+		body.position.y = 0.16
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	dnode.add_child(body)
+
+	var strip := MeshInstance3D.new()
+	var sm := BoxMesh.new()
+	sm.size = Vector3(0.62, 0.035, 0.48)
+	strip.mesh = sm
+	strip.position.y = 0.285
+	var st_mat := StandardMaterial3D.new()
+	st_mat.albedo_color = strip_col
+	st_mat.emission_enabled = true
+	st_mat.emission = strip_col
+	st_mat.emission_energy_multiplier = 1.45 if high_glow else 1.25
+	strip.material_override = st_mat
+	dnode.add_child(strip)
+
+	drop_nodes.append(dnode)
+	game.cached_interactables.clear()
+	return dnode
+
 func prompt_for(node: Node3D) -> String:
 	var kind: String = str(node.get_meta("world_loot_kind", ""))
 	if kind == "loose":
@@ -283,19 +325,21 @@ func prompt_for(node: Node3D) -> String:
 		var r: int = clampi(int(item.get("rarity", 1)), 1, 7)
 		var r_name: String = game.Rules.RARITY_NAMES[r]
 		var spot_title: String = str(node.get_meta("title", "桌面物资"))
-		if game.rules.bag.size() >= game.rules.capacity():
-			return "[F] 背包已满·置换拾取【%s】%s（%s）" % [r_name, str(item.get("title", "物资")), spot_title]
-		return "[F] 直接摸取【%s】%s · %s" % [r_name, str(item.get("title", "物资")), str(item.get("en", ""))]
+		return "[F] 查看拾取【%s】%s · %s（%s）" % [r_name, str(item.get("title", "物资")), str(item.get("en", "")), spot_title]
 	elif kind == "nest":
 		var n_title: String = str(node.get_meta("title", "隐蔽秘藏"))
-		if node.has_meta("unclaimed_item"):
-			var u_it: Dictionary = node.get_meta("unclaimed_item")
-			var ur: int = clampi(int(u_it.get("rarity", 1)), 1, 7)
-			return "[F] 置换领取【%s】%s" % [game.Rules.RARITY_NAMES[ur], str(u_it.get("title", ""))]
+		if node.has_meta("pending_items"):
+			var rem_n: Array = node.get_meta("pending_items")
+			if not rem_n.is_empty():
+				return "[F] 搜刮【%s】（已开启·剩余 %d 件）" % [n_title, rem_n.size()]
 		return "[F] 🔍 隐秘翻找 · %s" % n_title
 	elif kind == "squad_drop":
 		var d_title: String = str(node.get_meta("title", "词兵战术掉落包"))
-		return "[F] 🔍 搜索%s（免拼写鉴定战利品）" % d_title
+		if node.has_meta("pending_items"):
+			var rem_d: Array = node.get_meta("pending_items")
+			if not rem_d.is_empty():
+				return "[F] 搜刮%s（已开启·剩余 %d 件）" % [d_title, rem_d.size()]
+		return "[F] 🔍 搜索%s（免拼写确认拾取）" % d_title
 	return "[F] 搜刮物资"
 
 func interact(node: Node3D):
@@ -303,9 +347,15 @@ func interact(node: Node3D):
 	if kind == "loose":
 		_pickup_loose(node)
 	elif kind == "nest":
-		if node.has_meta("unclaimed_item"):
-			_claim_or_swap_single(node, node.get_meta("unclaimed_item"), str(node.get_meta("title", "隐秘鸟窝")), true)
-		elif not node.has_meta("searched"):
+		if node.has_meta("pending_items"):
+			var saved_n: Array = node.get_meta("pending_items")
+			if not saved_n.is_empty() and is_instance_valid(game.loot_container_ui):
+				game.loot_container_ui.open_container(
+					node, "nest", str(node.get_meta("title", "隐蔽秘藏")),
+					saved_n, "已翻找的隐蔽秘藏 · 自由选择拾取、存安全箱或留在原处", false
+				)
+				return
+		if not node.has_meta("searched"):
 			game.loot_ui.start_quick_search(node, 0.88)
 	elif kind == "squad_drop":
 		game.cipher_terminal.open_for_drop_pouch(node)
@@ -314,48 +364,26 @@ func _pickup_loose(node: Node3D):
 	if not node.has_meta("loot_item"):
 		return
 	var item: Dictionary = node.get_meta("loot_item")
-	var spot_title: String = str(node.get_meta("title", "露天搜刮"))
-	_claim_or_swap_single(node, item, spot_title, false)
+	var spot_title: String = str(node.get_meta("title", "露天散落物资"))
+	if is_instance_valid(game.loot_container_ui):
+		game.loot_container_ui.open_container(
+			node, "loose", spot_title, [item],
+			"地面/石案散落物资确认 · 可选择拾取入包、直存安全箱，或离开留在原地", false
+		)
 
 func finish_nest_search(node: Node3D):
 	if not is_instance_valid(node) or node.has_meta("searched"):
 		return
 	node.set_meta("searched", true)
-	var glint: Node3D = node.get_node_or_null("Glint")
-	if is_instance_valid(glint):
-		glint.visible = false
 	var item: Dictionary = game.rules.roll_bird_nest_item()
 	var n_title: String = str(node.get_meta("title", "树丫鸟窝"))
-	_claim_or_swap_single(node, item, n_title, true)
-
-func _claim_or_swap_single(node: Node3D, item: Dictionary, source_tag: String, is_nest: bool):
-	if game.rules.add_loot_item(item):
-		game.speak_english(str(item.get("en", "")))
-		game.loot_ui.trigger_loot_toast(item, source_tag)
-		if is_nest:
-			if node.has_meta("unclaimed_item"):
-				node.remove_meta("unclaimed_item")
-			node.visible = false
-		else:
-			node.remove_meta("loot_item")
-			node.visible = false
-		game.cached_interactables.clear()
-		return
-
-	# Bag is full -> if new item is worth more than lowest bag item, swap immediately; otherwise store unclaimed!
-	var low_idx: int = game.rules.lowest_bag_index()
-	if low_idx >= 0 and int(item.get("value", 0)) > int(game.rules.bag[low_idx].get("value", 0)):
-		var removed: Dictionary = game.rules.swap_lowest_loot(item)
-		game.speak_english(str(item.get("en", "")))
-		game.loot_ui.trigger_loot_toast(item, "%s·置换【%s】" % [source_tag, str(removed.get("title", ""))])
-		if is_nest and node.has_meta("unclaimed_item"):
-			node.remove_meta("unclaimed_item")
-		node.visible = false
-		game.cached_interactables.clear()
-	else:
-		if is_nest:
-			node.set_meta("unclaimed_item", item)
-		game._notice("背包已满！按 [B] 整理丢弃低值杂物后再拾取【%s（%d币）】" % [str(item.get("title", "")), int(item.get("value", 0))], Color("ffd166"))
+	node.set_meta("pending_items", [item])
+	node.set_meta("opened_remaining", true)
+	if is_instance_valid(game.loot_container_ui):
+		game.loot_container_ui.open_container(
+			node, "nest", n_title, [item],
+			"隐蔽秘藏翻找完成！自由选择拾取入包、存安全箱或留在原处", false
+		)
 
 func update(delta: float):
 	if not is_instance_valid(game.player):

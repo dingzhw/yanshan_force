@@ -66,10 +66,10 @@ func run():
 				if st is AudioStream and st.get_length() > 0.01:
 					sfx_decoded += 1
 	var req_sfx_ok := true
-	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "boss_skyfall", "skill_slam"]:
+	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "warden_shield_deflect", "boss_skyfall", "skill_slam"]:
 		if not ResourceLoader.exists("res://assets/sfx/" + sfx_n + ".wav"):
 			req_sfx_ok = false
-	verify(req_sfx_ok and sfx_total >= 35 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
+	verify(req_sfx_ok and sfx_total >= 36 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
 
 	var loot_ui_cls = load("res://scripts/loot_ui.gd")
 	var art_ids: PackedStringArray = loot_ui_cls.all_collectible_art_ids()
@@ -86,7 +86,14 @@ func run():
 		verify(ResourceLoader.exists("res://assets/slice/" + name + ".glb"), "packaged model " + name)
 	for name in ["ground_color", "ground_normal", "tree_bark", "tree_needles", "tree_alpha"]:
 		verify(ResourceLoader.exists("res://assets/slice/" + name + ".jpg"), "packaged texture " + name)
-	verify(ResourceLoader.exists("res://assets/slice/v082_bosses.glb") and ResourceLoader.exists("res://scripts/cave_warden.gd") and ResourceLoader.exists("res://scripts/achievements.gd") and ResourceLoader.exists("res://scripts/rangers.gd"), "standalone PCK includes v0.8.2/v0.8.3 boss GLB, Cave Warden, Achievements & Rangers modules")
+	verify(ResourceLoader.exists("res://assets/slice/v082_bosses.glb") and ResourceLoader.exists("res://scripts/cave_warden.gd") and ResourceLoader.exists("res://scripts/achievements.gd") and ResourceLoader.exists("res://scripts/rangers.gd") and ResourceLoader.exists("res://scripts/loot_container_ui.gd"), "standalone PCK includes v0.8.4 articulated boss GLB, Cave Warden, Achievements, Rangers & LootContainerUI modules")
+	var boss_glb_packed = load("res://assets/slice/v082_bosses.glb")
+	var boss_rig_ok := false
+	if boss_glb_packed is PackedScene:
+		var bi: Node = boss_glb_packed.instantiate()
+		boss_rig_ok = (bi.find_child("warden_body", true, false) != null and bi.find_child("arm_left_pivot", true, false) != null and bi.find_child("arm_right_pivot", true, false) != null and bi.find_child("head_crest", true, false) != null and bi.find_child("skyfall_overlord", true, false) != null)
+		bi.free()
+	verify(boss_rig_ok, "standalone PCK v082_bosses.glb contains articulated Cave Warden parts (warden_body/arm_left_pivot/arm_right_pivot/head_crest) & skyfall_overlord")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

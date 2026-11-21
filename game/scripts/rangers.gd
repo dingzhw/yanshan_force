@@ -142,7 +142,7 @@ const CHARACTER_CARDS := [
 		"icon": "🔊",
 		"color": Color("56e8ff"),
 		"bio": "沉眠于烟霞古洞一线天石窟的古老机关石卫，双目已盲却能凭借幽蓝声纹肋骨捕捉洞内每一丝脚步与枪响，世代守护先民耕读岩画与寒潭茶灶。",
-		"tactical": "仅在烟霞古洞范围内巡逻追击（撤出洞口即脱战）。普通 280 HP / 机密 440 HP：瞄准胸前突出发光蓝核每枪高额暴击，累计伤满 80 即打入失衡硬直；也可蹲趴静步绕行，或用 [G] 烟雾 EMP / [V] 天生神力震晕 2.5–5.5 秒后速杀。",
+		"tactical": "仅在烟霞古洞范围内巡逻追击（撤出洞口即脱战）。受击会立即合拢双臂青石盾护住胸前 0.30m 蓝核（正面射击仅擦伤）；拉开走位诱其大步追击张臂露核，或用 [G] 烟雾 EMP / [V] 天生神力 震开双臂后速射蓝核高额暴击！",
 		"unlock_hint": "在正式战斗中击败「古洞循音石卫」解锁",
 	},
 	{
@@ -532,14 +532,12 @@ func activate_skill() -> bool:
 					s.stun(dur)
 					knocked += 1
 
-	# 2) Stagger / briefly blind Yanxia Cave Acoustic Warden for 2.5s if within shockwave range!
+	# 2) Stagger / briefly blind Yanxia Cave Acoustic Warden for 2.5s (breaking arm-guard!) if within shockwave range!
 	if is_instance_valid(game.cave_warden) and game.cave_warden.is_alive():
 		var cw_pos: Vector3 = game.cave_warden.root_node.position
 		var cw_d := Vector2(cw_pos.x - origin.x, cw_pos.z - origin.z).length()
 		if cw_d <= rad + 0.8:
-			game.cave_warden.stun_left = maxf(game.cave_warden.stun_left, 2.5)
-			game.cave_warden.state = "stunned"
-			game.cave_warden._sync_label()
+			game.cave_warden.apply_stun(2.5)
 			staggered_bosses += 1
 		elif cw_d <= 15.0:
 			game.cave_warden.register_noise(origin, 42.0, true)

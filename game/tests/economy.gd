@@ -29,7 +29,7 @@ func run():
 	var hidden_practice_loot: bool = (not game.pickup_nodes[0].visible) and (not game.crate_nodes[0].visible) and (not game.world_loot.loose_nodes[0].visible) and (not game.world_loot.nest_nodes[0].visible)
 	verify(not game.rules.can_loot() and not game.rules.add_loot("forbidden", 50, 2) and hidden_practice_loot, "v0.8.1 #15: Practice Range hides all loot containers/world loot and blocks add_loot")
 
-	# Normal Operation supply boxes, full-bag overflow swap & extraction accuracy threshold (#5)
+	# Normal Operation supply boxes, v0.8.4 Selective Confirmation Panel (leave-in-box, discard-for-room, direct Safe Box & Blue+ filter)
 	game.start_action(true, "normal")
 	for i in 8:
 		game.rules.add_loot("filled", 10, 1)
@@ -39,26 +39,43 @@ func run():
 	game.interact()
 	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply", "supply box opens word-unlock terminal even when bag is full")
 	game.cipher_terminal.solve_all_for_qa()
-	verify(game.cipher_terminal.unlocked and game.cipher_terminal.swap_button.visible and pickup.visible, "unlocked supply box preserves unclaimed loot and offers swap when bag is full")
-	game.cipher_terminal.close()
-	verify(game.rules.bag.size() == 8 and pickup.visible, "closing full-bag supply terminal keeps box on field until claimed")
-	game.rules.bag.pop_back()
+	verify(game.cipher_terminal.unlocked and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 1 and pickup.visible, "v0.8.4: unlocking supply box hands off to selective LootContainerUI without auto-stuffing bag")
+	game.loot_container_ui.close()
+	verify(game.rules.bag.size() == 8 and pickup.visible and pickup.has_meta("pending_items"), "v0.8.4: leaving panel keeps unclaimed supply loot inside box on field")
+	# Reopen unlocked box directly (no re-spelling!), discard 1 junk item on right column to make room, then take item!
 	game.interact()
-	verify(game.rules.bag.size() == 8 and not pickup.visible, "reopening with free slot claims saved supply loot without re-spelling")
-	game.cipher_terminal.close()
+	verify(not game.cipher_terminal.busy and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 1, "v0.8.4: reopening unlocked box skips spelling and opens remaining items directly")
+	var disc_ok: Dictionary = game.loot_container_ui.discard_bag_slot(7)
+	verify(not disc_ok.is_empty() and game.rules.bag.size() == 7, "v0.8.4: right-column discard frees backpack slot live inside LootContainerUI")
+	game.loot_container_ui.take_item_to_bag(0)
+	verify(not game.loot_container_ui.busy and game.rules.bag.size() == 8 and not pickup.visible, "v0.8.4: picking last item collects it, hides supply box & auto-closes confirmation panel")
 	game.interact()
-	verify(game.rules.bag.size() == 8 and not game.cipher_terminal.busy, "collected supply box cannot be reopened or duplicated")
+	verify(game.rules.bag.size() == 8 and not game.cipher_terminal.busy and not game.loot_container_ui.busy, "collected supply box cannot be reopened or duplicated")
 
-	# Test swapping lowest-value item directly inside CipherTerminal
+	# Direct Safe Box storage on full bag + Blue-and-above selective filter leaving low-tier items behind!
 	var pickup2 = game.pickup_nodes[1]
 	game.player.position = pickup2.position + Vector3(0, 0.1, 1.2)
 	await physics_frame
 	game.interact()
 	game.cipher_terminal.solve_all_for_qa()
-	verify(game.cipher_terminal.swap_button.visible, "second supply box on full bag exposes lowest-item swap button")
-	game.cipher_terminal.swap_button.pressed.emit()
-	verify(game.rules.bag.size() == 8 and not pickup2.visible, "swapping lowest item claims supply loot and removes supply box")
-	game.cipher_terminal.close()
+	verify(game.loot_container_ui.busy and game.rules.bag.size() == 8 and game.rules.safe_box.size() == 0, "second supply box on full bag opens LootContainerUI cleanly")
+	verify(game.loot_container_ui.take_item_to_safe_box(0) and game.rules.safe_box.size() == 1 and not pickup2.visible, "v0.8.4: [存安全箱] stores container loot straight into Encrypted Safe Box even when backpack is full")
+	game.rules.safe_box.clear()
+
+	# Multi-item selective Blue+ filter leaves T1/T2 items persistently in container until revisited!
+	var filter_box: Node3D = game.world_loot.spawn_custom_drop(game.player.position + Vector3(0.4, 0.0, 0.4), "测试多件补给包", [
+		game.rules.roll_item_by_rarity(1),
+		game.rules.roll_item_by_rarity(2),
+		game.rules.roll_item_by_rarity(4),
+	], false)
+	game.rules.bag.pop_back()
+	game.rules.bag.pop_back() # bag now 6/8
+	game.loot_container_ui.open_container(filter_box, "squad_drop", "测试多件补给包", filter_box.get_meta("drop_items"), "", false)
+	var blue_taken: int = game.loot_container_ui.take_blue_and_above()
+	verify(blue_taken == 1 and game.rules.bag.size() == 7 and game.loot_container_ui.pending_items.size() == 2 and filter_box.visible, "v0.8.4: [只拾取蓝品及以上] collects only R>=3 items and keeps T1/T2 items inside container")
+	game.loot_container_ui.close()
+	verify(filter_box.visible and (filter_box.get_meta("pending_items") as Array).size() == 2, "v0.8.4: unpicked low-tier items stay persisted on container after leaving")
+	game.rules.add_loot("filler_back", 10, 1) # restore 8/8 for subsequent banking check
 	game.rules.bag[0] = {"title": "量子词典原型机", "value": 395, "rarity": 6}
 
 	# v0.8.1 #5: Accuracy gate enforcement (Normal >= 60%, Confidential >= 80%)

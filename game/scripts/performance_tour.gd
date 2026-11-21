@@ -179,7 +179,10 @@ func supply_stop() -> bool:
 		return false
 	game.cipher_terminal.solve_all_for_qa()
 	await get_tree().process_frame
-	game.cipher_terminal.close()
+	if is_instance_valid(game.loot_container_ui) and game.loot_container_ui.busy:
+		game.loot_container_ui.take_all_for_qa()
+	elif game.cipher_terminal.busy:
+		game.cipher_terminal.close()
 	return not sup.visible
 
 func crate_stop() -> bool:
@@ -193,7 +196,10 @@ func crate_stop() -> bool:
 		return false
 	game.cipher_terminal.solve_all_for_qa()
 	await get_tree().process_frame
-	game.cipher_terminal.close()
+	if is_instance_valid(game.loot_container_ui) and game.loot_container_ui.busy:
+		game.loot_container_ui.take_all_for_qa()
+	elif game.cipher_terminal.busy:
+		game.cipher_terminal.close()
 	return crate.get_meta("title") in game.rules.crates
 
 func _run_formal_combat_supply_and_extract() -> Dictionary:

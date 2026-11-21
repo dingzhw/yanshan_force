@@ -831,7 +831,9 @@ func run():
 
 	var cw = game.cave_warden
 	cw.reset()
-	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 280, "v0.8.3 hotfix: Yanxia Cave Warden balanced to 280 HP in Normal mode with protruding weakpoint & 3D HP bar")
+	var cw_core_shp: SphereShape3D = (cw.core_area.get_child(0) as CollisionShape3D).shape as SphereShape3D
+	var cw_articulated: bool = is_instance_valid(cw.body_mesh) and is_instance_valid(cw.arm_left_pivot) and is_instance_valid(cw.arm_right_pivot) and is_instance_valid(cw.head_crest)
+	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 280 and cw_articulated and is_equal_approx(cw_core_shp.radius, 0.30), "v0.8.4: Cave Warden loads articulated 4-part Blender rig with shrunk 0.30m chest core & 280 Normal HP")
 	# Outer camp gunfire (> 15m away) MUST NOT alert Cave Warden!
 	cw.on_gunshot(cw.root_node.position + Vector3(24.0, 0, 18.0), false)
 	verify(cw.state == "patrol" and cw.noise_meter == 0.0, "v0.8.3 hotfix: outer camp combat beyond 15m never pulls Cave Warden out of Yanxia Cave")
@@ -844,22 +846,57 @@ func run():
 	game.player.position = Vector3(-12.0, 4.0, -42.0)
 	cw.update(0.1)
 	verify(cw.state == "patrol" and cw.root_node.position.x >= cw.CAVE_MIN_X and cw.root_node.position.x <= cw.CAVE_MAX_X and cw.root_node.position.z >= cw.CAVE_MIN_Z and cw.root_node.position.z <= cw.CAVE_MAX_Z, "v0.8.3 hotfix: leaving Yanxia Cave immediately drops hunt and strictly confines Warden inside cave")
-	# Responsive armor damage (20 dmg + hit flash) & core crit (55 dmg) + 80-dmg auto-stagger!
-	game.player.position = cw.root_node.position + Vector3(0, 0.1, 4.5)
+	# v0.8.4 Dual-Arm Guard Combat Dance: first hit snaps arms crossed over core -> frontal core raycast deflects for 10 chip dmg!
+	cw.reset()
+	cw.root_node.position = Vector3(-41.60, 6.53, -61.80)
+	cw.root_node.rotation = Vector3.ZERO
+	game.player.position = Vector3(-41.60, 6.53, -57.20)
+	await frames(2)
 	var hp_pre_body: int = cw.hp
 	cw.hit_bullet(cw.body_area)
-	verify(cw.hp == hp_pre_body - 20 and cw.hit_flash_left > 0.05, "v0.8.3 hotfix: Cave Warden body hit deals 20 dmg with visible hit-flinch feedback")
+	cw.snap_articulation_for_pose()
+	verify(cw.hp == hp_pre_body - 20 and cw.guard_arms and cw.guard_area.collision_layer == cw.HIT_LAYER and cw.arm_left_pivot.rotation.y > 0.5 and cw.arm_right_pivot.rotation.y < -0.5, "v0.8.4: hitting Cave Warden deals 20 armor dmg and immediately raises crossed dual-arm guard over core")
+	# Real 3D frontal raycast straight through chest core MUST hit guard_area FIRST and deal only 10 chip dmg (NOT 55 crit)!
+	await frames(2)
+	var hp_pre_guard_ray: int = cw.hp
+	var sp_cw: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var cw_ray_from: Vector3 = cw.root_node.global_position + Vector3(0.0, 1.56, 3.6)
+	var cw_ray_to: Vector3 = cw.root_node.global_position + Vector3(0.0, 1.56, -0.5)
+	var cw_q := PhysicsRayQueryParameters3D.create(cw_ray_from, cw_ray_to, cw.HIT_LAYER)
+	cw_q.collide_with_areas = true
+	var cw_hit_guard := sp_cw.intersect_ray(cw_q)
+	var guard_blocked_ok: bool = (not cw_hit_guard.is_empty()) and (cw_hit_guard.collider == cw.guard_area)
+	if not cw_hit_guard.is_empty():
+		cw.hit_bullet(cw_hit_guard.collider)
+	verify(guard_blocked_ok and cw.hp == hp_pre_guard_ray - 10 and cw.deflect_flash_left > 0.05, "v0.8.4: frontal 3D raycast aimed at chest core while guarding hits arm-shield guard_area for 10 chip dmg")
+	# Wait out guard timer during active chase -> Warden flings arms wide open exposing 0.30m blue core for 55 crit!
+	cw.state = "hunt"
+	cw.noise_meter = 90.0
+	cw.guard_left = 0.05
+	cw.update(0.10)
+	cw.snap_articulation_for_pose()
+	await frames(2)
+	var hp_pre_open_ray: int = cw.hp
+	var cw_hit_open := sp_cw.intersect_ray(cw_q)
+	var open_hit_core: bool = (not cw_hit_open.is_empty()) and (cw_hit_open.collider == cw.core_area)
+	if not cw_hit_open.is_empty():
+		cw.hit_bullet(cw_hit_open.collider)
+	verify(not cw.guard_arms and cw.guard_area.collision_layer == 0 and open_hit_core and cw.hp == hp_pre_open_ray - 55, "v0.8.4: active pursuit drops arm guard, exposes 0.30m chest core, and frontal 3D raycast crits for 55 dmg")
+	# Second core hit crosses STAGGER_THRESHOLD (80) -> auto-staggers Warden wide open!
 	cw.hit_bullet(cw.core_area)
-	cw.hit_bullet(cw.core_area)
-	verify(cw.state == "stunned" and cw.stun_left > 1.0, "v0.8.3 hotfix: dealing >= 80 dmg automatically staggers Cave Warden for counter-burst")
+	verify(cw.state == "stunned" and not cw.guard_arms and cw.stun_left > 1.0, "v0.8.4: dealing >= 80 dmg automatically staggers Cave Warden with arms flung open")
+	# Verify Smoke/EMP also breaks active arm-guard cleanly!
+	cw.state = "hunt"
+	cw.set_guard_arms(true, 2.8)
 	cw.on_smoke_emp(cw.root_node.position + Vector3(0, 0, 2.0))
-	verify(cw.state == "stunned" and cw.stun_left > 4.0, "v0.8.2 #2: smoke/EMP grenade stuns & blinds Cave Warden acoustic sensors")
+	verify(cw.state == "stunned" and not cw.guard_arms and cw.stun_left > 4.0, "v0.8.4: [G] smoke/EMP forcibly breaks arm-guard and stuns Cave Warden for 5.5s")
 	var pre_cw_score: int = game.rules.score
+	var pre_drops_cnt: int = game.world_loot.drop_nodes.size()
 	for _cwh in 6:
 		if not cw.is_alive():
 			break
 		cw.hit_bullet(cw.core_area)
-	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar"), "v0.8.3 hotfix: stunned core hits (85 crit dmg) defeat Cave Warden cleanly and grant +80 pts, warden_1 & charm_sonar")
+	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar") and game.world_loot.drop_nodes.size() == pre_drops_cnt + 1, "v0.8.4: stunned core hits (85 crit) defeat Cave Warden cleanly, grant +80 pts/warden_1/charm_sonar & spawn physical relic drop pouch")
 
 	# 12. v0.8.2_dev1 C2 & C4: Camp Warm-Up zero-contamination, Overlord accurate candidate/help count & Practice Range Cave Warden dormancy!
 	game._end_run(false)
@@ -926,14 +963,15 @@ func run():
 		if slam_targets[0].knockdown_left <= 0.0:
 			break
 	verify(slam_targets[0].knockdown_left <= 0.001 and absf(slam_targets[0].visual_root.rotation.x) < 0.05, "v0.8.3 R2: knocked-down word soldiers stand back up cleanly after 1.5s")
-	# Verify [V] skill also staggers Cave Warden in Yanxia Cave
+	# Verify [V] skill also breaks Cave Warden arm-guard & staggers in Yanxia Cave
 	game.rangers.skill_cooldown_left = 0.0
 	game.cave_warden.reset()
 	game.cave_warden.state = "hunt"
+	game.cave_warden.set_guard_arms(true, 2.8)
 	game.player.position = game.cave_warden.root_node.position + Vector3(0.0, 0.1, 4.0)
 	await frames(2)
 	game.player.use_ranger_skill()
-	verify(game.cave_warden.state == "stunned" and game.cave_warden.stun_left >= 1.4, "v0.8.3 R2: [V] '天生神力' ground slam staggers & interrupts Yanxia Cave Warden within range")
+	verify(game.cave_warden.state == "stunned" and not game.cave_warden.guard_arms and game.cave_warden.stun_left >= 1.4, "v0.8.4: [V] '天生神力' ground slam breaks arm-guard & staggers Yanxia Cave Warden within range")
 	game._end_run(false)
 
 	game.queue_free()
