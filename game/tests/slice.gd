@@ -26,9 +26,9 @@ func run():
 	game = load("res://main.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
-	game.start_action(false)
+	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.0" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.0 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.1 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var supply_count := 0
 	for p in game.pickup_nodes:
@@ -65,8 +65,6 @@ func run():
 	await enter("poem")
 	verify(game.exploration.busy, "stone tablet is reachable from its branch")
 	var poem_ans = game.exploration.answer_button_index("poem")
-	game.exploration.buttons[(poem_ans + 1) % 3].pressed.emit()
-	verify(not game.exploration.states.poem and game.rules.bag.size() == bag, "wrong poem answer gives feedback without a reward")
 	game.exploration.buttons[poem_ans].pressed.emit()
 	verify(game.exploration.states.poem and game.exploration.states.poem_claimed and game.rules.bag.size() == bag + 1, "correct poem answer unlocks and rewards the stone compartment")
 	game.exploration.choose(poem_ans)
@@ -74,10 +72,28 @@ func run():
 	game.exploration.close()
 	verify(game.question.id == old_id and game.rules.score == 0 and game.rules.answered == 0, "optional learning keeps the pending English question and its accuracy untouched")
 
+	# v0.8.1 FB-5: Wrong answer on Field Intel locks that node out for the rest of the run (no retry brute-force!)
+	var ic_lock_node: Node3D = node_for("intel_cleft")
+	game.exploration.open(ic_lock_node)
+	var ic_ans: int = game.exploration.answer_button_index("intel_cleft")
+	game.exploration.buttons[(ic_ans + 1) % 3].pressed.emit()
+	verify(game.exploration.is_locked_out("intel_cleft") and game.exploration.buttons[0].disabled and not game.exploration.states.intel_cleft, "v0.8.1 FB-5: wrong answer on field intel immediately locks node for the run and disables retry")
+	game.exploration.choose(ic_ans)
+	verify(not game.exploration.states.intel_cleft, "v0.8.1 FB-5: clicking correct option after lock-out cannot bypass single-attempt rule")
+	game.exploration.close()
+
 	while game.rules.bag.size() < game.rules.capacity():
 		game.rules.add_loot("filled", 1, 1)
 	var gate_at = game.exploration.gate.global_position + Vector3(1.4, 1.1, 0)
 	verify(not ray(gate_at + Vector3(0, 0, 3), gate_at - Vector3(0, 0, 3)).is_empty(), "closed shortcut gate blocks a real world ray")
+	# v0.8.1 FB-6: Flanking timber stockade wings block walking/rays across the entire valley pass (x=4.5 & x=16.0)!
+	var wing_w: Vector3 = game.Layout.on_ground(Vector3(4.5, 0, -62.0)) + Vector3(0, 1.1, 0)
+	var wing_e: Vector3 = game.Layout.on_ground(Vector3(16.0, 0, -62.0)) + Vector3(0, 1.1, 0)
+	verify(not ray(wing_w + Vector3(0, 0, 3), wing_w - Vector3(0, 0, 3)).is_empty() and not ray(wing_e + Vector3(0, 0, 3), wing_e - Vector3(0, 0, 3)).is_empty(), "v0.8.1 FB-6: fortified timber stockade wings physically seal both flanks of the shortcut pass")
+	# v0.8.1 FB-1: Elevated Wangdao Pavilion scenic overlook deck stands > 9.0m with solid floor beneath it!
+	var wd_pos: Vector3 = game.landscape.wangdao_deck_pos
+	var wd_hit: Dictionary = ray(wd_pos + Vector3(0, 2.0, 0), wd_pos - Vector3(0, 1.5, 0))
+	verify(wd_pos.y >= 9.0 and not wd_hit.is_empty() and absf(wd_hit.position.y - wd_pos.y) < 0.25, "v0.8.1 FB-1: elevated Wangdao Pavilion scenic overlook deck stands above 9.0m with solid balcony floor")
 	await enter("math")
 	var math_ans = game.exploration.answer_button_index("math")
 	game.exploration.buttons[math_ans].pressed.emit()
@@ -142,6 +158,8 @@ func run():
 	while game.rules.score < game.Rules.EXTRACTION_SCORE:
 		game.rules.open_question()
 		game.rules.answer(true)
+	game.rules.outposts_cleared = 2
+	game.rules.boss_defeated = true
 	game.player.position = game.exit_position
 	await frames(3)
 	game.interact()
@@ -503,11 +521,10 @@ func run():
 	var poem_pav = poem_node.find_child("poem_stele_pavilion", true, false) if poem_node != null else null
 	var obelisk = poem_node.find_child("statue_obelisk", true, false) if poem_node != null else null
 	verify(poem_pav != null and obelisk == null, "v0.6.0 replaces Western obelisk with Jiangnan poem_stele_pavilion")
-	# Walk onto WangdaoPavilion west stairs & inside floor purely with KEY_W (no jumping)
+	# v0.8.1 FB-1: Walk purely with KEY_W (ZERO jumping) up the +2.75m Grand Bluestone Staircase onto WangdaoPavilion overlook deck!
 	var pav_at: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
-	var pav_basis: Basis = (wangdao_pav as Node3D).transform.basis
-	var start_xz := pav_at + pav_basis * Vector3(-4.0, 0.05, 0.0)
-	var target_xz := pav_at + pav_basis * Vector3(-1.10, 0.28, 0.0)
+	var start_xz: Vector3 = game.Layout.on_ground(Vector3(27.4, 0.0, 17.1)) + Vector3(0.0, 0.12, 0.0)
+	var target_xz: Vector3 = Vector3(33.2, pav_at.y + 2.75, 22.1)
 	var walk_dir := Vector2(target_xz.x - start_xz.x, target_xz.z - start_xz.z)
 	game.player.clear_movement_input()
 	game.player.position = start_xz
@@ -515,13 +532,15 @@ func run():
 	game.player.yaw = atan2(-walk_dir.x, -walk_dir.y)
 	await frames(8)
 	game.player.held_keys[KEY_W] = true
-	for _f in 120:
-		if Vector2(game.player.position.x - pav_at.x, game.player.position.z - pav_at.z).length() <= 1.25:
+	for _f in 240:
+		var rem_d := Vector2(target_xz.x - game.player.position.x, target_xz.z - game.player.position.z)
+		if rem_d.length() <= 0.30:
 			break
+		game.player.yaw = atan2(-rem_d.x, -rem_d.y)
 		await physics_frame
 	game.player.clear_movement_input()
 	await frames(6)
-	verify(Vector2(game.player.position.x - target_xz.x, game.player.position.z - target_xz.z).length() < 0.75 and game.player.is_on_floor() and game.player.position.y > pav_at.y + 0.14, "player walks cleanly onto WangdaoPavilion terrace without jumping")
+	verify(Vector2(game.player.position.x - target_xz.x, game.player.position.z - target_xz.z).length() < 0.75 and game.player.is_on_floor() and game.player.position.y >= pav_at.y + 2.65, "v0.8.1 FB-1: player walks cleanly up Grand Bluestone Staircase onto elevated WangdaoPavilion overlook deck (y=%.2f)" % game.player.position.y)
 
 	# v0.6.1 Concave Pebble Creek, Watertight Valley Collar, Submerged Pilings, Botanical Flora & HUD non-overlap checks
 	var bed_node := game.landscape.get_node_or_null("StreamChannelBed") as MeshInstance3D
@@ -620,6 +639,8 @@ func run():
 	game.exploration.close()
 	verify(game.exploration.is_secret_revealed("yanxia_cave") and game.minimap._is_discovered(game.crate_nodes[5]), "Moya cliff inscription reveals Yanxia Cavern secret on minimap")
 
+	game.start_action(true, "normal")
+	await frames(4)
 	game.combat.health = 60
 	game.combat.shield = 5.0
 	game.rules.bag.clear()
@@ -628,6 +649,11 @@ func run():
 		game.exploration.open(hev)
 		game.exploration.choose(game.exploration.answer_button_index(hid))
 		game.exploration.close()
+	# Also solve cliff_inscription on this fresh Normal run so heritage_completed() == 3!
+	var moya_ev2: Node3D = node_for.call("cliff_inscription")
+	game.exploration.open(moya_ev2)
+	game.exploration.choose(game.exploration.answer_button_index("cliff_inscription"))
+	game.exploration.close()
 	verify(game.exploration.heritage_completed() == 3, "all 3 v0.6.2 Yanxia heritage discoveries solve and track in heritage_completed() == 3")
 	verify(game.combat.health == 80 and game.combat.shield >= 19.5, "cave_hearth spring tea restores +20 HP and +15 Shield")
 	var bag_titles: Array[String] = []

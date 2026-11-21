@@ -85,14 +85,22 @@ func run():
 	verify(game.rules.score == camp_score_before, "camp Station 0 warm-up awards 0 combat score in field runs")
 	game._leave_station()
 
-	# 2. Standby patrol & non-aggro from afar (> aggro radius) vs spawn-area aggro pull
+	# 2. v0.8.1 #3 Distant Word Sniping: standby soldiers show English shields at spawn (<=98m), do NOT auto-chase from afar,
+	# and aiming at Camp 0 from 24.5m previews its Chinese word prompt in the HUD!
 	var center0: Vector3 = game.combat.zone_center(0)
 	game.player.position = center0 + Vector3(0, 0.1, 24.5)
 	await frames(65)
 	var patrol = game.combat.troops[0][0]
 	verify(
-		game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and patrol.action == Soldier.Action.PATROL and not patrol.shield_area.visible,
-		"standby camp squad patrols at spawn and does NOT auto-chase from 24.5m away"
+		game.combat.zone == -1 and not game.combat.is_zone_engaged(0) and patrol.action == Soldier.Action.PATROL and patrol.shield_area.visible and patrol.word_label.text != "" and patrol.word_label.visibility_range_end >= 90.0,
+		"v0.8.1 #3: standby camp squad patrols at spawn, does NOT auto-chase from 24.5m, and visibly displays long-range word shields"
+	)
+	# Aim directly at Camp 0 from 24.5m -> sniper HUD previews Camp 0's Chinese prompt & countdown bar!
+	game.player.camera.look_at(patrol.shield_area.global_position)
+	await frames(6)
+	verify(
+		game.combat.preview_zone == 0 and game.unit_label.text.contains("远距瞄准") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible,
+		"v0.8.1 #3: aiming at distant camp previews target Chinese prompt and sniper countdown bar on HUD"
 	)
 
 	# Stepping into Camp 0's spawn aggro radius (~15.8m) pulls aggro on the 3-4 wave soldiers & triggers cover bounding!
@@ -208,7 +216,7 @@ func run():
 	game.player.use_medkit()
 	verify(game.player.medkits == kits_before - 1 and game.combat.health == 95 and roundi(game.combat.shield) == 30, "field medkit restores +45 HP and +25 shield")
 
-	# 5. Re-engage Camp 0 & test Wrong Hit vs 1-Shot Headshot vs 2-Shot Cracked-Shield Cover Reposition + Moving Suppression
+	# 5. Re-engage Camp 0 & test v0.8.1 #4 Strict Wrong-Answer Rotation + #8 3-Wrong Rage Hunt (2.0x Normal) + 1-Shot Headshot vs 2-Shot Shield
 	game.player.position = center0 + Vector3(0, 0.08, 2.2)
 	await frames(6)
 	verify(game.combat.zone == 0 and is_equal_approx(game.combat.damage_multiplier(), 1.0), "returning to Camp 0 re-engages wave at 1.00x base enemy attack")
@@ -224,15 +232,52 @@ func run():
 	var prompt_before_wrong: String = str(game.question.get("english", ""))
 	shoot(game.player.camera.global_position, wrong.shield_area.global_position)
 	verify(
-		not wrong.defeated and wrong.hp == wrong.max_hp and wrong.shield_layers == 2 and game.combat.wave_wrong_stacks == 1 and is_equal_approx(game.combat.damage_multiplier(), 1.25) and game.combat.damage_per_shot(wrong) > base_wrong_dmg and str(game.question.get("english", "")) == prompt_before_wrong,
-		"hitting wrong soldier deals ZERO HP/shield damage, keeps prompt open, and stacks +25% enemy attack (1.25x)"
+		not wrong.defeated and wrong.hp == wrong.max_hp and wrong.shield_layers == 2 and game.combat.wave_wrong_stacks == 1 and game.combat.consecutive_wrong_hits == 1 and is_equal_approx(game.combat.damage_multiplier(), 1.25) and game.combat.damage_per_shot(wrong) > base_wrong_dmg and game.combat.prompt_locked_after_wrong and game.combat.prompt_reveal_left > 1.0,
+		"v0.8.1 #4: hitting wrong soldier deals ZERO damage, locks old answer for 1.4s reveal, and stacks +25% enemy attack (1.25x)"
 	)
+	# Attempting to shoot the just-revealed correct soldier during 1.4s lock MUST NOT score or kill!
+	var locked_right = game.combat.troops[0][game.answer_index]
+	locked_right.position = center0 + Vector3(1.5, 0.08, -2.6)
+	var pre_lock_score: int = game.rules.score
+	shoot(game.player.camera.global_position, locked_right.head_area.global_position)
+	verify(not locked_right.defeated and game.rules.score == pre_lock_score, "v0.8.1 #4: shooting revealed answer during 1.4s lock cannot cheat score or kill")
+	# Advance past 1.4s reveal -> MUST switch to a brand-new English word!
+	game.combat.update(1.55)
+	verify(not game.combat.prompt_locked_after_wrong and str(game.question.get("english", "")) != prompt_before_wrong, "v0.8.1 #4: after 1.4s reveal, combat automatically rotates to a brand-new word")
+
+	# Two more consecutive wrong hits (total 3) trigger Normal Rage Hunt (12s, 2.0x damage, 145m pursuit)!
+	for s_park in game.combat.troops[0]:
+		s_park.position = s_park.home
+	wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
+	wrong.position = center0 + Vector3(0, 0.08, -2.6)
+	wrong.rotation = Vector3.ZERO
+	await frames(2)
 	shoot(game.player.camera.global_position, wrong.head_area.global_position)
+	verify(not wrong.defeated and game.combat.consecutive_wrong_hits == 2 and is_equal_approx(game.combat.damage_multiplier(), 1.50), "2nd consecutive wrong hit deals ZERO damage and raises counter to 2/3")
+	game.combat.update(1.55)
+	for s_park2 in game.combat.troops[0]:
+		s_park2.position = s_park2.home
+	wrong = game.combat.troops[0][(game.answer_index + 1) % wave0_init_alive]
+	wrong.position = center0 + Vector3(0, 0.08, -2.6)
+	wrong.rotation = Vector3.ZERO
+	await frames(2)
+	shoot(game.player.camera.global_position, wrong.shield_area.global_position)
 	verify(
-		not wrong.defeated and wrong.hp == wrong.max_hp and wrong.shield_layers == 2 and game.combat.wave_wrong_stacks == 2 and is_equal_approx(game.combat.damage_multiplier(), 1.50),
-		"hitting wrong soldier's head also deals ZERO damage and stacks enemy attack to 1.50x"
+		game.combat.is_rage_hunting(0) and game.combat.rage_hunt_left > 10.0 and is_equal_approx(game.combat.damage_multiplier(), 2.0) and game.combat.zone_pursuit(0) >= 140.0,
+		"v0.8.1 #8: 3 consecutive wrong hits trigger Normal Rage Hunt (12s, 2.0x damage, 145m pursuit)"
 	)
-	wrong.position = wrong.home
+	# Clear reveal lock & verify unanswered 10s timeout rotates cleanly in Normal mode
+	game.combat.update(1.55)
+	var pre_to_word: String = str(game.question.get("english", ""))
+	verify(is_equal_approx(game.combat.prompt_timer_max, 10.0), "v0.8.1 #4: Normal mode prompt countdown is 10.0s")
+	game.combat.prompt_timer_left = 0.05
+	game.combat.update(0.10)
+	verify(str(game.question.get("english", "")) != pre_to_word, "v0.8.1 #4: Normal combat prompt auto-rotates on 10s timeout")
+	# Reset rage timer and park all soldiers back at home for clean headshot/shield checks below
+	game.combat.rage_hunt_left = 0.0
+	game.combat.rage_hunt_zone = -1
+	for s_park3 in game.combat.troops[0]:
+		s_park3.position = s_park3.home
 
 	# Headshot on CORRECT soldier = 1-shot instant kill & NO mid-wave respawn!
 	var correct_hs = game.combat.troops[0][game.answer_index]
@@ -356,6 +401,7 @@ func run():
 	game.player.position = center1 + Vector3(0, 0.08, 2.0)
 	await frames(6)
 	verify(game.combat.zone == 1 and game.combat.is_zone_engaged(1), "entering Camp 1 aggro radius activates Zone 1 Wave 1/3")
+	verify(is_equal_approx(game.combat.prompt_timer_max, 7.0), "v0.8.1 #4: Confidential mode prompt countdown tightens to 7.0s")
 
 	var sniper = null
 	for s in game.combat.troops[1]:
@@ -571,10 +617,30 @@ func run():
 
 	game.practice_button.pressed.emit()
 	game.interact()
-	verify(game.combat.stage == Battle.Stage.OFF and game.stations[1].boards[0].visible and game.active_station == 0, "free practice starts with stationary boards enabled")
+	verify(game.combat.stage == Battle.Stage.OFF and game.stations[0].boards[0].visible and not game.stations[1].boards[0].visible and game.active_station == 0, "free practice shows active station boards while keeping inactive stations hidden")
+
+	# Confidential 4.0x distant Rage Hunt check (#8): 3 consecutive wrong snipes from 52m away triggers 4.0x Rage Hunt!
+	game.start_action(true, "confidential")
+	await frames(4)
+	game.player.position = game.Layout.on_ground(center0 + Vector3(0.0, 0.0, 52.0)) + Vector3(0.0, 0.12, 0.0)
+	await frames(4)
+	for s_c in game.combat.troops[0]:
+		s_c.set_physics_process(false)
+	for rw in 3:
+		var cw_opt: int = (int(game.combat.zone_prompt_option.get(0, 0)) + 1) % game.combat.troops[0].size()
+		var cw_s = game.combat.troops[0][cw_opt]
+		game.combat.hit_bullet(cw_s.shield_area, "", cw_s.shield_area.global_position)
+		if rw < 2:
+			game.combat.update(1.55)
+	verify(
+		game.combat.is_rage_hunting(0) and game.combat.zone == 0 and is_equal_approx(game.combat.damage_multiplier(), 4.0),
+		"v0.8.1 #8: 3 wrong distant sniper hits in Confidential Operation trigger 4.0x Rage Hunt & force-engage camp from 52m"
+	)
+	game._end_run(false)
 
 	# 10. v0.7.0 Nemesis Bounty deterministic wave injection, bounty kill reward & all-camp readability promotion!
 	var nemesis_id := "js5a2026-061" # warm up (has textbook Cloze sentence 'We should ____.')
+	game.rules.profile.review_due.clear()
 	game.rules.profile.review_due[nemesis_id] = "incorrect"
 	game.start_action(true, "normal")
 	await frames(6)

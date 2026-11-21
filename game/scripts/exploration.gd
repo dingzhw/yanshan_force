@@ -9,7 +9,9 @@ const HERITAGE_IDS = ["cliff_inscription", "cave_mural", "cave_hearth"]
 
 var game
 var nodes = []
+var node_labels = {}
 var states = {}
+var failed = {}
 var data = {}
 var current_items = {}
 var current_options = {}
@@ -26,6 +28,7 @@ var source: Label
 var buttons = []
 var swap_button: Button
 var gate: Node3D
+var gate_plaque: Label3D
 var grace = 0.0
 var began = 0.0
 var rng := RandomNumberGenerator.new()
@@ -47,16 +50,142 @@ func setup(g):
 	_mark("cliff_inscription", Vector3(-36.45, 0, -50.0), "摩崖石刻《竹石清音》", Color("e8b878"))
 	_mark("cave_mural", Vector3(-44.05, 0, -61.15), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
 	_mark("cave_hearth", Vector3(-41.05, 0, -66.35), "寒潭茶灶与古竹简", Color("ffd15c"))
-	var center = game.Layout.on_ground(Vector3(10, 0, -62))
-	gate = Node3D.new()
-	gate.position = center + Vector3(-1.4, 0, 0)
-	add_child(gate)
-	for x in [-1.5, 1.5]:
-		game._mesh_box(self, center + Vector3(x, 0.95, 0), Vector3(0.20, 1.9, 0.20), Color("5b4933"), true)
-	game._mesh_box(gate, Vector3(1.4, 1.15, 0), Vector3(2.8, 0.20, 0.16), Color("7b6344"), true)
-	game._mesh_box(gate, Vector3(1.4, 0.58, 0), Vector3(2.8, 0.16, 0.16), Color("7b6344"), true)
+	_build_shortcut_stockade()
 	_ui()
 	reset()
+
+func _build_shortcut_stockade():
+	## v0.8.1 FB-6: Valley-spanning fortified timber palisade wall (x = 1.6..19.6 at z = -62)
+	## anchored to the west pass ridge & east creek embankment, with central lockable wooden gate at x = 10!
+	var stockade_root := Node3D.new()
+	stockade_root.name = "MathShortcutStockade"
+	add_child(stockade_root)
+
+	var bark_tex = load("res://assets/slice/tree_bark.jpg")
+	var log_mat := StandardMaterial3D.new()
+	log_mat.albedo_color = Color("5e4832")
+	log_mat.albedo_texture = bark_tex
+	log_mat.uv1_scale = Vector3(1.0, 2.2, 1.0)
+	log_mat.roughness = 0.90
+	log_mat.metallic_specular = 0.06
+
+	var rail_mat := StandardMaterial3D.new()
+	rail_mat.albedo_color = Color("765c40")
+	rail_mat.albedo_texture = bark_tex
+	rail_mat.uv1_scale = Vector3(2.4, 0.8, 1.0)
+	rail_mat.roughness = 0.86
+
+	var iron_mat := StandardMaterial3D.new()
+	iron_mat.albedo_color = Color("2a3034")
+	iron_mat.metallic = 0.62
+	iron_mat.roughness = 0.48
+
+	var center: Vector3 = game.Layout.on_ground(Vector3(10.0, 0.0, -62.0))
+	var fence_z := -62.0
+
+	# Central heavy gateway posts + overhead timber lintel framing the lockable door (exact gate center at x = 10.0!)
+	for gx in [-1.52, 1.52]:
+		var gpos := Vector3(center.x + gx, float(game.Layout.height(center.x + gx, fence_z)) + 1.38, fence_z)
+		var gpost: MeshInstance3D = game._mesh_box(stockade_root, gpos, Vector3(0.28, 3.05, 0.28), Color.WHITE, true)
+		gpost.material_override = log_mat
+	var lintel_pos := Vector3(center.x, center.y + 2.72, fence_z)
+	var lintel: MeshInstance3D = game._mesh_box(stockade_root, lintel_pos, Vector3(3.45, 0.24, 0.30), Color.WHITE, false)
+	lintel.material_override = log_mat
+
+	# Lockable heavy timber double-framed wooden gate (pivot identical to center + (-1.4, 0, 0) for raycast compatibility!)
+	gate = Node3D.new()
+	gate.name = "MathShortcutGate"
+	gate.position = center + Vector3(-1.4, 0.0, 0.0)
+	add_child(gate)
+	# Solid gate collision leaf (height 2.20m) + wooden plank visuals + diagonal brace & iron hinges
+	var gate_leaf_col := BoxShape3D.new()
+	gate_leaf_col.size = Vector3(2.82, 2.25, 0.22)
+	game.Props.shape_body(gate, gate_leaf_col, Vector3(1.40, 1.12, 0.0))
+	for pi in 8:
+		var px := 0.18 + float(pi) * 0.35
+		var plank: MeshInstance3D = game._mesh_box(gate, Vector3(px, 1.12, 0.0), Vector3(0.31, 2.18, 0.12), Color.WHITE, false)
+		plank.material_override = rail_mat
+	for bar_y in [0.52, 1.16, 1.80]:
+		var bar: MeshInstance3D = game._mesh_box(gate, Vector3(1.40, bar_y, 0.09), Vector3(2.80, 0.18, 0.08), Color.WHITE, false)
+		bar.material_override = log_mat
+		var bar_b: MeshInstance3D = game._mesh_box(gate, Vector3(1.40, bar_y, -0.09), Vector3(2.80, 0.18, 0.08), Color.WHITE, false)
+		bar_b.material_override = log_mat
+	var diag_brace: MeshInstance3D = game._mesh_box(gate, Vector3(1.40, 1.16, 0.12), Vector3(2.85, 0.14, 0.06), Color.WHITE, false)
+	diag_brace.rotation.z = 0.42
+	diag_brace.material_override = log_mat
+	for hy in [0.52, 1.80]:
+		var strap: MeshInstance3D = game._mesh_box(gate, Vector3(0.34, hy, 0.14), Vector3(0.68, 0.10, 0.04), Color.WHITE, false)
+		strap.material_override = iron_mat
+	var lock_plate: MeshInstance3D = game._mesh_box(gate, Vector3(2.58, 1.16, 0.14), Vector3(0.24, 0.28, 0.08), Color.WHITE, false)
+	lock_plate.material_override = iron_mat
+
+	gate_plaque = game._label3d(stockade_root, "数学近道木门 · 请在西侧巡护站解题解锁", Vector3(center.x, center.y + 3.16, fence_z + 0.18), 26, game.GOLD)
+	gate_plaque.pixel_size = 0.0046
+	gate_plaque.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	gate_plaque.visibility_range_end = 24.0
+
+	# Solid impenetrable palisade wings spanning entire pass: West [1.6..8.45] & East [11.55..19.4]
+	var wings := [
+		[1.60, 8.45],
+		[11.55, 19.40]
+	]
+	for wing in wings:
+		var x0: float = wing[0]
+		var x1: float = wing[1]
+		var span := x1 - x0
+		var segs := maxi(2, int(ceilf(span / 2.2)))
+		for s_i in segs:
+			var sx0 := lerpf(x0, x1, float(s_i) / float(segs))
+			var sx1 := lerpf(x0, x1, float(s_i + 1) / float(segs))
+			var smx := (sx0 + sx1) * 0.5
+			var slen := sx1 - sx0
+			var gy0 := float(game.Layout.height(sx0, fence_z))
+			var gy1 := float(game.Layout.height(sx1, fence_z))
+			var gmid := (gy0 + gy1) * 0.5
+			var slope_ang := atan2(gy1 - gy0, slen)
+			# Solid tall invisible collider (2.85m high, sunk 0.45m below ground so ZERO sneaking under or jumping over!)
+			var w_shp := BoxShape3D.new()
+			w_shp.size = Vector3(slen + 0.22, 3.25, 0.48)
+			game.Props.shape_body(stockade_root, w_shp, Vector3(smx, gmid + 1.25, fence_z)).add_to_group("solid_props")
+			# Horizontal cross-beams binding the logs
+			for ry in [0.75, 1.95]:
+				var rail: MeshInstance3D = game._mesh_box(stockade_root, Vector3(smx, gmid + ry, fence_z + 0.14), Vector3(slen + 0.12, 0.16, 0.11), Color.WHITE, false)
+				rail.rotation.z = slope_ang
+				rail.material_override = rail_mat
+				var rail2: MeshInstance3D = game._mesh_box(stockade_root, Vector3(smx, gmid + ry, fence_z - 0.14), Vector3(slen + 0.12, 0.16, 0.11), Color.WHITE, false)
+				rail2.rotation.z = slope_ang
+				rail2.material_override = rail_mat
+		# Individual sharpened timber palisade stakes following exact terrain elevation
+		var stake_count := maxi(4, int(roundf(span / 0.36)))
+		for k in stake_count + 1:
+			var px := lerpf(x0, x1, float(k) / float(stake_count))
+			var py := float(game.Layout.height(px, fence_z))
+			var h_var := 2.48 + (0.18 if k % 3 == 0 else (-0.08 if k % 2 == 0 else 0.06))
+			var log_mi := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.085
+			cyl.bottom_radius = 0.125
+			cyl.height = h_var + 0.45
+			cyl.radial_segments = 7
+			log_mi.mesh = cyl
+			log_mi.position = Vector3(px, py + (h_var - 0.45) * 0.5, fence_z)
+			log_mi.material_override = log_mat
+			stockade_root.add_child(log_mi)
+			var tip_mi := MeshInstance3D.new()
+			var cone := CylinderMesh.new()
+			cone.top_radius = 0.012
+			cone.bottom_radius = 0.088
+			cone.height = 0.28
+			cone.radial_segments = 7
+			tip_mi.mesh = cone
+			tip_mi.position = Vector3(px, py + h_var + 0.12, fence_z)
+			tip_mi.material_override = rail_mat
+			stockade_root.add_child(tip_mi)
+
+	# Anchor boulders pinning both ends of the stockade into West hillside & East creek bank!
+	if is_instance_valid(game.landscape) and game.landscape.has_method("rock"):
+		game.landscape.rock(Vector3(1.15, 0.0, fence_z - 0.15), 2.85, 1)
+		game.landscape.rock(Vector3(19.75, 0.0, fence_z + 0.10), 2.95, 3)
 
 func _mark(id: String, at: Vector3, label: String, color: Color):
 	var node = Node3D.new()
@@ -182,6 +311,7 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		prompt.pixel_size = 0.0038
 		prompt.text = "寒潭茶灶与先民竹简 · [F]"
 	prompt.visibility_range_end = 15
+	node_labels[id] = {"label": prompt, "base_text": prompt.text, "base_color": game.GOLD}
 	nodes.append(node)
 
 func _ui():
@@ -198,9 +328,10 @@ func _ui():
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for i in 3:
 		buttons.append(game._button(overlay, "", Rect2(275, 286 + i * 48, 730, 42), choose.bind(i)))
-	explanation = game._text(overlay, "", Vector2(275, 434), Vector2(730, 96), 18, game.GOLD)
+	explanation = game._text(overlay, "", Vector2(275, 430), Vector2(730, 112), 16, game.GOLD)
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	source = game._text(overlay, "", Vector2(275, 536), Vector2(730, 44), 13, Color("a7b8a2"))
+	explanation.clip_text = true
+	source = game._text(overlay, "", Vector2(275, 548), Vector2(730, 38), 13, Color("a7b8a2"))
 	source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	game._button(overlay, "返回山路  [Esc]", Rect2(790, 594, 215, 37), close)
 	swap_button = game._button(overlay, "替换最低值物资", Rect2(550, 594, 220, 37), replace_reward)
@@ -231,8 +362,12 @@ func _prepare_item(id: String, picked: Dictionary):
 func answer_button_index(id: String) -> int:
 	return int(current_answer_index.get(id, 0))
 
+func is_locked_out(id: String) -> bool:
+	return bool(failed.get(id, false))
+
 func reset():
 	states = {"clue": false, "english": false, "math": false, "poem": false, "math_claimed": false, "poem_claimed": false}
+	failed = {}
 	for sid in SECRET_EVENT_IDS:
 		states[sid] = false
 		states[sid + "_claimed"] = false
@@ -261,8 +396,16 @@ func reset():
 		overlay.hide()
 	game.Props.set_enabled(gate, true)
 	gate.rotation = Vector3.ZERO
+	if is_instance_valid(gate_plaque):
+		gate_plaque.visible = true
 	for n in nodes:
 		game.Props.set_enabled(n, true)
+	for lid in node_labels:
+		var info: Dictionary = node_labels[lid]
+		var lbl: Label3D = info.label
+		if is_instance_valid(lbl):
+			lbl.text = str(info.base_text)
+			lbl.modulate = info.base_color
 
 func safe() -> bool:
 	var cipher_busy = is_instance_valid(game.cipher_terminal) and game.cipher_terminal.busy
@@ -281,6 +424,12 @@ func open(node: Node3D):
 			game.play_sfx("hit_wrong", -14)
 		elif states.english:
 			game._notice("这份方位线索补给已收集。")
+		elif not game.rules.can_loot():
+			states.english = true
+			game.Props.set_enabled(node, false)
+			game.play_sfx("cipher_unlock", -11)
+			game.speak_english("next to")
+			game._notice("读懂 next to（在……旁边）！自由靶场仅纯练词不入包物资，实战中可领稀有无线电台！", game.MINT)
 		elif game.rules.add_loot("加密无线电台", 82, 3):
 			states.english = true
 			game.Props.set_enabled(node, false)
@@ -313,41 +462,54 @@ func open(node: Node3D):
 	else:
 		var item = current_items[id]
 		var opts = current_options[id]
+		var expected_idx = answer_button_index(id)
 		title.text = item.title
 		body.text = item.question
 		source.text = item.source
+		var locked_now := is_locked_out(id)
 		for i in 3:
 			buttons[i].show()
 			buttons[i].text = opts[i]
-			buttons[i].disabled = false
-		buttons[0].grab_focus()
+			buttons[i].disabled = locked_now
+		if not locked_now:
+			buttons[0].grab_focus()
 		if item.has("tts"):
 			game.speak_english(str(item.tts))
-		if states.get(id, false):
+		if locked_now:
+			explanation.text = "✕ 本局该题已答错锁死（不可重试，下局刷新）。\n正确答案：%s\n解析：%s" % [opts[expected_idx], item.explanation]
+		elif states.get(id, false):
 			_reward(id)
 
 func choose(index: int):
 	if not busy or active_id not in current_items:
 		return
+	if bool(states.get(active_id, false)) or is_locked_out(active_id):
+		return
 	var item = current_items[active_id]
 	var expected_idx = answer_button_index(active_id)
 	if index != expected_idx:
+		# v0.8.1 FB-5: Single-attempt per run! Wrong answer immediately locks this node for the rest of the run.
+		failed[active_id] = true
+		for b in buttons:
+			b.disabled = true
 		game.play_sfx("hit_wrong", -13)
 		if item.has("tts"):
 			game.speak_english(str(item.tts))
-		if active_id == "math":
-			explanation.text = "再想一想！注意看清题目里的图形公式或起点与终点距离。"
-		elif active_id == "poem":
-			explanation.text = "再想一想！回想一下课本古诗的意境与上下句对仗。"
-		elif active_id in HERITAGE_IDS:
-			explanation.text = "再细品一遍碑文、壁画与英文句意，感受烟山先民留下的历史印记！"
-		else:
-			explanation.text = "再读再听一遍英文句！注意空间介词（on top of / between / inside / beside / under / in front of）。"
+		var ans_txt: String = str(current_options[active_id][expected_idx])
+		explanation.text = "✕ 回答错误！本局该线索已锁死（不可重试，下局刷新）。\n正确答案：%s\n解析：%s" % [ans_txt, item.explanation]
+		if node_labels.has(active_id):
+			var info: Dictionary = node_labels[active_id]
+			var lbl: Label3D = info.label
+			if is_instance_valid(lbl):
+				lbl.text = str(item.title) + " · [本局已锁]"
+				lbl.modulate = Color("ff8c7a")
 		return
 	var first_solve := not bool(states.get(active_id, false))
 	states[active_id] = true
 	if active_id == "math":
 		gate.rotation.y = -PI / 2
+		if is_instance_valid(gate_plaque):
+			gate_plaque.visible = false
 		game.play_sfx("cipher_unlock", -11)
 	elif first_solve and active_id in HERITAGE_IDS:
 		var h_pts := int(item.get("reward_score", 30))
@@ -401,7 +563,10 @@ func _reward(id: String):
 	swap_button.hide()
 	var suffix = "这处探索奖励已领取。"
 	if not states.get(key, false):
-		if game.rules.add_loot(item.reward_title, int(item.reward_value), rarity):
+		if not game.rules.can_loot():
+			states[key] = true
+			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可领取【%s】%s！" % [game.Rules.RARITY_NAMES[rarity], item.reward_title]
+		elif game.rules.add_loot(item.reward_title, int(item.reward_value), rarity):
 			states[key] = true
 			suffix = "已获得【%s】%s（估值 %d 币）！" % [game.Rules.RARITY_NAMES[rarity], item.reward_title, int(item.reward_value)]
 		else:

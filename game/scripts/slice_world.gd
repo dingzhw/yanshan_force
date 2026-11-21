@@ -418,6 +418,8 @@ uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D mud_cobble : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D mud_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D trail_stone : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D trail_stone_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
 varying vec3 pos;
 void vertex(){pos=VERTEX;}
 void fragment(){
@@ -427,7 +429,7 @@ void fragment(){
  float lum = dot(mix(tex_near, tex_macro, 0.55), vec3(0.299, 0.587, 0.114));
  float tex_tone = mix(0.84, 1.14, clamp(lum * 1.45, 0.0, 1.0));
 
- float road_edge = smoothstep(0.32, 0.92, COLOR.r);
+ float road_edge = smoothstep(0.28, 0.90, COLOR.r);
  float stream_bank = 1.0 - smoothstep(0.32, 0.98, COLOR.g);
 
  // Warm sunlit golden-olive spring meadow & cool emerald shaded patches (Taiping Village hillside harmony!)
@@ -436,8 +438,13 @@ void fragment(){
  float ink_wash = smoothstep(0.25, 0.78, wash1 * 0.65 + wash2 * 0.35);
 
  vec3 damp_moss = mix(vec3(0.11, 0.25, 0.14), vec3(0.26, 0.39, 0.13), ink_wash);
- vec3 trail_earth = vec3(0.36, 0.32, 0.24);
- vec3 slope_col = mix(trail_earth, damp_moss, road_edge) * tex_tone;
+ // v0.8.1 FB-3: Crisp carved Jiangnan bluestone path bedding along mountain trails instead of muddy blur
+ vec2 flag_uv = pos.xz * 0.52;
+ vec3 stone_albedo = texture(trail_stone, flag_uv).rgb;
+ vec3 stone_nrm = texture(trail_stone_nrm, flag_uv).rgb;
+ float trail_core = 1.0 - smoothstep(0.18, 0.68, COLOR.r);
+ vec3 trail_earth = mix(vec3(0.34, 0.31, 0.25) * tex_tone, stone_albedo * vec3(0.96, 0.98, 0.95), trail_core * 0.86);
+ vec3 slope_col = mix(trail_earth, damp_moss * tex_tone, road_edge);
 
  // Natural CC0 mud-and-cobble feathering along creek banks
  vec2 bank_uv = pos.xz * 0.42;
@@ -449,10 +456,11 @@ void fragment(){
  #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
   ALBEDO = pow(ALBEDO, vec3(0.88));
  #endif
- NORMAL_MAP = mix(texture(soil_normal, UV * 0.65).rgb, texture(mud_normal, bank_uv).rgb, stream_bank);
- NORMAL_MAP_DEPTH = mix(0.24, 0.62, stream_bank);
- ROUGHNESS = mix(0.95, 0.56, stream_bank);
- SPECULAR = 0.04;
+ vec3 base_nrm = mix(stone_nrm, texture(soil_normal, UV * 0.65).rgb, smoothstep(0.24, 0.72, COLOR.r));
+ NORMAL_MAP = mix(base_nrm, texture(mud_normal, bank_uv).rgb, stream_bank);
+ NORMAL_MAP_DEPTH = mix(mix(0.88, 0.24, road_edge), 0.62, stream_bank);
+ ROUGHNESS = mix(mix(0.62, 0.95, road_edge), 0.56, stream_bank);
+ SPECULAR = mix(0.16, 0.04, road_edge);
 }
 """
 	var mat = ShaderMaterial.new()
@@ -461,6 +469,8 @@ void fragment(){
 	mat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
 	mat.set_shader_parameter("mud_cobble", load("res://assets/slice/ink_jiangnan/mud_cobble_albedo.jpg"))
 	mat.set_shader_parameter("mud_normal", load("res://assets/slice/ink_jiangnan/mud_cobble_normal.jpg"))
+	mat.set_shader_parameter("trail_stone", load("res://assets/slice/ink_jiangnan/flagstone_albedo.png"))
+	mat.set_shader_parameter("trail_stone_nrm", load("res://assets/slice/ink_jiangnan/flagstone_normal.png"))
 	ground.material_override = mat
 	add_child(ground)
 
@@ -635,12 +645,12 @@ void fragment() {
 		sm.metallic_specular = 0.18
 		mat = sm
 	elif kind == "bluestone":
-		# Sunlit carved Jiangnan bluestone with spring moss crevices
+		# v0.8.1 FB-3: Crisp high-res 1024x1024 hand-laid Jiangnan bluestone flagstones with world-space triplanar detail
 		var sh := Shader.new()
 		sh.code = """shader_type spatial;
 uniform sampler2D stone_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D stone_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
-uniform sampler2D moss_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D stone_rgh : filter_linear_mipmap, repeat_enable;
 varying vec3 w_nrm;
 varying vec3 wpos;
 void vertex() {
@@ -648,25 +658,75 @@ void vertex() {
 	w_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 void fragment() {
-	vec3 st = texture(stone_tex, UV * 0.95).rgb;
-	vec3 ms = texture(moss_tex, wpos.xz * 0.45).rgb;
-	float lum = dot(st, vec3(0.299, 0.587, 0.114));
-	vec3 slate = mix(vec3(0.28, 0.32, 0.34), vec3(0.46, 0.50, 0.50), clamp(lum * 1.35, 0.0, 1.0));
-	float moss_amt = (1.0 - smoothstep(0.05, 0.36, COLOR.r)) * 0.45 + smoothstep(0.55, 0.92, sin(wpos.x * 1.4 + wpos.z * 1.7) * 0.5 + 0.5) * 0.22;
-	vec3 damp_moss = vec3(0.24, 0.36, 0.23) * (0.8 + 0.4 * ms.g);
-	ALBEDO = mix(slate, damp_moss, clamp(moss_amt, 0.0, 0.52)) * clamp(COLOR.g, 0.72, 1.0);
-	NORMAL_MAP = texture(stone_nrm, UV * 0.95).rgb;
-	NORMAL_MAP_DEPTH = 0.72;
-	float top_wet = smoothstep(0.55, 0.95, w_nrm.y);
-	ROUGHNESS = mix(0.84, 0.48, top_wet);
-	SPECULAR = mix(0.08, 0.22, top_wet);
+	vec3 blend = pow(abs(w_nrm), vec3(5.0));
+	blend /= max(blend.x + blend.y + blend.z, 0.0001);
+	vec2 uv_x = wpos.zy * 0.56;
+	vec2 uv_y = wpos.xz * 0.56;
+	vec2 uv_z = wpos.xy * 0.56;
+	vec3 st = texture(stone_tex, uv_x).rgb * blend.x + texture(stone_tex, uv_y).rgb * blend.y + texture(stone_tex, uv_z).rgb * blend.z;
+	vec3 nm = texture(stone_nrm, uv_x).rgb * blend.x + texture(stone_nrm, uv_y).rgb * blend.y + texture(stone_nrm, uv_z).rgb * blend.z;
+	float rgh = texture(stone_rgh, uv_x).r * blend.x + texture(stone_rgh, uv_y).r * blend.y + texture(stone_rgh, uv_z).r * blend.z;
+	float micro = dot(texture(stone_tex, uv_y * 2.6 + vec2(0.17, 0.43)).rgb, vec3(0.333));
+	vec3 col = st * mix(0.92, 1.14, clamp(micro * 1.45, 0.0, 1.0));
+	ALBEDO = col;
+	NORMAL_MAP = nm;
+	NORMAL_MAP_DEPTH = 1.05;
+	ROUGHNESS = clamp(rgh, 0.38, 0.94);
+	SPECULAR = mix(0.10, 0.26, smoothstep(0.55, 0.95, w_nrm.y));
 }
 """
 		var sm := ShaderMaterial.new()
 		sm.shader = sh
-		sm.set_shader_parameter("stone_tex", load("res://assets/slice/ink_jiangnan/bluestone_albedo.jpg"))
-		sm.set_shader_parameter("stone_nrm", load("res://assets/slice/ink_jiangnan/bluestone_normal.jpg"))
-		sm.set_shader_parameter("moss_tex", load("res://assets/slice/ink_jiangnan/moss_rock_albedo.jpg"))
+		sm.set_shader_parameter("stone_tex", load("res://assets/slice/ink_jiangnan/flagstone_albedo.png"))
+		sm.set_shader_parameter("stone_nrm", load("res://assets/slice/ink_jiangnan/flagstone_normal.png"))
+		sm.set_shader_parameter("stone_rgh", load("res://assets/slice/ink_jiangnan/flagstone_rough.png"))
+		mat = sm
+	elif kind == "rock":
+		# v0.8.1 FB-2: Razor-sharp world-space triplanar Jiangnan mountain granite / karst rock (zero stretched blurry UVs!)
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+uniform sampler2D rock_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_rgh : filter_linear_mipmap, repeat_enable;
+varying vec3 w_nrm;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	w_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec3 blend = pow(abs(w_nrm), vec3(4.5));
+	blend /= max(blend.x + blend.y + blend.z, 0.0001);
+	// Dual-scale world-space triplanar: macro rock strata (0.34) + crisp close-up crystalline micro-grain (1.28)
+	vec2 uv_x = wpos.zy * 0.34;
+	vec2 uv_y = wpos.xz * 0.34;
+	vec2 uv_z = wpos.xy * 0.34;
+	vec3 base_c = texture(rock_tex, uv_x).rgb * blend.x + texture(rock_tex, uv_y).rgb * blend.y + texture(rock_tex, uv_z).rgb * blend.z;
+	vec3 micro_c = texture(rock_tex, uv_x * 3.6 + vec2(0.31, 0.17)).rgb * blend.x
+		+ texture(rock_tex, uv_y * 3.6 + vec2(0.19, 0.53)).rgb * blend.y
+		+ texture(rock_tex, uv_z * 3.6 + vec2(0.41, 0.29)).rgb * blend.z;
+	float micro_lum = dot(micro_c, vec3(0.299, 0.587, 0.114));
+	vec3 rock_col = base_c * mix(0.84, 1.18, clamp(micro_lum * 1.55, 0.0, 1.0));
+	// Gentle spring mountain moss strictly on upward-facing flat shelves (side faces stay sharp granite)
+	float top_shelf = smoothstep(0.72, 0.94, w_nrm.y);
+	float moss_var = 0.5 + 0.5 * sin(wpos.x * 0.65 + cos(wpos.z * 0.58) * 2.1);
+	float moss_mask = top_shelf * smoothstep(0.36, 0.84, moss_var) * 0.52;
+	vec3 moss_col = vec3(0.21, 0.33, 0.17) * mix(0.86, 1.16, micro_lum);
+	ALBEDO = mix(rock_col, moss_col, moss_mask);
+	vec3 n_macro = texture(rock_nrm, uv_x).rgb * blend.x + texture(rock_nrm, uv_y).rgb * blend.y + texture(rock_nrm, uv_z).rgb * blend.z;
+	vec3 n_detail = texture(rock_nrm, uv_x * 3.4).rgb * blend.x + texture(rock_nrm, uv_y * 3.4).rgb * blend.y + texture(rock_nrm, uv_z * 3.4).rgb * blend.z;
+	NORMAL_MAP = normalize(mix(n_macro, n_detail, 0.36));
+	NORMAL_MAP_DEPTH = 1.12;
+	float rgh = texture(rock_rgh, uv_x).r * blend.x + texture(rock_rgh, uv_y).r * blend.y + texture(rock_rgh, uv_z).r * blend.z;
+	ROUGHNESS = mix(clamp(rgh, 0.58, 0.95), 0.92, moss_mask);
+	SPECULAR = mix(0.14, 0.05, moss_mask);
+}
+"""
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("rock_tex", load("res://assets/slice/ink_jiangnan/granite_rock_albedo.png"))
+		sm.set_shader_parameter("rock_nrm", load("res://assets/slice/ink_jiangnan/granite_rock_normal.png"))
+		sm.set_shader_parameter("rock_rgh", load("res://assets/slice/ink_jiangnan/granite_rock_rough.png"))
 		mat = sm
 	elif kind == "undergrowth":
 		# Lush sunlit spring meadow grass tufts, ferns & creek reeds!
@@ -851,7 +911,7 @@ func _is_vista_corridor(x: float, z: float) -> bool:
 		return true
 	if x > 14.2 and x < 21.8 and z > 19.0 and z < 42.0:
 		return true
-	if x > 27.0 and x < 42.5 and z > 17.5 and z < 36.0:
+	if x > 21.0 and x < 48.0 and z > 15.5 and z < 44.0:
 		return true
 	if x > 42.5 and x < 60.0 and z > -27.5 and z < -15.5:
 		return true
@@ -1395,7 +1455,11 @@ void fragment(){
 func rock(at: Vector3, height: float, index: int):
 	var path = "res://assets/nature/rock_largeA.glb" if rock_paths.is_empty() else rock_paths[index % rock_paths.size()]
 	var grounded_y := _min_surface_height_any(at.x, at.z, height * 0.72) - (0.38 + height * 0.09)
-	return game._model(self, path, Vector3(at.x, grounded_y, at.z), height, rng.randf_range(0, TAU), "convex")
+	var rnode = game._model(self, path, Vector3(at.x, grounded_y, at.z), height, rng.randf_range(0, TAU), "convex")
+	var rock_mat := _get_ink_arch_material("rock")
+	for mi in rnode.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_override = rock_mat
+	return rnode
 
 func signpost(at: Vector3, text: String):
 	var base_y = game.Layout.min_ground_height(at.x, at.z, 0.35) - 0.05
@@ -1416,6 +1480,7 @@ func signpost(at: Vector3, text: String):
 var container_yard: Dictionary = {}
 var bamboo_shelter: Dictionary = {}
 var watchtower_pos: Vector3 = Vector3.ZERO
+var wangdao_deck_pos: Vector3 = Vector3.ZERO
 
 func shelter(at: Vector3, title: String, with_parkour := false) -> Dictionary:
 	var base_y = game.Layout.min_ground_height(at.x, at.z, 2.4) - 0.08
@@ -1466,7 +1531,11 @@ func _camp():
 		game._model(self, "res://assets/slice/crate.glb", Vector3(8.5, 0.55, 13.2), 0.42, -0.12, "convex")
 	TacticalProps.build_armory_workbench(self, game, Vector3(11.6, 0, 6.4), 1.02)
 	var low_rock_path = "res://assets/slice/rock_2.glb" if ResourceLoader.exists("res://assets/slice/rock_2.glb") else "res://assets/nature/rock_largeA.glb"
-	game._model(self, low_rock_path, Vector3(-6, 0, 10), 0.55, 0, "convex").set_meta("kind", "low_rock")
+	var low_rock_node = game._model(self, low_rock_path, Vector3(-6, 0, 10), 0.55, 0, "convex")
+	low_rock_node.set_meta("kind", "low_rock")
+	var lr_mat := _get_ink_arch_material("rock")
+	for mi in low_rock_node.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_override = lr_mat
 	watchtower_pos = game.Layout.on_ground(game.Layout.WATCHTOWER)
 	game._build_tower(watchtower_pos)
 	bamboo_shelter = shelter(game.Layout.SHELTER_BAMBOO, "竹林补给棚", true)
@@ -1496,7 +1565,7 @@ func _camp():
 		[Vector3(-32.8, 0, -33.2), "↙ 迷踪竹石阵 · 烟霞古洞\n摩崖石刻 · 先民岩画 · 寒潭"],
 		[Vector3(22.4, 0, -21.5), "东坡茶岭营地 ↗\n东上望稻亭 ↘"],
 		[Vector3(-14, 0, -53), "西北高地营 ↖\n山道拦截营 ↑"],
-		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2营·统领"]
+		[Vector3(14, 0, -72), "B · 撤离信标\n260分·2营·统领\n普通60%/机密80%"]
 	]:
 		signpost(info[0], info[1])
 
@@ -1544,7 +1613,7 @@ func _landmarks():
 	inner_pad.material_override = game._material(game.GOLD, true)
 	add_child(inner_pad)
 
-	game._label3d(self, "B · 战术撤离信标\n260分 · 攻2哨 · 败统领", game.exit_position + Vector3.UP * 2.8, 40, game.MINT)
+	game._label3d(self, "B · 战术撤离信标\n260分 · 攻2哨 · 败统领 · 普通60%/机密80%", game.exit_position + Vector3.UP * 2.8, 36, game.MINT)
 
 	var pickup_spots = [
 		{"at": Vector3(5.2, 0, 7.2), "ground": true, "secret_key": ""},
@@ -2108,18 +2177,102 @@ func _build_stone_arch_bridge(z_center: float):
 	game.Props.shape_body(stele_root, stele_shp, Vector3(0, 0.96, 0))
 
 func _build_jiangnan_heritage():
-	# 1) Wangdao Pavilion ("望稻亭") perched on the SE bluff overlooking Southern OuterRiceValley paddies & hamlets
-	var pav_at: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
+	# 1) v0.8.1 FB-1: Elevated East Ridge Wangdao Pavilion ("望稻亭观景台") perched atop a +2.75m carved bluestone
+	# overlook terrace + South cantilevered timber viewing balcony + wide walkable NW bluestone staircase!
+	var pav_ground: Vector3 = game.Layout.on_ground(game.Layout.WANGDAO_PAVILION)
+	var deck_y: float = pav_ground.y + 2.75
+	var deck_center := Vector3(35.2, deck_y, 22.4)
+	wangdao_deck_pos = Vector3(35.2, deck_y, 25.0)
+
+	var overlook_root := Node3D.new()
+	overlook_root.name = "WangdaoOverlookTerrace"
+	add_child(overlook_root)
+	var stone_mat := _get_ink_arch_material("bluestone")
+
+	# Solid carved bluestone masonry pedestal deeply grounded into hillside slope (top strictly flush at deck_y)
+	# Visual pedestal spans x=32.4..38.0; collider sits 0.20m inset on West face so stairs land flush with ZERO lip!
+	var ped_h := 5.20
+	var ped_box: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - ped_h * 0.5, deck_center.z), Vector3(5.60, ped_h, 5.60), Color.WHITE, false)
+	ped_box.material_override = stone_mat
+	var ped_col_shp := BoxShape3D.new()
+	ped_col_shp.size = Vector3(5.40, ped_h, 5.60)
+	game.Props.shape_body(overlook_root, ped_col_shp, Vector3(deck_center.x + 0.10, deck_y - ped_h * 0.5, deck_center.z))
+	# Flush top landing slab bridging stair top (x=31.70) seamlessly onto the main deck top (top at deck_y, thin 0.14m lip)
+	var landing_slab: MeshInstance3D = game._mesh_box(overlook_root, Vector3(32.15, deck_y - 0.08, 21.65), Vector3(1.15, 0.16, 2.55), Color.WHITE, true)
+	landing_slab.material_override = stone_mat
+	var cornice: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.11, deck_center.z), Vector3(5.86, 0.22, 5.86), Color.WHITE, false)
+	cornice.material_override = stone_mat
+
+	# Wide walkable NW bluestone staircase reaching full deck_y at x=31.75 (0.75m clear of masonry wall -> ZERO snag!)
+	var stair_foot := Vector3(27.8, float(game.terrain_height(27.8, 17.5)) - 0.10, 17.5)
+	var stair_top := Vector3(31.75, deck_y + 0.02, 21.55)
+	var stair_delta := stair_top - stair_foot
+	var stair_horiz := Vector2(stair_delta.x, stair_delta.z).length()
+	var stair_len := stair_delta.length()
+	var stair_yaw := atan2(stair_delta.x, stair_delta.z)
+	var stair_pitch := atan2(stair_delta.y, stair_horiz)
+	var stair_mid := (stair_foot + stair_top) * 0.5
+	var stair_node := Node3D.new()
+	stair_node.name = "WangdaoStoneStairs"
+	stair_node.position = stair_mid
+	stair_node.rotation.y = stair_yaw
+	overlook_root.add_child(stair_node)
+
+	# Continuous smooth collision ramp beneath visual stone steps so KEY_W walking climbs effortlessly without snagging
+	var ramp_shp := BoxShape3D.new()
+	ramp_shp.size = Vector3(2.35, 0.28, stair_len + 0.55)
+	var ramp_body: StaticBody3D = game.Props.shape_body(stair_node, ramp_shp, Vector3(0.0, -0.14, 0.0))
+	ramp_body.rotation.x = -stair_pitch
+	var step_count := 10
+	for si in step_count:
+		var t_s := (float(si) + 0.5) / float(step_count)
+		var sz_loc := lerpf(-stair_horiz * 0.5, stair_horiz * 0.5, t_s)
+		var sy_top := lerpf(-stair_delta.y * 0.5, stair_delta.y * 0.5, (float(si) + 1.0) / float(step_count))
+		var riser_h := maxf(0.45, sy_top + stair_delta.y * 0.5 + 0.75)
+		var tread_d := (stair_horiz / float(step_count)) + 0.14
+		var step_mi: MeshInstance3D = game._mesh_box(stair_node, Vector3(0.0, sy_top - riser_h * 0.5, sz_loc), Vector3(2.32, riser_h, tread_d), Color.WHITE, false)
+		step_mi.material_override = stone_mat
+	for side_x in [-1.26, 1.26]:
+		var cheek: MeshInstance3D = game._mesh_box(stair_node, Vector3(side_x, 0.12, 0.0), Vector3(0.22, 0.68, stair_len + 0.25), Color.WHITE, false)
+		cheek.rotation.x = -stair_pitch
+		cheek.material_override = stone_mat
+
+	# Cantilevered South Timber Viewing Balcony extending to z = 25.88 (eye height 10.93m clears south fence & trees!)
+	var balc_z := 25.35
+	var balc_floor: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y - 0.10, balc_z), Vector3(4.90, 0.20, 1.20), Color.WHITE, true)
+	balc_floor.material_override = wood_plank_mat
+	for bx in [-1.95, 0.0, 1.95]:
+		var strut: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + bx, deck_y - 0.72, 25.25), Vector3(0.18, 1.48, 0.18), Color.WHITE, false)
+		strut.rotation.x = -0.68
+		strut.material_override = wood_post_mat
+	# Waist-high viewing balcony railings (low enough at 0.86m so standing sightline over valley is 100% open!)
+	var rail_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.86, 25.84), Vector3(4.92, 0.10, 0.14), Color.WHITE, true)
+	rail_s.material_override = wood_post_mat
+	var mid_s: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x, deck_y + 0.44, 25.84), Vector3(4.84, 0.07, 0.10), Color.WHITE, false)
+	mid_s.material_override = wood_plank_mat
+	for px_r in [-2.36, -1.18, 0.0, 1.18, 2.36]:
+		var post_r: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + px_r, deck_y + 0.46, 25.84), Vector3(0.14, 0.96, 0.14), Color.WHITE, true)
+		post_r.material_override = wood_post_mat
+	for side_r in [-2.36, 2.36]:
+		var side_top: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + side_r, deck_y + 0.86, 25.28), Vector3(0.14, 0.10, 1.24), Color.WHITE, true)
+		side_top.material_override = wood_post_mat
+	# Low guard rails along exposed East & North deck perimeter (leaving NW staircase landing completely open!)
+	var east_guard: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + 2.72, deck_y + 0.46, deck_center.z), Vector3(0.16, 0.92, 5.44), Color.WHITE, true)
+	east_guard.material_override = stone_mat
+	var north_guard: MeshInstance3D = game._mesh_box(overlook_root, Vector3(deck_center.x + 0.85, deck_y + 0.46, deck_center.z - 2.72), Vector3(3.70, 0.92, 0.16), Color.WHITE, true)
+	north_guard.material_override = stone_mat
+
+	# Wangdao Pavilion ("望稻亭") itself resting atop the elevated +2.75m overlook terrace, opening West (stairs) & South (balcony)!
 	var pav := Node3D.new()
 	pav.name = "WangdaoPavilion"
-	pav.position = pav_at
-	pav.rotation.y = deg_to_rad(-102.0)
+	pav.position = Vector3(deck_center.x, deck_y, deck_center.z - 0.15)
+	pav.rotation.y = 0.0
 	add_child(pav)
 	var pav_vis := _instantiate_v060_mesh("wangdao_pavilion")
 	if pav_vis:
 		pav.add_child(pav_vis)
 
-	# Walkable plinth deck + flush entry step ramps on West (-X) and South (+Z) rising cleanly above y=0.28 before plinth edge
+	# Walkable plinth deck + flush entry step ramps on West (-X, stair landing) and South (+Z, viewing balcony)
 	var floor_shp := BoxShape3D.new()
 	floor_shp.size = Vector3(4.45, 0.28, 4.45)
 	game.Props.shape_body(pav, floor_shp, Vector3(0, 0.14, 0))
@@ -2207,9 +2360,9 @@ func _build_jiangnan_heritage():
 	if flag_mesh != null:
 		var trail_polylines := [
 			[Vector3(3.5, 0, -18.0), Vector3(7.4, 0, -21.2), Vector3(10.8, 0, -24.0)],
-			[Vector3(22.2, 0, -24.0), Vector3(26.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), Vector3(33.2, 0, 17.8)],
+			[Vector3(22.2, 0, -24.0), Vector3(26.5, 0, -24.0), Vector3(28.5, 0, -8.0), Vector3(31.5, 0, 8.0), Vector3(28.0, 0, 16.5)],
 			[Vector3(5.5, 0, 6.2), Vector3(13.0, 0, 7.0)],
-			[Vector3(23.8, 0, 7.0), Vector3(28.0, 0, 13.5), Vector3(32.2, 0, 19.6)],
+			[Vector3(23.8, 0, 7.0), Vector3(27.2, 0, 13.5), Vector3(27.8, 0, 16.8)],
 			[Vector3(5.5, 0, -49.0), Vector3(13.0, 0, -46.5)],
 			[Vector3(23.6, 0, -46.5), Vector3(27.2, 0, -46.5), Vector3(27.0, 0, -35.5), Vector3(26.5, 0, -25.2)],
 			[Vector3(-18.2, 0, -27.2), Vector3(-23.0, 0, -27.6), Vector3(-28.0, 0, -26.5)],
@@ -2259,6 +2412,7 @@ func _build_jiangnan_heritage():
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = "BluestoneFlagstones"
 		mmi.multimesh = mm
+		mmi.material_override = _get_ink_arch_material("bluestone")
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 
@@ -2287,6 +2441,12 @@ func _prepare_v062_mesh_materials(src_mesh: Mesh) -> Mesh:
 				bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 				bmat.roughness = 0.08
 				bmat.metallic_specular = 0.68
+			elif mname.contains("Karst") or mname.contains("Rock") or mname.contains("Cliff") or mname.contains("CaveStone"):
+				mesh.surface_set_material(s, _get_ink_arch_material("rock"))
+				continue
+			elif mname.contains("Bluestone") or mname.contains("Stone") or mname.contains("Plinth"):
+				mesh.surface_set_material(s, _get_ink_arch_material("bluestone"))
+				continue
 			mesh.surface_set_material(s, bmat)
 	return mesh
 

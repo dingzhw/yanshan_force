@@ -252,7 +252,7 @@ func _build_model():
 	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	bg.material_override = bg_mat
-	bg.visibility_range_end = 42.0
+	bg.visibility_range_end = 85.0
 	hp_bar_root.add_child(bg)
 
 	hp_fill = MeshInstance3D.new()
@@ -265,7 +265,7 @@ func _build_model():
 	hp_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	hp_fill_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	hp_fill.material_override = hp_fill_mat
-	hp_fill.visibility_range_end = 42.0
+	hp_fill.visibility_range_end = 85.0
 	hp_bar_root.add_child(hp_fill)
 
 	# 3. Chest-Mounted Holographic Electronic Word Shield (2 Shots to Break & Kill on Correct Soldier)
@@ -310,15 +310,16 @@ func _build_model():
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	tag_label.pixel_size = 0.0044
 	tag_label.outline_size = 0
-	tag_label.visibility_range_end = 45.0
+	tag_label.visibility_range_end = 85.0
 
 	word_label = game._label3d(shield_area, "", Vector3(0, -0.05, 0.058), 58, Color("102620"))
 	word_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	word_label.pixel_size = 0.0050
+	word_label.pixel_size = 0.0052
 	word_label.width = 345
 	word_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	word_label.outline_size = 0
-	word_label.visibility_range_end = 48.0
+	word_label.outline_size = 2
+	word_label.outline_modulate = Color("f6f9f2")
+	word_label.visibility_range_end = 98.0
 
 	# Sniper / Aim Laser Sight Beam
 	laser_beam = MeshInstance3D.new()
@@ -734,11 +735,15 @@ func _physics_process(delta: float):
 	toward_player.y = 0
 	var distance := toward_player.length()
 	var engaged: bool = (combat.zone == zone and combat.is_zone_engaged(zone))
+	var rage_hunting: bool = engaged and combat.is_rage_hunting(zone)
 
-	# Performance optimization: Distant un-aggroed camp garrisons sleep peacefully at their posts!
+	# Performance optimization: Distant un-aggroed camp garrisons sleep peacefully at their posts,
+	# while facing the player within 98m so distant snipers can cleanly read their English word shields (#3)!
 	if not engaged and distance > 36.0:
 		laser_beam.hide()
 		velocity = Vector3.ZERO
+		if distance <= 98.0 and distance > 0.05:
+			rotation.y = atan2(toward_player.x, toward_player.z)
 		return
 
 	hover_clock += delta
@@ -769,12 +774,12 @@ func _physics_process(delta: float):
 	else:
 		visual_root.rotation.z = 0.0
 
-	cooldown = maxf(0, cooldown - delta)
+	cooldown = maxf(0, cooldown - delta * (1.35 if rage_hunting else 1.0))
 	cover_reposition_cd = maxf(0.0, cover_reposition_cd - delta)
 	suppress_cd = maxf(0.0, suppress_cd - delta)
 	peek_phase += delta
 	var goal := position
-	var speed := move_speed()
+	var speed := move_speed() * (1.32 if rage_hunting else 1.0)
 
 	if archetype == Archetype.BOSS_WARDEN and engaged:
 		boss_ring_cd = maxf(0, boss_ring_cd - delta)
@@ -837,15 +842,24 @@ func _physics_process(delta: float):
 			if (archetype != Archetype.BOSS_WARDEN and distance < too_close_thresh) or d_cover_player > attack_range() - 1.2 or (not combat.is_single_attacker_mode() and archetype != Archetype.BOSS_WARDEN):
 				begin_tactical_engagement(true)
 
-		var can_engage_now: bool = combat.is_designated_attacker(self)
+		var can_engage_now: bool = rage_hunting or combat.is_designated_attacker(self)
 		var heavy_ready_aim: bool = (archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]) and shield_layers >= max_shield_layers and distance >= 5.5
-		if can_engage_now and (not is_bounding_to_cover or heavy_ready_aim) and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
+		if can_engage_now and (not is_bounding_to_cover or heavy_ready_aim or rage_hunting) and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
 			is_bounding_to_cover = false
 			visual_root.rotation.x = 0.0
 			action = Action.AIM
-			aim_left = aim_windup()
+			aim_left = aim_windup() * (0.78 if rage_hunting else 1.0)
 			if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]:
 				game.play_sfx("warning_lock", -13)
+		elif rage_hunting:
+			# v0.8.1 #8: 3-Wrong Rage Hunt — entire camp charges relentlessly toward the player (even distant snipers!)
+			is_bounding_to_cover = false
+			visual_root.rotation.x = -0.10
+			var r_dir := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+			var r_ang := (float(option) - 1.5) * 0.36
+			goal = player_at + r_dir.rotated(Vector3.UP, r_ang) * 7.2
+			if distance < attack_range() + 14.0 and suppress_cd <= 0.0 and combat.try_moving_suppression(self):
+				suppress_cd = 0.85
 		elif is_bounding_to_cover:
 			# Bounding to Cover + Firing Suppression Shots on the Move!
 			goal = bound_goal
@@ -900,10 +914,12 @@ func _physics_process(delta: float):
 		return
 	if action == Action.AIM:
 		visor.albedo_color = Color("ffb347")
+	elif rage_hunting:
+		visor.albedo_color = Color("ff1e2e")
 	else:
 		visor.albedo_color = Color("ff4f4f") if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN] else Color("7ef0c8")
 
-	if engaged and distance > 0.05:
+	if (engaged or distance <= 98.0) and distance > 0.05:
 		rotation.y = atan2(toward_player.x, toward_player.z)
 	elif not engaged:
 		var pd := goal - position

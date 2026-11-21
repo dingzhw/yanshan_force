@@ -5,6 +5,7 @@ var targets = []
 var materials = []
 var boards = []
 var terminal_label: Label3D
+var boards_allowed: bool = true
 
 func setup(game, data: Dictionary):
 	station_id = data.id
@@ -54,17 +55,25 @@ func setup(game, data: Dictionary):
 		letter.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	clear()
 
-func enable_boards(enabled: bool):
-	terminal_label.visible = true
+func set_boards_visible(vis: bool):
+	var show_now: bool = vis and boards_allowed
 	for board in boards:
-		board.visible = enabled
-		board.collision_layer = 3 if enabled else 0
-		for post in board.find_children("*","StaticBody3D",true,false):
-			post.collision_layer = 1 if enabled else 0
-	terminal_label.text = title+("\n[F] 单词挑战" if enabled else "\n词兵行动")
+		board.visible = show_now
+		board.collision_layer = 3 if show_now else 0
+		for post in board.find_children("*", "StaticBody3D", true, false):
+			post.collision_layer = 1 if show_now else 0
+
+func enable_boards(enabled: bool):
+	boards_allowed = enabled
+	terminal_label.visible = true
+	if not enabled:
+		set_boards_visible(false)
+	terminal_label.text = title + ("\n[F] 单词挑战" if enabled else "\n词兵行动")
 
 func clear():
+	# v0.8.1 FB-4: Hide idle target boards instead of displaying legacy placeholder signs ("前往终端/按F开始/单词挑战/探索烟山")
 	for i in 4:
-		targets[i].text = ["前往终端","按 F 开始","单词挑战","探索烟山"][i]
+		targets[i].text = ""
 		targets[i].font_size = 48
 		materials[i].albedo_color = Color("182e30")
+	set_boards_visible(false)

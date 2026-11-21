@@ -35,18 +35,33 @@ func run():
 		r.answer(true)
 	verify(r.score >= Rules.EXTRACTION_SCORE and r.accuracy() < 0.70, "low accuracy can accumulate 260 extraction score")
 	verify(not r.crate_ready(1), "low accuracy still locks password crate")
-	verify(r.add_loot("test", 35, 2), "field loot accessible")
+	verify(not r.add_loot("test", 35, 2), "v0.8.1 #15: practice mode blocks loot collection cleanly")
 	verify(r.request_extraction(), "practice mode can begin extraction at 260 points")
+	verify(r.finish_extraction(), "practice extraction settles run cleanly")
+
+	# Combat Normal Operation loot, accuracy gate & warehouse economy checks
+	r.start_run(true, "normal")
+	for i in 12:
+		r.open_question()
+		r.answer(true)
+	r.score = Rules.EXTRACTION_SCORE
+	r.outposts_cleared = 2
+	r.boss_defeated = true
+	verify(r.add_loot("test", 35, 2), "combat mode field loot accessible")
+	verify(r.request_extraction(), "normal combat extraction succeeds at >=60% accuracy + 260 pts + 2 camps + boss")
 	verify(r.finish_extraction(), "extraction banks loot")
-	verify(not r.finish_extraction() and r.profile.warehouse.size() == 1, "settlement cannot duplicate loot")
-	verify(r.sell_all() == 35 and r.profile.coins == 35, "selling transfers exact value")
+	var wh_after_first = r.profile.warehouse.size()
+	verify(not r.finish_extraction() and r.profile.warehouse.size() == wh_after_first, "settlement cannot duplicate loot")
+	var sold_val = r.sell_all()
+	verify(sold_val >= 35 and r.profile.coins == sold_val, "selling transfers exact value")
+	r.profile.coins = 35
 	verify(not r.purchase("magazine"), "insufficient funds reject upgrade")
 	r.profile.coins = 600
 	verify(r.purchase("magazine") and r.magazine() == 14, "magazine upgrade affects gameplay")
 	verify(not r.purchase("magazine"), "permanent upgrade cannot be purchased twice")
 	verify(r.purchase("reward_point") and r.profile.points == 1, "reward points are recorded")
 
-	r.start_run(false)
+	r.start_run(true, "normal")
 	for i in 12:
 		r.open_question()
 		r.answer(true)
@@ -62,6 +77,7 @@ func run():
 	verify(game.words.size() == 175, "textbook pack includes all 175 entries")
 	game.start_action(false)
 	await physics_frame
+	verify(not game.pickup_nodes[0].visible and not game.crate_nodes[0].visible, "v0.8.1 #15: practice mode hides supply boxes and vault crates")
 	game.interact()
 	var camera = Camera3D.new()
 	game.add_child(camera)
@@ -74,27 +90,31 @@ func run():
 	game.fire(camera)
 	verify(game.rules.score == previous, "repeated target hit does not duplicate score")
 
-	# Regular supply box requires typing 1 core English word
+	# Switch to Normal Operation for field supply boxes, password crates & extraction banking
+	game.start_action(true, "normal")
+	await physics_frame
 	var sup0 = game.pickup_nodes[0]
 	game.player.position = sup0.position + Vector3(0, 0, -1.2)
 	game._update_interaction()
 	game.interact()
-	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply" and game.cipher_terminal.stage_count() == 1, "E on regular supply box opens 1-word English unlock terminal")
+	verify(game.cipher_terminal.busy and game.cipher_terminal.mode == "supply" and game.cipher_terminal.stage_count() == 1, "F on regular supply box opens 1-word English unlock terminal")
 	var pre_sup_score = game.rules.score
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
 	game.cipher_terminal.close()
 	verify(not sup0.visible and game.rules.bag.size() == 1 and game.rules.score == pre_sup_score + Rules.SUPPLY_PERFECT_SCORE, "typing single English word unlocks supply box and awards +10 score")
 
 	while game.rules.score < Rules.EXTRACTION_SCORE or game.rules.answered < 6:
-		game._next_question()
-		game.resolve_answer(game.answer_index)
+		game.rules.open_question()
+		game.rules.answer(true)
+	game.rules.outposts_cleared = 2
+	game.rules.boss_defeated = true
 	verify(game.rules.score >= Rules.EXTRACTION_SCORE, "question sequence reaches 260 extraction threshold")
 
 	# Tier 1 crate requires 2 consecutive stages: Core Word -> Textbook Phrase
 	game.player.position = game.crate_nodes[0].position + Vector3(0, 0, 1.4)
 	game._update_interaction()
 	game.interact()
-	verify(game.cipher_terminal.busy and game.cipher_terminal.stage_count() == 2, "E interaction on Tier-1 crate opens 2-stage word+phrase cipher terminal")
+	verify(game.cipher_terminal.busy and game.cipher_terminal.stage_count() == 2, "F interaction on Tier-1 crate opens 2-stage word+phrase cipher terminal")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)
 	verify(not game.cipher_terminal.unlocked and game.cipher_terminal.stage_index == 1, "passing stage 1 advances to textbook phrase stage 2")
 	game.cipher_terminal.submit_text(game.cipher_terminal.target_word.english)

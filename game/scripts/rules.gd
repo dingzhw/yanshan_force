@@ -13,6 +13,8 @@ const BOSS_DEFEAT_SCORE = 60
 const SUPPLY_PERFECT_SCORE = 10
 const CIPHER_PERFECT_SCORE = 25
 const NORMAL_HIT_SCALE = 0.50
+const NORMAL_EXTRACT_ACCURACY = 0.60
+const CONFIDENTIAL_EXTRACT_ACCURACY = 0.80
 const CONFIDENTIAL_VALUE_MULT = 1.35
 const CONFIDENTIAL_CRATE_BONUS = 0.12
 
@@ -291,6 +293,20 @@ func level() -> int:
 func is_confidential() -> bool:
 	return combat_mode and operation_tier == "confidential"
 
+func can_loot() -> bool:
+	# v0.8.1 #15: Practice Range ('自由靶场') is pure training with ZERO loot collection!
+	return combat_mode
+
+func required_extract_accuracy() -> float:
+	if not combat_mode:
+		return 0.0
+	return CONFIDENTIAL_EXTRACT_ACCURACY if is_confidential() else NORMAL_EXTRACT_ACCURACY
+
+func accuracy_gate_met() -> bool:
+	if not combat_mode:
+		return true
+	return answered > 0 and accuracy() >= required_extract_accuracy() - 0.0001
+
 func mode_label() -> String:
 	if not combat_mode:
 		return "自由靶场"
@@ -448,7 +464,7 @@ func _enrich_loot_dict(raw: Dictionary) -> Dictionary:
 	return out
 
 func add_loot(title: String, value: int, rarity: int = 1, extra: Dictionary = {}) -> bool:
-	if phase != "active" or bag.size() >= capacity():
+	if phase != "active" or not can_loot() or bag.size() >= capacity():
 		return false
 	var merged := extra.duplicate()
 	merged["title"] = title
@@ -458,7 +474,7 @@ func add_loot(title: String, value: int, rarity: int = 1, extra: Dictionary = {}
 	return true
 
 func add_loot_item(item: Dictionary) -> bool:
-	if phase != "active" or bag.size() >= capacity():
+	if phase != "active" or not can_loot() or bag.size() >= capacity():
 		return false
 	bag.append(_enrich_loot_dict(item))
 	return true
@@ -611,7 +627,7 @@ func roll_crate_rarity(tier: int, perfect_spell: bool) -> int:
 
 func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Array:
 	var awarded = []
-	if crate_id in crates or not crate_ready(tier) or bag.size() >= capacity():
+	if not can_loot() or crate_id in crates or not crate_ready(tier) or bag.size() >= capacity():
 		return awarded
 	var req = crate_requirements(tier)
 	var count = mini(req.slots, capacity() - bag.size())
@@ -629,7 +645,7 @@ func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Arr
 func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false) -> Dictionary:
 	var all_items := []
 	var overflow := []
-	if crate_id in crates or not crate_ready(tier):
+	if not can_loot() or crate_id in crates or not crate_ready(tier):
 		return {"items": all_items, "overflow": overflow}
 	var req = crate_requirements(tier)
 	for i in int(req.slots):
@@ -647,7 +663,7 @@ func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false)
 func can_extract() -> bool:
 	if phase != "active" or score < EXTRACTION_SCORE:
 		return false
-	if combat_mode and (outposts_cleared < 2 or not boss_defeated):
+	if combat_mode and (outposts_cleared < 2 or not boss_defeated or not accuracy_gate_met()):
 		return false
 	return true
 

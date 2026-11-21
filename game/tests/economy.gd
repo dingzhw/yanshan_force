@@ -24,7 +24,13 @@ func run():
 	game = load("res://main.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	# v0.8.1 #15: Practice Range ('自由靶场') strictly forbids looting & hides field supply/world loot
 	game.start_action(false)
+	var hidden_practice_loot: bool = (not game.pickup_nodes[0].visible) and (not game.crate_nodes[0].visible) and (not game.world_loot.loose_nodes[0].visible) and (not game.world_loot.nest_nodes[0].visible)
+	verify(not game.rules.can_loot() and not game.rules.add_loot("forbidden", 50, 2) and hidden_practice_loot, "v0.8.1 #15: Practice Range hides all loot containers/world loot and blocks add_loot")
+
+	# Normal Operation supply boxes, full-bag overflow swap & extraction accuracy threshold (#5)
+	game.start_action(true, "normal")
 	for i in 8:
 		game.rules.add_loot("filled", 10, 1)
 	var pickup = game.pickup_nodes[0]
@@ -55,11 +61,19 @@ func run():
 	game.cipher_terminal.close()
 	game.rules.bag[0] = {"title": "量子词典原型机", "value": 395, "rarity": 6}
 
-	# 16 wrong + 15 right => accuracy 48% (< 70%), score = 2*15 + 13*20 = 290 >= 260
+	# v0.8.1 #5: Accuracy gate enforcement (Normal >= 60%, Confidential >= 80%)
+	# 16 wrong + 15 right => accuracy 48% (< 60%), score = 290 >= 260, camps & boss cleared -> STILL BLOCKED!
 	for i in 31:
 		game.rules.open_question()
 		game.rules.answer(i >= 16)
-	verify(game.rules.score >= game.Rules.EXTRACTION_SCORE and not game.rules.crate_ready(1), "low accuracy preserves independent practice extraction access")
+	game.rules.outposts_cleared = 2
+	game.rules.boss_defeated = true
+	verify(game.rules.score >= game.Rules.EXTRACTION_SCORE and not game.rules.crate_ready(1) and not game.rules.can_extract(), "v0.8.1 #5: 48%% accuracy blocks Normal extraction (< 60%% threshold) even with 260+ pts & boss cleared")
+	# Raise accuracy past 60% (add 10 right => 25/41 = 61.0%) -> Normal extraction unlocks!
+	for _ok in 10:
+		game.rules.open_question()
+		game.rules.answer(true)
+	verify(game.rules.accuracy() >= 0.60 and game.rules.can_extract(), "v0.8.1 #5: reaching >=60%% accuracy unlocks Normal Operation extraction")
 	game.player.position = game.exit_position
 	game.interact()
 	game.extraction_left = 0.01
@@ -69,6 +83,7 @@ func run():
 	verify("量子词典原型机" in game.rules.profile.collection, "legendary extracted item registers in camp trophy collection")
 	game._end_run(true)
 	verify(game.rules.profile.warehouse.size() == banked, "repeated settlement does not duplicate warehouse")
+	game.rules.toggle_warehouse_lock(0) # Unlock auto-locked T6 Quantum Dictionary so legacy sell_all check sells it
 	game._sell()
 	var coins = game.rules.profile.coins
 	game._sell()
@@ -102,6 +117,7 @@ func run():
 
 	game.rules.profile.warehouse = [{"title": "saved", "value": 10, "rarity": 1}]
 	var saved_coins = game.rules.profile.coins
+	game.start_action(true, "normal")
 	game.rules.add_loot("lost", 20, 2)
 	game.time_left = 0.01
 	game._process(0.02)
@@ -126,7 +142,7 @@ func run():
 
 	# v0.8.0 7-Tier Rarity ('珍品·小金' T5, '传说·大金' T6, '旷世·大红' T7), 64 Collectibles, Calibration, Safe Box, Lock & Camp 3D Display Stand
 	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 5 and game.Rules.LOOT_TABLE[5].size() == 6 and game.Rules.total_collectible_count() == 27 and game.Rules.total_catalog_count() == 64, "v0.8.0 defines 7-tier rarity with Small Gold (6), Big Gold (6), Mythic Red (5), 27 high collectibles and 64 total museum items")
-	game.start_action(false)
+	game.start_action(true, "normal")
 	var seen_values := {}
 	var mythic_sample: Dictionary = {}
 	for sample_i in 30:
@@ -145,6 +161,8 @@ func run():
 	while game.rules.score < game.Rules.EXTRACTION_SCORE:
 		game.rules.open_question()
 		game.rules.answer(true)
+	game.rules.outposts_cleared = 2
+	game.rules.boss_defeated = true
 	var prev_red_cnt := int(game.rules.profile.get("red_extracted", 0))
 	game.player.position = game.exit_position
 	game.interact()
@@ -206,6 +224,21 @@ func run():
 	]
 	mig_rules.migrate_legacy_items()
 	verify(int(mig_rules.profile.warehouse[0].rarity) == 6 and int(mig_rules.profile.warehouse[1].rarity) == 7 and bool(mig_rules.profile.warehouse[1].locked), "v0.8.0 migrates legacy schema v1 warehouse items from T5/T6 cleanly to T6/T7 with auto-lock")
+
+	# Confidential Operation 80% accuracy gate check (#5)
+	var conf_gate = game.Rules.new()
+	conf_gate.start_run(true, "confidential")
+	for gi in 10:
+		conf_gate.open_question()
+		conf_gate.answer(gi >= 3) # 7/10 = 70%
+	conf_gate.score = 270
+	conf_gate.outposts_cleared = 2
+	conf_gate.boss_defeated = true
+	verify(not conf_gate.can_extract(), "v0.8.1 #5: 70%% accuracy blocks Confidential extraction (< 80%% threshold)")
+	for _ok2 in 5:
+		conf_gate.open_question()
+		conf_gate.answer(true) # 12/15 = 80%
+	verify(conf_gate.can_extract(), "v0.8.1 #5: reaching >=80%% accuracy unlocks Confidential extraction")
 
 	# 2-Slot Encrypted Safe Box survives failed run while regular bag clears
 	game.start_action(true, "confidential")

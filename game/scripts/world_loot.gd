@@ -10,7 +10,7 @@ const LootUI = preload("res://scripts/loot_ui.gd")
 const LOOSE_SPOTS = [
 	{"id": "loose_camp_tent", "title": "营地帐篷行军案", "at": Vector3(-5.2, 0.0, 3.8), "y_off": 0.44, "pedestal": true, "high": false},
 	{"id": "loose_shrine", "title": "土地石龛青石案", "at": Vector3(7.4, 0.0, -16.2), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_wangdao", "title": "望稻亭观景石几", "at": Vector3(35.8, 0.0, 23.2), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_wangdao", "title": "望稻亭观景石几", "at": Vector3(33.7, 0.0, 25.0), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_poem", "title": "诗碑亭石栏旁", "at": Vector3(-23.2, 0.0, -30.5), "y_off": 0.44, "pedestal": true, "high": false},
 	{"id": "loose_forest", "title": "古道掩体补给台", "at": Vector3(-8.4, 0.0, -35.8), "y_off": 0.44, "pedestal": true, "high": false},
 	{"id": "loose_radio", "title": "东岭电台检修台", "at": Vector3(22.8, 0.0, -43.5), "y_off": 0.44, "pedestal": true, "high": true},
@@ -29,7 +29,7 @@ const NEST_SPOTS = [
 	{"id": "nest_karst_cleft", "title": "竹石阵太湖石秘缝", "at": Vector3(-45.2, 0.0, -41.2), "kind": "crevice"},
 	{"id": "nest_se_bamboo", "title": "东南竹海翠竹深窝", "at": Vector3(28.0, 0.0, -81.8), "kind": "nest"},
 	{"id": "nest_south_bridge_corner", "title": "南溪木桥东墩芦苇角", "at": Vector3(21.4, 0.0, 5.4), "kind": "nest"},
-	{"id": "nest_paddy_bank", "title": "望稻梯田草埂暗窝", "at": Vector3(29.8, 0.0, 17.6), "kind": "nest"},
+	{"id": "nest_paddy_bank", "title": "望稻梯田草埂暗窝", "at": Vector3(28.4, 0.0, 19.6), "kind": "nest"},
 	{"id": "nest_poem_steps", "title": "诗碑亭石阶灌木缝", "at": Vector3(-30.4, 0.0, -27.2), "kind": "crevice"},
 	{"id": "nest_west_thicket", "title": "西岭红花坡矮灌丛", "at": Vector3(-33.6, 0.0, -14.8), "kind": "nest"},
 	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(15.6, 0.0, -48.2), "kind": "crevice"},
@@ -67,6 +67,8 @@ func _build_static_anchors():
 		var spec: Dictionary = LOOSE_SPOTS[idx_l]
 		var root := Node3D.new()
 		var gp: Vector3 = game.Layout.on_ground(spec.at)
+		if spec.id == "loose_wangdao" and is_instance_valid(game.landscape) and game.landscape.wangdao_deck_pos != Vector3.ZERO:
+			gp = Vector3(spec.at.x, game.landscape.wangdao_deck_pos.y, spec.at.z)
 		root.position = gp
 		root.set_meta("world_loot_kind", "loose")
 		root.set_meta("spot_id", spec.id)
@@ -137,7 +139,21 @@ func reset_for_run():
 		if is_instance_valid(p) and p.has_meta("overcharged"):
 			p.remove_meta("overcharged")
 
-	# 1) Roll randomized Loose World Spawns (7 active in Normal/Practice, 8 in Confidential!)
+	# v0.8.1 #15: Practice Range ('自由靶场') is pure shooting & vocabulary training — hide all world loot!
+	if not game.rules.can_loot():
+		for node in loose_nodes:
+			var holder: Node3D = node.get_node("RelicHolder")
+			for ch in holder.get_children():
+				ch.queue_free()
+			if node.has_meta("loot_item"):
+				node.remove_meta("loot_item")
+			node.visible = false
+		for raw_n in nest_nodes:
+			(raw_n as Node3D).visible = false
+		game.cached_interactables.clear()
+		return
+
+	# 1) Roll randomized Loose World Spawns (7 active in Normal, 8 in Confidential!)
 	var indices := []
 	for i in loose_nodes.size():
 		indices.append(i)

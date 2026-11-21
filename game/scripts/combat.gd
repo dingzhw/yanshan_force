@@ -27,6 +27,16 @@ const STILL_HIT_CHANCE = 0.78
 const FAST_HIT_CHANCE = 0.26
 const MAX_EVASION_SPEED = 6.1
 const AIRBORNE_HIT_SCALE = 0.55
+# v0.8.1 #3/#4/#8: Distant word sniping, strict wrong-answer rotation, prompt timeout & 3-wrong Rage Hunt
+const SNIPER_PREVIEW_RANGE = 96.0
+const PROMPT_TIMEOUT_NORMAL = 10.0
+const PROMPT_TIMEOUT_CONFIDENTIAL = 7.0
+const WRONG_REVEAL_SECONDS = 1.4
+const RAGE_WRONG_TRIGGER = 3
+const RAGE_HUNT_DURATION = 12.0
+const RAGE_NORMAL_DAMAGE_MULT = 2.0
+const RAGE_CONFIDENTIAL_DAMAGE_MULT = 4.0
+const RAGE_PURSUIT_RADIUS = 145.0
 
 var game
 var stage = Stage.OFF
@@ -39,6 +49,16 @@ var prompt_choice_count := 0
 var first_choice_recorded := false
 var first_choice_independent := false
 var nemesis_cursor := 0
+var zone_prompt_option: Dictionary = {}
+var preview_zone: int = -1
+var prompt_timer_left: float = 0.0
+var prompt_timer_max: float = PROMPT_TIMEOUT_NORMAL
+var prompt_reveal_left: float = 0.0
+var prompt_reveal_zone: int = -1
+var prompt_locked_after_wrong: bool = false
+var consecutive_wrong_hits: int = 0
+var rage_hunt_left: float = 0.0
+var rage_hunt_zone: int = -1
 var health: int = MAX_HEALTH
 var shield: float = 30.0
 var shield_delay: float = 0.0
@@ -80,6 +100,16 @@ func begin():
 	first_choice_recorded = false
 	first_choice_independent = false
 	nemesis_cursor = 0
+	zone_prompt_option.clear()
+	preview_zone = -1
+	prompt_timer_left = 0.0
+	prompt_timer_max = prompt_timeout_limit()
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
+	consecutive_wrong_hits = 0
+	rage_hunt_left = 0.0
+	rage_hunt_zone = -1
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	health = MAX_HEALTH
@@ -107,6 +137,16 @@ func stop():
 	first_choice_recorded = false
 	first_choice_independent = false
 	nemesis_cursor = 0
+	zone_prompt_option.clear()
+	preview_zone = -1
+	prompt_timer_left = 0.0
+	prompt_timer_max = prompt_timeout_limit()
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
+	consecutive_wrong_hits = 0
+	rage_hunt_left = 0.0
+	rage_hunt_zone = -1
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
 	boss_unit = null
@@ -172,12 +212,22 @@ func zone_center(z_idx: int) -> Vector3:
 func zone_aggro(z_idx: int) -> float:
 	return float(zone_info(z_idx).aggro)
 
+func is_rage_hunting(z_idx: int) -> bool:
+	return rage_hunt_left > 0.0 and z_idx == rage_hunt_zone
+
+func prompt_timeout_limit() -> float:
+	return PROMPT_TIMEOUT_CONFIDENTIAL if game.rules.is_confidential() else PROMPT_TIMEOUT_NORMAL
+
 func zone_pursuit(z_idx: int) -> float:
+	if is_rage_hunting(z_idx):
+		return RAGE_PURSUIT_RADIUS
 	if is_single_attacker_mode():
 		return minf(NORMAL_PURSUIT_RADIUS, float(zone_info(z_idx).pursuit))
 	return float(zone_info(z_idx).pursuit)
 
 func damage_multiplier() -> float:
+	if rage_hunt_left > 0.0:
+		return RAGE_CONFIDENTIAL_DAMAGE_MULT if game.rules.is_confidential() else RAGE_NORMAL_DAMAGE_MULT
 	return 1.0 + float(clampi(wave_wrong_stacks, 0, MAX_WRONG_STACKS)) * WRONG_DAMAGE_STEP
 
 func damage_per_shot(soldier = null) -> int:
@@ -206,6 +256,16 @@ func _mark_zone_cleared(z_idx: int):
 		return
 	zone_cleared[z_idx] = true
 	zone_engaged[z_idx] = false
+	zone_prompt_option.erase(z_idx)
+	if preview_zone == z_idx:
+		preview_zone = -1
+	if rage_hunt_zone == z_idx:
+		rage_hunt_left = 0.0
+		rage_hunt_zone = -1
+	prompt_timer_left = 0.0
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
 	if zone == z_idx:
 		zone = -1
 	wave_wrong_stacks = 0
@@ -276,9 +336,11 @@ func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
 	low_wings.material_override = wall_mat
 
 	var plinth_mat = StandardMaterial3D.new()
-	plinth_mat.albedo_color = Color("9aa3a6")
-	plinth_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/bluestone_albedo.jpg")
-	plinth_mat.roughness = 0.86
+	plinth_mat.albedo_color = Color("b2bcb8")
+	plinth_mat.albedo_texture = load("res://assets/slice/ink_jiangnan/flagstone_albedo.png")
+	plinth_mat.normal_enabled = true
+	plinth_mat.normal_texture = load("res://assets/slice/ink_jiangnan/flagstone_normal.png")
+	plinth_mat.roughness = 0.80
 	var plinth = game._mesh_box(root, Vector3(0, 0.22, 0), Vector3(2.14, 0.44, 0.90), Color.WHITE)
 	plinth.material_override = plinth_mat
 
@@ -348,12 +410,14 @@ func _spawn_camp_wave(z_idx: int):
 		soldier.claimed_cover_idx = c_slot
 		soldier.assigned_word = words_n[i]
 		soldier.set_nemesis_bounty(game.rules.learning.is_nemesis(str(words_n[i].get("id", ""))))
-		soldier.show_word("", false)
+		# v0.8.1 #3: Word shields are clearly shown from spawn so players can scout & snipe from afar!
+		soldier.show_word(str(words_n[i].get("english", "")), false)
 		soldiers.append(soldier)
 		if archetypes[i] == Soldier.Archetype.BOSS_WARDEN:
 			boss_unit = soldier
 	troops[z_idx] = soldiers
 	zone_engaged[z_idx] = false
+	_pick_zone_prompt_option(z_idx, -1)
 
 func _deploy():
 	game._leave_station()
@@ -405,10 +469,11 @@ func _deploy():
 	game.player.reload_left = 0.0
 	game._next_question()
 
-func _select_next_wave_prompt(z_idx: int) -> bool:
+func _pick_zone_prompt_option(z_idx: int, avoid_option: int = -1) -> int:
 	var alive := living_soldiers(z_idx)
 	if alive.is_empty():
-		return false
+		zone_prompt_option.erase(z_idx)
+		return -1
 	var candidates := alive
 	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.exposed_left > 0.0 and alive.size() > 1:
 		var non_boss := []
@@ -417,19 +482,102 @@ func _select_next_wave_prompt(z_idx: int) -> bool:
 				non_boss.append(s)
 		if not non_boss.is_empty():
 			candidates = non_boss
+	if avoid_option >= 0 and candidates.size() >= 2:
+		var alt := []
+		for s in candidates:
+			if s.option != avoid_option:
+				alt.append(s)
+		if not alt.is_empty():
+			candidates = alt
 	var nemesis_candidates := []
 	if candidates.size() >= 2:
 		for s in candidates:
 			if s.is_nemesis_bounty:
 				nemesis_candidates.append(s)
 	var chosen = nemesis_candidates[shot_rng.randi_range(0, nemesis_candidates.size() - 1)] if not nemesis_candidates.is_empty() else candidates[shot_rng.randi_range(0, candidates.size() - 1)]
+	zone_prompt_option[z_idx] = chosen.option
+	return chosen.option
+
+func _get_zone_prompt_soldier(z_idx: int):
+	var alive := living_soldiers(z_idx)
+	if alive.is_empty():
+		return null
+	var want_opt := int(zone_prompt_option.get(z_idx, -1))
+	for s in alive:
+		if s.option == want_opt:
+			if z_idx == 2 and s == boss_unit and boss_unit.exposed_left > 0.0 and alive.size() > 1:
+				break
+			return s
+	var picked_opt := _pick_zone_prompt_option(z_idx, -1)
+	for s in alive:
+		if s.option == picked_opt:
+			return s
+	return alive[0]
+
+func _reroll_soldier_word(z_idx: int, soldier):
+	if not is_instance_valid(soldier) or soldier.defeated:
+		return
+	var old_en := str(soldier.assigned_word.get("english", "")).to_lower()
+	var fresh := _pick_seed_word()
+	for _try in 12:
+		var f_en := str(fresh.get("english", "")).to_lower()
+		var clash := (f_en == old_en)
+		if not clash:
+			for other in living_soldiers(z_idx):
+				if other != soldier and str(other.assigned_word.get("english", "")).to_lower() == f_en:
+					clash = true
+					break
+		if not clash:
+			break
+		fresh = _pick_seed_word()
+	if wave_words.has(z_idx) and soldier.option < wave_words[z_idx].size():
+		wave_words[z_idx][soldier.option] = fresh
+	soldier.assigned_word = fresh
+	soldier.set_nemesis_bounty(game.rules.learning.is_nemesis(str(fresh.get("id", ""))))
+	soldier.show_word(str(fresh.get("english", "")), false)
+
+func _sync_active_prompt_from_zone(z_idx: int, reset_timer: bool = false) -> bool:
+	var chosen = _get_zone_prompt_soldier(z_idx)
+	if not is_instance_valid(chosen):
+		return false
+	var alive := living_soldiers(z_idx)
+	game.choices = wave_words.get(z_idx, [])
+	game.answer_index = chosen.option
+	game.question = chosen.assigned_word
+	prompt_choice_count = alive.size()
+	if reset_timer:
+		prompt_timer_max = prompt_timeout_limit()
+		prompt_timer_left = prompt_timer_max
+		wrong_attempts_on_current = 0
+		first_choice_recorded = false
+		first_choice_independent = false
+		game.question_help_used = false
+		prompt_locked_after_wrong = false
+		game.rules.open_question()
+	return true
+
+func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_existing: bool = false) -> bool:
+	var alive := living_soldiers(z_idx)
+	if alive.is_empty():
+		return false
+	var chosen = _get_zone_prompt_soldier(z_idx) if preserve_existing else null
+	if not is_instance_valid(chosen):
+		_pick_zone_prompt_option(z_idx, avoid_option)
+		chosen = _get_zone_prompt_soldier(z_idx)
+	if not is_instance_valid(chosen):
+		return false
 	game.choices = wave_words[z_idx]
 	game.answer_index = chosen.option
 	game.question = chosen.assigned_word
 	wrong_attempts_on_current = 0
-	prompt_choice_count = candidates.size()
+	prompt_choice_count = alive.size()
 	first_choice_recorded = false
 	first_choice_independent = false
+	prompt_locked_after_wrong = false
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_timer_max = prompt_timeout_limit()
+	prompt_timer_left = prompt_timer_max
 	game.question_help_used = false
 	game.listening_mode = (game.has_english_voice(str(game.question.get("english", ""))) and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
 	game.rules.open_question()
@@ -439,13 +587,82 @@ func _select_next_wave_prompt(z_idx: int) -> bool:
 		game.speak_english(game.question.english)
 	return true
 
+func _rotate_prompt_after_wrong(z_idx: int):
+	## v0.8.1 #4: After brief 1.4s correct-answer reveal, swap old soldier's word & switch to a brand-new question!
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
+	if z_idx < 0 or zone_cleared.get(z_idx, false):
+		return
+	var alive := living_soldiers(z_idx)
+	if alive.is_empty():
+		return
+	var old_opt := int(zone_prompt_option.get(z_idx, -1))
+	for s in alive:
+		if s.option == old_opt:
+			_reroll_soldier_word(z_idx, s)
+			break
+	_select_next_wave_prompt(z_idx, old_opt, false)
+
+func _rotate_prompt_on_timeout(z_idx: int):
+	## v0.8.1 #4: Auto-rotate unanswered question cleanly after 10s (Normal) / 7s (Confidential).
+	if z_idx < 0 or zone_cleared.get(z_idx, false):
+		return
+	var alive := living_soldiers(z_idx)
+	if alive.is_empty():
+		return
+	var old_opt := int(zone_prompt_option.get(z_idx, -1))
+	if alive.size() == 1:
+		_reroll_soldier_word(z_idx, alive[0])
+	_select_next_wave_prompt(z_idx, old_opt, false)
+	game._notice("⏱ 题目超时自动轮换新词 · 瞄准新目标词兵！", Color("9cd6f0"))
+
+func _detect_aimed_camp() -> int:
+	## v0.8.1 #3: Detect which un-cleared camp/soldier the player is aiming at up to 96m away!
+	if not in_field() or not is_instance_valid(game.player) or not is_instance_valid(game.player.camera):
+		return -1
+	var cam: Camera3D = game.player.camera
+	var from := cam.global_position
+	var fwd := (-cam.global_basis.z).normalized()
+	# 1) Direct crosshair hit on any living soldier up to 96m
+	var rq := PhysicsRayQueryParameters3D.create(from, from + fwd * SNIPER_PREVIEW_RANGE, 1 | Soldier.HIT_LAYER, [game.player.get_rid()])
+	rq.collide_with_areas = true
+	var hit := get_world_3d().direct_space_state.intersect_ray(rq)
+	if not hit.is_empty():
+		var direct_s = _resolve_soldier_node(hit.collider)
+		if direct_s is Soldier and not direct_s.defeated and not zone_cleared.get(direct_s.zone, false):
+			return direct_s.zone
+	# 2) Tight angular cone around crosshair toward un-cleared camp centers & living soldiers
+	var best_z := -1
+	var best_dot: float = 0.90 if game.player.aiming else 0.955
+	for z_idx in game.Layout.COMBAT_ZONES.size():
+		if zone_cleared.get(z_idx, false) or float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
+			continue
+		var alive := living_soldiers(z_idx)
+		if alive.is_empty():
+			continue
+		var z_dot := -1.0
+		var center_pt := zone_center(z_idx) + Vector3.UP * 1.5
+		var d_c := from.distance_to(center_pt)
+		if d_c <= SNIPER_PREVIEW_RANGE and d_c > 1.0:
+			z_dot = maxf(z_dot, fwd.dot((center_pt - from).normalized()))
+		for s in alive:
+			var sp: Vector3 = s.global_position + Vector3.UP * 1.4
+			var d_s := from.distance_to(sp)
+			if d_s <= SNIPER_PREVIEW_RANGE and d_s > 1.0:
+				z_dot = maxf(z_dot, fwd.dot((sp - from).normalized()))
+		if z_dot > best_dot:
+			best_dot = z_dot
+			best_z = z_idx
+	return best_z
+
 func spawn_pending_wave_now(z_idx: int):
 	if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0 and not zone_cleared.get(z_idx, false):
 		zone_reinforce_left[z_idx] = 0.0
 		_spawn_camp_wave(z_idx)
 		zone_respawn_grace[z_idx] = WAVE_TRUCE_GRACE
 
-func engage_camp(z_idx: int):
+func engage_camp(z_idx: int, preserve_prompt: bool = false):
 	if z_idx < 0 or z_idx >= game.Layout.COMBAT_ZONES.size() or zone_cleared.get(z_idx, false):
 		return
 	if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
@@ -456,10 +673,12 @@ func engage_camp(z_idx: int):
 	if zone >= 0 and zone != z_idx:
 		disengage_active_camp(false)
 	zone = z_idx
+	preview_zone = -1
 	zone_engaged[z_idx] = true
 	zone_respawn_grace[z_idx] = 0.0
-	wave_wrong_stacks = 0
-	rage_left = 0.0
+	if not is_rage_hunting(z_idx):
+		wave_wrong_stacks = 0
+		rage_left = 0.0
 	wrong_attempts_on_current = 0
 	first_choice_recorded = false
 	first_choice_independent = false
@@ -476,16 +695,17 @@ func engage_camp(z_idx: int):
 			s.begin_tactical_engagement()
 	if is_single_attacker_mode():
 		active_attacker = _pick_next_attacker(z_idx)
-	_select_next_wave_prompt(z_idx)
+	_select_next_wave_prompt(z_idx, -1, preserve_prompt)
 	var z_title: String = zone_info(z_idx).title
 	var w_cur: int = int(waves_done.get(z_idx, 0)) + 1
 	var w_max: int = int(waves_target.get(z_idx, WAVES_PER_CAMP))
 	var pace_tag: String = "机密机动包抄" if game.rules.is_confidential() else "普通谨慎掩体战"
-	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
-		game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %d兵 · %s）：铁甲词尊登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
-		game.play_sfx("boss_phase", -11)
-	else:
-		game._notice("⚔ 触发【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
+	if not is_rage_hunting(z_idx):
+		if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
+			game._notice("⚠ 惊动【%s】（第 %d/%d 波 · %d兵 · %s）：铁甲词尊登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
+			game.play_sfx("boss_phase", -11)
+		else:
+			game._notice("⚔ 触发【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
 
 func disengage_active_camp(announce: bool = true):
 	if zone < 0:
@@ -495,6 +715,10 @@ func disengage_active_camp(announce: bool = true):
 	zone = -1
 	wave_wrong_stacks = 0
 	rage_left = 0.0
+	prompt_timer_left = 0.0
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
 	wrong_attempts_on_current = 0
 	first_choice_recorded = false
 	first_choice_independent = false
@@ -507,7 +731,8 @@ func disengage_active_camp(announce: bool = true):
 		if is_instance_valid(s) and not s.defeated:
 			s.action = Soldier.Action.PATROL
 			s.laser_beam.hide()
-			s.show_word("", false)
+			# v0.8.1 #3: Keep English word shields visible even when returning to standby so distant sniping stays clear!
+			s.show_word(str(s.assigned_word.get("english", "")), false)
 	game._sync_question()
 	if announce:
 		game._notice("已脱离【%s】追击范围，剩余词兵返回出生地待命。" % zone_info(old_z).title, game.GOLD)
@@ -528,6 +753,19 @@ func update(delta: float):
 	attack_lock = maxf(0.0, attack_lock - delta)
 	suppress_lock = maxf(0.0, suppress_lock - delta)
 	miss_left = maxf(0.0, miss_left - delta)
+
+	# v0.8.1 #8: Rage Hunt countdown
+	if rage_hunt_left > 0.0:
+		rage_hunt_left = maxf(0.0, rage_hunt_left - delta)
+		if rage_hunt_left <= 0.0:
+			rage_hunt_zone = -1
+			show_question()
+
+	# v0.8.1 #4: Wrong-hit brief correct-answer reveal -> force switch to fresh new word
+	if prompt_reveal_left > 0.0 and not (is_instance_valid(game.exploration) and game.exploration.safe()):
+		prompt_reveal_left = maxf(0.0, prompt_reveal_left - delta)
+		if prompt_reveal_left <= 0.0:
+			_rotate_prompt_after_wrong(prompt_reveal_zone)
 
 	for z_i in zone_respawn_grace.keys():
 		var g_left := float(zone_respawn_grace[z_i])
@@ -598,7 +836,12 @@ func update(delta: float):
 		if living_soldiers(zone).is_empty():
 			_complete_current_wave(zone)
 			return
-		if is_single_attacker_mode():
+		# v0.8.1 #4: Unanswered combat question countdown (Normal 10s / Confidential 7s)
+		if prompt_reveal_left <= 0.0 and game.rules.question_open:
+			prompt_timer_left = maxf(0.0, prompt_timer_left - delta)
+			if prompt_timer_left <= 0.0:
+				_rotate_prompt_on_timeout(zone)
+		if is_single_attacker_mode() and not is_rage_hunting(zone):
 			if not is_instance_valid(active_attacker) or active_attacker.defeated or active_attacker.zone != zone or active_attacker.stun_left > 0.0:
 				active_attacker = null
 				active_attacker_idle = 0.0
@@ -637,7 +880,27 @@ func update(delta: float):
 			nearest = d
 			pull_idx = z_idx
 	if pull_idx >= 0:
-		engage_camp(pull_idx)
+		engage_camp(pull_idx, true)
+		return
+
+	# v0.8.1 #3: Distant sniper aim detection — aiming at any un-cleared camp up to 96m previews its target Chinese prompt on HUD!
+	var aimed := _detect_aimed_camp()
+	if aimed != preview_zone:
+		preview_zone = aimed
+		if preview_zone >= 0 and prompt_reveal_left <= 0.0:
+			_sync_active_prompt_from_zone(preview_zone, true)
+		elif preview_zone < 0:
+			prompt_timer_left = 0.0
+		show_question()
+	elif preview_zone >= 0 and prompt_reveal_left <= 0.0:
+		if zone_cleared.get(preview_zone, false) or living_soldiers(preview_zone).is_empty():
+			preview_zone = -1
+			prompt_timer_left = 0.0
+			show_question()
+		elif prompt_timer_left > 0.0 and game.rules.question_open:
+			prompt_timer_left = maxf(0.0, prompt_timer_left - delta)
+			if prompt_timer_left <= 0.0:
+				_rotate_prompt_on_timeout(preview_zone)
 
 func show_question():
 	var fighting := zone >= 0 and is_zone_engaged(zone)
@@ -646,7 +909,27 @@ func show_question():
 	if not fighting:
 		if game.active_station == 0:
 			return
-		var rest_hint := "清完追兵后留足休整间隔再刷下波  |  "
+		# v0.8.1 #3: Distant Sniper Preview HUD when aiming at an un-cleared camp from afar!
+		if preview_zone >= 0 and not zone_cleared.get(preview_zone, false) and not living_soldiers(preview_zone).is_empty():
+			if prompt_reveal_left <= 0.0:
+				_sync_active_prompt_from_zone(preview_zone, false)
+			var p_dist := roundi(game.player.position.distance_to(zone_center(preview_zone)))
+			var p_alive := living_soldiers(preview_zone).size()
+			var p_title: String = zone_info(preview_zone).title
+			var p_wcur: int = int(waves_done.get(preview_zone, 0)) + 1
+			var p_wmax: int = int(waves_target.get(preview_zone, WAVES_PER_CAMP))
+			if prompt_reveal_left > 0.0:
+				game.question_label.text = "正解：%s — %s" % [str(game.question.get("english", "")), str(game.question.get("chinese", ""))]
+			else:
+				game.question_label.text = str(game.question.get("chinese", ""))
+			if is_instance_valid(game.cloze_label):
+				var p_cl: Dictionary = game.cloze_for_word(str(game.question.get("id", "")))
+				game.cloze_label.text = ("教材语境：%s  (p.%d)" % [p_cl.cloze_text, int(p_cl.textbook_page)]) if not p_cl.is_empty() else ""
+			game.unit_label.text = "🎯 远距瞄准【%s】(%dm) · 第%d/%d波 · 守军%d | [X]读音" % [
+				p_title, p_dist, p_wcur, p_wmax, p_alive
+			]
+			return
+		var rest_hint := "开镜/远距瞄准敌营即可预览词义狙击  |  "
 		if is_instance_valid(game.player):
 			for z_i in game.Layout.COMBAT_ZONES.size():
 				if zone_cleared.get(z_i, false):
@@ -659,7 +942,7 @@ func show_question():
 					else:
 						rest_hint = "🕊【%s】增援休整 %.0f 秒不主动追击（可离开或开枪迎战）  |  " % [zone_info(z_i).title, ceilf(g_l)]
 					break
-		game.question_label.text = "前往敌军营地触发波次仇恨（每营 3 波）"
+		game.question_label.text = "远距瞄准敌营狙词，或靠近触发波次交火"
 		if is_instance_valid(game.cloze_label):
 			game.cloze_label.text = ""
 		game.unit_label.text = "%s已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
@@ -680,7 +963,12 @@ func show_question():
 		var w_text := str(soldier.assigned_word.get("english", "")) if not soldier.assigned_word.is_empty() else (str(words_5[slot_i].english) if slot_i < words_5.size() else "")
 		soldier.show_word(w_text, false)
 
-	if game.listening_mode and game.rules.question_open:
+	if prompt_reveal_left > 0.0:
+		game.question_label.text = "正解：%s — %s" % [str(game.question.get("english", "")), str(game.question.get("chinese", ""))]
+		if is_instance_valid(game.cloze_label):
+			var rev_cl: Dictionary = game.cloze_for_word(str(game.question.get("id", "")))
+			game.cloze_label.text = ("例句：%s  (p.%d)" % [rev_cl.english, int(rev_cl.textbook_page)]) if not rev_cl.is_empty() else "即将切换全新单词…"
+	elif game.listening_mode and game.rules.question_open:
 		game.question_label.text = "🔊 电台截获英文语音 · 按 [X] 重播读音"
 		if is_instance_valid(game.cloze_label):
 			game.cloze_label.text = "★ 宿敌复习词 · 独立击破额外 +10分 / +4盾" if active_is_nemesis else ""
@@ -700,7 +988,7 @@ func show_question():
 	var w_cur: int = int(waves_done.get(zone, 0)) + 1
 	var w_max: int = int(waves_target.get(zone, WAVES_PER_CAMP))
 	var mode_tag := "机密机动" if game.rules.is_confidential() else "普通谨慎"
-	var atk_tag := (" | ⚠敌攻×%.2f" % damage_multiplier()) if wave_wrong_stacks > 0 else ""
+	var atk_tag := (" | 🔥狂暴×%.1f" % damage_multiplier()) if rage_hunt_left > 0.0 else ((" | ⚠敌攻×%.2f" % damage_multiplier()) if wave_wrong_stacks > 0 else "")
 	var boss_suffix := ""
 	if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
 		boss_suffix = " | ★统领 %d/450%s" % [boss_unit.hp, " (红核暴露!)" if boss_unit.exposed_left > 0 else ""]
@@ -727,10 +1015,12 @@ func _record_first_choice(is_correct: bool):
 		game.wrong_words.append(game.question)
 
 func _apply_wrong_target_penalty(soldier):
-	# Wrong word soldier takes ZERO HP and ZERO shield damage, and buffs remaining wave attack power!
+	# v0.8.1 #4/#8: Wrong soldier takes ZERO HP/shield damage, reveals correct answer + voice + example for 1.4s
+	# then forces a brand-new question; 3 consecutive wrong hits trigger 12s Rage Hunt (2.0x Normal / 4.0x Confidential)!
 	soldier.on_wrong_hit_flash()
 	wave_had_wrong_shot = true
 	wave_wrong_stacks = mini(MAX_WRONG_STACKS, wave_wrong_stacks + 1)
+	consecutive_wrong_hits += 1
 	rage_left = 7.0
 	wrong_attempts_on_current += 1
 	field_answers += 1
@@ -738,25 +1028,59 @@ func _apply_wrong_target_penalty(soldier):
 	game.rules.streak = 0
 	_record_first_choice(false)
 
+	var target_z: int = soldier.zone
+	var correct_en := str(game.question.get("english", ""))
+	var correct_zh := str(game.question.get("chinese", ""))
+	var cloze_d: Dictionary = game.cloze_for_word(str(game.question.get("id", "")))
+	var example_line := ("\n例句：%s (p.%d)" % [cloze_d.english, int(cloze_d.textbook_page)]) if not cloze_d.is_empty() else ""
+
+	# Lock old question & trigger 1.4s reveal before rotating to a brand-new word
+	prompt_locked_after_wrong = true
+	prompt_reveal_left = WRONG_REVEAL_SECONDS
+	prompt_reveal_zone = target_z
+	prompt_timer_left = 0.0
+
 	game.hitmarker_left = 0.24
 	game.hitmarker_label.text = "✕"
 	game.hitmarker_label.add_theme_color_override("font_color", Color("ff6b6b"))
 	game.hitmarker_label.show()
 	game.play_sfx("hit_wrong", -10)
-	game.speak_english(str(game.question.get("english", "")))
-	game.screen_flash.color = Color(1.0, 0.32, 0.18, 0.11)
+	game.speak_english(correct_en)
 
-	var hint_str := ""
-	if wrong_attempts_on_current >= 2:
-		var en_word := str(game.question.get("english", "")).strip_edges()
-		if en_word.length() > 0:
-			hint_str = " · 提示首字母「%s...」" % en_word.substr(0, mini(2, en_word.length()))
-	game._notice("✕ 打错词兵（敌方无伤）！本波剩余敌军攻击力 +25%%（当前 ×%.2f）%s" % [damage_multiplier(), hint_str], Color("ff9d7d"))
+	var triggered_rage := false
+	if consecutive_wrong_hits >= RAGE_WRONG_TRIGGER:
+		triggered_rage = true
+		consecutive_wrong_hits = 0
+		rage_hunt_left = RAGE_HUNT_DURATION
+		rage_hunt_zone = target_z
+		if zone != target_z:
+			engage_camp(target_z, true)
+			# Re-apply reveal lock after engage_camp initialized the zone
+			prompt_locked_after_wrong = true
+			prompt_reveal_left = WRONG_REVEAL_SECONDS
+			prompt_reveal_zone = target_z
+			prompt_timer_left = 0.0
+		for s_enrage in living_soldiers(target_z):
+			s_enrage.begin_tactical_engagement(true)
+		game.play_sfx("warning_lock", -6)
+		game.screen_flash.color = Color(1.0, 0.16, 0.12, 0.24)
+		var rage_title := "机密狂暴围剿" if game.rules.is_confidential() else "狂暴围剿"
+		game._notice("🔥 连错3次触发【%s】%.0f秒 · 敌营全员强袭（敌伤×%.1f）\n正解：%s（%s）" % [
+			rage_title, RAGE_HUNT_DURATION, damage_multiplier(), correct_en, correct_zh
+		], Color("ff5c66"))
+	else:
+		game.screen_flash.color = Color(1.0, 0.32, 0.18, 0.11)
+		game._notice("✕ 打错词兵（连错 %d/%d）！正解：%s（%s）· 即将换新题%s" % [
+			consecutive_wrong_hits, RAGE_WRONG_TRIGGER, correct_en, correct_zh, example_line
+		], Color("ff9d7d"))
+	if not triggered_rage and zone < 0:
+		preview_zone = target_z
 	show_question()
 
 func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_ammo: bool = true):
 	if is_instance_valid(soldier):
 		last_kill_pos = soldier.global_position
+	consecutive_wrong_hits = 0
 	field_answers += 1
 	field_hits += 1
 	rage_left = 0.0
@@ -828,6 +1152,16 @@ func _complete_current_wave(z_idx: int):
 	active_attacker_idle = 0.0
 	last_attacker_option = -1
 	zone_engaged[z_idx] = false
+	zone_prompt_option.erase(z_idx)
+	if preview_zone == z_idx:
+		preview_zone = -1
+	if rage_hunt_zone == z_idx:
+		rage_hunt_left = 0.0
+		rage_hunt_zone = -1
+	prompt_timer_left = 0.0
+	prompt_reveal_left = 0.0
+	prompt_reveal_zone = -1
+	prompt_locked_after_wrong = false
 	if zone == z_idx:
 		zone = -1
 	if is_instance_valid(game.world_loot):
@@ -868,14 +1202,22 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 	var soldier = _resolve_soldier_node(collider)
 	if not (soldier is Soldier) or soldier.defeated or zone_cleared.get(soldier.zone, false):
 		return false
+	var target_z: int = soldier.zone
 	if zone < 0 or not is_zone_engaged(zone):
-		engage_camp(soldier.zone)
-	elif soldier.zone != zone:
+		# v0.8.1 #3: Support both close-range engagement & distant precision word sniping (preserving previewed prompt!)
+		var d_camp := Vector2(game.player.position.x - zone_center(target_z).x, game.player.position.z - zone_center(target_z).z).length()
+		if d_camp <= zone_pursuit(target_z):
+			engage_camp(target_z, true)
+		else:
+			preview_zone = target_z
+			if prompt_reveal_left <= 0.0:
+				_sync_active_prompt_from_zone(target_z, not game.rules.question_open)
+	elif target_z != zone:
 		game._notice("⚠ 请先肃清当前追击你的【%s】词兵编队！" % zone_info(zone).title, game.GOLD)
 		return true
 
 	if muzzle_id != "suppressor":
-		for other in living_soldiers(zone):
+		for other in living_soldiers(target_z):
 			if other.action == Soldier.Action.PATROL:
 				other.begin_tactical_engagement()
 
@@ -886,15 +1228,20 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 		var core_killed: bool = soldier.apply_damage(42, false, true)
 		if core_killed:
 			_on_boss_defeated(soldier)
-			_advance_wave_after_kill(zone)
+			_advance_wave_after_kill(target_z)
 		else:
 			game._notice("★ 命中首领暴露红核！暴击 -42 HP（剩余 %d/450 HP）" % soldier.hp, Color("ffd15c"))
 			show_question()
 		return true
 
-	# Wrong soldier hit -> 0 damage + +25% enemy wave attack power stack!
+	# Wrong soldier hit -> 0 damage + reveal correct answer + force switch + count toward 3-wrong Rage Hunt!
 	if soldier.option != game.answer_index:
 		_apply_wrong_target_penalty(soldier)
+		return true
+
+	# v0.8.1 #4: During the 1.4s correct-answer reveal after a wrong hit, shooting the revealed answer awards 0 points!
+	if prompt_locked_after_wrong:
+		game._notice("本题答案已公布，正在切换新题，请等待新词出现！", Color("ffd27d"))
 		return true
 
 	_record_first_choice(true)
@@ -906,11 +1253,12 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			_score_wave_correct(soldier, true, "🎯 首领核心爆头破防")
 			if b_dead:
 				_on_boss_defeated(soldier)
-				_advance_wave_after_kill(zone)
+				_advance_wave_after_kill(target_z)
 			else:
 				_rotate_boss_word_and_prompt(soldier)
 		elif soldier.shield_layers > 1 and soldier.exposed_left <= 0.0:
 			soldier.crack_shield_once()
+			prompt_timer_left = prompt_timer_max
 			game.show_hitmarker(false)
 			game.play_sfx("hit_correct", -13)
 			game._notice("⚡ 统领词盾裂开 (1/2)！再补 1 枪击碎护盾暴露红核（打头部可1枪破盾）！", Color("ffe082"))
@@ -920,7 +1268,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			_score_wave_correct(soldier, false, "✦ 统领重甲词盾击碎")
 			if b_dead2:
 				_on_boss_defeated(soldier)
-				_advance_wave_after_kill(zone)
+				_advance_wave_after_kill(target_z)
 			else:
 				_rotate_boss_word_and_prompt(soldier)
 		return true
@@ -930,9 +1278,10 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 		soldier.apply_damage(999, true, true)
 		_score_wave_correct(soldier, true, "🎯 精准爆头一击必杀")
 		_apply_boss_guard_shockwave()
-		_advance_wave_after_kill(zone)
+		_advance_wave_after_kill(target_z)
 	elif soldier.shield_layers > 1:
 		soldier.crack_shield_once()
+		prompt_timer_left = prompt_timer_max
 		game.show_hitmarker(false)
 		game.play_sfx("hit_correct", -13)
 		game._notice("⚡ 命中正确词盾 (1/2)！单词未消散，再补 1 枪击毙（瞄准头部可 1 枪秒杀）！", Color("ffe082"))
@@ -941,7 +1290,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 		soldier.apply_damage(999, true, false)
 		_score_wave_correct(soldier, false, "✦ 二段破盾击毙")
 		_apply_boss_guard_shockwave()
-		_advance_wave_after_kill(zone)
+		_advance_wave_after_kill(target_z)
 	return true
 
 func _apply_boss_guard_shockwave():
@@ -991,6 +1340,10 @@ func melee_strike(camera: Camera3D) -> bool:
 	if best_soldier.option != game.answer_index:
 		game.play_sfx("knife_hit", -10)
 		_apply_wrong_target_penalty(best_soldier)
+		return true
+
+	if prompt_locked_after_wrong:
+		game._notice("本题答案已公布，正在切换新题！", Color("ffd27d"))
 		return true
 
 	_record_first_choice(true)
@@ -1201,6 +1554,9 @@ func on_soldier_attack_finished(soldier):
 func reserve_attack(soldier = null) -> bool:
 	if attack_lock > 0:
 		return false
+	if rage_hunt_left > 0.0:
+		attack_lock = 0.52
+		return true
 	if is_single_attacker_mode():
 		if soldier != null and not is_designated_attacker(soldier):
 			return false

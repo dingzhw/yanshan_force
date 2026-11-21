@@ -13,7 +13,7 @@ const LootUI = preload("res://scripts/loot_ui.gd")
 const WorldLoot = preload("res://scripts/world_loot.gd")
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
-const VERSION = "0.8.0"
+const VERSION = "0.8.1"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -83,6 +83,10 @@ var include_extra: CheckBox
 var question_label: Label
 var cloze_label: Label
 var unit_label: Label
+var prompt_timer_bg: ColorRect
+var prompt_timer_fill: ColorRect
+var station_prompt_timer_left: float = 0.0
+var station_prompt_timer_max: float = 10.0
 var stat_label: Label
 var mission_label: Label
 var bag_label: Label
@@ -831,6 +835,22 @@ func _build_ui():
 	unit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
+	# v0.8.1 #4: Sleek unanswered-question countdown strip along bottom edge of Word Prompt Card
+	prompt_timer_bg = ColorRect.new()
+	prompt_timer_bg.position = Vector2(404, 126)
+	prompt_timer_bg.size = Vector2(502, 4)
+	prompt_timer_bg.color = Color(0.10, 0.20, 0.22, 0.85)
+	prompt_timer_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prompt_timer_bg.hide()
+	hud.add_child(prompt_timer_bg)
+	prompt_timer_fill = ColorRect.new()
+	prompt_timer_fill.position = Vector2(404, 126)
+	prompt_timer_fill.size = Vector2(502, 4)
+	prompt_timer_fill.color = MINT
+	prompt_timer_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prompt_timer_fill.hide()
+	hud.add_child(prompt_timer_fill)
+
 	# Threat Warning Banner (only shown when actively locked on)
 	threat_banner = _panel(hud, Rect2(455, 138, 400, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
 	threat_label = _text(threat_banner, "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！", Vector2(10, 4), Vector2(370, 22), 14, Color("ffd6d6"))
@@ -892,12 +912,13 @@ func _build_ui():
 	ammo_label = _text(hud, "", Vector2(968, 574), Vector2(282, 122), 14, CREAM)
 
 	# Center Prompts & Tactical Reticles
-	feedback_panel = _panel(hud, Rect2(370, 520, 540, 64), Color(0.04, 0.11, 0.12, 0.92), Color(0.55, 0.88, 0.72, 0.5))
+	feedback_panel = _panel(hud, Rect2(340, 506, 600, 76), Color(0.04, 0.11, 0.12, 0.92), Color(0.55, 0.88, 0.72, 0.5))
 	feedback_panel.hide()
-	feedback_label = _text(hud, "", Vector2(384, 526), Vector2(512, 52), 19, MINT)
+	feedback_label = _text(hud, "", Vector2(354, 512), Vector2(572, 64), 17, MINT)
 	feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	feedback_label.clip_text = true
 
 	interaction_panel = _panel(hud, Rect2(384, 594, 524, 38), Color(0.04, 0.09, 0.11, 0.82))
 	interaction_label = _text(hud, "", Vector2(394, 596), Vector2(504, 34), 16, GOLD)
@@ -1197,6 +1218,7 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		player.weapon_slot = 0
 		time_left = 480.0
 		next_question_left = 0.0
+		station_prompt_timer_left = 0.0
 		feedback_left = 0.0
 		feedback_panel.hide()
 		hitmarker_left = 0.0
@@ -1224,12 +1246,15 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		player.knife_cooldown = 0.0
 		player.recoil = 0.0
 		for node in pickup_nodes:
-			Props.set_enabled(node, true)
+			# v0.8.1 #15: Practice Range hides field supply loot boxes (pure shooting/word training only!)
+			var enable_pickup: bool = as_combat or node.has_meta("tactical_item")
+			Props.set_enabled(node, enable_pickup)
 		if is_instance_valid(loot_ui):
 			loot_ui.reset_run()
 		if is_instance_valid(world_loot):
 			world_loot.reset_for_run()
 		for node in crate_nodes:
+			Props.set_enabled(node, as_combat)
 			var tier = int(node.get_meta("tier"))
 			node.get_child(node.get_child_count() - 1).modulate = _crate_accent(tier)
 			if node.has_meta("lid_node") and is_instance_valid(node.get_meta("lid_node")):
@@ -1312,6 +1337,9 @@ func _next_question():
 			answer_index = i
 	listening_mode = (has_english_voice(str(question.get("english", ""))) and rules.answered >= 4 and rules.answered % 5 == 0)
 	rules.open_question()
+	next_question_left = 0.0
+	station_prompt_timer_max = 10.0
+	station_prompt_timer_left = station_prompt_timer_max if active_station >= 0 else 0.0
 	_sync_question()
 	if listening_mode and not paused:
 		speak_english(question.english)
@@ -1368,8 +1396,11 @@ func _activate_station(index: int):
 	if active_station >= 0:
 		stations[active_station].clear()
 	active_station = index
+	stations[index].set_boards_visible(true)
 	targets = stations[index].targets
 	target_materials = stations[index].materials
+	station_prompt_timer_max = 10.0
+	station_prompt_timer_left = station_prompt_timer_max if rules.question_open else 0.0
 	_sync_question()
 	_notice(stations[index].title + " · 看中文射击对应英文靶牌（按 X 可听发音）", MINT)
 
@@ -1377,6 +1408,7 @@ func _leave_station():
 	if active_station >= 0:
 		stations[active_station].clear()
 	active_station = -1
+	station_prompt_timer_left = 0.0
 	targets = []
 	target_materials = []
 	_sync_question()
@@ -1501,7 +1533,7 @@ func resolve_answer(index: int, mobile = false):
 			streak_tag += "(+6盾)"
 		if not (mobile and combat.zone >= 0 and combat.waves_done.get(combat.zone, 0) == combat.waves_target.get(combat.zone, -1)):
 			_notice("命中正确！ +%d 分%s · %s（%s）" % [gained, streak_tag, question.english, question.chinese], MINT)
-		if rules.correct % 3 == 0:
+		if rules.correct % 3 == 0 and rules.can_loot():
 			var chip_rarity = 3 if rules.streak >= 4 else 2
 			rules.add_loot("战术知识芯片", 46 + maxi(0, rules.level() - 1) * 4, chip_rarity)
 	else:
@@ -1513,8 +1545,9 @@ func resolve_answer(index: int, mobile = false):
 			wrong_words.append(question)
 
 	screen_flash.color = Color(0.3, 1, 0.65, 0.08) if correct else Color(1, 0.35, 0.2, 0.09)
-	next_question_left = 1.45 if correct else 2.45
-	unit_label.text = "已结算 · 下一题即将出现"
+	station_prompt_timer_left = 0.0
+	next_question_left = 1.15 if correct else 1.40
+	unit_label.text = "已结算 · 即将切换新题"
 
 func _notice(text: String, color = GOLD):
 	feedback_label.text = text
@@ -1535,7 +1568,7 @@ func _refresh_bag_pills():
 		child.queue_free()
 	if rules.bag.is_empty() and rules.safe_box.is_empty():
 		var empty_lbl = Label.new()
-		empty_lbl.text = "搜刮盲盒物资箱/草丛桥角秘藏（按 [B] 存入安全箱！）"
+		empty_lbl.text = "搜刮盲盒物资箱/草丛桥角秘藏（按 [B] 存入安全箱！）" if rules.can_loot() else "自由靶场纯训练：无物资掉落，按 [F] 开靶牌练识词！"
 		empty_lbl.add_theme_font_size_override("font_size", 12)
 		empty_lbl.add_theme_color_override("font_color", Color("89a89b"))
 		bag_slots_box.add_child(empty_lbl)
@@ -1600,6 +1633,12 @@ func _process(delta):
 		next_question_left -= delta
 		if next_question_left <= 0:
 			_next_question()
+	elif rules.phase == "active" and active_station >= 0 and rules.question_open and not (combat.in_field() and combat.zone >= 0) and not (is_instance_valid(exploration) and exploration.safe()):
+		station_prompt_timer_left = maxf(0.0, station_prompt_timer_left - delta)
+		if station_prompt_timer_left <= 0.0:
+			_next_question()
+			_notice("⏱ 靶场题目超时自动轮换新词！", Color("9cd6f0"))
+	_update_prompt_timer_bar()
 	if rules.phase == "extracting":
 		if player.position.distance_to(exit_position) > 4.0:
 			rules.phase = "active"
@@ -1635,16 +1674,24 @@ func _process(delta):
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
 
 	_refresh_terminal_title()
-	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场"
+	var outpost_part = ("营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]) if rules.combat_mode else "自由靶场(纯训练)"
 	var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
 	var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
-	mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
-		outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
-	]
+	if rules.combat_mode:
+		mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
+			outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
+		]
+	else:
+		mission_label.text = "%s · 撤离：%s\n%s · %s" % [
+			outpost_part, extract_part, exploration.status_text(), eco_part
+		]
 	_update_guide()
 	_update_combat_hud()
 
-	bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), Rules.SAFE_BOX_SLOTS, rules.total_carried_value()]
+	if rules.can_loot():
+		bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), Rules.SAFE_BOX_SLOTS, rules.total_carried_value()]
+	else:
+		bag_label.text = "自由靶场 · 纯射击识词训练（不可搜集物资）"
 	_refresh_bag_pills()
 
 	var mods := []
@@ -1672,6 +1719,27 @@ func _process(delta):
 	]
 	_update_interaction()
 
+func _update_prompt_timer_bar():
+	if not is_instance_valid(prompt_timer_bg) or not is_instance_valid(prompt_timer_fill):
+		return
+	var left := 0.0
+	var limit := 10.0
+	var active_bar := false
+	if combat.in_field() and (combat.zone >= 0 or combat.preview_zone >= 0) and combat.prompt_reveal_left <= 0.0 and combat.prompt_timer_left > 0.0:
+		left = combat.prompt_timer_left
+		limit = maxf(1.0, combat.prompt_timer_max)
+		active_bar = true
+	elif active_station >= 0 and rules.question_open and station_prompt_timer_left > 0.0 and next_question_left <= 0.0:
+		left = station_prompt_timer_left
+		limit = maxf(1.0, station_prompt_timer_max)
+		active_bar = true
+	prompt_timer_bg.visible = active_bar
+	prompt_timer_fill.visible = active_bar
+	if active_bar:
+		var frac := clampf(left / limit, 0.0, 1.0)
+		prompt_timer_fill.size.x = 502.0 * frac
+		prompt_timer_fill.color = Color("ff5c66") if left <= 2.8 else (GOLD if left <= 5.0 else MINT)
+
 func _extraction_blocker_short() -> String:
 	if rules.score < Rules.EXTRACTION_SCORE:
 		return "差%d分" % (Rules.EXTRACTION_SCORE - rules.score)
@@ -1679,6 +1747,8 @@ func _extraction_blocker_short() -> String:
 		return "需败B区首领"
 	if rules.combat_mode and rules.outposts_cleared < 2:
 		return "需攻克%d/2哨" % rules.outposts_cleared
+	if rules.combat_mode and not rules.accuracy_gate_met():
+		return "正确率需≥%d%%" % roundi(rules.required_extract_accuracy() * 100)
 	return "待就绪"
 
 func _crate_progress(tier: int) -> String:
@@ -1713,9 +1783,16 @@ func _update_combat_hud():
 		hp_bar_fill.size.x = 316.0 * clampf(float(combat.health) / float(Combat.MAX_HEALTH), 0.0, 1.0)
 		hp_bar_fill.color = Color("6ae3a8") if combat.health > 55 else (Color("f4ca64") if combat.health > 28 else Color("ff5c66"))
 		var threats = combat.active_threat_count()
-		threat_banner.visible = threats > 0
+		if combat.rage_hunt_left > 0.0:
+			threat_banner.show()
+			threat_label.text = "🔥 狂暴围剿 %.1fs · 敌营全员强袭 · 敌伤 ×%.1f！" % [combat.rage_hunt_left, combat.damage_multiplier()]
+		elif threats > 0:
+			threat_banner.show()
+			threat_label.text = "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！"
+		else:
+			threat_banner.hide()
 		var stance_txt: String = player.stance_label() if is_instance_valid(player) else "站立"
-		var alert_tag = "烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("敌攻×%.2f" % combat.damage_multiplier() if combat.wave_wrong_stacks > 0 else ("受瞄×%d" % threats if threats > 0 else "警戒中")))
+		var alert_tag = ("🔥狂暴×%.1f" % combat.damage_multiplier()) if combat.rage_hunt_left > 0.0 else ("烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("敌攻×%.2f" % combat.damage_multiplier() if combat.wave_wrong_stacks > 0 else ("受瞄×%d" % threats if threats > 0 else "警戒中"))))
 		combat_label.text = "HP %d · 盾 %d/%d · %s · %s" % [combat.health, roundi(combat.shield), rules.max_shield(), stance_txt, alert_tag]
 	else:
 		threat_banner.hide()
@@ -1733,6 +1810,8 @@ func _extraction_blocker_text() -> String:
 		missing.append("需攻克至少 2 处前哨（%d/2）" % rules.outposts_cleared)
 	if rules.combat_mode and not rules.boss_defeated:
 		missing.append("需击败 B 区首领夺取密钥")
+	if rules.combat_mode and not rules.accuracy_gate_met():
+		missing.append("识词正确率需 ≥ %d%%（当前 %d%%）" % [roundi(rules.required_extract_accuracy() * 100), roundi(rules.accuracy() * 100)])
 	return " · ".join(missing)
 
 func _update_interaction():

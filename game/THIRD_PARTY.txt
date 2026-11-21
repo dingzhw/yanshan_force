@@ -50,3 +50,5 @@ Offline English voice pack v0.7.1 notice:
 Local procedural v0.7.2 & v0.8.0 additions (CC0 / Original Project):
 - 64 bespoke sculpted multi-material PBR collectible 3D meshes (assets/slice/v072_collectibles.glb), 25 procedural Pillow surface artwork textures (tools/generate_v072_textures.py, baked into GLB without redistributing system fonts), and 64 matching Cycles 256x256 transparent studio icons (assets/icons/loot/*.png) generated locally in Blender 4.5 (tools/build_v072_collectibles.py), covering 7 rarity tiers including the new Tier-5 Small Gold ("珍品·小金") collection.
 - Pre-synthesized offline English voice pack expanded to 279 clips (tools/build_voice_pack.py, en-US-JennyNeural, private personal/family offline playtesting only).
+Local procedural v0.8.1 additions (CC0 / Original Project):
+- Seamless 1024x1024 PBR mountain granite rock (granite_rock_albedo/normal/rough.png) and hand-laid Jiangnan bluestone flagstone (flagstone_albedo/normal/rough.png) textures generated locally via Python NumPy/Pillow (tools/generate_v081_stone_textures.py).

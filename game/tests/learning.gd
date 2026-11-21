@@ -98,7 +98,7 @@ func run():
 	var persisted = JSON.parse_string(FileAccess.get_file_as_string(game.profile_path_override))
 	verify(not persisted.review_due.has(failed_term.id), "retest outcome survives reloading the file")
 
-	game.start_action(false)
+	game.start_action(true, "normal")
 	cipher.open_for_supply(game.pickup_nodes[0])
 	var helped_id: String = cipher.target_word.id
 	var prior: int = int(game.rules.profile.mastery.get(helped_id, {}).get("independent_correct", 0))

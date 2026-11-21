@@ -25,8 +25,9 @@ func run():
 	game.start_action()
 	await physics_frame
 	verify(game.stations.size() == 3 and game.active_station == -1, "three challenge points start inactive")
+	verify(not game.stations[0].boards[0].visible and game.stations[0].targets[0].text == "", "v0.8.1 FB-4: idle camp target boards stay hidden with zero legacy placeholder signs")
 	game.interact()
-	verify(game.active_station == 0, "nearby E activates camp terminal")
+	verify(game.active_station == 0 and game.stations[0].boards[0].visible, "nearby [F] activates camp terminal and reveals target boards")
 	var original = game.question.id
 	var original_choices = game.choices.duplicate(true)
 	game._leave_station()
@@ -42,7 +43,7 @@ func run():
 	await physics_frame
 	game.interact()
 	verify(game.active_station == 1 and game.question.id == original and game.choices == original_choices, "switching terminal preserves question and options")
-	verify(game.stations[0].targets[0].text == "前往终端", "previous station clears answer boards")
+	verify(not game.stations[0].boards[0].visible and game.stations[0].targets[0].text == "", "previous station hides and clears answer boards")
 	var index = game.answer_index
 	var active_board = game.stations[1].boards[index]
 	var from = game.stations[1].position + Vector3(0, 1.7, 2)
@@ -62,6 +63,9 @@ func run():
 	verify(game.rules.score == game.Rules.BASE_ANSWER_SCORE, "repeated hits never duplicate points")
 	var sightlines_clear = true
 	for idx in game.stations.size():
+		game.stations[idx].set_boards_visible(true)
+	await physics_frame
+	for idx in game.stations.size():
 		var origin = game.Layout.on_ground(game.Layout.STATIONS[idx].at + Vector3(0.8, 0, 0.8)) + Vector3(0, 1.58, 0)
 		for b_i in game.stations[idx].boards.size():
 			var target = game.stations[idx].boards[b_i]
@@ -69,7 +73,16 @@ func run():
 			var res = root.world_3d.direct_space_state.intersect_ray(q)
 			if res.is_empty() or res.collider != target:
 				sightlines_clear = false
+	for idx in game.stations.size():
+		if idx != game.active_station:
+			game.stations[idx].set_boards_visible(false)
 	verify(sightlines_clear, "all 12 station target boards have unobstructed sightlines from terminal")
+	# v0.8.1 #4: Practice station auto-rotates unanswered question after 10s countdown!
+	game._next_question()
+	var pre_timeout_id: String = str(game.question.id)
+	game.station_prompt_timer_left = 0.02
+	game._process(0.05)
+	verify(str(game.question.id) != pre_timeout_id and game.rules.question_open, "v0.8.1 #4: station unanswered prompt auto-rotates cleanly on timeout")
 	game.player.position = game.stations[1].position + Vector3(0, 0, 20)
 	await process_frame
 	await process_frame

@@ -94,7 +94,9 @@ static func base_height(x: float, z: float) -> float:
 		return -smoothstep(28.0, 36.0, z) * 0.85
 	var climb = smoothstep(-3.0, 105.0, -z) * 8.0
 	var shoulders = smoothstep(11.0, 36.0, absf(x)) * 5.0
-	return climb + shoulders + (sin(x * 0.12 + z * 0.045) * 1.8 + sin(z * 0.13) * 0.8) * smoothstep(5, 27, -z)
+	# v0.8.1 FB-1: Gently elevated SE scenic knoll beneath Wangdao Pavilion for sweeping rice-terrace & village vistas
+	var wd_knoll = 2.15 * exp(-pow((x - 34.5) / 15.5, 2.0) - pow((z - 21.0) / 14.5, 2.0)) * smoothstep(20.5, 27.0, x)
+	return climb + shoulders + wd_knoll + (sin(x * 0.12 + z * 0.045) * 1.8 + sin(z * 0.13) * 0.8) * smoothstep(5, 27, -z)
 
 static func stream_center_x(z: float) -> float:
 	if z <= STREAM_POINTS[0][0]:
@@ -189,10 +191,10 @@ static func _land_height(x: float, z: float) -> float:
 		if distance < nearest:
 			nearest = distance
 			bed = lerpf(segment.start_height, segment.end_height, t)
+	var pav_pad := 1.0 - smoothstep(4.8, 12.8, Vector2(x - WANGDAO_PAVILION.x, z - WANGDAO_PAVILION.z).length())
+	result = lerpf(result, anchor_height(WANGDAO_PAVILION), pav_pad)
 	var road_t := 1.0 - smoothstep(2.8, ROAD_BLEND_RADIUS, nearest)
 	result = lerpf(result, bed, road_t)
-	var pav_pad := 1.0 - smoothstep(5.4, 10.5, Vector2(x - WANGDAO_PAVILION.x, z - WANGDAO_PAVILION.z).length())
-	result = lerpf(result, anchor_height(WANGDAO_PAVILION), pav_pad)
 	# Smoothly graded terrace for v0.6.2 «迷踪竹石阵» (5.85m -> 6.50m) & flat 6.50m floor across «烟霞古洞»
 	if x > -51.8 and x < -31.6 and z > -74.5 and z < -32.0:
 		var maze_wx := 1.0 - smoothstep(7.0, 9.7, absf(x - (-41.7)))
@@ -272,7 +274,11 @@ static func anchor_height(at: Vector3) -> float:
 	if at == POEM:
 		return 5.0
 	if at == WANGDAO_PAVILION:
-		return 4.35
+		return 6.60
+	if at == Vector3(28.0, 0, 13.5):
+		return 3.65
+	if at == Vector3(31.5, 0, 8.0):
+		return 4.85
 	if at == EAST_OVERLOOK:
 		return 3.95
 	if at == RECON_RADIO:
