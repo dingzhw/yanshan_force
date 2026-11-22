@@ -527,8 +527,8 @@ func _physics_process(delta):
 			velocity.y = 6.2
 			game.play_sound("jump_a", -22)
 	move_and_slide()
-	position.x = clampf(position.x, game.Layout.MIN_X + 1.5, game.Layout.MAX_X - 1.5)
-	position.z = clampf(position.z, game.Layout.MIN_Z + 1.5, game.Layout.MAX_Z - 1.5)
+	position.x = clampf(position.x, game.active_layout.MIN_X + 1.5, game.active_layout.MAX_X - 1.5)
+	position.z = clampf(position.z, game.active_layout.MIN_Z + 1.5, game.active_layout.MAX_Z - 1.5)
 	if position.y < -5:
 		position = Vector3(0, 2, 7)
 	footstep_clock -= delta

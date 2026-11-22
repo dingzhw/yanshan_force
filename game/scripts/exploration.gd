@@ -6,11 +6,53 @@ const TacticalProps = preload("res://scripts/tactical_props.gd")
 const INTEL_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof"]
 const SECRET_EVENT_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof", "recon_radio", "airdrop_beacon"]
 const HERITAGE_IDS = ["cliff_inscription", "cave_mural", "cave_hearth"]
+const AHSARAH_EXPLORE_IDS = ["ahsarah_oasis", "ahsarah_cement", "ahsarah_bazaar", "ahsarah_substation", "ahsarah_fortress", "ahsarah_dam"]
 const SPELL_CHALLENGE_IDS = [
 	"english", "intel_container", "intel_cleft", "intel_cave", "intel_roof",
-	"recon_radio", "airdrop_beacon", "cliff_inscription", "cave_mural", "cave_hearth"
+	"recon_radio", "airdrop_beacon", "cliff_inscription", "cave_mural", "cave_hearth",
+	"dimensional_rift",
+	"ahsarah_oasis", "ahsarah_cement", "ahsarah_bazaar", "ahsarah_substation", "ahsarah_fortress", "ahsarah_dam"
 ]
-const DEEP_REWARD_IDS = ["cave_hearth", "cave_mural", "airdrop_beacon"]
+const DEEP_REWARD_IDS = ["cave_hearth", "cave_mural", "airdrop_beacon", "ahsarah_fortress", "ahsarah_dam"]
+
+const AHSARAH_LORE_SPECS := {
+	"ahsarah_oasis": {
+		"title": "绿洲前哨 · G.T.I. 跨界频段简报",
+		"lore": "【2035 · 阿萨拉战区简报】穿过烟霞古洞次元石壁的游侠，欢迎抵达北非干旱古国阿萨拉！跨国巨企哈夫克集团借修建「零号大坝」垄断水源，与本土武装「阿萨拉卫队」爆发激战。G.T.I. 委托你破译前沿词盾并安全撤离！",
+		"reward_score": 25,
+		"reward_title": "前哨补给物资"
+	},
+	"ahsarah_cement": {
+		"title": "水泥厂 · 哈夫克征水密令",
+		"lore": "【西侧水泥厂档案】零号大坝动工当年，哈夫克工程队将上游河谷强行淹没。大坝守将「赤枭·赛伊德」的家乡村庄与父亲便毁于那场清场，从此这名荒漠猎人之子立誓向所有外来掠夺者复仇。",
+		"reward_score": 30,
+		"reward_title": "水泥厂工业物资"
+	},
+	"ahsarah_bazaar": {
+		"title": "巴克什拱廊 · 老猎人手记",
+		"lore": "【巴克什砂岩集市手记】泛黄日记写着赛伊德最常挂在嘴边的猎人信条：「父亲教导我，好的猎人懂得尊重猎物……但你们，不配！」阿萨拉卫队士兵则总在掩体后高喊着「来！咱俩练练！」扑向来犯之敌。",
+		"reward_score": 30,
+		"reward_title": "巴克什商队物资"
+	},
+	"ahsarah_substation": {
+		"title": "变电站 · 曼德尔加密砖日志",
+		"lore": "【哈夫克集团（HAAVK）机密日志】东区变电站正为大坝与巴别通讯塔输送高压算力，用于测试极具价值的「曼德尔加密砖（MandelBrick）」——全息青蓝立方体内部封存着最高等级加密档案。",
+		"reward_score": 35,
+		"reward_title": "变电站科技物资"
+	},
+	"ahsarah_fortress": {
+		"title": "行政堡垒 · 赤枭与非洲之心档案",
+		"lore": "【阿萨拉行政堡垒绝密】传闻中北非最璀璨的旷世大红「非洲之心」曾短暂现身行政堡垒金库！普通行动中「赤枭·赛伊德」亲率卫队驻守此地，擅长翻滚位移与燃烧弹封路，切忌原地硬刚。",
+		"reward_score": 40,
+		"reward_title": "堡垒金库秘藏"
+	},
+	"ahsarah_dam": {
+		"title": "大坝观景台 · 军阀留声机残页",
+		"lore": "【机密行动 · 军阀雷斯档案】出身阿萨拉旧贵族的军阀「雷斯」最爱在炮火连天中摇响古董黄铜留声机，边听古典交响乐边率重甲霰弹卫队碾压对手：「没有交响乐的战场，简直粗俗不堪！」",
+		"reward_score": 45,
+		"reward_title": "大坝特勤秘藏"
+	}
+}
 
 const HERITAGE_LORE_VARIANTS := {
 	"cave_hearth": [
@@ -57,6 +99,7 @@ var spell_speak_btn: Button
 var swap_button: Button
 var gate: Node3D
 var gate_plaque: Label3D
+var stockade_root: Node3D
 var grace = 0.0
 var began = 0.0
 var rng := RandomNumberGenerator.new()
@@ -65,28 +108,55 @@ func setup(g):
 	game = g
 	rng.randomize()
 	data = JSON.parse_string(FileAccess.get_file_as_string("res://data/exploration/grade5a.json"))
-	_mark("clue", game.Layout.CLUE, "巡护员的纸条", Color("d1c79b"))
-	_mark("english", game.Layout.CLUE_LOOT, "路牌旁的封存补给", Color("7c8b5b"))
-	_mark("poem", game.Layout.POEM, "山路古诗石碑", Color("777b68"))
-	_mark("math", game.Layout.MATH, "巡护站 · 近道机关", Color("5d6a50"))
-	_mark("intel_container", game.Layout.PARKOUR_CONTAINERS + Vector3(5.6, 0, 2.5), "战地线报 #1 · 西岭货柜", Color("6ce3b8"))
-	_mark("intel_cleft", game.Layout.CLEFT_CACHE + Vector3(12.0, 0, 2.0), "战地线报 #2 · 双岩秘藏", Color("6ce3b8"))
-	_mark("intel_cave", game.Layout.MATH + Vector3(-2.6, 0, -1.8), "战地线报 #3 · 石窟密电", Color("ffd15c"))
-	_mark("intel_roof", game.Layout.SHELTER_BAMBOO + Vector3(1.6, 0, 3.8), "战地线报 #4 · 棚顶与高塔", Color("cf8aff"))
-	_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
-	_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
-	var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
-	_mark("cliff_inscription", game.Layout.BAMBOO_MAZE_MOYA + Vector3(-0.05, 0, 0.0), "摩崖石刻《竹石清音》", Color("e8b878"))
-	_mark("cave_mural", Vector3(cave_c.x - 2.45, 0, cave_c.z + 2.85), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
-	_mark("cave_hearth", Vector3(cave_c.x + 0.55, 0, cave_c.z - 2.35), "寒潭茶灶与古竹简", Color("ffd15c"))
-	_build_shortcut_stockade()
 	_ui()
+	rebuild_for_map()
+
+func rebuild_for_map():
+	for n in nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	nodes.clear()
+	node_labels.clear()
+	if is_instance_valid(gate):
+		gate.queue_free()
+		gate = null
+	if is_instance_valid(stockade_root):
+		stockade_root.queue_free()
+		stockade_root = null
+	gate_plaque = null
+
+	if game.is_ahsarah_map():
+		var al = game.active_layout
+		_mark("ahsarah_oasis", al.INTEL_OASIS, "绿洲前哨 · G.T.I. 跨界简报", Color("56e8ff"))
+		_mark("ahsarah_cement", al.INTEL_CEMENT, "水泥厂 · 哈夫克征水密令", Color("ffd15c"))
+		_mark("ahsarah_bazaar", al.INTEL_BAZAAR, "巴克什拱廊 · 老猎人手记", Color("f0a868"))
+		_mark("ahsarah_substation", al.INTEL_SUBSTATION, "变电站 · 曼德尔加密砖日志", Color("3ae8ff"))
+		_mark("ahsarah_fortress", al.INTEL_FORTRESS, "行政堡垒 · 赤枭与非洲之心档案", Color("ff7868"))
+		_mark("ahsarah_dam", al.INTEL_DAM_VIEW, "大坝观景台 · 军阀留声机残页", Color("f6c34e"))
+	else:
+		_mark("clue", game.Layout.CLUE, "巡护员的纸条", Color("d1c79b"))
+		_mark("english", game.Layout.CLUE_LOOT, "路牌旁的封存补给", Color("7c8b5b"))
+		_mark("poem", game.Layout.POEM, "山路古诗石碑", Color("777b68"))
+		_mark("math", game.Layout.MATH, "巡护站 · 近道机关", Color("5d6a50"))
+		_mark("intel_container", game.Layout.PARKOUR_CONTAINERS + Vector3(5.6, 0, 2.5), "战地线报 #1 · 西岭货柜", Color("6ce3b8"))
+		_mark("intel_cleft", game.Layout.CLEFT_CACHE + Vector3(12.0, 0, 2.0), "战地线报 #2 · 双岩秘藏", Color("6ce3b8"))
+		_mark("intel_cave", game.Layout.MATH + Vector3(-2.6, 0, -1.8), "战地线报 #3 · 石窟密电", Color("ffd15c"))
+		_mark("intel_roof", game.Layout.SHELTER_BAMBOO + Vector3(1.6, 0, 3.8), "战地线报 #4 · 棚顶与高塔", Color("cf8aff"))
+		_mark("recon_radio", game.Layout.RECON_RADIO, "东岭侦察电台 · 抢修扫图", Color("56e8ff"))
+		_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
+		var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
+		_mark("cliff_inscription", game.Layout.BAMBOO_MAZE_MOYA + Vector3(-0.05, 0, 0.0), "摩崖石刻《竹石清音》", Color("e8b878"))
+		_mark("cave_mural", Vector3(cave_c.x - 2.45, 0, cave_c.z + 2.85), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
+		_mark("cave_hearth", Vector3(cave_c.x + 0.55, 0, cave_c.z - 2.35), "寒潭茶灶与古竹简", Color("ffd15c"))
+		# v0.9.0 Dimensional Rift Wall interaction anchor directly behind the skylight ("一线天光") in Yanxia Cave!
+		_mark("dimensional_rift", Vector3(cave_c.x - 0.95, 0, cave_c.z - 4.42), "次元石壁 · 跨界裂隙", Color("5ef5e8"))
+		_build_shortcut_stockade()
 	reset()
 
 func _build_shortcut_stockade():
 	## v0.8.1 FB-6: Valley-spanning fortified timber palisade wall (x = 1.6..19.6 at z = -62)
 	## anchored to the west pass ridge & east creek embankment, with central lockable wooden gate at x = 10!
-	var stockade_root := Node3D.new()
+	stockade_root = Node3D.new()
 	stockade_root.name = "MathShortcutStockade"
 	add_child(stockade_root)
 
@@ -221,7 +291,10 @@ func _build_shortcut_stockade():
 
 func _mark(id: String, at: Vector3, label: String, color: Color):
 	var node = Node3D.new()
-	node.position = game.Layout.on_ground(at)
+	if id == "dimensional_rift":
+		node.position = Vector3(at.x, float(game.Layout.CAVE_FLOOR_Y) + 0.026, at.z)
+	else:
+		node.position = game.active_layout.on_ground(at)
 	node.set_meta("explore_id", id)
 	node.set_meta("prompt", label)
 	add_child(node)
@@ -298,17 +371,25 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		glow.light_energy = 1.25
 		glow.omni_range = 5.4
 		node.add_child(glow)
-	elif id in HERITAGE_IDS:
+	elif id in HERITAGE_IDS or id == "dimensional_rift":
 		var h_ring := MeshInstance3D.new()
 		var h_torus := TorusMesh.new()
-		h_torus.inner_radius = 0.30
-		h_torus.outer_radius = 0.38
+		h_torus.inner_radius = 0.36 if id == "dimensional_rift" else 0.30
+		h_torus.outer_radius = 0.46 if id == "dimensional_rift" else 0.38
 		h_torus.rings = 18
 		h_torus.ring_segments = 6
 		h_ring.mesh = h_torus
 		h_ring.position = Vector3(0.0, 0.05, 0.0)
 		h_ring.material_override = game._material(color, true)
 		node.add_child(h_ring)
+	elif id in AHSARAH_EXPLORE_IDS:
+		# Sleek sunlit desert tactical intel field terminal
+		game._mesh_box(node, Vector3(0, 0.45, 0), Vector3(0.62, 0.90, 0.48), Color("4e565e"), true)
+		var scr: MeshInstance3D = game._mesh_box(node, Vector3(0, 1.08, 0), Vector3(0.76, 0.46, 0.14), Color("16262e"), false)
+		scr.rotation_degrees.x = -18.0
+		var glow_scr: MeshInstance3D = game._mesh_box(node, Vector3(0, 1.09, 0.075), Vector3(0.64, 0.34, 0.02), color, false)
+		glow_scr.rotation_degrees.x = -18.0
+		glow_scr.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	else:
 		var timber_mat = StandardMaterial3D.new()
 		timber_mat.albedo_color = Color("7b684e")
@@ -342,6 +423,10 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		prompt.position = Vector3(0.0, 1.68, -0.82)
 		prompt.pixel_size = 0.0038
 		prompt.text = "寒潭茶灶与先民竹简 · [F]"
+	elif id == "dimensional_rift":
+		prompt.position = Vector3(0.0, 0.88, 0.25)
+		prompt.pixel_size = 0.0032
+		prompt.text = "按 [F] 查探次元石壁"
 	prompt.visibility_range_end = 15
 	node_labels[id] = {"label": prompt, "base_text": prompt.text, "base_color": game.GOLD}
 	nodes.append(node)
@@ -547,6 +632,10 @@ func reset():
 	for hid in HERITAGE_IDS:
 		states[hid] = false
 		states[hid + "_claimed"] = false
+	states["dimensional_rift"] = false
+	for aid in AHSARAH_EXPLORE_IDS:
+		states[aid] = false
+		states[aid + "_claimed"] = false
 	revealed_secrets = {}
 	radar_scan_active = false
 	busy = false
@@ -574,11 +663,30 @@ func reset():
 		"reward_value": 50,
 		"reward_rarity": 2,
 	}
+	current_items["dimensional_rift"] = {
+		"title": "烟霞古洞 · 次元石壁铭文共鸣",
+		"question": "一线天光正后方的古老次元石壁正迸发沙金与青蓝双色裂隙！拼写正确英语口令即可彻底破除封印，永久开启全新沙漠特战战场【阿萨拉堡垒】！",
+		"explanation": "✦ 次元石壁已彻底开启！新战场【阿萨拉堡垒】已永久写入存档，下次返回营地即可自由切换出击！",
+		"source": "烟霞古洞次元裂隙 · 跨界开启试炼",
+		"reward_score": 60,
+	}
+	for aid in AHSARAH_EXPLORE_IDS:
+		var spec: Dictionary = AHSARAH_LORE_SPECS[aid]
+		current_items[aid] = {
+			"title": str(spec.title),
+			"question": str(spec.lore),
+			"explanation": "情报破译完成！已记录 2035 阿萨拉战区档案并开启随机战利品补给。",
+			"source": "阿萨拉战区档案 · 175词教材随机拼写",
+			"reward_score": int(spec.reward_score),
+			"reward_title": str(spec.reward_title),
+		}
+		current_lore_snippets[aid] = str(spec.lore)
 	_pick_random_spell_words()
 	if is_instance_valid(overlay):
 		overlay.hide()
-	game.Props.set_enabled(gate, true)
-	gate.rotation = Vector3.ZERO
+	if is_instance_valid(gate):
+		game.Props.set_enabled(gate, true)
+		gate.rotation = Vector3.ZERO
 	if is_instance_valid(gate_plaque):
 		gate_plaque.visible = true
 	for n in nodes:
@@ -612,10 +720,20 @@ func update(delta: float):
 
 func open(node: Node3D):
 	var id: String = node.get_meta("explore_id")
-	if id in ["cave_mural", "cave_hearth"] and is_instance_valid(game.cave_warden) and game.cave_warden.is_alive() and game.cave_warden.state == "hunt":
+	if id in ["cave_mural", "cave_hearth", "dimensional_rift"] and is_instance_valid(game.cave_warden) and game.cave_warden.is_alive() and game.cave_warden.state == "hunt":
 		game.play_sfx("warning_lock", -10)
 		game._notice("⚠ 古洞循音石卫正在追击！请先潜行转移甩开、[G]烟雾掩护或将其击败后再探查古迹！", Color("ff8080"))
 		return
+	if id == "dimensional_rift":
+		if game.rules.is_ahsarah_permanently_unlocked():
+			game.play_sfx("cipher_unlock", -11)
+			game._notice("✦ 次元石壁已永久连通【阿萨拉堡垒】！返回营地主菜单即可随时切换进入新战区！", Color("7cf7ec"))
+			return
+		var warden_down_conf: bool = bool(game.confidential_warden_slain_this_run) or (game.rules.is_confidential() and is_instance_valid(game.cave_warden) and not game.cave_warden.is_alive())
+		if not warden_down_conf:
+			game.play_sfx("hit_wrong", -13)
+			game._notice("🔒 次元石壁封印中！需在烟山【机密行动】中击败「古洞循音石卫」，方可唤醒一线天光后方的跨界裂隙！", Color("ffd15c"))
+			return
 	if id == "english" and not states.clue:
 		game._notice("补给箱贴着封条！先看附近巡护员纸条上的方位提示。")
 		game.play_sfx("hit_wrong", -14)
@@ -822,6 +940,16 @@ func _complete_solved_node(id: String, lead_prefix: String):
 			game.player.add_reserve_ammo(radio_ammo)
 		game.play_sfx("radio_scan", -10)
 		game._notice("东岭雷达全图扫描已激活！+45分 +1烟雾EMP +%d备弹" % radio_ammo, Color("7ceeff"))
+	elif first_solve and id == "dimensional_rift":
+		game.rules.score += 60
+		game.play_sfx("boss_phase", -8)
+		if game.has_method("unlock_ahsarah_map"):
+			game.unlock_ahsarah_map("dimensional_rift")
+	elif first_solve and id in AHSARAH_EXPLORE_IDS:
+		var a_pts := int(item.get("reward_score", 30))
+		game.rules.score += a_pts
+		game.play_sfx("cipher_unlock", -10)
+		game._notice("破译阿萨拉战区档案！获得 +%d 撤离积分，可领取随机品质补给" % a_pts, game.GOLD)
 	elif first_solve and id == "airdrop_beacon":
 		game.rules.score += 40
 		var drop_ammo := 12 if game.rules.is_confidential() else 10
@@ -940,4 +1068,10 @@ func is_secret_revealed(secret_key: String) -> bool:
 	return radar_scan_active or bool(revealed_secrets.get(secret_key, false))
 
 func status_text() -> String:
+	if is_instance_valid(game) and game.is_ahsarah_map():
+		var ac := 0
+		for aid in AHSARAH_EXPLORE_IDS:
+			if bool(states.get(aid, false)):
+				ac += 1
+		return "阿萨拉情报 %d/%d" % [ac, AHSARAH_EXPLORE_IDS.size()]
 	return "探%d/3·秘%d/6·迹%d/3" % [completed(), secrets_completed(), heritage_completed()]

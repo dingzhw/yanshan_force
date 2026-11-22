@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.6" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.6 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.9.0" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.0 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -41,7 +41,7 @@ func run():
 		else:
 			supply_count += 1
 	verify(supply_count == 11 and tac_counts["ammo_crate"] >= 9 and active_ammo_norm <= 6 and tac_counts["smoke_emp"] >= 4 and tac_counts["energy_drink"] >= 3, "v0.8.2_dev2 D2-2: places 11 supply caches and limits active Normal ground ammo crates to <= 6")
-	verify(game.exploration.nodes.size() == 13, "v0.6.2 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon + 3 Yanxia heritage")
+	verify(game.exploration.nodes.size() == 14, "v0.9.0 spawns 4 classic exploration + 4 field intel + recon radio + airdrop beacon + 3 Yanxia heritage + Dimensional Rift Wall")
 	for raw in [game.Layout.SPAWN, game.Layout.POEM, game.Layout.MATH, game.Layout.STATIONS[1].at, game.Layout.STATIONS[2].at, game.Layout.PASS_OUTPOST, game.exit_position, Vector3(-48, 0, -100)]:
 		var at = game.Layout.on_ground(raw)
 		var hit = ray(at + Vector3.UP * 5, at - Vector3.UP * 2)

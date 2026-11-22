@@ -86,6 +86,15 @@ var ov_slash_fired: bool = false
 const OVERLORD_R2_DURATION := 10.0
 const OVERLORD_RECOVERY_DURATION := 4.5
 const OVERLORD_TRIGGER_RADIUS := 22.0
+const AHSARAH_CHARS_GLB := "res://assets/slice/v090_ahsarah_characters.glb"
+
+var is_ahsarah_unit: bool = false
+var ahsarah_faction: String = "ahsarah"
+var saeed_cloak: Node3D = null
+var saeed_roll_cd: float = 5.2
+var saeed_roll_left: float = 0.0
+var saeed_roll_dir: Vector3 = Vector3.ZERO
+var reis_gramophone: Node3D = null
 
 const OVERLORD_SHIELD_SPECS := [
 	{"part": "左肩甲", "pos": Vector3(-2.15, 3.12, 0.92)},
@@ -189,7 +198,13 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	zone = zone_index
 	option = index
 	archetype = bot_type
+	is_ahsarah_unit = (is_instance_valid(controller) and is_instance_valid(controller.game) and controller.game.is_ahsarah_map())
+	ahsarah_faction = str(controller.zone_info(zone_index).get("faction", "ahsarah")) if (is_ahsarah_unit and is_instance_valid(controller)) else "yanshan"
 	is_skyfall_overlord = (bot_type == Archetype.BOSS_WARDEN and skyfall_mode)
+	saeed_cloak = null
+	reis_gramophone = null
+	saeed_roll_cd = 5.0
+	saeed_roll_left = 0.0
 	skyfall_state = "idle" if is_skyfall_overlord else "landed"
 	skyfall_y_offset = 0.0
 	skyfall_vel = 0.0
@@ -230,14 +245,14 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	cover = barrier
 	side = -1.0 if index % 2 == 0 else 1.0
 	if is_skyfall_overlord:
-		home = combat.game.Layout.on_ground(combat.game.Layout.CLOUD_ARENA_CENTER)
+		home = combat.game.active_layout.on_ground(combat.game.active_layout.CLOUD_ARENA_CENTER)
 	else:
-		home = combat.game.Layout.on_ground(cover + Vector3(side * 1.35, 0, -1.65))
+		home = combat.game.active_layout.on_ground(cover + Vector3(side * 1.35, 0, -1.65))
 	position = home + Vector3.UP * 0.06
 	patrol = [
 		home,
-		combat.game.Layout.on_ground(cover + Vector3(side * 1.85, 0, 0.55)),
-		combat.game.Layout.on_ground(cover + Vector3(side * 1.55, 0, -2.55))
+		combat.game.active_layout.on_ground(cover + Vector3(side * 1.85, 0, 0.55)),
+		combat.game.active_layout.on_ground(cover + Vector3(side * 1.55, 0, -2.55))
 	]
 	patrol_index = 1
 	hover_clock = index * 1.3
@@ -372,7 +387,8 @@ func _build_model():
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
 	var shield_y := 1.70 if archetype == Archetype.BOSS_WARDEN else (1.40 if archetype == Archetype.SNIPER_GUARD else (1.38 if archetype == Archetype.SCOUT_DRONE else 1.34))
-	shield_area.position = Vector3(0, shield_y, 0.66 if archetype == Archetype.BOSS_WARDEN else 0.46)
+	var shield_z := (0.98 if is_ahsarah_unit else 0.66) if archetype == Archetype.BOSS_WARDEN else (0.58 if is_ahsarah_unit else 0.46)
+	shield_area.position = Vector3(0, shield_y, shield_z)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
 	shield_area.monitoring = false
@@ -404,7 +420,16 @@ func _build_model():
 	shield_material = screen_box.material_override
 	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	var role_text = ["雾隐突击兵", "雾隐侦察蜂", "雾隐狙击卫", "★ 雾隐机关王·玄铁词尊" if is_skyfall_overlord else "★ 雾隐先锋·铁面词卫"][archetype]
+	var role_text: String
+	if is_ahsarah_unit:
+		if archetype == Archetype.BOSS_WARDEN:
+			role_text = "★ 阿萨拉军阀·雷斯" if is_skyfall_overlord else "★ 赤枭·赛伊德"
+		elif ahsarah_faction == "haavk":
+			role_text = ["哈夫克突击卫", "哈夫克侦察机", "哈夫克狙击卫", "哈夫克统领"][archetype]
+		else:
+			role_text = ["阿萨拉游击兵", "阿萨拉斥候机", "阿萨拉沙地狙手", "阿萨拉首领"][archetype]
+	else:
+		role_text = ["雾隐突击兵", "雾隐侦察蜂", "雾隐狙击卫", "★ 雾隐机关王·玄铁词尊" if is_skyfall_overlord else "★ 雾隐先锋·铁面词卫"][archetype]
 	base_tag_text = "%s · %s" % [char(65 + (option % 8)), role_text]
 	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.22 if archetype == Archetype.BOSS_WARDEN else 0.20, 0.055), 18, Color("143832"))
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
@@ -464,7 +489,35 @@ func _build_drone_chassis(game):
 	visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.30, 0.10, 0.04), Color("ffb35c")).material_override
 	visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
+func _attach_ahsarah_rig(game, rig_name: String, sc: float = 1.0) -> Node3D:
+	if not ResourceLoader.exists(AHSARAH_CHARS_GLB):
+		return null
+	if not game.scene_cache.has(AHSARAH_CHARS_GLB):
+		game.scene_cache[AHSARAH_CHARS_GLB] = load(AHSARAH_CHARS_GLB)
+	var inst: Node3D = game.scene_cache[AHSARAH_CHARS_GLB].instantiate()
+	var tgt = inst.find_child(rig_name, true, false)
+	if tgt is Node3D:
+		if tgt.get_parent():
+			tgt.get_parent().remove_child(tgt)
+		tgt.owner = null
+		tgt.position = Vector3.ZERO
+		tgt.rotation.y = PI   # Blender characters face -Z; Godot WordSoldier faces +Z toward player!
+		tgt.scale = Vector3.ONE * sc
+		visual_root.add_child(tgt)
+		inst.queue_free()
+		return tgt
+	inst.queue_free()
+	return null
+
 func _build_assault_chassis(game):
+	if is_ahsarah_unit:
+		var rig_nm := "haavk_trooper" if ahsarah_faction == "haavk" else "ahsarah_guard"
+		var rig := _attach_ahsarah_rig(game, rig_nm, 1.04)
+		if rig != null:
+			var vcol := Color("36e8ff") if ahsarah_faction == "haavk" else Color("ffaa33")
+			visor = game._mesh_box(visual_root, Vector3(0, 1.76, 0.24), Vector3(0.28, 0.08, 0.04), vcol).material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			return
 	var armor_mat = _ceramic_plate_mat(Color("42665c") if zone % 2 == 0 else Color("3c5960"), zone % 2 == 0)
 	var dark_mat = _metal_mat(Color("1f2b2b"), 0.20, 0.78)
 	var bronze_mat = _bronze_trim_mat()
@@ -500,6 +553,13 @@ func _build_assault_chassis(game):
 		legs.append(leg)
 
 func _build_sniper_chassis(game):
+	if is_ahsarah_unit:
+		var rig_nm := "haavk_trooper" if ahsarah_faction == "haavk" else "ahsarah_guard"
+		var rig := _attach_ahsarah_rig(game, rig_nm, 1.12)
+		if rig != null:
+			visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.32, 0.09, 0.05), Color("ff4d6d")).material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			return
 	var heavy_mat = _ceramic_plate_mat(Color("3b3632"), false)
 	var trim_mat = _bronze_trim_mat(Color("b68542"))
 	var dark_mat = _metal_mat(Color("1c2226"), 0.22, 0.76)
@@ -525,6 +585,64 @@ func _build_sniper_chassis(game):
 		legs.append(leg)
 
 func _build_boss_chassis(game):
+	if is_ahsarah_unit:
+		if is_skyfall_overlord:
+			# Confidential Mode Boss: 「阿萨拉军阀·雷斯」 (Warlord Reis)
+			ov_arm_l = null
+			ov_arm_r = null
+			ov_head = null
+			ov_halo = null
+			var r_rig := _attach_ahsarah_rig(game, "boss_reis", 1.32)
+			if r_rig != null:
+				r_rig.name = "WarlordReisRig"
+				ov_arm_l = r_rig.find_child("reis_arm_l", true, false) as Node3D
+				ov_arm_r = r_rig.find_child("reis_arm_r", true, false) as Node3D
+				reis_gramophone = r_rig.find_child("reis_gramophone", true, false) as Node3D
+			var rv_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.06, 0.36), Vector3(0.46, 0.12, 0.05), Color("ffd15c"))
+			visor = rv_box.material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			var rc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.25, 0.56), Vector3(0.48, 0.48, 0.14), Color("ff9f38"))
+			core_material = rc_box.material_override
+			core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			core_area = Area3D.new()
+			core_area.set_meta("hit_zone", "core")
+			core_area.position = Vector3(0, 2.25, 0.62)
+			core_area.collision_layer = 0
+			core_area.collision_mask = 0
+			add_child(core_area)
+			var rcol := CollisionShape3D.new()
+			var rshp := BoxShape3D.new()
+			rshp.size = Vector3(0.64, 0.64, 0.36)
+			rcol.shape = rshp
+			core_area.add_child(rcol)
+			return
+		else:
+			# Normal Mode Boss: 「赤枭·赛伊德」 (Captain Saeed)
+			var s_rig := _attach_ahsarah_rig(game, "boss_saeed", 1.12)
+			if s_rig != null:
+				s_rig.name = "CaptainSaeedRig"
+				saeed_cloak = s_rig.find_child("saeed_cloak_pivot", true, false) as Node3D
+				ov_arm_l = s_rig.find_child("saeed_arm_l", true, false) as Node3D
+				ov_arm_r = s_rig.find_child("saeed_arm_r", true, false) as Node3D
+			var sc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 1.56, 0.48), Vector3(0.40, 0.40, 0.12), Color("ff6c24"))
+			core_material = sc_box.material_override
+			core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			core_area = Area3D.new()
+			core_area.set_meta("hit_zone", "core")
+			core_area.position = Vector3(0, 1.56, 0.54)
+			core_area.collision_layer = HIT_LAYER
+			core_area.collision_mask = 0
+			core_area.monitoring = false
+			core_area.monitorable = false
+			add_child(core_area)
+			var scshape := BoxShape3D.new()
+			scshape.size = Vector3(0.56, 0.52, 0.34)
+			var sccol := CollisionShape3D.new()
+			sccol.shape = scshape
+			core_area.add_child(sccol)
+			visor = game._mesh_box(visual_root, Vector3(0, 2.30, 0.34), Vector3(0.36, 0.10, 0.05), Color("ffaa22")).material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			return
 	if is_skyfall_overlord:
 		var path := "res://assets/slice/v082_bosses.glb"
 		var loaded_mesh := false
@@ -893,6 +1011,37 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 					(sd.frame_mat as StandardMaterial3D).albedo_color = ok_col
 	if not engaged or stun_left > 0.0 or knockdown_left > 0.0 or combat.player_in_smoke():
 		return
+	# v0.9.0 Captain Saeed ("赤枭·赛伊德") billowing crimson cloak & agile sideways Tactical Evade Roll!
+	if is_ahsarah_unit and not is_skyfall_overlord:
+		if is_instance_valid(saeed_cloak):
+			saeed_cloak.rotation.x = sin(hover_clock * 4.5) * 0.14 + (0.48 if saeed_roll_left > 0.0 else 0.08)
+		if saeed_roll_left > 0.0:
+			saeed_roll_left = maxf(0.0, saeed_roll_left - delta)
+			var dst_r := position + saeed_roll_dir * (9.5 * delta)
+			var camp_c_r: Vector3 = combat.zone_center(zone)
+			var off_r := Vector2(dst_r.x - camp_c_r.x, dst_r.z - camp_c_r.z)
+			if off_r.length() <= 17.5:
+				position = combat.game.active_layout.on_ground(dst_r) + Vector3.UP * 0.06
+			visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.42 * signf(saeed_roll_dir.x if absf(saeed_roll_dir.x) > 0.1 else 1.0), minf(delta * 14.0, 1.0))
+			if saeed_roll_left <= 0.0:
+				visual_root.rotation.z = 0.0
+			return
+		saeed_roll_cd -= delta
+		if saeed_roll_cd <= 0.0 and distance < 32.0 and vanguard_move_state == "idle":
+			saeed_roll_cd = 5.4 if boss_phase >= 2 else 4.2
+			saeed_roll_left = 0.48
+			var to_p_s := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z).normalized()
+			var right_s := to_p_s.cross(Vector3.UP).normalized()
+			saeed_roll_dir = right_s * (1.0 if randf() < 0.5 else -1.0)
+			combat.game.play_sfx("boss_slash", -11)
+			var roll_lines := [
+				"🦅 赤枭·赛伊德翻滚位移：『我看到你了，小耗子！』",
+				"🦅 赤枭·赛伊德侧闪隐蔽：『你掉进陷阱里了！』",
+				"🦅 赤枭·赛伊德低吼：『这片荒漠与大坝属于阿萨拉！』"
+			]
+			combat.game._notice(roll_lines[randi() % roll_lines.size()], Color("ff9e58"))
+			return
+
 	# Action Move Set for Normal Mode Boss (Phase 2+: Shield-Charge Slam; Phase 3: Horizontal Energy Wave!)
 	if boss_phase >= 3:
 		return
@@ -903,7 +1052,10 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 				vanguard_move_state = "wave_windup"
 				vanguard_move_timer = 0.90
 				combat.game.play_sfx("warning_lock", -9)
-				combat.game._notice("⚡ 铁面词卫蓄力【震荡冲击波】！横向走位躲开直线波束！", Color("ff9e66"))
+				if is_ahsarah_unit:
+					combat.game._notice("🔥 赤枭·赛伊德拉弓齐射【猎枭弩波】！横向走位躲开轨迹！", Color("ff8048"))
+				else:
+					combat.game._notice("⚡ 铁面词卫蓄力【震荡冲击波】！横向走位躲开直线波束！", Color("ff9e66"))
 			else:
 				vanguard_move_state = "charge_windup"
 				vanguard_move_timer = 0.95
@@ -914,9 +1066,12 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 				var off_c := Vector2(raw_dst.x - camp_c.x, raw_dst.z - camp_c.z)
 				if off_c.length() > 24.0:
 					off_c = off_c.normalized() * 24.0
-				vanguard_charge_target = combat.game.Layout.on_ground(Vector3(camp_c.x + off_c.x, 0.0, camp_c.z + off_c.y))
+				vanguard_charge_target = combat.game.active_layout.on_ground(Vector3(camp_c.x + off_c.x, 0.0, camp_c.z + off_c.y))
 				combat.game.play_sfx("boss_phase", -10)
-				combat.game._notice("⚡ 铁面词卫蓄力【冲锋震地】！迅速横向闪避冲击点！", Color("ffd15c"))
+				if is_ahsarah_unit:
+					combat.game._notice("🔥 赤枭·赛伊德突袭投掷【燃烧弹红圈】！『猎杀时间到了！』", Color("ff8048"))
+				else:
+					combat.game._notice("⚡ 铁面词卫蓄力【冲锋震地】！迅速横向闪避冲击点！", Color("ffd15c"))
 	elif vanguard_move_state == "charge_windup":
 		vanguard_move_timer -= delta
 		if is_instance_valid(visor):
@@ -1205,6 +1360,10 @@ func trigger_skyfall():
 	collision_layer = HIT_LAYER
 	if is_instance_valid(head_area):
 		head_area.collision_layer = HIT_LAYER
+	if is_ahsarah_unit:
+		# Warlord Reis marches directly onto the Administrative Fortress Courtyard with his brass gramophone!
+		force_land_skyfall()
+		return
 	skyfall_state = "dropping"
 	skyfall_y_offset = 32.0
 	skyfall_vel = -22.0
@@ -1279,21 +1438,40 @@ func trigger_ultimate_tiandi():
 	if is_instance_valid(combat) and is_instance_valid(combat.arena):
 		_cleanup_ultimate_nodes()
 		var m_root := Node3D.new()
-		m_root.name = "MirrorYanshanUltimate"
-		var arena_c: Vector3 = combat.game.Layout.CLOUD_ARENA_CENTER
-		var arena_y: float = float(combat.game.Layout.CLOUD_ARENA_Y)
+		m_root.name = "ReisArtilleryUltimate" if is_ahsarah_unit else "MirrorYanshanUltimate"
+		var arena_c: Vector3 = combat.game.active_layout.CLOUD_ARENA_CENTER
+		var arena_y: float = float(combat.game.active_layout.CLOUD_ARENA_Y)
 		m_root.position = Vector3(arena_c.x, arena_y + 44.0, arena_c.z)
 		combat.arena.add_child(m_root)
-		var m_path := "res://assets/slice/v086_mirror_yanshan.glb"
-		if ResourceLoader.exists(m_path):
-			if not combat.game.scene_cache.has(m_path):
-				combat.game.scene_cache[m_path] = load(m_path)
-			var minst: Node3D = combat.game.scene_cache[m_path].instantiate()
-			m_root.add_child(minst)
-		mirror_mountain_node = m_root
-		combat.game.play_sfx("boss_ultimate", -4)
-		combat.game.screen_flash.color = Color(1.0, 0.56, 0.16, 0.24)
-		combat.game._notice("☄ 终极技【天地万象】发动！！倒悬镜像烟山伴金阵压顶合拢！！", Color("ff5252"))
+		if is_ahsarah_unit:
+			# Warlord Reis's Golden Symphony Artillery Ring descending over the Fortress Courtyard!
+			var ring := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 12.0
+			tm.outer_radius = 15.0
+			ring.mesh = tm
+			var rmat := StandardMaterial3D.new()
+			rmat.albedo_color = Color("ffb838")
+			rmat.emission_enabled = true
+			rmat.emission = Color("ff6228")
+			rmat.emission_energy_multiplier = 2.6
+			ring.material_override = rmat
+			m_root.add_child(ring)
+			mirror_mountain_node = m_root
+			combat.game.play_sfx("boss_ultimate", -4)
+			combat.game.screen_flash.color = Color(1.0, 0.56, 0.16, 0.24)
+			combat.game._notice("🎷 军阀·雷斯终极技【交响终曲 · 炮火洗地】！！『卫队！给我们的贵客奏响终曲！』", Color("ff6842"))
+		else:
+			var m_path := "res://assets/slice/v086_mirror_yanshan.glb"
+			if ResourceLoader.exists(m_path):
+				if not combat.game.scene_cache.has(m_path):
+					combat.game.scene_cache[m_path] = load(m_path)
+				var minst: Node3D = combat.game.scene_cache[m_path].instantiate()
+				m_root.add_child(minst)
+			mirror_mountain_node = m_root
+			combat.game.play_sfx("boss_ultimate", -4)
+			combat.game.screen_flash.color = Color(1.0, 0.56, 0.16, 0.24)
+			combat.game._notice("☄ 终极技【天地万象】发动！！倒悬镜像烟山伴金阵压顶合拢！！", Color("ff5252"))
 
 func _cleanup_ultimate_nodes():
 	if is_instance_valid(mirror_mountain_node):
@@ -1304,17 +1482,19 @@ func _cleanup_ultimate_nodes():
 		skyfall_beam_node = null
 
 func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engaged: bool):
-	# Always spin floating Dharma-Wheel Halo behind Overlord
+	# Always spin floating Dharma-Wheel Halo behind Overlord (or rhythmically bob Warlord Reis's brass gramophone!)
 	if is_instance_valid(ov_halo):
 		var h_spd := 9.5 if (overlord_ultimate_state != "none" or ov_move_state == "dharma_barrage") else (4.6 if overlord_round >= 2 else 1.8)
 		ov_halo.rotation.z += delta * h_spd
+	if is_instance_valid(reis_gramophone):
+		reis_gramophone.rotation.y = sin(hover_clock * 3.2) * 0.24
 	if is_instance_valid(ov_head):
 		ov_head.rotation.y = sin(hover_clock * 1.4) * 0.10
 
-	# 1) Ultimate「天地万象」choreography (descending -> impact crush -> holding -> lifting -> 4.5s healing breather -> rearm R2!)
+	# 1) Ultimate choreography (descending -> impact crush -> holding -> lifting -> 4.5s healing breather -> rearm R2!)
 	if overlord_ultimate_state != "none":
 		overlord_ultimate_timer = maxf(0.0, overlord_ultimate_timer - delta)
-		var arena_y: float = float(combat.game.Layout.CLOUD_ARENA_Y)
+		var arena_y: float = float(combat.game.active_layout.CLOUD_ARENA_Y)
 		if is_instance_valid(mirror_mountain_node):
 			mirror_mountain_node.rotation.y += delta * 0.72
 		if overlord_ultimate_state == "descending":
@@ -1397,13 +1577,16 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 				ov_move_timer = 0.85
 				var dir_to := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z).normalized()
 				var raw_dst := player_at - dir_to * 6.5
-				var arena_c: Vector3 = combat.game.Layout.CLOUD_ARENA_CENTER
+				var arena_c: Vector3 = combat.game.active_layout.CLOUD_ARENA_CENTER
 				var off_a := Vector2(raw_dst.x - arena_c.x, raw_dst.z - arena_c.z)
 				if off_a.length() > 15.5:
 					off_a = off_a.normalized() * 15.5
-				ov_dash_target = combat.game.Layout.on_ground(Vector3(arena_c.x + off_a.x, 0.0, arena_c.z + off_a.y))
+				ov_dash_target = combat.game.active_layout.on_ground(Vector3(arena_c.x + off_a.x, 0.0, arena_c.z + off_a.y))
 				combat.game.play_sfx("boss_slash", -8)
-				combat.game._notice("⚡ 玄铁词尊施展【瞬步逼近】！注意走位拉扯！", Color("ffd15c"))
+				if is_ahsarah_unit:
+					combat.game._notice("🎷 军阀·雷斯重甲突进！『在阿萨拉，规矩由枪口和黄金说了算！』", Color("ffd15c"))
+				else:
+					combat.game._notice("⚡ 玄铁词尊施展【瞬步逼近】！注意走位拉扯！", Color("ffd15c"))
 			elif mv_idx == 1 or (mv_idx == 0 and distance <= 9.5):
 				ov_move_state = "whirlwind"
 				ov_move_timer = 1.45
@@ -1570,8 +1753,8 @@ func _refresh_cover_poses(player_at: Vector3):
 		to_p = Vector3.BACK
 	var dir_p := to_p.normalized()
 	var right_v := dir_p.cross(Vector3.UP).normalized()
-	cover_goal = combat.game.Layout.on_ground(cover - dir_p * 1.42)
-	peek_goal = combat.game.Layout.on_ground(cover + right_v * side * 1.16 - dir_p * 0.78)
+	cover_goal = combat.game.active_layout.on_ground(cover - dir_p * 1.42)
+	peek_goal = combat.game.active_layout.on_ground(cover + right_v * side * 1.16 - dir_p * 0.78)
 
 func take_cover():
 	laser_beam.hide()

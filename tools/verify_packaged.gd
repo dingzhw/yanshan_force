@@ -29,9 +29,9 @@ func run():
 	verify(pro_scene is PackedScene, "standalone PCK loads prologue_chapter.tscn as valid PackedScene")
 	verify(bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)), "exported project enables audio/general/text_to_speech for OS TTS fallback")
 
-	# Full 331/331 offline voice OGG existence AND real AudioStream decode verification!
+	# Full 337/337 offline voice OGG existence AND real AudioStream decode verification!
 	var voice_manifest = JSON.parse_string(FileAccess.get_file_as_string("res://data/learning/voice_manifest.json"))
-	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 325)
+	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 337)
 	var missing_ogg: int = 0
 	var decode_failed_ogg: int = 0
 	var decoded_ogg_count: int = 0
@@ -80,8 +80,8 @@ func run():
 			missing_col_mesh += 1
 		if loot_ui_cls.load_collectible_icon(aid) == null:
 			missing_col_icon += 1
-	verify(art_ids.size() == 108 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and ResourceLoader.exists("res://assets/slice/v086_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 108 sculpted PBR collectible meshes across v072+v086_collectibles.glb")
-	verify(art_ids.size() == 108 and missing_col_icon == 0, "standalone PCK contains all 108 studio-rendered collectible 2D icons")
+	verify(art_ids.size() == 114 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and ResourceLoader.exists("res://assets/slice/v086_collectibles.glb") and ResourceLoader.exists("res://assets/slice/v090_ahsarah_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 114 sculpted PBR collectible meshes across v072+v086+v090_ahsarah_collectibles.glb")
+	verify(art_ids.size() == 114 and missing_col_icon == 0, "standalone PCK contains all 114 studio-rendered collectible 2D icons")
 	for name in ["rifle", "crate", "rock_0", "rock_1", "rock_2", "rock_3", "rock_4", "rock_5"]:
 		verify(ResourceLoader.exists("res://assets/slice/" + name + ".glb"), "packaged model " + name)
 	for name in ["ground_color", "ground_normal", "tree_bark", "tree_needles", "tree_alpha"]:
@@ -129,6 +129,41 @@ func run():
 			lm_ok = (lmi.find_child("bridge_multi_arch", true, false) != null and lmi.find_child("tea_hill_pavilion", true, false) != null and lmi.find_child("cliff_stele", true, false) != null and lmi.find_child("arena_dragon_pillar", true, false) != null and lmi.find_child("arena_altar_rim", true, false) != null)
 			lmi.free()
 	verify(lm_ok, "standalone PCK v085_landmarks.glb contains all 5 Great Yanshan landmarks (bridge_multi_arch/tea_hill_pavilion/cliff_stele/arena_dragon_pillar/arena_altar_rim)")
+	var ah_assets_ok := (
+		ResourceLoader.exists("res://scripts/ahsarah_layout.gd")
+		and ResourceLoader.exists("res://scripts/ahsarah_world.gd")
+		and ResourceLoader.exists("res://assets/slice/v090_ahsarah_architecture.glb")
+		and ResourceLoader.exists("res://assets/slice/v090_ahsarah_characters.glb")
+		and ResourceLoader.exists("res://assets/slice/v090_ahsarah_collectibles.glb")
+		and ResourceLoader.exists("res://assets/slice/horizon_ahsarah.png")
+		and ResourceLoader.exists("res://assets/slice/ahsarah_sand_albedo.jpg")
+		and ResourceLoader.exists("res://assets/slice/ahsarah_sandstone_albedo.jpg")
+		and ResourceLoader.exists("res://assets/slice/ahsarah_concrete_albedo.jpg")
+		and ResourceLoader.exists("res://assets/slice/ahsarah_road_albedo.jpg")
+	)
+	verify(ah_assets_ok, "standalone PCK includes all v0.9.0 Ahsarah Fortress scripts, architecture/character/collectible GLBs, 360° horizon & PBR desert textures")
+	var ah_rig_ok := false
+	if ResourceLoader.exists("res://assets/slice/v090_ahsarah_characters.glb"):
+		var ch_p = load("res://assets/slice/v090_ahsarah_characters.glb")
+		if ch_p is PackedScene:
+			var chi: Node = ch_p.instantiate()
+			ah_rig_ok = (chi.find_child("boss_saeed", true, false) != null and chi.find_child("boss_reis", true, false) != null and chi.find_child("ahsarah_guard", true, false) != null and chi.find_child("haavk_trooper", true, false) != null)
+			chi.free()
+	verify(ah_rig_ok, "standalone PCK v090_ahsarah_characters.glb contains boss_saeed, boss_reis, ahsarah_guard & haavk_trooper rigs")
+	var ah_arch_ok := false
+	if ResourceLoader.exists("res://assets/slice/v090_ahsarah_architecture.glb"):
+		var arch_p = load("res://assets/slice/v090_ahsarah_architecture.glb")
+		if arch_p is PackedScene:
+			var aai: Node = arch_p.instantiate()
+			ah_arch_ok = (
+				aai.find_child("zero_dam_wall_monolith", true, false) != null
+				and aai.find_child("babel_radar_tower", true, false) != null
+				and aai.find_child("ahsarah_fortress_gatehouse", true, false) != null
+				and aai.find_child("brakkesh_sandstone_pavilion", true, false) != null
+				and aai.find_child("dimensional_rift_wall", true, false) != null
+			)
+			aai.free()
+	verify(ah_arch_ok, "standalone PCK v090_ahsarah_architecture.glb contains Zero Dam, Babel Tower, Ahsarah Gatehouse, Brakkesh Pavilion & Dimensional Rift Wall")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

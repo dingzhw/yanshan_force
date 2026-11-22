@@ -44,6 +44,30 @@ const NEST_SPOTS = [
 	{"id": "nest_north_creek_willow", "title": "北岭源头老柳根暗匣", "at": Vector3(12.0, 0.0, -182.0), "kind": "nest"}
 ]
 
+const AHSARAH_LOOSE_SPOTS = [
+	{"id": "ah_loose_oasis", "title": "绿洲前哨军用物资台", "at": Vector3(-5.8, 0.0, 12.2), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "ah_loose_cement", "title": "水泥厂筒仓石台", "at": Vector3(-42.0, 0.0, -52.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_bazaar", "title": "巴克什拱廊展示案", "at": Vector3(41.0, 0.0, -30.5), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_substation", "title": "变电站检修石台", "at": Vector3(43.5, 0.0, -90.5), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_barracks", "title": "西翼哨所弹药石台", "at": Vector3(-43.5, 0.0, -104.0), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "ah_loose_admin_w", "title": "行政堡垒西廊战备台", "at": Vector3(-13.5, 0.0, -121.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_admin_e", "title": "行政堡垒东廊机密台", "at": Vector3(13.5, 0.0, -121.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_helipad", "title": "停机坪撤离物资台", "at": Vector3(46.0, 0.0, -133.0), "y_off": 0.44, "pedestal": true, "high": true}
+]
+
+const AHSARAH_NEST_SPOTS = [
+	{"id": "ah_nest_oasis_palm", "title": "绿洲椰枣树根暗缝", "at": Vector3(-11.5, 0.0, 16.5), "kind": "crevice"},
+	{"id": "ah_nest_oasis_bank", "title": "绿洲水岸砂岩缝", "at": Vector3(-21.5, 0.0, 8.0), "kind": "crevice"},
+	{"id": "ah_nest_cement_yard", "title": "水泥厂货柜暗角", "at": Vector3(-37.5, 0.0, -42.5), "kind": "crevice"},
+	{"id": "ah_nest_bazaar_jar", "title": "巴克什陶罐暗格", "at": Vector3(45.5, 0.0, -24.5), "kind": "crevice"},
+	{"id": "ah_nest_bazaar_arch", "title": "拱门集市墙角藏点", "at": Vector3(34.0, 0.0, -49.5), "kind": "crevice"},
+	{"id": "ah_nest_substation", "title": "变电站围栏石隙", "at": Vector3(48.5, 0.0, -80.0), "kind": "crevice"},
+	{"id": "ah_nest_west_wall", "title": "西翼大坝沙袋暗囊", "at": Vector3(-50.5, 0.0, -112.0), "kind": "crevice"},
+	{"id": "ah_nest_fortress_w", "title": "行政堡垒西门暗缝", "at": Vector3(-11.0, 0.0, -106.0), "kind": "crevice"},
+	{"id": "ah_nest_fortress_e", "title": "行政堡垒东门暗缝", "at": Vector3(11.0, 0.0, -106.0), "kind": "crevice"},
+	{"id": "ah_nest_dam_overlook", "title": "大坝坡脚岩缝秘藏", "at": Vector3(18.0, 0.0, -142.0), "kind": "crevice"}
+]
+
 var game
 var rng := RandomNumberGenerator.new()
 var loose_nodes: Array = []
@@ -56,6 +80,16 @@ var spin_clock: float = 0.0
 func setup(g):
 	game = g
 	rng.randomize()
+	rebuild_for_map()
+
+func rebuild_for_map():
+	for n in loose_nodes + nest_nodes + drop_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	loose_nodes.clear()
+	nest_nodes.clear()
+	drop_nodes.clear()
+	overcharged_halos.clear()
 	_build_static_anchors()
 
 func interactable_nodes() -> Array:
@@ -68,11 +102,14 @@ func _build_static_anchors():
 	var crevice_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_karst_crevice")
 	drop_case_mesh = game.landscape._extract_mesh(props_glb, "prop_squad_drop_case")
 
-	# 1) Sculpted Jiangnan Octagonal Sumidero Stone Pedestals (top y = 0.44m)
-	for idx_l in LOOSE_SPOTS.size():
-		var spec: Dictionary = LOOSE_SPOTS[idx_l]
+	var active_loose: Array = AHSARAH_LOOSE_SPOTS if game.is_ahsarah_map() else LOOSE_SPOTS
+	var active_nests: Array = AHSARAH_NEST_SPOTS if game.is_ahsarah_map() else NEST_SPOTS
+
+	# 1) Sculpted Stone Pedestals (top y = 0.44m)
+	for idx_l in active_loose.size():
+		var spec: Dictionary = active_loose[idx_l]
 		var root := Node3D.new()
-		var gp: Vector3 = game.Layout.on_ground(spec.at)
+		var gp: Vector3 = game.active_layout.on_ground(spec.at)
 		if spec.id == "loose_wangdao" and is_instance_valid(game.landscape) and game.landscape.wangdao_deck_pos != Vector3.ZERO:
 			gp = Vector3(spec.at.x, game.landscape.wangdao_deck_pos.y, spec.at.z)
 		root.position = gp
@@ -95,17 +132,17 @@ func _build_static_anchors():
 		root.add_child(holder)
 		loose_nodes.append(root)
 
-	# 2) Sculpted Woven-Twig Bird Nests & Perforated Taihu Karst Rock Crevices ('掏鸟窝')
+	# 2) Sculpted Woven-Twig Bird Nests & Perforated Rock Crevices ('掏鸟窝 / 探岩缝')
 	var glint_mat := StandardMaterial3D.new()
 	glint_mat.albedo_color = Color("ffe082")
 	glint_mat.emission_enabled = true
 	glint_mat.emission = Color("ffd166")
 	glint_mat.emission_energy_multiplier = 1.25
 
-	for idx_n in NEST_SPOTS.size():
-		var nspec: Dictionary = NEST_SPOTS[idx_n]
+	for idx_n in active_nests.size():
+		var nspec: Dictionary = active_nests[idx_n]
 		var nroot := Node3D.new()
-		nroot.position = game.Layout.on_ground(nspec.at)
+		nroot.position = game.active_layout.on_ground(nspec.at)
 		nroot.set_meta("world_loot_kind", "nest")
 		nroot.set_meta("nest_id", nspec.id)
 		nroot.set_meta("title", nspec.title)
@@ -239,7 +276,7 @@ func _populate_loose_visual(holder: Node3D, item: Dictionary):
 	holder.add_child(mesh_3d)
 
 func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: bool, is_boss_camp: bool) -> Node3D:
-	var gp: Vector3 = game.Layout.on_ground(world_pos)
+	var gp: Vector3 = game.active_layout.on_ground(world_pos)
 	var dnode := Node3D.new()
 	dnode.position = gp
 	dnode.set_meta("world_loot_kind", "squad_drop")
@@ -285,7 +322,7 @@ func spawn_squad_drop(world_pos: Vector3, camp_title: String, flawless_wave: boo
 func spawn_custom_drop(world_pos: Vector3, title: String, items: Array, high_glow: bool = true) -> Node3D:
 	var gp: Vector3 = world_pos
 	if gp.y <= 0.05:
-		gp = game.Layout.on_ground(world_pos)
+		gp = game.active_layout.on_ground(world_pos)
 	var dnode := Node3D.new()
 	dnode.position = gp
 	dnode.set_meta("world_loot_kind", "squad_drop")

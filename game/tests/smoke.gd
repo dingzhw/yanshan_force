@@ -33,7 +33,7 @@ func run():
 	for i in 20:
 		r.open_question()
 		r.answer(true)
-	verify(Rules.EXTRACTION_SCORE == 420 and Rules.CONFIDENTIAL_EXTRACTION_SCORE == 520 and Rules.total_catalog_count() == 108, "v0.8.6 sets extraction thresholds 420/520 and expands museum catalog to 108 collectibles")
+	verify(Rules.EXTRACTION_SCORE == 420 and Rules.CONFIDENTIAL_EXTRACTION_SCORE == 520 and Rules.total_catalog_count() == 114, "v0.9.0 sets Yanshan thresholds 420/520 and expands museum catalog to 114 collectibles")
 	verify(r.score >= Rules.EXTRACTION_SCORE and r.accuracy() < 0.70, "low accuracy can accumulate 420 extraction score")
 	verify(not r.crate_ready(1), "low accuracy still locks password crate")
 	verify(not r.add_loot("test", 35, 2), "v0.8.1 #15: practice mode blocks loot collection cleanly")

@@ -5,8 +5,8 @@
   "rate": "-5%",
   "audio_format": "ogg_vorbis_mono_24khz",
   "usage_notice": "仅供个人与家庭离线英语学习使用；若对外公开分发，请通过 tools/build_voice_pack.py 替换为已获公开分发许可的开源离线语音或自录音频。",
-  "count": 331,
-  "total_bytes": 4349335,
+  "count": 337,
+  "total_bytes": 4428118,
   "entries": {
     "a golden airdrop is inside the stone cave beside the tall hill west of the pass.": {
       "file": "v_bcb9503ed043.ogg",
@@ -43,6 +43,12 @@
       "text": "advice",
       "bytes": 11918,
       "sha256": "7d5537ec21a41d15458cfd158a09f3b1a479751d13c47d2ded6a0f7f5cb52cb7"
+    },
+    "ahsarah royal chalice": {
+      "file": "v_4e78b9968d79.ogg",
+      "text": "Ahsarah Royal Chalice",
+      "bytes": 14156,
+      "sha256": "9548862e1f4dca6e48799c5f136e4669f39aa32e6a62696e369b5b621e24289c"
     },
     "always": {
       "file": "v_6656018ac96d.ogg",
@@ -169,6 +175,12 @@
       "text": "Boxwood Comb",
       "bytes": 12265,
       "sha256": "ee517cdc50a9f122d91c6f322874dd0f6f3fc8c1f44173c198748efe369a4f0d"
+    },
+    "brakkesh brass lamp": {
+      "file": "v_ed3d2b0fa232.ogg",
+      "text": "Brakkesh Brass Lamp",
+      "bytes": 13175,
+      "sha256": "7926c1ed3bf709b7e826fe5ee764663469b0659ba01b8b730de247100659587c"
     },
     "brass balance scale": {
       "file": "v_4693da7b7e55.ogg",
@@ -554,6 +566,12 @@
       "bytes": 12640,
       "sha256": "d473665f21593dc833d69171f6429d0a5063eee599a6c7758b3f78dbaa117848"
     },
+    "fiery owl crest": {
+      "file": "v_8c96cc21267a.ogg",
+      "text": "Fiery Owl Crest",
+      "bytes": 13338,
+      "sha256": "2fbe2fc89ffcde4f3c258f996e3e1747c0f602fe259d0af981012214795ffa29"
+    },
     "flight black box": {
       "file": "v_efdb5796ab7a.ogg",
       "text": "Flight Black Box",
@@ -733,6 +751,12 @@
       "text": "hear",
       "bytes": 10850,
       "sha256": "ac851b1cc47a4bdf96cbc9f817eed2444c09da2b4ae5a5c14ca67a50cb5d48d7"
+    },
+    "heart of africa": {
+      "file": "v_1e98079407d5.ogg",
+      "text": "Heart of Africa",
+      "bytes": 12474,
+      "sha256": "b40c477607d34f99893b718dc670d18f8cda3e88e90dd3b0374527f94d299c51"
     },
     "heart of yanshan": {
       "file": "v_6361d49c2dd3.ogg",
@@ -1021,6 +1045,12 @@
       "text": "make",
       "bytes": 11300,
       "sha256": "a529131c6af02252f4f41571be31997cb0cca93bfa59d23632d0182b018b1ebc"
+    },
+    "mandelbrick": {
+      "file": "v_097e000a92be.ogg",
+      "text": "MandelBrick",
+      "bytes": 12525,
+      "sha256": "6bec570a4fb6aef347d3479795337dc2fbad619c63b4ff9a1c45c989a9a4c600"
     },
     "may": {
       "file": "v_f458ef050c0c.ogg",
@@ -1381,6 +1411,12 @@
       "text": "red packet",
       "bytes": 12512,
       "sha256": "f0ee098cc466ec01768ee248115831b088cb9d7b8ac206af21d6289346da12df"
+    },
+    "reis's gramophone": {
+      "file": "v_0dc78a1d52a0.ogg",
+      "text": "Reis's Gramophone",
+      "bytes": 13115,
+      "sha256": "309601f00ba28f0b1f31261f7677cd0c2a1e0154c19cbcabe18ab56fdf72d2ab"
     },
     "right now": {
       "file": "v_6b6d41551a4f.ogg",

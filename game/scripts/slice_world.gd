@@ -35,6 +35,34 @@ var fog_volumes: Array[Node3D] = []
 var ink_post_quad: MeshInstance3D = null
 var drizzle_particles: CPUParticles3D = null
 var ink_arch_mat_cache: Dictionary = {}
+var dimensional_rift_node: Node3D = null
+var dimensional_rift_light: OmniLight3D = null
+var dimensional_rift_label: Label3D = null
+
+func refresh_dimensional_rift_visual(awakened: bool, unlocked: bool):
+	if is_instance_valid(dimensional_rift_light):
+		if unlocked:
+			dimensional_rift_light.light_color = Color("5ef5e8")
+			dimensional_rift_light.light_energy = 2.4
+			dimensional_rift_light.omni_range = 6.8
+		elif awakened:
+			dimensional_rift_light.light_color = Color("ffd86b")
+			dimensional_rift_light.light_energy = 2.6
+			dimensional_rift_light.omni_range = 6.8
+		else:
+			dimensional_rift_light.light_color = Color("d89c4c")
+			dimensional_rift_light.light_energy = 0.65
+			dimensional_rift_light.omni_range = 4.6
+	if is_instance_valid(dimensional_rift_label):
+		if unlocked:
+			dimensional_rift_label.text = "✦ 次元石壁 · 已永久连通【阿萨拉堡垒】"
+			dimensional_rift_label.modulate = Color("7cf7ec")
+		elif awakened:
+			dimensional_rift_label.text = "✦ 次元石壁已苏醒！按 [F] 开启【阿萨拉堡垒】"
+			dimensional_rift_label.modulate = Color("ffd86b")
+		else:
+			dimensional_rift_label.text = "次元石壁 · 封印中（机密击败循音石卫解锁）"
+			dimensional_rift_label.modulate = Color("e8c488")
 
 func _init_structure_materials():
 	var bark_tex = load("res://assets/slice/tree_bark.jpg")
@@ -3260,6 +3288,32 @@ func _build_bamboo_maze_and_yanxia_cave():
 	var pool_lbl: Label3D = game._label3d(cave_root, "一线天光 · 洞中寒潭", Vector3(-1.95, 1.52, -2.85), 20, Color("9ef5e2"))
 	pool_lbl.pixel_size = 0.0034
 	pool_lbl.visibility_range_end = 11.5
+
+	# v0.9.0 "次元石壁" (Dimensional Rift Wall) embedded flush against the north cavern back cliff directly behind the skylight beam!
+	var rift_mesh: Mesh = _extract_mesh("res://assets/slice/v090_ahsarah_architecture.glb", "dimensional_rift_wall")
+	dimensional_rift_node = Node3D.new()
+	dimensional_rift_node.name = "DimensionalRiftWall"
+	dimensional_rift_node.position = Vector3(-0.95, 0.026, -4.92)
+	cave_root.add_child(dimensional_rift_node)
+	if rift_mesh != null:
+		var rmi := MeshInstance3D.new()
+		rmi.mesh = rift_mesh
+		rmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		dimensional_rift_node.add_child(rmi)
+	dimensional_rift_light = OmniLight3D.new()
+	dimensional_rift_light.position = Vector3(0.0, 1.65, 0.65)
+	dimensional_rift_light.light_color = Color("f0b85c")
+	dimensional_rift_light.light_energy = 0.65
+	dimensional_rift_light.omni_range = 4.6
+	dimensional_rift_light.shadow_enabled = false
+	dimensional_rift_light.distance_fade_enabled = true
+	dimensional_rift_light.distance_fade_begin = 22.0
+	dimensional_rift_light.distance_fade_length = 8.0
+	dimensional_rift_node.add_child(dimensional_rift_light)
+	dimensional_rift_label = game._label3d(dimensional_rift_node, "次元石壁 · 封印中", Vector3(0.0, 3.22, 0.35), 22, Color("f0c988"))
+	dimensional_rift_label.pixel_size = 0.0036
+	dimensional_rift_label.visibility_range_end = 13.5
+	refresh_dimensional_rift_visual(false, is_instance_valid(game) and is_instance_valid(game.rules) and game.rules.is_ahsarah_permanently_unlocked())
 
 	# Natural Moso bamboo & woodland ferns crowning the exterior karst mountain bluff atop Yanxia Cave
 	var bluff_dy := cave_y - 6.50

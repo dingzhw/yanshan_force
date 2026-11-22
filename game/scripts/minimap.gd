@@ -15,6 +15,9 @@ func _process(delta):
 		queue_redraw()
 
 func point(v: Vector3) -> Vector2:
+	if is_instance_valid(game) and game.is_ahsarah_map():
+		# Maps X in [-80..80], Z in [-170..30] (center (0, -70)) cleanly into radius-76 circular radar!
+		return Vector2(83.0, 83.0) + Vector2(v.x, v.z + 70.0) * 0.66
 	# Maps X in [-90..90], Z in [-200..40] (center (0, -80)) cleanly into radius-76 circular radar!
 	return Vector2(83.0, 83.0) + Vector2(v.x, v.z + 80.0) * 0.56
 
@@ -34,55 +37,73 @@ func _draw_tag(pos: Vector2, text: String, col: Color):
 		draw_string(game.font, pos + Vector2(-6.0, 3.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, col)
 
 func _draw():
-	draw_circle(Vector2(83, 83), 78, Color(0.05, 0.14, 0.13, 0.94))
+	var is_ah: bool = is_instance_valid(game) and game.is_ahsarah_map()
+	var al = game.active_layout if is_instance_valid(game) else null
+	draw_circle(Vector2(83, 83), 78, Color(0.14, 0.11, 0.07, 0.94) if is_ah else Color(0.05, 0.14, 0.13, 0.94))
+	var ring_base := Color(0.86, 0.68, 0.42, 0.24) if is_ah else Color(0.38, 0.72, 0.60, 0.22)
 	for r in [26, 52, 78]:
-		draw_arc(Vector2(83, 83), r, 0, TAU, 48, Color(0.38, 0.72, 0.60, 0.22), 1.0, true)
-	draw_line(Vector2(5, 83), Vector2(161, 83), Color(0.4, 0.7, 0.6, 0.14))
-	draw_line(Vector2(83, 5), Vector2(83, 161), Color(0.4, 0.7, 0.6, 0.14))
-	if not is_instance_valid(game.player):
+		draw_arc(Vector2(83, 83), r, 0, TAU, 48, ring_base, 1.0, true)
+	draw_line(Vector2(5, 83), Vector2(161, 83), ring_base * Color(1, 1, 1, 0.6))
+	draw_line(Vector2(83, 5), Vector2(83, 161), ring_base * Color(1, 1, 1, 0.6))
+	if not is_instance_valid(game.player) or al == null:
 		return
 
-	# Winding mountain creek & 5 crossings across the 240m north-south span
-	for i in range(-194, 42, 8):
-		var z0 := float(i)
-		var z1 := minf(42.0, z0 + 8.0)
-		draw_line(
-			point(Vector3(game.Layout.stream_center_x(z0), 0, z0)),
-			point(Vector3(game.Layout.stream_center_x(z1), 0, z1)),
-			Color("4da8e2"), 1.8, true
-		)
-	for bz in game.Layout.STREAM_BRIDGES:
-		var cx: float = game.Layout.stream_center_x(float(bz))
-		draw_line(
-			point(Vector3(cx - 3.6, 0, float(bz))),
-			point(Vector3(cx + 3.6, 0, float(bz))),
-			Color("cba26c"), 2.8, true
-		)
+	if is_ah:
+		# South Oasis spring pool
+		draw_circle(point(al.OASIS_POOL), 5.2, Color("38a8a0"))
+		# North monumental Zero Dam concrete wall bar
+		draw_line(point(Vector3(-56.0, 0, -158.0)), point(Vector3(56.0, 0, -158.0)), Color("b8bec4"), 4.2, true)
+		# Desert road network
+		for i in al.ROUTE.size() - 1:
+			draw_line(point(al.ROUTE[i]), point(al.ROUTE[i + 1]), Color("c8a46e"), 2.2, true)
+		for branch in al.BRANCHES:
+			for i in branch.size() - 1:
+				draw_line(point(branch[i]), point(branch[i + 1]), Color("9e8054"), 1.2, true)
+		# Administrative Fortress Boss Courtyard ring
+		var fort_p := point(al.ADMIN_FORTRESS)
+		draw_arc(fort_p, float(al.CLOUD_ARENA_RADIUS) * 0.66, 0, TAU, 28, Color("ff9e44", 0.72), 1.8, true)
+	else:
+		# Winding mountain creek & 5 crossings across the 240m north-south span
+		for i in range(-194, 42, 8):
+			var z0 := float(i)
+			var z1 := minf(42.0, z0 + 8.0)
+			draw_line(
+				point(Vector3(game.Layout.stream_center_x(z0), 0, z0)),
+				point(Vector3(game.Layout.stream_center_x(z1), 0, z1)),
+				Color("4da8e2"), 1.8, true
+			)
+		for bz in game.Layout.STREAM_BRIDGES:
+			var cx: float = game.Layout.stream_center_x(float(bz))
+			draw_line(
+				point(Vector3(cx - 3.6, 0, float(bz))),
+				point(Vector3(cx + 3.6, 0, float(bz))),
+				Color("cba26c"), 2.8, true
+			)
 
-	for i in game.Layout.ROUTE.size() - 1:
-		draw_line(point(game.Layout.ROUTE[i]), point(game.Layout.ROUTE[i + 1]), Color("8e9869"), 2.2, true)
-	for branch in game.Layout.BRANCHES:
-		for i in branch.size() - 1:
-			draw_line(point(branch[i]), point(branch[i + 1]), Color("6c8061"), 1.0, true)
+		for i in game.Layout.ROUTE.size() - 1:
+			draw_line(point(game.Layout.ROUTE[i]), point(game.Layout.ROUTE[i + 1]), Color("8e9869"), 2.2, true)
+		for branch in game.Layout.BRANCHES:
+			for i in branch.size() - 1:
+				draw_line(point(branch[i]), point(branch[i + 1]), Color("6c8061"), 1.0, true)
 
-	for at in [game.Layout.POEM, game.Layout.MATH, game.Layout.CLUE]:
-		draw_circle(point(at), 2.5, Color("e0c991"), false, 1.2)
+		for at in [game.Layout.POEM, game.Layout.MATH, game.Layout.CLUE]:
+			draw_circle(point(at), 2.5, Color("e0c991"), false, 1.2)
 
-	# North Summit 38m Cloud-Top Bluestone Martial Arena ring
-	var arena_p := point(game.Layout.CLOUD_ARENA_CENTER)
-	draw_arc(arena_p, float(game.Layout.CLOUD_ARENA_RADIUS) * 0.56, 0, TAU, 28, Color("ffd86b", 0.62), 1.6, true)
+		# North Summit 38m Cloud-Top Bluestone Martial Arena ring
+		var arena_p := point(game.Layout.CLOUD_ARENA_CENTER)
+		draw_arc(arena_p, float(game.Layout.CLOUD_ARENA_RADIUS) * 0.56, 0, TAU, 28, Color("ffd86b", 0.62), 1.6, true)
 
-	# Bamboo-Stone Labyrinth footprint & Yanxia Ancient Cavern vault marker in West Ravine
-	var cdx := float(game.Layout.CAVE_DX)
-	var cdz := float(game.Layout.CAVE_DZ)
-	var maze_tl := point(Vector3(-48.1 + cdx, 0, -57.5 + cdz))
-	draw_rect(Rect2(maze_tl, Vector2(13.0, 21.0) * 0.56), Color(0.56, 0.82, 0.68, 0.38), false, 1.0)
-	var cave_p := point(game.Layout.YANXIA_CAVE_CENTER)
-	draw_arc(cave_p, 4.2, PI, TAU, 14, Color(0.68, 0.92, 0.84, 0.72), 1.5, true)
+		# Bamboo-Stone Labyrinth footprint & Yanxia Ancient Cavern vault marker in West Ravine
+		var cdx := float(game.Layout.CAVE_DX)
+		var cdz := float(game.Layout.CAVE_DZ)
+		var maze_tl := point(Vector3(-48.1 + cdx, 0, -57.5 + cdz))
+		draw_rect(Rect2(maze_tl, Vector2(13.0, 21.0) * 0.56), Color(0.56, 0.82, 0.68, 0.38), false, 1.0)
+		var cave_p := point(game.Layout.YANXIA_CAVE_CENTER)
+		draw_arc(cave_p, 4.2, PI, TAU, 14, Color(0.68, 0.92, 0.84, 0.72), 1.5, true)
 
 	if is_instance_valid(game.combat) and game.combat.in_field():
-		for z_idx in game.Layout.COMBAT_ZONES.size():
-			var z_pos = point(game.Layout.COMBAT_ZONES[z_idx].at)
+		for z_idx in al.COMBAT_ZONES.size():
+			var z_pos = point(al.COMBAT_ZONES[z_idx].at)
 			var cleared: bool = game.combat.zone_cleared.get(z_idx, false)
 			var engaged: bool = game.combat.is_zone_engaged(z_idx)
 			var ring_col := Color("6ae3a8") if cleared else (Color("ff6347") if engaged else Color(0.95, 0.72, 0.36, 0.55))
@@ -103,7 +124,7 @@ func _draw():
 						if soldier.archetype == 3:
 							draw_arc(point(soldier.position), 5.2, 0, TAU, 16, Color("ff5c5c"), 1.2)
 	else:
-		for station in game.Layout.STATIONS:
+		for station in al.STATIONS:
 			draw_circle(point(station.at), 3.4, Color("86c5eb"))
 
 	if is_instance_valid(game.exploration):
@@ -117,8 +138,8 @@ func _draw():
 				draw_circle(ep, 3.0, Color("5f7d73") if done else Color("ffd15c"))
 			elif eid.begins_with("intel_"):
 				draw_rect(Rect2(ep - Vector2(1.8, 1.8), Vector2(3.6, 3.6)), Color("5f7d73") if done else Color("8ef0c8"))
-			elif eid in ["cliff_inscription", "cave_mural", "cave_hearth"]:
-				var hc := Color("5f7d73") if done else Color("f0c878")
+			elif eid in ["cliff_inscription", "cave_mural", "cave_hearth", "dimensional_rift"] or eid.begins_with("ahsarah_"):
+				var hc := Color("5f7d73") if done else (Color("5ef5e8") if eid == "dimensional_rift" else Color("f0c878"))
 				draw_colored_polygon(PackedVector2Array([ep + Vector2(0, -2.6), ep + Vector2(2.6, 0), ep + Vector2(0, 2.6), ep + Vector2(-2.6, 0)]), hc)
 
 	for sup in game.pickup_nodes:
@@ -159,13 +180,22 @@ func _draw():
 	var ready = game.rules.can_extract()
 	draw_circle(exit_point, 4.6, Color("76e5bc") if ready else Color("d8b26e"), false, 1.8)
 
-	# v0.8.5 Crisp Chinese landmark short labels on radar
-	_draw_tag(point(game.Layout.SPAWN) + Vector2(0.0, 10.0), "营", Color("a8f0d0"))
-	_draw_tag(point(game.Layout.WANGDAO_PAVILION) + Vector2(2.0, -4.0), "望", Color("f4d48c"))
-	_draw_tag(point(game.Layout.EAST_OVERLOOK) + Vector2(4.0, 0.0), "亭", Color("c8e8d8"))
-	_draw_tag(cave_p + Vector2(-4.0, -6.0), "洞", Color("7ceeff"))
-	_draw_tag(arena_p + Vector2(0.0, -8.0), "坛", Color("ffd86b"))
-	_draw_tag(exit_point + Vector2(7.0, 2.0), "撤", Color("76e5bc") if ready else Color("f0cf86"))
+	if is_ah:
+		_draw_tag(point(al.SPAWN) + Vector2(0.0, 9.0), "洲", Color("92f0d4"))
+		_draw_tag(point(al.CEMENT_PLANT) + Vector2(-4.0, 0.0), "厂", Color("f2d298"))
+		_draw_tag(point(al.BAZAAR_ARCH) + Vector2(3.0, 0.0), "市", Color("ffd48a"))
+		_draw_tag(point(al.SUBSTATION) + Vector2(3.0, 0.0), "电", Color("66e8ff"))
+		_draw_tag(point(al.ADMIN_FORTRESS) + Vector2(0.0, -7.0), "堡", Color("ff9e58"))
+		_draw_tag(point(al.ZERO_DAM_CENTER) + Vector2(0.0, -4.0), "坝", Color("e4ecf2"))
+		_draw_tag(exit_point + Vector2(6.0, 2.0), "撤", Color("76e5bc") if ready else Color("f0cf86"))
+	else:
+		# v0.8.5 Crisp Chinese landmark short labels on radar
+		_draw_tag(point(game.Layout.SPAWN) + Vector2(0.0, 10.0), "营", Color("a8f0d0"))
+		_draw_tag(point(game.Layout.WANGDAO_PAVILION) + Vector2(2.0, -4.0), "望", Color("f4d48c"))
+		_draw_tag(point(game.Layout.EAST_OVERLOOK) + Vector2(4.0, 0.0), "亭", Color("c8e8d8"))
+		_draw_tag(point(game.Layout.YANXIA_CAVE_CENTER) + Vector2(-4.0, -6.0), "洞", Color("7ceeff"))
+		_draw_tag(point(game.Layout.CLOUD_ARENA_CENTER) + Vector2(0.0, -8.0), "坛", Color("ffd86b"))
+		_draw_tag(exit_point + Vector2(7.0, 2.0), "撤", Color("76e5bc") if ready else Color("f0cf86"))
 
 	var p = point(game.player.position)
 	var f = Vector2(-sin(game.player.yaw), -cos(game.player.yaw))

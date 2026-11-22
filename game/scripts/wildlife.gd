@@ -12,7 +12,15 @@ var collected_flora: Dictionary = {}
 var hit_fx: Array = []
 var flee_sfx_cooldown := 0.0
 var frozen_for_capture := false
+var map_enabled := true
 var rng := RandomNumberGenerator.new()
+
+func set_map_enabled(on: bool):
+	map_enabled = on
+	visible = on
+	for f in flora_nodes:
+		if is_instance_valid(f):
+			f.visible = on and not bool(collected_flora.get(str(f.get_meta("flora_id", "")), false))
 var critter_mat_cache: Dictionary = {}
 
 const HIT_LAYER := 16  # Dedicated bit 4 (isolated from player mask 1|4 and enemy mask 7)
@@ -608,7 +616,7 @@ func _flash_animal_tag(a: Dictionary, duration: float = 2.2, force_show: bool = 
 	a.label.visible = true
 
 func update(delta: float):
-	if frozen_for_capture:
+	if frozen_for_capture or not map_enabled:
 		return
 	flee_sfx_cooldown = maxf(0.0, flee_sfx_cooldown - delta)
 	_update_fx(delta)
@@ -1274,6 +1282,8 @@ func _move_butterfly(a: Dictionary, delta: float, ppos: Vector3):
 	_play_critter_anim(a.anim, ["Fly", "Idle"], 1.85 if a.state == "flee" else 1.35)
 
 func shockwave_knockdown_near(origin: Vector3, radius: float):
+	if not map_enabled:
+		return
 	## v0.8.6 Skyfall Overlord landing shockwave startles & bowls over nearby ground wildlife!
 	for a in animals:
 		if a.state in ["downed", "hidden"]:
@@ -1283,13 +1293,15 @@ func shockwave_knockdown_near(origin: Vector3, radius: float):
 			a.visual.rotation.z = 0.35
 
 func on_gunshot_near(origin: Vector3, suppressed: bool):
+	if not map_enabled:
+		return
 	var alert_r := 7.0 if suppressed else 19.0
 	for a in animals:
 		if a.state in ["idle", "ambush"] and a.pos.distance_to(origin) <= alert_r:
 			_start_flee(a, origin)
 
 func hit_bullet(collider) -> bool:
-	if not (collider is Object):
+	if not map_enabled or not (collider is Object):
 		return false
 	if collider.has_meta("sky_egret_index"):
 		var s_idx := int(collider.get_meta("sky_egret_index"))
@@ -1338,6 +1350,8 @@ func _down_sky_egret(eg: Dictionary):
 		game.achievements.record_wildlife_kill("bird")
 
 func melee_strike(camera: Camera3D) -> bool:
+	if not map_enabled:
+		return false
 	var cam_pos := camera.global_position
 	var cam_fwd := (-camera.global_transform.basis.z).normalized()
 	var best = null

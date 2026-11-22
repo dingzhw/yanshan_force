@@ -10,9 +10,9 @@ var boards_allowed: bool = true
 func setup(game, data: Dictionary):
 	station_id = data.id
 	title = data.title
-	position = game.Layout.on_ground(data.at)
+	position = game.active_layout.on_ground(data.at)
 	set_meta("station_id",station_id)
-	var rel_ground = game.Layout.min_ground_height(position.x + 2.0, position.z + 2.0, 0.55) - position.y
+	var rel_ground = game.active_layout.min_ground_height(position.x + 2.0, position.z + 2.0, 0.55) - position.y
 	var body_mat = StandardMaterial3D.new()
 	body_mat.albedo_color = Color("2b4842")
 	body_mat.metallic = 0.45

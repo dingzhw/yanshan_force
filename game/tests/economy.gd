@@ -160,7 +160,7 @@ func run():
 	game._end_run(false)
 
 	# v0.8.6 7-Tier Rarity ('珍品·小金' T5, '传说·大金' T6, '旷世·大红' T7), 108 Collectibles, Calibration, Safe Box, Lock & Camp 3D Display Stand
-	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 9 and game.Rules.LOOT_TABLE[6].size() == 11 and game.Rules.LOOT_TABLE[5].size() == 12 and game.Rules.total_collectible_count() == 48 and game.Rules.total_catalog_count() == 108, "v0.8.6 defines 7-tier rarity with Small Gold (12), Big Gold (11), Mythic Red (9), 48 high collectibles and 108 total museum items")
+	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 11 and game.Rules.LOOT_TABLE[6].size() == 13 and game.Rules.LOOT_TABLE[5].size() == 14 and game.Rules.total_collectible_count() == 54 and game.Rules.total_catalog_count() == 114, "v0.9.0 defines 7-tier rarity with Small Gold (14), Big Gold (13), Mythic Red (11), 54 high collectibles and 114 total museum items")
 	game.start_action(true, "normal")
 	var seen_values := {}
 	var mythic_sample: Dictionary = {}
@@ -309,7 +309,7 @@ func run():
 				missing_meshes += 1
 			if game.LootUI.load_collectible_icon(entry) == null:
 				missing_icons += 1
-	verify(seen_art_ids.size() == 108 and missing_meshes == 0 and missing_icons == 0, "v0.8.6 maps all 108 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
+	verify(seen_art_ids.size() == 114 and missing_meshes == 0 and missing_icons == 0, "v0.9.0 maps all 114 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
 	var alias_ok: bool = (
 		game.LootUI.resolve_art_id({"title": "光学测距模块", "icon": "lens"}) == "rangefinder"
 		and game.LootUI.resolve_art_id({"title": "军规夜视镜片", "icon": "lens"}) == "nvg_lens"

@@ -85,6 +85,19 @@ var attack_cd := 0.0
 var patrol_idx := 0
 var elapsed := 0.0
 var hud_ping_cd := 0.0
+var map_enabled := true
+
+func set_map_enabled(on: bool):
+	map_enabled = on
+	if is_instance_valid(root_node):
+		root_node.visible = on and is_mode_active() and state != "defeated"
+	if not on:
+		if is_instance_valid(body_area):
+			body_area.collision_layer = 0
+		if is_instance_valid(core_area):
+			core_area.collision_layer = 0
+		if is_instance_valid(guard_area):
+			guard_area.collision_layer = 0
 
 func _cave_center() -> Vector3:
 	if is_instance_valid(game) and game.Layout != null:
@@ -248,7 +261,7 @@ func _clamp_to_cave(xz: Vector3) -> Vector3:
 	return Vector3(clampf(xz.x, cave_min_x(), cave_max_x()), 0.0, clampf(xz.z, cave_min_z(), cave_max_z()))
 
 func is_mode_active() -> bool:
-	return is_instance_valid(game) and game.rules.combat_mode and not game.rules.prologue_mode
+	return map_enabled and is_instance_valid(game) and game.rules.combat_mode and not game.rules.prologue_mode
 
 func max_hp_for_mode() -> int:
 	return MAX_HP_CONFIDENTIAL if (is_instance_valid(game) and game.rules.is_confidential()) else MAX_HP_NORMAL
@@ -772,6 +785,8 @@ func _on_defeated():
 	if is_instance_valid(game.rangers):
 		game.rangers.unlock_card("cave_warden", false)
 		game.rangers.record_bounty_progress("warden_defeated", 1)
+	if game.rules.is_confidential() and game.has_method("on_confidential_cave_warden_defeated"):
+		game.on_confidential_cave_warden_defeated()
 	game._notice("★ 成功击败【古洞循音石卫】！+80 积分%s" % loot_msg, game.GOLD)
 	_sync_label()
 

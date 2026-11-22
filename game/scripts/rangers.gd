@@ -163,9 +163,53 @@ const CHARACTER_CARDS := [
 		"faction": "烟山游侠小队",
 		"icon": "🌿",
 		"color": Color("6be39b"),
-		"bio": "出身江南草药世家的女游侠，熟识烟山八大奇植与山泉茶理，随身携带自制战术急救装置。待烟山名望达到 600 后将在 v0.9.0 开放招募切角。",
+		"bio": "出身江南草药世家的女游侠，熟识烟山八大奇植与山泉茶理，随身携带自制战术急救装置。待烟山名望达到 600 后将在 v0.10.0 开放招募切角。",
 		"tactical": "预告 [V] 技能「青囊脉冲」：瞬发护盾急救波，回复生命护盾并瞬间完成装填。",
-		"unlock_hint": "累计「烟山名望」达 600 预告解锁（v0.9.0 开放出战）",
+		"unlock_hint": "累计「烟山名望」达 600 预告解锁（v0.10.0 开放出战）",
+	},
+	{
+		"id": "saeed_fiery_owl",
+		"name": "赤枭 · 赛伊德（Captain Saeed）",
+		"role": "阿萨拉堡垒 · 普通行动行政堡垒首领",
+		"faction": "阿萨拉卫队",
+		"icon": "🦅",
+		"color": Color("e05246"),
+		"bio": "原为阿萨拉荒漠山谷猎人之子，因哈夫克集团强修「零号大坝」摧毁家乡并害死父亲，愤而加入阿萨拉卫队并凭冷酷孤狼伏击术晋升行政堡垒指挥官，代号「赤枭」。口头禅：「父亲教导我，好的猎人懂得尊重猎物……但你，不配！」",
+		"tactical": "擅长敏捷侧向翻滚位移、燃烧弹红圈封路与三阶段多词盾拉锯。看到「我看到你了，小耗子！」或燃烧预警圈立刻疾跑避让，破盾后抓住单发红核脉冲稳准反击！",
+		"unlock_hint": "解锁「阿萨拉堡垒」并在普通行动击败赤枭·赛伊德解锁",
+	},
+	{
+		"id": "reis_warlord",
+		"name": "军阀 · 雷斯（Warlord Reis）",
+		"role": "阿萨拉堡垒 · 机密行动行政堡垒统领",
+		"faction": "阿萨拉卫队",
+		"icon": "🎷",
+		"color": Color("f6c34e"),
+		"bio": "出身阿萨拉旧贵族世家的前王室军官，局势动荡后率重甲卫队自立山头。行事霸道讲究排场，最爱在战火中架起古董留声机播放古典交响乐指挥战斗。口头禅：「把留声机开大声点！没有交响乐的战场，简直粗俗不堪！」",
+		"tactical": "机密行动专属重装首领！两轮制高危对决：第一轮需按顺序精准破除 5 面重词盾（打错重置），第二轮携 3 面公转金盾与重型霰弹逼近冲锋，击破即掉落阿萨拉高阶珍宝。",
+		"unlock_hint": "在阿萨拉堡垒【机密行动】击败军阀·雷斯解锁",
+	},
+	{
+		"id": "ahsarah_guard",
+		"name": "阿萨拉卫队 · 荒漠游击编队",
+		"role": "盘踞水泥厂、巴克什集市与大坝哨所的本土武装",
+		"faction": "阿萨拉卫队",
+		"icon": "🏜",
+		"color": Color("d8a66a"),
+		"bio": "由本土部族与失地居民组成的沙漠游击武装，身着卡其战术服、佩赤红阿拉伯头巾，誓要从哈夫克集团手中夺回零号大坝水源。交火时最爱大喊：「来！咱俩练练！」",
+		"tactical": "依托巴克什砂岩拱门与沙袋掩体包抄，配合英语词盾阵型稳步推进。善用高台掩体与 [Q]/[E] 探头逐一破盾爆头。",
+		"unlock_hint": "进入「阿萨拉堡垒」战区自动解锁",
+	},
+	{
+		"id": "haavk_corp",
+		"name": "哈夫克集团 · 科技护卫编队",
+		"role": "驻守东区变电站的高科技财团私军",
+		"faction": "哈夫克集团（HAAVK）",
+		"icon": "🔷",
+		"color": Color("3ae8ff"),
+		"bio": "2035 年以能源水利开发为名进驻阿萨拉的跨国科技巨头，修建零号大坝与巴别通讯塔，并在暗中秘密研发极具价值的「曼德尔加密砖」。其私军身着纯白复合装甲与发光青蓝护目镜。",
+		"tactical": "驻守东区变电站重地，火力精准且守护高阶加密箱。善用 [G] 烟雾 EMP 干扰其青蓝光学面罩视野。",
+		"unlock_hint": "在阿萨拉堡垒清剿东区变电站或进入战区解锁",
 	},
 ]
 
@@ -211,11 +255,15 @@ func setup(g):
 func _build_camp_npc():
 	camp_npc_node = Node3D.new()
 	camp_npc_node.name = "CampBountyGuideNPC"
-	var at: Vector3 = game.Layout.on_ground(game.Layout.SPAWN + Vector3(3.6, 0.0, -2.3))
+	var at: Vector3 = game.active_layout.on_ground(game.active_layout.SPAWN + Vector3(3.6, 0.0, -2.3))
 	camp_npc_node.position = at
 	camp_npc_node.rotation.y = -0.78
 	camp_npc_node.set_meta("camp_bounty_npc", true)
 	add_child(camp_npc_node)
+
+func reposition_camp_npc():
+	if is_instance_valid(camp_npc_node):
+		camp_npc_node.position = game.active_layout.on_ground(game.active_layout.SPAWN + Vector3(3.6, 0.0, -2.3))
 
 	# Stylized Jiangnan ranger liaison silhouette standing neatly beside Camp Command Tent
 	var coat_mat := StandardMaterial3D.new()

@@ -9,6 +9,7 @@ extends Node
 
 const COLLECTIBLE_GLB := "res://assets/slice/v072_collectibles.glb"
 const COLLECTIBLE_GLB_V086 := "res://assets/slice/v086_collectibles.glb"
+const COLLECTIBLE_GLB_V090 := "res://assets/slice/v090_ahsarah_collectibles.glb"
 const ICON_DIR := "res://assets/icons/loot/"
 
 const TITLE_TO_ART_ID := {
@@ -105,7 +106,9 @@ const TITLE_TO_ART_ID := {
 	"越窑青瓷执壶": "celadon_ewer",
 	"紫檀象棋匣": "ivory_chess",
 	"军用战术平板": "encrypted_tablet",
-	# T6 · 传说·大金 (11)
+	"赤枭青铜猎徽": "fiery_owl_crest",
+	"巴克什鎏金油灯": "brakkesh_brass_lamp",
+	# T6 · 传说·大金 (13)
 	"烟山古铜虎符": "tally",
 	"特级金质勋章": "medal",
 	"量子词典原型机": "quantum",
@@ -117,7 +120,9 @@ const TITLE_TO_ART_ID := {
 	"曾侯乙式编钟": "bronze_chime",
 	"青绿山水手卷": "landscape_scroll",
 	"浑天仪模型": "armillary_sphere",
-	# T7 · 旷世·大红 (9)
+	"阿萨拉王室金杯": "ahsarah_royal_chalice",
+	"军阀古董留声机": "reis_gramophone",
+	# T7 · 旷世·大红 (11)
 	"越窑秘色青瓷盏": "celadon",
 	"烟山千年紫芝王": "ganoderma",
 	"诚庄先民双龙玉璧": "jade_bi",
@@ -126,7 +131,9 @@ const TITLE_TO_ART_ID := {
 	"金瓯永固杯": "gold_dragon_cup",
 	"翠玉白菜": "jade_cabbage",
 	"传国和氏璧玉玺": "imperial_jade_seal",
-	"烟山天穹全息棱镜": "quantum_prism"
+	"烟山天穹全息棱镜": "quantum_prism",
+	"曼德尔加密砖": "mandel_brick",
+	"非洲之心": "heart_of_africa"
 }
 
 const LEGACY_ICON_ALIAS := {
@@ -186,7 +193,7 @@ static func _ensure_collectible_meshes():
 	if _glb_loaded:
 		return
 	_glb_loaded = true
-	for glb_path in [COLLECTIBLE_GLB, COLLECTIBLE_GLB_V086]:
+	for glb_path in [COLLECTIBLE_GLB, COLLECTIBLE_GLB_V086, COLLECTIBLE_GLB_V090]:
 		if not ResourceLoader.exists(glb_path):
 			continue
 		var packed = load(glb_path)

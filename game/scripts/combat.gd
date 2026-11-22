@@ -221,10 +221,10 @@ func heal(hp_gain: int, shield_gain: int):
 	shield = minf(float(game.rules.max_shield()), shield + float(shield_gain))
 
 func zone_info(z_idx: int) -> Dictionary:
-	return game.Layout.COMBAT_ZONES[z_idx]
+	return game.active_layout.COMBAT_ZONES[z_idx]
 
 func zone_center(z_idx: int) -> Vector3:
-	return game.Layout.on_ground(zone_info(z_idx).at)
+	return game.active_layout.on_ground(zone_info(z_idx).at)
 
 func zone_aggro(z_idx: int) -> float:
 	return float(zone_info(z_idx).aggro)
@@ -301,7 +301,7 @@ func _mark_zone_cleared(z_idx: int):
 	game._sync_question()
 	game._notice("★ 已彻底肃清【%s】全部 3 波守军！+%d 积分 · 医疗包+1 备弹+%d（已攻克 %d/%d 营地，撤离需2处）" % [
 		zone_info(z_idx).title, game.Rules.OUTPOST_CLEAR_SCORE, clear_ammo,
-		game.rules.outposts_cleared, game.Layout.COMBAT_ZONES.size()
+		game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size()
 	], game.MINT)
 
 func _roll_wave_squad_size(_z_idx: int, _wave_idx: int) -> int:
@@ -332,8 +332,8 @@ func _squad_archetypes(z_idx: int, wave_idx: int, count: int = 4) -> Array:
 	return out
 
 func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
-	var base_y: float = game.Layout.min_ground_height(at.x, at.z, 0.9) - 0.12
-	var uphill_y: float = maxf(at.y, maxf(game.Layout.height(at.x - 1.0, at.z - 1.2), game.Layout.height(at.x + 1.0, at.z - 1.2)))
+	var base_y: float = game.active_layout.min_ground_height(at.x, at.z, 0.9) - 0.12
+	var uphill_y: float = maxf(at.y, maxf(game.active_layout.height(at.x - 1.0, at.z - 1.2), game.active_layout.height(at.x + 1.0, at.z - 1.2)))
 	# Castellated stepped Jiangnan parapet ('高低错落垛口战术矮垣'):
 	# - Center solid merlon (~1.84m, 1.04m wide) blocks shots during full shelter;
 	# - Left/right low firing wings (~0.72m) shield legs while keeping 100% of the chest English Word Shield unobstructed!
@@ -464,7 +464,7 @@ func _deploy():
 		Vector2(4.8, -6.3),
 		Vector2(8.0, -5.9),
 	]
-	for z_idx in game.Layout.COMBAT_ZONES.size():
+	for z_idx in game.active_layout.COMBAT_ZONES.size():
 		var info = zone_info(z_idx)
 		var center := zone_center(z_idx)
 		waves_done[z_idx] = 0
@@ -476,7 +476,7 @@ func _deploy():
 		var covers := []
 		for i in CAMP_COVER_COUNT:
 			var off2: Vector2 = cover_offsets[i]
-			var barrier: Vector3 = game.Layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
+			var barrier: Vector3 = game.active_layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
 			_build_tactical_cover(barrier, i, i > 0 and i < CAMP_COVER_COUNT - 1)
 			covers.append(barrier)
 		camp_covers[z_idx] = covers
@@ -486,7 +486,7 @@ func _deploy():
 			for tp in game.landscape.tree_trunks:
 				var d_camp := Vector2(tp.x - center.x, tp.z - center.z).length()
 				if d_camp >= 11.5 and d_camp <= 29.5:
-					outer_pts.append(game.Layout.on_ground(tp))
+					outer_pts.append(game.active_layout.on_ground(tp))
 					if outer_pts.size() >= 8:
 						break
 		camp_outer_anchors[z_idx] = outer_pts
@@ -700,7 +700,7 @@ func _detect_aimed_camp() -> int:
 	# 2) Tight ADS angular cone (~15 deg) with terrain/obstacle LOS check within each camp's 3x-aggro sniper range
 	var best_z := -1
 	var best_dot: float = 0.965
-	for z_idx in game.Layout.COMBAT_ZONES.size():
+	for z_idx in game.active_layout.COMBAT_ZONES.size():
 		if zone_cleared.get(z_idx, false) or float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
 			continue
 		# v0.8.6 Fix: Never ADS-preview or trigger hidden sky Confidential Overlord before physical <=22m arena entry!
@@ -736,7 +736,7 @@ func spawn_pending_wave_now(z_idx: int):
 		zone_respawn_grace[z_idx] = WAVE_TRUCE_GRACE
 
 func engage_camp(z_idx: int, preserve_prompt: bool = false):
-	if z_idx < 0 or z_idx >= game.Layout.COMBAT_ZONES.size() or zone_cleared.get(z_idx, false):
+	if z_idx < 0 or z_idx >= game.active_layout.COMBAT_ZONES.size() or zone_cleared.get(z_idx, false):
 		return
 	if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
 		spawn_pending_wave_now(z_idx)
@@ -774,17 +774,32 @@ func engage_camp(z_idx: int, preserve_prompt: bool = false):
 	var w_cur: int = int(waves_done.get(z_idx, 0)) + 1
 	var w_max: int = int(waves_target.get(z_idx, WAVES_PER_CAMP))
 	var pace_tag: String = "机密机动包抄" if game.rules.is_confidential() else "普通谨慎掩体战"
+	var is_ah: bool = game.is_ahsarah_map()
 	if not is_rage_hunting(z_idx):
 		if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
 			if boss_unit.is_skyfall_overlord:
 				if boss_unit.skyfall_state == "idle":
 					boss_unit.trigger_skyfall()
-				game._notice("⚡ 天降震地！【雾隐机关王·玄铁词尊】轰然降临 %s！请严格按 1→5 顺序击破全身 5 块词盾（打错顺序满血洗牌）！" % z_title, Color("ffd15c"))
+				if is_ah:
+					game._notice("🎷 阿萨拉军阀·雷斯摇响留声机：『把留声机开大声点！没有交响乐的战场，简直粗俗不堪！』请按 1→5 顺序破除 5 面重词盾！", Color("ffd15c"))
+				else:
+					game._notice("⚡ 天降震地！【雾隐机关王·玄铁词尊】轰然降临 %s！请严格按 1→5 顺序击破全身 5 块词盾（打错顺序满血洗牌）！" % z_title, Color("ffd15c"))
 			else:
-				game._notice("⚠ 惊动雾隐帮【%s】（第 %d/%d 波 · %d兵 · %s）：雾隐先锋·铁面词卫登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
+				if is_ah:
+					game._notice("🦅 赤枭·赛伊德现身 %s：『父亲教导我，好的猎人懂得尊重猎物……但你，不配！』警惕翻滚位移与燃烧弹红圈！" % z_title, Color("ff9e58"))
+				else:
+					game._notice("⚠ 惊动雾隐帮【%s】（第 %d/%d 波 · %d兵 · %s）：雾隐先锋·铁面词卫登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
 				game.play_sfx("boss_phase", -11)
 		else:
-			game._notice("⚔ 触发雾隐帮【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
+			if is_ah:
+				var fac := str(zone_info(z_idx).get("faction", "ahsarah"))
+				if fac == "haavk":
+					game._notice("🔷 触发哈夫克【%s】第 %d/%d 波（%d兵）：『封锁变电站，守住曼德尔加密砖！』" % [z_title, w_cur, w_max, alive.size()], Color("66e8ff"))
+				else:
+					var barks := ["『来！咱俩练练！』", "『发现目标！包抄过去！』", "『守住阿萨拉！别让他们靠近行政堡垒！』"]
+					game._notice("🏜 触发【%s】第 %d/%d 波（%d兵）· 阿萨拉卫队：%s" % [z_title, w_cur, w_max, alive.size(), barks[z_idx % barks.size()]], game.GOLD)
+			else:
+				game._notice("⚔ 触发雾隐帮【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
 
 func disengage_active_camp(announce: bool = true):
 	if zone < 0:
@@ -915,7 +930,7 @@ func update(delta: float):
 		var sw = sword_waves[i]
 		sw.left -= delta
 		sw.pos += sw.dir * float(sw.speed) * delta
-		sw.pos.y = float(game.Layout.fast_height(sw.pos.x, sw.pos.z)) + 0.55
+		sw.pos.y = float(game.active_layout.fast_height(sw.pos.x, sw.pos.z)) + 0.55
 		if is_instance_valid(sw.node):
 			sw.node.position = sw.pos
 		if not bool(sw.hit_player) and is_instance_valid(game.player):
@@ -938,7 +953,7 @@ func update(delta: float):
 	if zone >= 0 and is_zone_engaged(zone):
 		# v0.8.6: Stepping physically onto Cloud-Top Martial Arena (<=22m) ALWAYS hands priority to Confidential Skyfall Overlord!
 		if zone != 2 and not zone_cleared.get(2, false) and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
-			var arena_c_ov: Vector3 = game.Layout.CLOUD_ARENA_CENTER
+			var arena_c_ov: Vector3 = game.active_layout.CLOUD_ARENA_CENTER
 			if Vector2(game.player.position.x - arena_c_ov.x, game.player.position.z - arena_c_ov.z).length() <= Soldier.OVERLORD_TRIGGER_RADIUS:
 				engage_camp(2, true)
 				return
@@ -988,7 +1003,7 @@ func update(delta: float):
 	# Standby aggro detection: player must walk into an un-cleared camp's spawn area to pull aggro!
 	var pull_idx := -1
 	var nearest := INF
-	for z_idx in game.Layout.COMBAT_ZONES.size():
+	for z_idx in game.active_layout.COMBAT_ZONES.size():
 		if zone_cleared.get(z_idx, false):
 			continue
 		if float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
@@ -998,7 +1013,7 @@ func update(delta: float):
 		if living_soldiers(z_idx).is_empty():
 			continue
 		if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
-			var arena_c: Vector3 = game.Layout.CLOUD_ARENA_CENTER
+			var arena_c: Vector3 = game.active_layout.CLOUD_ARENA_CENTER
 			var d_arena := Vector2(game.player.position.x - arena_c.x, game.player.position.z - arena_c.z).length()
 			if d_arena <= Soldier.OVERLORD_TRIGGER_RADIUS and d_arena < nearest:
 				nearest = d_arena
@@ -1069,7 +1084,7 @@ func show_question():
 			return
 		var rest_hint := "右键开镜瞄准45m内敌营即可狙词  |  "
 		if is_instance_valid(game.player):
-			for z_i in game.Layout.COMBAT_ZONES.size():
+			for z_i in game.active_layout.COMBAT_ZONES.size():
 				if zone_cleared.get(z_i, false):
 					continue
 				var r_l := float(zone_reinforce_left.get(z_i, 0.0))
@@ -1083,8 +1098,8 @@ func show_question():
 		game.question_label.text = "右键开镜瞄准敌营狙词，或靠近触发波次交火"
 		if is_instance_valid(game.cloze_label):
 			game.cloze_label.text = ""
-		game.unit_label.text = "%s已攻克 %d/6 营（需≥2） · 统领密钥 %d/1" % [
-			rest_hint, game.rules.outposts_cleared, 1 if game.rules.boss_defeated else 0
+		game.unit_label.text = "%s已攻克 %d/%d 营（需≥2） · 统领密钥 %d/1" % [
+			rest_hint, game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size(), 1 if game.rules.boss_defeated else 0
 		]
 		return
 
@@ -1162,23 +1177,25 @@ func show_question():
 	var mode_tag := "机密机动" if game.rules.is_confidential() else "普通谨慎"
 	var atk_tag := (" | 🔥狂暴×%.1f" % damage_multiplier()) if rage_hunt_left > 0.0 else ((" | ⚠敌攻×%.2f" % damage_multiplier()) if wave_wrong_stacks > 0 else "")
 	var boss_suffix := ""
+	var is_ah_hud: bool = game.is_ahsarah_map()
 	if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated:
 		if boss_unit.is_skyfall_overlord:
-			boss_suffix = " | ★词尊 %d/500 (%d/5)" % [boss_unit.hp, boss_unit.overlord_seq_step]
+			boss_suffix = " | ★%s %d/500 (%d/5)" % ["雷斯" if is_ah_hud else "词尊", boss_unit.hp, boss_unit.overlord_seq_step]
 		else:
-			var v_stage := "三盾困阵" if boss_unit.vanguard_active_count >= 3 else ("双盾择词" if boss_unit.vanguard_active_count == 2 else "先锋")
+			var v_stage := "三盾困阵" if boss_unit.vanguard_active_count >= 3 else ("双盾择词" if boss_unit.vanguard_active_count == 2 else ("猎杀" if is_ah_hud else "先锋"))
 			var core_tag := " (红核1枪!)" if (boss_unit.exposed_left > 0.0 and boss_unit.boss_core_pulse_shots > 0) else ""
-			boss_suffix = " | ★铁面%s %d/%d%s" % [v_stage, boss_unit.hp, boss_unit.max_hp, core_tag]
+			boss_suffix = " | ★%s%s %d/%d%s" % ["赛伊德·" if is_ah_hud else "铁面", v_stage, boss_unit.hp, boss_unit.max_hp, core_tag]
 	var wave_total: int = int(wave_squad_size.get(zone, troops[zone].size()))
 	if overlord_active:
 		var tot_s: int = maxi(1, boss_unit.overlord_seq_words.size())
+		var ov_place := "行政堡垒 · ★军阀雷斯" if is_ah_hud else "云顶总坛 · ★玄铁词尊"
 		if boss_unit.overlord_round >= 2:
-			game.unit_label.text = "云顶总坛 · ★玄铁词尊[二轮 %d/300] · 公转金盾 %d/%d · 倒计时 %.1fs | [X]读音" % [
-				boss_unit.hp, boss_unit.overlord_seq_step, tot_s, boss_unit.overlord_r2_timer
+			game.unit_label.text = "%s[二轮 %d/300] · 公转金盾 %d/%d · 倒计时 %.1fs | [X]读音" % [
+				ov_place, boss_unit.hp, boss_unit.overlord_seq_step, tot_s, boss_unit.overlord_r2_timer
 			]
 		else:
-			game.unit_label.text = "云顶总坛 · ★玄铁词尊[一轮 %d/500] · 顺序盾 %d/%d%s | [X]读音" % [
-				boss_unit.hp, boss_unit.overlord_seq_step, tot_s, " (公转!)" if boss_unit.overlord_orbit_active else ""
+			game.unit_label.text = "%s[一轮 %d/500] · 顺序盾 %d/%d%s | [X]读音" % [
+				ov_place, boss_unit.hp, boss_unit.overlord_seq_step, tot_s, " (公转!)" if boss_unit.overlord_orbit_active else ""
 			]
 	elif boss_suffix != "":
 		game.unit_label.text = "%s · 第%d/%d波 · 守%d/%d%s%s | [X]读音" % [
@@ -1801,7 +1818,7 @@ func _spawn_boss_support_drones(boss, max_new: int = 2):
 		arena.add_child(drone)
 		var bar: Vector3 = covers[(i * 5) % maxi(1, covers.size())] if not covers.is_empty() else (boss.position + Vector3(-3.0 if i == 0 else 3.0, 0, -2.0))
 		drone.setup(self, 2, slot_opt, bar, Soldier.Archetype.SCOUT_DRONE, false)
-		drone.position = game.Layout.on_ground(boss.position + Vector3(-2.6 if i == 0 else 2.6, 0.0, 1.4)) + Vector3.UP * 0.1
+		drone.position = game.active_layout.on_ground(boss.position + Vector3(-2.6 if i == 0 else 2.6, 0.0, 1.4)) + Vector3.UP * 0.1
 		var dw: Dictionary = extra_words[i]
 		drone.assigned_word = dw
 		drone.set_nemesis_bounty(game.rules.learning.is_nemesis(str(dw.get("id", ""))))
@@ -1823,7 +1840,10 @@ func on_boss_phase_shift(boss, next_phase: int):
 			boss.vanguard_drones_spawned = true
 			_spawn_boss_support_drones(boss, 2)
 		boss.vanguard_move_cd = 2.8
-		game._notice("★ 铁面词卫进入二阶【双盾择词】！左右双肩词盾展开 + 侦察蜂增援，识词击破并防备冲锋震地！", Color("5ce0d8"))
+		if game.is_ahsarah_map():
+			game._notice("🔥 赤枭·赛伊德进入二阶【双盾猎杀】！『你掉进陷阱里了！』双肩词盾展开 + 卫队增援！", Color("ff9e58"))
+		else:
+			game._notice("★ 铁面词卫进入二阶【双盾择词】！左右双肩词盾展开 + 侦察蜂增援，识词击破并防备冲锋震地！", Color("5ce0d8"))
 		if is_instance_valid(game.player):
 			spawn_danger_ring(game.player.position, 3.4, 22)
 	elif next_phase == 1:
@@ -1831,7 +1851,10 @@ func on_boss_phase_shift(boss, next_phase: int):
 		if wave_words.has(2) and boss.option < wave_words[2].size():
 			wave_words[2][boss.option] = boss.expected_vanguard_word()
 		boss.vanguard_move_cd = 2.2
-		game._notice("🔥 铁面词卫进入终阶【三盾困阵】！三面全息词盾展开并释放【震荡冲击波】，横向闪避！", Color("ff9f43"))
+		if game.is_ahsarah_map():
+			game._notice("🦅 赤枭·赛伊德进入终阶【赤枭狂袭】！『这片大坝属于阿萨拉！』三面词盾展开 + 猎枭弩波！", Color("ff6842"))
+		else:
+			game._notice("🔥 铁面词卫进入终阶【三盾困阵】！三面全息词盾展开并释放【震荡冲击波】，横向闪避！", Color("ff9f43"))
 		if is_instance_valid(game.player):
 			var wdir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z).normalized()
 			spawn_sword_wave(boss.position, wdir, 18)
@@ -1844,14 +1867,22 @@ func _on_boss_defeated(boss):
 	game.rules.boss_defeated = true
 	game.rules.score += game.Rules.BOSS_DEFEAT_SCORE
 	game.player.add_reserve_ammo(8 if game.rules.is_confidential() else 10)
-	var core_val := roundi(460.0 * (game.Rules.CONFIDENTIAL_VALUE_MULT if game.rules.is_confidential() else 1.0))
-	var core_item := {"title": "烟山统领黄金核心", "value": core_val, "rarity": 6}
-	if not game.rules.add_loot(core_item.title, core_item.value, core_item.rarity):
+	var is_ah_boss: bool = game.is_ahsarah_map()
+	var is_ov: bool = is_instance_valid(boss) and boss.is_skyfall_overlord
+	var core_item: Dictionary
+	if is_ah_boss:
+		# Strict pyramid boss reward on Ahsarah: guaranteed T6/T5 calibrated Ahsarah trophy + Confidential pyramid apex roll!
+		var ah_r: int = game.rules.roll_calibrated_rarity(game.rules.is_confidential(), "warden_drop", true)
+		core_item = game.rules.roll_item_by_rarity(maxi(5, ah_r))
+	else:
+		var core_val := roundi(460.0 * (game.Rules.CONFIDENTIAL_VALUE_MULT if game.rules.is_confidential() else 1.0))
+		core_item = {"title": "烟山统领黄金核心", "value": core_val, "rarity": 6}
+	if not game.rules.add_loot(str(core_item.title), int(core_item.value), int(core_item.rarity)):
 		game.rules.swap_lowest_loot(core_item)
 	var extra_red_msg := ""
-	if is_instance_valid(boss) and boss.is_skyfall_overlord:
-		# Confidential Skyfall Overlord bonus drop: extra T6 Big Gold / T7 Mythic Red treasure!
-		var bonus_r := 7 if randf() < 0.35 else 6
+	if is_ov:
+		# Confidential Boss bonus drop obeying strict calibrated pyramid (NOT free guaranteed red every run!)
+		var bonus_r: int = game.rules.roll_calibrated_rarity(true, "warden_drop", true)
 		var bonus_item: Dictionary = game.rules.roll_item_by_rarity(bonus_r)
 		if game.rules.add_loot_item(bonus_item):
 			extra_red_msg = " + 机密首领秘宝【%s】%s" % [game.Rules.RARITY_NAMES[bonus_r], bonus_item.title]
@@ -1866,17 +1897,19 @@ func _on_boss_defeated(boss):
 	var bp_msg := (" + 研发图纸【%s】" % bp_unlocked) if bp_unlocked != "" else ""
 	game.play_sfx("loot_epic", -7)
 	if is_instance_valid(game.rangers):
-		var is_ov: bool = is_instance_valid(boss) and boss.is_skyfall_overlord
-		game.rangers.unlock_card("skyfall_overlord" if is_ov else "vanguard_boss", false)
+		if is_ah_boss:
+			game.rangers.unlock_card("reis_warlord" if is_ov else "saeed_fiery_owl", false)
+		else:
+			game.rangers.unlock_card("skyfall_overlord" if is_ov else "vanguard_boss", false)
 		game.rangers.record_bounty_progress("boss_defeated", 1)
-	var boss_name := "雾隐机关王·玄铁词尊" if (is_instance_valid(boss) and boss.is_skyfall_overlord) else "雾隐先锋·铁面词卫"
-	game._notice("🏆 击败【%s】！夺得 B区撤离密钥 + 黄金核心(%d)%s%s！" % [boss_name, core_val, extra_red_msg, bp_msg], Color("ffd15c"))
+	var boss_name := ("阿萨拉军阀·雷斯" if is_ov else "赤枭·赛伊德") if is_ah_boss else ("雾隐机关王·玄铁词尊" if is_ov else "雾隐先锋·铁面词卫")
+	game._notice("🏆 击败【%s】！夺得停机坪/撤离密钥 + %s(%d)%s%s！" % [boss_name, str(core_item.title), int(core_item.value), extra_red_msg, bp_msg], Color("ffd15c"))
 
 func deploy_smoke_emp(center: Vector3):
 	if not is_instance_valid(arena):
 		return
 	var root = Node3D.new()
-	var gpos: Vector3 = game.Layout.on_ground(center)
+	var gpos: Vector3 = game.active_layout.on_ground(center)
 	root.position = gpos
 	arena.add_child(root)
 	var emp_ring = MeshInstance3D.new()
@@ -1932,7 +1965,7 @@ func deploy_smoke_emp(center: Vector3):
 func spawn_danger_ring(target_pos: Vector3, radius: float = 3.4, dmg_val: int = 24):
 	if not is_instance_valid(arena):
 		return
-	var gpos: Vector3 = game.Layout.on_ground(target_pos)
+	var gpos: Vector3 = game.active_layout.on_ground(target_pos)
 	var root = Node3D.new()
 	root.position = gpos + Vector3(0, 0.12, 0)
 	arena.add_child(root)
@@ -1976,7 +2009,7 @@ func spawn_sword_wave(origin: Vector3, dir_xz: Vector3, dmg_val: int = 24):
 	if d.length_squared() < 0.001:
 		d = Vector3.FORWARD
 	d = d.normalized()
-	var g0: Vector3 = game.Layout.on_ground(origin + d * 2.2) + Vector3(0.0, 0.55, 0.0)
+	var g0: Vector3 = game.active_layout.on_ground(origin + d * 2.2) + Vector3(0.0, 0.55, 0.0)
 	var root := Node3D.new()
 	root.position = g0
 	root.rotation.y = atan2(d.x, d.z)
@@ -2031,7 +2064,10 @@ func on_overlord_skyfall_impact(at_pos: Vector3):
 		if game.player.has_method("apply_knockback"):
 			game.player.apply_knockback(push_p.normalized() * 6.5 + Vector3.UP * 1.8)
 		game.screen_flash.color = Color(1.0, 0.72, 0.24, 0.24)
-		game._notice("⚡ 玄铁词尊轰然天降！震地冲击波震倒全场生灵 1.0 秒！", Color("ffd15c"))
+		if game.is_ahsarah_map():
+			game._notice("🎷 军阀·雷斯率重甲卫队登场！『听好了，在阿萨拉，规矩由枪口和黄金说了算！』", Color("ffd15c"))
+		else:
+			game._notice("⚡ 玄铁词尊轰然天降！震地冲击波震倒全场生灵 1.0 秒！", Color("ffd15c"))
 
 func apply_ultimate_crush_to_10hp():
 	## v0.8.6 Ultimate「天地万象」impact: strips Shield to 0 & crushes HP to strictly 10 HP (non-lethal from >10 HP)!
@@ -2048,7 +2084,10 @@ func apply_ultimate_crush_to_10hp():
 		if game.player.has_method("apply_knockback"):
 			game.player.apply_knockback(Vector3(0.0, 1.4, 4.2))
 	game.screen_flash.color = Color(1.0, 0.16, 0.12, 0.38)
-	game._notice("💥【天地万象】倒悬山压顶！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
+	if game.is_ahsarah_map():
+		game._notice("💥【交响终曲 · 炮火洗地】轰击命中！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
+	else:
+		game._notice("💥【天地万象】倒悬山压顶！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
 	show_question()
 
 func rearm_overlord_round_two():
@@ -2056,7 +2095,10 @@ func rearm_overlord_round_two():
 		return
 	boss_unit.configure_overlord_round_two(_build_wave_words(3))
 	game.play_sfx("boss_phase", -7)
-	game._notice("🔥 玄铁词尊重振第二轮！3 面公转金盾重启——10 秒内按 1→3 顺序破盾斩杀！", Color("ffd15c"))
+	if game.is_ahsarah_map():
+		game._notice("🎷 军阀·雷斯重振第二轮！3 面公转重盾重启——10 秒内按 1→3 顺序破盾斩杀！", Color("ffd15c"))
+	else:
+		game._notice("🔥 玄铁词尊重振第二轮！3 面公转金盾重启——10 秒内按 1→3 顺序破盾斩杀！", Color("ffd15c"))
 	show_question()
 	var nxt: Dictionary = boss_unit.expected_overlord_word()
 	if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not nxt.is_empty():
@@ -2240,9 +2282,9 @@ func claim_tactical_cover(soldier, force_new_cover: bool = false) -> Dictionary:
 	var dir_p := to_p.normalized()
 	var right_v := dir_p.cross(Vector3.UP).normalized()
 	# Shelter behind center solid 1.84m merlon / trunk; Peek laterally over 0.72m low wing so 100% of Word Shield is readable!
-	var shelter_p: Vector3 = game.Layout.on_ground(chosen - dir_p * (1.42 if chosen_parapet else 1.15))
+	var shelter_p: Vector3 = game.active_layout.on_ground(chosen - dir_p * (1.42 if chosen_parapet else 1.15))
 	var peek_off: float = 1.16 if chosen_parapet else 1.10
-	var peek_p: Vector3 = game.Layout.on_ground(chosen + right_v * soldier.side * peek_off - dir_p * (0.78 if chosen_parapet else 0.45))
+	var peek_p: Vector3 = game.active_layout.on_ground(chosen + right_v * soldier.side * peek_off - dir_p * (0.78 if chosen_parapet else 0.45))
 	soldier.claimed_cover_idx = best_idx
 	soldier.cover = chosen
 	return {

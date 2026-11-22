@@ -5,6 +5,8 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 
 const EXTRACTION_SCORE = 420
 const CONFIDENTIAL_EXTRACTION_SCORE = 520
+const EXTRACTION_SCORE_AHSARAH = 450
+const CONFIDENTIAL_EXTRACTION_SCORE_AHSARAH = 580
 const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
@@ -28,10 +30,20 @@ const DEFAULT_SETTINGS = {
 	"strict_daily_review": true,
 	"auto_speak_on_switch": true,
 	"reduce_screen_shake": false,
+	"unlock_ahsarah_preview": false,
 	"sfx_volume": 1.0,
 	"voice_volume": 1.0,
 	"mouse_sensitivity": 1.0
 }
+
+const AHSARAH_LOOT_TITLES = [
+	"赤枭青铜猎徽",
+	"巴克什鎏金油灯",
+	"阿萨拉王室金杯",
+	"军阀古董留声机",
+	"曼德尔加密砖",
+	"非洲之心"
+]
 
 const CULTURAL_NOTES = {
 	"越窑秘色青瓷盏": {
@@ -97,6 +109,22 @@ const CULTURAL_NOTES = {
 	"青铜三足小鼎": {
 		"fiction": "烟山古道遗留的袖珍饕餮纹仿古铜鼎，绿锈斑驳却稳重端庄。",
 		"fact": "鼎原为古代炊器，商周时期演变为礼制重器，「一言九鼎」「问鼎中原」等成语均源于青铜鼎文化。"
+	},
+	"非洲之心": {
+		"fiction": "2035 年阿萨拉堡垒金库中最具传奇色彩的旷世巨钻，无数搜撤干员梦寐以求的终极宝藏。",
+		"fact": "非洲南部及北非自古盛产珍贵宝石与矿物；现实中著名的「非洲之星（库利南一号）」重达 530.2 克拉，是人类历史上最著名的巨型切割钻石之一。"
+	},
+	"曼德尔加密砖": {
+		"fiction": "哈夫克集团（HAAVK）在零号大坝与巴别塔暗中研发的高能加密量子存储魔方，散发青蓝全息光纹。",
+		"fact": "现实中的加密硬件安全模块（HSM）用于保护顶级通信密钥与科学数据，需要通过严密的多重身份验证与密码学算法破译。"
+	},
+	"阿萨拉王室金杯": {
+		"fiction": "昔日马尔卡兹城阿萨拉王室仪礼所用的纯金镶宝高脚杯，战乱中流落行政堡垒金库。",
+		"fact": "北非摩洛哥与马格里布地区自中世纪起以精湛的金属錾刻、镶嵌绿松石与几何纹饰工艺闻名于世。"
+	},
+	"军阀古董留声机": {
+		"fiction": "阿萨拉军阀雷斯随身珍藏的黄铜喇叭留声机，每次激战前他都会亲自摇动发条奏响古典交响乐。",
+		"fact": "留声机发明于 19 世纪末，利用唱针沿黑胶唱片沟槽振动并经由大型黄铜号角进行纯机械声学扩音，是现代音频技术的先驱。"
 	}
 }
 
@@ -224,7 +252,9 @@ const LOOT_TABLE = {
 		{"title": "越王式青铜短剑", "en": "Ancient Bronze Sword", "value": 252, "rarity": 5, "grid": "1×3", "icon": "bronze_sword", "lore": "【珍品·小金】起脊寒光菱格纹、剑格镶绿松石的江南古越青铜剑。"},
 		{"title": "越窑青瓷执壶", "en": "Celadon Wine Ewer", "value": 264, "rarity": 5, "grid": "2×2", "icon": "celadon_ewer", "lore": "【珍品·小金】瓜棱腹曲流执把、青釉明澈如春水的宋代越窑执壶。"},
 		{"title": "紫檀象棋匣", "en": "Rosewood Chess Set", "value": 278, "rarity": 5, "grid": "2×2", "icon": "ivory_chess", "lore": "【珍品·小金】小叶紫檀折叠棋盘，内藏牙白与翠玉精雕楚汉棋子。"},
-		{"title": "军用战术平板", "en": "Tactical Field Tablet", "value": 292, "rarity": 5, "grid": "2×2", "icon": "encrypted_tablet", "lore": "【珍品·小金】全天候防震装甲平板，实时解算烟山三维地形等高线。"}
+		{"title": "军用战术平板", "en": "Tactical Field Tablet", "value": 292, "rarity": 5, "grid": "2×2", "icon": "encrypted_tablet", "lore": "【珍品·小金】全天候防震装甲平板，实时解算烟山三维地形等高线。"},
+		{"title": "赤枭青铜猎徽", "en": "Fiery Owl Crest", "value": 268, "rarity": 5, "grid": "1×2", "icon": "fiery_owl_crest", "lore": "【珍品·小金·阿萨拉】阿萨拉行政堡垒首领「赤枭·赛伊德」部族信物，青铜展翼赤枭镶红宝石双目。"},
+		{"title": "巴克什鎏金油灯", "en": "Brakkesh Brass Lamp", "value": 248, "rarity": 5, "grid": "2×2", "icon": "brakkesh_brass_lamp", "lore": "【珍品·小金·阿萨拉】北非巴克什古城匠人锤揲的弯曲长嘴鎏金宫灯，颈环嵌有璀璨绿松石。"}
 	],
 	6: [
 		{"title": "烟山古铜虎符", "en": "Bronze Tiger Tally", "value": 340, "rarity": 6, "grid": "1×2", "icon": "tally", "lore": "【传说·大金】错金铭文古铜兵符，印证烟山古道昔日戍守历史。"},
@@ -237,7 +267,9 @@ const LOOT_TABLE = {
 		{"title": "良渚神徽玉琮", "en": "Liangzhu Jade Cong", "value": 385, "rarity": 6, "grid": "2×2", "icon": "jade_cong", "lore": "【传说·大金】外方内圆、四节分槽的江南史前太湖礼玉重器。"},
 		{"title": "曾侯乙式编钟", "en": "Bronze Chime Bells", "value": 415, "rarity": 6, "grid": "2×3", "icon": "bronze_chime", "lore": "【传说·大金】朱漆金架悬五枚合瓦青铜编钟，叩之金声玉振。"},
 		{"title": "青绿山水手卷", "en": "Qinglu Landscape Scroll", "value": 448, "rarity": 6, "grid": "2×2", "icon": "landscape_scroll", "lore": "【传说·大金】玉轴锦裱、绘尽烟山云海叠嶂的青绿设色山水长卷。"},
-		{"title": "浑天仪模型", "en": "Bronze Armillary Sphere", "value": 480, "rarity": 6, "grid": "2×2", "icon": "armillary_sphere", "lore": "【传说·大金】四龙柱托起赤黄道交错金环的精工古代天文仪。"}
+		{"title": "浑天仪模型", "en": "Bronze Armillary Sphere", "value": 480, "rarity": 6, "grid": "2×2", "icon": "armillary_sphere", "lore": "【传说·大金】四龙柱托起赤黄道交错金环的精工古代天文仪。"},
+		{"title": "阿萨拉王室金杯", "en": "Ahsarah Royal Chalice", "value": 475, "rarity": 6, "grid": "2×2", "icon": "ahsarah_royal_chalice", "lore": "【传说·大金·阿萨拉】北非古国马尔卡兹王室纯金礼杯，杯腰环嵌绿松石与红宝石。"},
+		{"title": "军阀古董留声机", "en": "Reis's Gramophone", "value": 445, "rarity": 6, "grid": "2×2", "icon": "reis_gramophone", "lore": "【传说·大金·阿萨拉】军阀雷斯私藏的核桃木黄铜喇叭古董留声机，唱盘犹存交响终曲。"}
 	],
 	7: [
 		{"title": "越窑秘色青瓷盏", "en": "Secret Celadon Bowl", "value": 680, "rarity": 7, "grid": "2×2", "icon": "celadon", "lore": "【旷世·大红】如冰似玉、千峰翠色的唐宋越窑秘色贡瓷孤品！"},
@@ -248,7 +280,9 @@ const LOOT_TABLE = {
 		{"title": "金瓯永固杯", "en": "Imperial Gold Chalice", "value": 720, "rarity": 7, "grid": "2×2", "icon": "gold_dragon_cup", "lore": "【旷世·大红】象首三足、夔龙双耳满镶珍珠红宝的纯金祝愿御杯！"},
 		{"title": "翠玉白菜", "en": "Jadeite Cabbage", "value": 810, "rarity": 7, "grid": "2×2", "icon": "jade_cabbage", "lore": "【旷世·大红】冰种白翠天然俏色雕成、叶伏金蝈蝈的传世玉雕奇珍！"},
 		{"title": "传国和氏璧玉玺", "en": "Imperial Jade Seal", "value": 960, "rarity": 7, "grid": "2×2", "icon": "imperial_jade_seal", "lore": "【旷世·大红】羊脂白玉双龙盘钮系朱红金穗的镇国传世宝玺！"},
-		{"title": "烟山天穹全息棱镜", "en": "Yanshan Sky Prism", "value": 1120, "rarity": 7, "grid": "2×2", "icon": "quantum_prism", "lore": "【旷世·大红】三道鎏金陀螺环悬托红晶八面体的云顶天穹终极圣核！"}
+		{"title": "烟山天穹全息棱镜", "en": "Yanshan Sky Prism", "value": 1120, "rarity": 7, "grid": "2×2", "icon": "quantum_prism", "lore": "【旷世·大红】三道鎏金陀螺环悬托红晶八面体的云顶天穹终极圣核！"},
+		{"title": "曼德尔加密砖", "en": "MandelBrick", "value": 1080, "rarity": 7, "grid": "2×2", "icon": "mandel_brick", "lore": "【旷世·大红·阿萨拉】哈夫克集团零号大坝最高机密量子加密棱块，全息青光流转！"},
+		{"title": "非洲之心", "en": "Heart of Africa", "value": 1180, "rarity": 7, "grid": "2×2", "icon": "heart_of_africa", "lore": "【旷世·大红·阿萨拉】深邃璀璨的多面切割赤红巨钻——阿萨拉堡垒至高无上的传说大红！"}
 	]
 }
 
@@ -293,6 +327,7 @@ const GUNSMITH_ORDER = [
 const BOSS_BLUEPRINTS = ["scope_2x", "suppressor", "compensator", "angled_grip", "tactical_rig", "tactical_belt"]
 
 var phase = "camp"
+var active_map: String = "yanshan"
 var combat_mode = false
 var prologue_mode = false
 var operation_tier: String = "normal"
@@ -316,12 +351,13 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.8.6",
+	"saved_by_version": "0.9.0",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
 	"trophies": 0,
 	"reputation": 0,
+	"unlocked_maps": ["yanshan"],
 	"active_ranger": "shaoyu",
 	"unlocked_rangers": ["shaoyu"],
 	"character_cards": ["shaoyu"],
@@ -369,7 +405,34 @@ func max_display_stand() -> int:
 	return 8 if "display_expand" in profile.owned else MAX_DISPLAY_STAND
 
 func extraction_score_required() -> int:
+	if active_map == "ahsarah":
+		return CONFIDENTIAL_EXTRACTION_SCORE_AHSARAH if is_confidential() else EXTRACTION_SCORE_AHSARAH
 	return CONFIDENTIAL_EXTRACTION_SCORE if is_confidential() else EXTRACTION_SCORE
+
+func ensure_map_profile():
+	if not profile.has("unlocked_maps") or not (profile["unlocked_maps"] is Array):
+		profile["unlocked_maps"] = ["yanshan"]
+	if not ("yanshan" in profile["unlocked_maps"]):
+		profile["unlocked_maps"].insert(0, "yanshan")
+
+func is_map_unlocked(map_id: String) -> bool:
+	ensure_map_profile()
+	if map_id == "yanshan":
+		return true
+	if map_id == "ahsarah":
+		return ("ahsarah" in profile["unlocked_maps"]) or bool(setting("unlock_ahsarah_preview", false))
+	return map_id in profile["unlocked_maps"]
+
+func is_ahsarah_permanently_unlocked() -> bool:
+	ensure_map_profile()
+	return "ahsarah" in profile["unlocked_maps"]
+
+func unlock_map(map_id: String) -> bool:
+	ensure_map_profile()
+	if map_id == "" or (map_id in profile["unlocked_maps"]):
+		return false
+	profile["unlocked_maps"].append(map_id)
+	return true
 
 func magazine() -> int:
 	if "magazine2" in profile.owned:
@@ -491,6 +554,7 @@ func ensure_settings() -> Dictionary:
 	st["strict_daily_review"] = bool(st.get("strict_daily_review", true))
 	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", true))
 	st["reduce_screen_shake"] = bool(st.get("reduce_screen_shake", false))
+	st["unlock_ahsarah_preview"] = bool(st.get("unlock_ahsarah_preview", false))
 	st["sfx_volume"] = clampf(float(st.get("sfx_volume", 1.0)), 0.0, 1.0)
 	st["voice_volume"] = clampf(float(st.get("voice_volume", 1.0)), 0.0, 1.0)
 	st["mouse_sensitivity"] = clampf(float(st.get("mouse_sensitivity", 1.0)), 0.4, 2.2)
@@ -569,6 +633,7 @@ func migrate_legacy_items():
 		profile["learning_stats"] = {}
 	ensure_settings()
 	ensure_ranger_profile()
+	ensure_map_profile()
 	profile["schema_version"] = PROFILE_SCHEMA_VERSION
 
 static func catalog_meta(title: String) -> Dictionary:
@@ -821,7 +886,21 @@ func roll_calibrated_rarity(mode_confidential: bool, context: String = "standard
 func roll_item_by_rarity(rarity: int) -> Dictionary:
 	var clamped := clampi(rarity, 1, MAX_RARITY)
 	var list: Array = LOOT_TABLE[clamped]
-	var item: Dictionary = list[loot_rng.randi_range(0, list.size() - 1)].duplicate()
+	var chosen_pool: Array = list
+	if clamped >= 5:
+		var ah_pool := []
+		var ys_pool := []
+		for entry in list:
+			if str(entry.get("title", "")) in AHSARAH_LOOT_TITLES:
+				ah_pool.append(entry)
+			else:
+				ys_pool.append(entry)
+		if active_map == "ahsarah":
+			if not ah_pool.is_empty() and loot_rng.randf() < 0.58:
+				chosen_pool = ah_pool
+		elif not ys_pool.is_empty():
+			chosen_pool = ys_pool
+	var item: Dictionary = chosen_pool[loot_rng.randi_range(0, chosen_pool.size() - 1)].duplicate()
 	var cond := _roll_condition()
 	var jitter := loot_rng.randf_range(0.97, 1.04)
 	var val := roundi(float(item["value"]) * float(cond["mult"]) * jitter)
