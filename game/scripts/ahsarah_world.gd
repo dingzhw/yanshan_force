@@ -79,7 +79,7 @@ func _place_arch(parent: Node3D, node_name: String, pos: Vector3, yaw_deg: float
 	parent.add_child(mi)
 	return mi
 
-func _add_solid_box(parent: Node3D, center: Vector3, dims: Vector3, yaw_deg: float = 0.0):
+func _add_solid_box(parent: Node3D, center: Vector3, dims: Vector3, yaw_deg: float = 0.0) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.position = center
 	body.rotation_degrees.y = yaw_deg
@@ -88,6 +88,19 @@ func _add_solid_box(parent: Node3D, center: Vector3, dims: Vector3, yaw_deg: flo
 	var col := CollisionShape3D.new()
 	var shp := BoxShape3D.new()
 	shp.size = dims
+	col.shape = shp
+	body.add_child(col)
+	return body
+
+func _add_solid_cylinder(parent: Node3D, center: Vector3, radius: float, height: float) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.position = center
+	body.add_to_group("solid_props")
+	parent.add_child(body)
+	var col := CollisionShape3D.new()
+	var shp := CylinderShape3D.new()
+	shp.radius = radius
+	shp.height = height
 	col.shape = shp
 	body.add_child(col)
 	return body
@@ -146,8 +159,8 @@ func apply_quality_preset(high: bool):
 		world_env.environment.glow_enabled = high
 
 func _desert_horizon():
-	# 1) True 3D sculpted distant desert mesa ring (r=238m) rising cleanly above canyon skyline
-	var mesa_ring := _place_arch(self, "desert_mesa_ring", Vector3(0.0, 4.0, -70.0), 0.0, 1.0, false)
+	# 1) True 3D sculpted distant desert mesa ring (r=238m) rising seamlessly out of the outer desert dune skirt
+	var mesa_ring := _place_arch(self, "desert_mesa_ring", Vector3(0.0, 2.5, -70.0), 0.0, 1.0, false)
 	if mesa_ring != null:
 		mesa_ring.name = "DesertMesaRing3D"
 		if mesa_ring.mesh != null and mesa_ring.mesh.get_surface_count() > 0:
@@ -180,7 +193,7 @@ func _desert_horizon():
 	backdrop.name = "DesertHorizonPanorama"
 	backdrop.mesh = cyl
 	backdrop.material_override = hmat
-	backdrop.position = Vector3(0.0, 56.0, -70.0)
+	backdrop.position = Vector3(0.0, 44.0, -70.0)
 	backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(backdrop)
 
@@ -210,11 +223,15 @@ func _terrain():
 			if rd < 4.5:
 				var rt := 1.0 - smoothstep(2.0, 4.5, rd)
 				col = col.lerp(Color("9c8260"), rt * 0.78)
-			# Lush palm-oasis moist earth & grass ring around south pool (-16, 12)
-			var od := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 14.0, (z - AhsarahLayout.OASIS_POOL.z) / 11.0).length()
-			if od < 1.35:
-				var ot := 1.0 - smoothstep(0.65, 1.35, od)
-				col = col.lerp(Color("6c8848"), ot * 0.85)
+			# Lush palm-oasis moist earth, darkened wet sand shoreline & grass ring around south pool (-16, 12)
+			var od := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 13.5, (z - AhsarahLayout.OASIS_POOL.z) / 10.2).length()
+			if od < 1.38:
+				var ot := 1.0 - smoothstep(0.68, 1.38, od)
+				col = col.lerp(Color("6c8848"), ot * 0.78)
+			var shore_d := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 7.2, (z - AhsarahLayout.OASIS_POOL.z) / 5.2).length()
+			if shore_d < 1.24:
+				var wet_t := 1.0 - smoothstep(0.72, 1.24, shore_d)
+				col = col.lerp(Color("7d6442"), wet_t * 0.88)
 			# Warm limestone/concrete courtyard tone around Admin Fortress & Helipad
 			var fd := Vector2(x - AhsarahLayout.ADMIN_FORTRESS.x, z - AhsarahLayout.ADMIN_FORTRESS.z).length()
 			if fd < 24.0:
@@ -268,43 +285,168 @@ func _terrain():
 	col.shape = t_mesh.create_trimesh_shape()
 	body.add_child(col)
 
+	# Seamless extended Outer Desert Dune Skirt stitching directly onto the 4 terrain edges out to r=290m!
+	# Eliminates any rectangular terrain cliff drop-off and marries the playable canyon into the 3D mesa ring & horizon!
+	_build_outer_desert_skirt(t_mat)
+
+func _build_outer_desert_skirt(t_mat: Material):
+	var center_z := -70.0
+	var half_x := 90.0
+	var half_z := 110.0
+	var segs_per_side := 32
+	var perimeter: Array[Vector2] = []
+	# Trace clockwise perimeter along exact terrain box edge: North (-180) -> East (+90) -> South (+40) -> West (-90)
+	for i in segs_per_side:
+		var f := float(i) / float(segs_per_side)
+		perimeter.append(Vector2(lerpf(-half_x, half_x, f), -180.0))
+	for i in segs_per_side:
+		var f := float(i) / float(segs_per_side)
+		perimeter.append(Vector2(half_x, lerpf(-180.0, 40.0, f)))
+	for i in segs_per_side:
+		var f := float(i) / float(segs_per_side)
+		perimeter.append(Vector2(lerpf(half_x, -half_x, f), 40.0))
+	for i in segs_per_side:
+		var f := float(i) / float(segs_per_side)
+		perimeter.append(Vector2(-half_x, lerpf(40.0, -180.0, f)))
+
+	var n_pts := perimeter.size()
+	var rings_fracs := [0.0, 0.14, 0.34, 0.62, 1.0]
+	var ring_verts: Array = []
+	var ring_cols: Array = []
+	var outer_r := 288.0
+
+	for rf in rings_fracs:
+		var rv: Array[Vector3] = []
+		var rc: Array[Color] = []
+		for p in perimeter:
+			var edge_y := AhsarahLayout.height(p.x, p.y)
+			var dir := Vector2(p.x, p.y - center_z).normalized()
+			var edge_pos := Vector2(p.x, p.y)
+			var outer_pos := Vector2(0.0, center_z) + dir * outer_r
+			var wp := edge_pos.lerp(outer_pos, rf)
+			var wy: float
+			if rf <= 0.001:
+				wy = edge_y
+			else:
+				var rolling := 5.5 + 7.5 * sin(wp.x * 0.022 + wp.y * 0.019) + 4.2 * cos(wp.x * 0.036 - wp.y * 0.028)
+				var far_lift := smoothstep(0.35, 1.0, rf) * 10.5
+				wy = lerpf(edge_y, rolling + far_lift, smoothstep(0.0, 0.55, rf))
+			rv.append(Vector3(wp.x, wy, wp.y))
+			# Match exact inner edge color and transition seamlessly into sunlit golden-ochre far desert
+			var inner_c := Color("c69d66").lerp(Color("a46238"), smoothstep(54.0, 84.0, absf(p.x)) * 0.82)
+			var far_c := Color("d4a46a").lerp(Color("c9925c"), smoothstep(0.4, 1.0, rf) * 0.6)
+			rc.append(inner_c.lerp(far_c, smoothstep(0.0, 0.65, rf)))
+		ring_verts.append(rv)
+		ring_cols.append(rc)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for ri in rings_fracs.size() - 1:
+		var r0: Array[Vector3] = ring_verts[ri]
+		var r1: Array[Vector3] = ring_verts[ri + 1]
+		var c0: Array[Color] = ring_cols[ri]
+		var c1: Array[Color] = ring_cols[ri + 1]
+		for i in n_pts:
+			var j := (i + 1) % n_pts
+			var v00 := r0[i]; var v10 := r0[j]; var v01 := r1[i]; var v11 := r1[j]
+			var u00 := Vector2(v00.x * 0.06, v00.z * 0.06)
+			var u10 := Vector2(v10.x * 0.06, v10.z * 0.06)
+			var u01 := Vector2(v01.x * 0.06, v01.z * 0.06)
+			var u11 := Vector2(v11.x * 0.06, v11.z * 0.06)
+			for tri in [[c0[i], v00, u00], [c1[i], v01, u01], [c1[j], v11, u11], [c0[i], v00, u00], [c1[j], v11, u11], [c0[j], v10, u10]]:
+				st.set_color(tri[0])
+				st.set_uv(tri[2])
+				st.add_vertex(tri[1])
+	st.generate_normals()
+	var skirt := MeshInstance3D.new()
+	skirt.name = "AhsarahOuterDesertSkirt"
+	skirt.mesh = st.commit()
+	skirt.material_override = t_mat
+	skirt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(skirt)
+
 func _oasis_pool():
-	# Shimmering sunlit emerald desert oasis spring at (-16, -0.18, 12)
+	# TRUE recessed sunlit emerald desert oasis spring sitting strictly INSIDE the -1.10m carved sand basin!
+	# Water plane at y=-0.34m intersects INTO the sloping wet-sand shore 360° around (ZERO floating disc edge!).
 	var pool := MeshInstance3D.new()
 	pool.name = "OasisSpringPool"
-	var pm := CylinderMesh.new()
-	pm.top_radius = 8.4
-	pm.bottom_radius = 7.2
-	pm.height = 0.14
-	pm.radial_segments = 24
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(16.0, 11.6)
+	pm.subdivide_width = 20
+	pm.subdivide_depth = 16
 	pool.mesh = pm
-	pool.scale = Vector3(1.0, 1.0, 0.72)
-	pool.position = Vector3(AhsarahLayout.OASIS_POOL.x, -0.16, AhsarahLayout.OASIS_POOL.z)
-	var wmat := StandardMaterial3D.new()
-	wmat.albedo_color = Color(0.18, 0.62, 0.58, 0.86)
-	wmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wmat.roughness = 0.12
-	wmat.metallic = 0.18
+	pool.position = Vector3(AhsarahLayout.OASIS_POOL.x, -0.34, AhsarahLayout.OASIS_POOL.z)
+
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode blend_mix, cull_disabled, depth_draw_opaque;
+void vertex() {
+	float t = TIME * 1.45;
+	float w = sin(VERTEX.x * 1.4 + t) * 0.018 + cos(VERTEX.z * 1.7 - t * 1.15) * 0.015;
+	VERTEX.y += w;
+}
+void fragment() {
+	vec2 p = (UV - vec2(0.5)) * 2.0;
+	float r = length(p);
+	float ripple = sin(r * 18.0 - TIME * 2.4) * 0.5 + 0.5;
+	float wave2 = sin(UV.x * 26.0 + TIME * 1.8) * cos(UV.y * 22.0 - TIME * 1.3) * 0.5 + 0.5;
+	vec3 deep_col = vec3(0.08, 0.44, 0.46);
+	vec3 shallow_col = vec3(0.24, 0.68, 0.60);
+	vec3 foam_col = vec3(0.76, 0.90, 0.86);
+	float depth_mix = smoothstep(0.18, 0.92, r);
+	vec3 col = mix(deep_col, shallow_col, depth_mix);
+	col = mix(col, foam_col, smoothstep(0.76, 0.98, ripple * 0.55 + wave2 * 0.45) * 0.24);
+	ALBEDO = col;
+	ROUGHNESS = 0.14;
+	METALLIC = 0.12;
+	ALPHA = mix(0.88, 0.52, smoothstep(0.68, 1.0, r));
+}
+"""
+	var wmat := ShaderMaterial.new()
+	wmat.shader = shader
 	pool.material_override = wmat
 	pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(pool)
+
+	# Carved weathered spring rock head & reeds feeding water into the recessed north shoreline
+	var spring_pos := Vector3(AhsarahLayout.OASIS_POOL.x, -0.04, AhsarahLayout.OASIS_POOL.z - 5.1)
+	_place_arch(self, "oasis_spring_head", spring_pos, 0.0, 1.0, true)
+	_add_solid_box(self, spring_pos + Vector3(0.0, 0.5, -0.3), Vector3(3.4, 1.4, 2.2))
+
+	# Natural shoreline rim boulders partially embedded along the wet sand bank for grounded transition!
+	var rim_rocks := [
+		[-6.8, -2.6, 22.0, 0.44], [-7.4, 1.8, 108.0, 0.48], [-4.8, 4.9, 195.0, 0.42],
+		[4.6, 4.6, 310.0, 0.46], [7.2, 1.4, 45.0, 0.44], [6.6, -2.8, 154.0, 0.46],
+		[3.2, -4.9, 260.0, 0.40], [-3.4, -4.8, 82.0, 0.42],
+	]
+	for rr in rim_rocks:
+		var rp := Vector3(AhsarahLayout.OASIS_POOL.x + float(rr[0]), 0.0, AhsarahLayout.OASIS_POOL.z + float(rr[1]))
+		var ry := AhsarahLayout.height(rp.x, rp.z)
+		var sc: float = float(rr[3])
+		_place_arch(self, "desert_boulder_a", Vector3(rp.x, ry - 0.16, rp.z), float(rr[2]), sc, true)
+		_add_solid_cylinder(self, Vector3(rp.x, ry + 0.35, rp.z), 1.65 * sc, 1.2 * sc)
 
 func _hero_landmarks():
 	var root := Node3D.new()
 	root.name = "AhsarahHeroLandmarks"
 	add_child(root)
 
-	# 1) COLOSSAL NORTH ZERO DAM MONOLITH (114m wide x 40m tall framing entire northern skyline!)
+	# 1) COLOSSAL NORTH ZERO DAM MONOLITH (114m concrete wall + flanking sculpted desert canyon abutments!)
 	var dam_y := AhsarahLayout.CLOUD_ARENA_Y - 1.2
-	_place_arch(root, "zero_dam_wall_monolith", Vector3(0.0, dam_y, -162.0), 0.0, 1.0, true)
-	_add_solid_box(root, Vector3(0.0, dam_y + 18.0, -160.0), Vector3(118.0, 40.0, 14.0))
-	var dam_lbl: Label3D = game._label3d(root, "零号大坝 · ZERO DAM", Vector3(0.0, dam_y + 30.0, -150.0), 66, Color("ffe5a8"))
+	_place_arch(root, "zero_dam_wall_monolith", Vector3(0.0, dam_y, -158.0), 0.0, 1.0, true)
+	_add_solid_box(root, Vector3(0.0, dam_y + 18.0, -156.0), Vector3(118.0, 42.0, 14.0))
+	# Solid cliff wing blockers locking both dam flanks into canyon walls (strictly north of z=-150m, clear of NE Helipad!)
+	_add_solid_box(root, Vector3(-72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
+	_add_solid_box(root, Vector3(72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
+	var dam_lbl: Label3D = game._label3d(root, "零号大坝 · ZERO DAM", Vector3(0.0, dam_y + 30.0, -146.0), 66, Color("ffe5a8"))
 	dam_lbl.pixel_size = 0.018
 	dam_lbl.visibility_range_end = 220.0
 
 	# 2) TWIN BABEL-INSPIRED CONCRETE RADAR WATCHTOWERS flanking the Dam & Fortress!
 	for rt_pos in [AhsarahLayout.RADAR_TOWER_WEST, AhsarahLayout.RADAR_TOWER_EAST]:
-		var gp := AhsarahLayout.on_ground(rt_pos)
+		var ry := AhsarahLayout.min_ground_height(rt_pos.x, rt_pos.z, 3.8)
+		var gp := Vector3(rt_pos.x, ry, rt_pos.z)
 		_place_arch(root, "babel_radar_tower", gp, 18.0 if rt_pos.x < 0 else -18.0, 1.0, true)
 		_add_solid_box(root, gp + Vector3(0.0, 10.0, 0.0), Vector3(7.4, 20.0, 7.4))
 
@@ -315,13 +457,18 @@ func _hero_landmarks():
 	_add_solid_box(root, fg + Vector3(-7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.4))
 	_add_solid_box(root, fg + Vector3(7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.4))
 	_add_solid_box(root, fg + Vector3(0.0, 6.6, 0.0), Vector3(8.2, 2.4, 10.2))  # Overhead command bridge
+	# Walkable gatehouse tunnel floor (y=0..0.70m) + smooth front & rear step ramps so players ascend cleanly!
+	_add_solid_box(root, fg + Vector3(0.0, 0.35, 0.0), Vector3(6.8, 0.70, 14.2))
+	for r_sgn in [-1.0, 1.0]:
+		var ramp_b := _add_solid_box(root, fg + Vector3(0.0, 0.25, r_sgn * 8.1), Vector3(6.5, 0.28, 2.4), 0.0)
+		ramp_b.rotation_degrees.x = r_sgn * 17.0
 	var fg_lbl: Label3D = game._label3d(root, "阿萨拉行政堡垒 · ADMIN FORTRESS", fg + Vector3(0.0, 9.6, 5.8), 44, Color("ffd878"))
 	fg_lbl.pixel_size = 0.010
 	fg_lbl.visibility_range_end = 120.0
 
 	# 4) WEST CEMENT PLANT INDUSTRIAL SILOS (Zero Dam signature west wing!)
-	var cp1 := AhsarahLayout.on_ground(Vector3(-54.0, 0.0, -44.0))
-	var cp2 := AhsarahLayout.on_ground(Vector3(-52.0, 0.0, -64.0))
+	var cp1 := Vector3(-54.0, AhsarahLayout.min_ground_height(-54.0, -44.0, 4.5), -44.0)
+	var cp2 := Vector3(-52.0, AhsarahLayout.min_ground_height(-52.0, -64.0, 4.5), -64.0)
 	_place_arch(root, "cement_silo_complex", cp1, 14.0, 1.0, true)
 	_add_solid_box(root, cp1 + Vector3(-3.4, 7.2, 0.0), Vector3(5.6, 14.4, 5.6), 14.0)
 	_add_solid_box(root, cp1 + Vector3(3.4, 7.2, 0.0), Vector3(5.6, 14.4, 5.6), 14.0)
@@ -340,14 +487,25 @@ func _hero_landmarks():
 		[Vector3(19.5, 0.0, -124.0), -90.0, 0.92, ""],  # Admin courtyard East sandstone wing
 	]
 	for ps in pav_specs:
-		var pp := AhsarahLayout.on_ground(ps[0])
+		var p_in: Vector3 = ps[0]
+		var py := AhsarahLayout.min_ground_height(p_in.x, p_in.z, 4.2)
+		var pp := Vector3(p_in.x, py, p_in.z)
 		_place_arch(root, "brakkesh_sandstone_pavilion", pp, float(ps[1]), float(ps[2]), true)
-		# Corner pier colliders only so players can walk straight through the arched bazaar pavilions!
+		# Exact Basis-rotated corner piers, walkable raised floor terrace, smooth step ramps & awning post colliders!
 		var sc: float = float(ps[2])
-		var rad := deg_to_rad(float(ps[1]))
+		var yaw_deg: float = float(ps[1])
+		var rot_b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
 		for c_off in [Vector3(-3.3, 2.2, -2.7), Vector3(3.3, 2.2, -2.7), Vector3(-3.3, 2.2, 2.7), Vector3(3.3, 2.2, 2.7)]:
-			var rot_o := Vector3(c_off.x * cos(rad) - c_off.z * sin(rad), c_off.y, c_off.x * sin(rad) + c_off.z * cos(rad)) * sc
-			_add_solid_box(root, pp + rot_o, Vector3(1.5, 4.4, 1.5) * sc, float(ps[1]))
+			_add_solid_box(root, pp + (rot_b * c_off) * sc, Vector3(1.5, 4.4, 1.5) * sc, yaw_deg)
+		# Walkable raised sandstone floor (top at y=0.60*sc) + gentle entry ramps on front/back/sides
+		_add_solid_box(root, pp + Vector3(0.0, 0.30 * sc, 0.0), Vector3(8.4, 0.60, 7.0) * sc, yaw_deg)
+		var front_ramp := _add_solid_box(root, pp + (rot_b * Vector3(0.0, 0.22, 4.25)) * sc, Vector3(4.0, 0.24, 1.9) * sc, yaw_deg)
+		front_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(18.0))
+		var back_ramp := _add_solid_box(root, pp + (rot_b * Vector3(0.0, 0.22, -4.15)) * sc, Vector3(4.2, 0.24, 1.7) * sc, yaw_deg)
+		back_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(-18.0))
+		# Solid front awning post colliders so players cannot clip through the awning posts
+		for p_off in [Vector3(-2.4, 1.6, 5.42), Vector3(2.4, 1.6, 5.42)]:
+			_add_solid_cylinder(root, pp + (rot_b * p_off) * sc, 0.18 * sc, 3.2 * sc)
 		if str(ps[3]) != "":
 			var pl: Label3D = game._label3d(root, str(ps[3]), pp + Vector3(0.0, 7.6, 0.0), 34, Color("ffe2a8"))
 			pl.pixel_size = 0.0085
@@ -355,7 +513,8 @@ func _hero_landmarks():
 
 	# 6) EAST HAAVK ELECTRICAL SUBSTATION TRANSFORMER BAYS
 	for sb_spec in [[Vector3(52.0, 0.0, -84.0), -90.0], [Vector3(52.0, 0.0, -96.0), -90.0]]:
-		var sp := AhsarahLayout.on_ground(sb_spec[0])
+		var s_in: Vector3 = sb_spec[0]
+		var sp := Vector3(s_in.x, AhsarahLayout.min_ground_height(s_in.x, s_in.z, 3.2), s_in.z)
 		_place_arch(root, "substation_transformer_bay", sp, float(sb_spec[1]), 1.0, true)
 		_add_solid_box(root, sp + Vector3(0.0, 1.8, 0.0), Vector3(5.2, 3.6, 7.2), 0.0)
 	var sub_lbl: Label3D = game._label3d(root, "哈夫克变电站 · HAAVK SUBSTATION", AhsarahLayout.on_ground(Vector3(50.0, 0.0, -90.0)) + Vector3(0.0, 6.2, 0.0), 36, Color("6ceeff"))
@@ -364,7 +523,8 @@ func _hero_landmarks():
 
 	# 7) TACTICAL 4x4 DESERT RECON JEEPS (Oasis Camp, Mid-Wadi Road, Helipad Overlook)
 	for jp in [[Vector3(7.5, 0.0, 16.5), -142.0], [Vector3(-12.0, 0.0, -48.0), 28.0], [Vector3(44.0, 0.0, -132.0), -64.0]]:
-		var jpos := AhsarahLayout.on_ground(jp[0])
+		var j_in: Vector3 = jp[0]
+		var jpos := Vector3(j_in.x, AhsarahLayout.min_ground_height(j_in.x, j_in.z, 1.8) - 0.04, j_in.z)
 		_place_arch(root, "tactical_desert_jeep", jpos, float(jp[1]), 1.0, true)
 		_add_solid_box(root, jpos + Vector3(0.0, 0.95, 0.0), Vector3(2.1, 1.9, 4.2), float(jp[1]))
 
@@ -391,17 +551,18 @@ func _sandstone_perimeter_and_covers():
 		[Vector3(24.0, 0.0, -138.0), Vector3(1.4, 3.8, 12.0), 0.0, conc_mat],
 	]
 	for ws in wall_specs:
-		var wp := AhsarahLayout.on_ground(ws[0])
+		var w_in: Vector3 = ws[0]
+		var wp := Vector3(w_in.x, AhsarahLayout.min_ground_height(w_in.x, w_in.z, 3.5), w_in.z)
 		var dims: Vector3 = ws[1]
 		var box := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = dims
+		bm.size = Vector3(dims.x, dims.y + 1.2, dims.z)
 		box.mesh = bm
 		box.material_override = ws[3]
-		box.position = wp + Vector3(0.0, dims.y * 0.5 - 0.15, 0.0)
+		box.position = wp + Vector3(0.0, dims.y * 0.5 - 0.60, 0.0)
 		box.rotation_degrees.y = float(ws[2])
 		cov.add_child(box)
-		_add_solid_box(cov, box.position, dims, float(ws[2]))
+		_add_solid_box(cov, wp + Vector3(0.0, dims.y * 0.5, 0.0), dims, float(ws[2]))
 
 	# 12 Curved Sandbag Firing Emplacements & 10 Military Ammo Stacks across key sightlines
 	var sandbag_spots := [
@@ -413,7 +574,8 @@ func _sandstone_perimeter_and_covers():
 		[Vector3(0.0, 0.0, -136.0), 180.0], [Vector3(46.0, 0.0, -142.0), -125.0],
 	]
 	for sb in sandbag_spots:
-		var sp := AhsarahLayout.on_ground(sb[0])
+		var s_in: Vector3 = sb[0]
+		var sp := Vector3(s_in.x, AhsarahLayout.min_ground_height(s_in.x, s_in.z, 1.6), s_in.z)
 		_place_arch(cov, "sandbag_bunker_wall", sp, float(sb[1]), 1.0, true)
 		_add_solid_box(cov, sp + Vector3(0.0, 0.62, 0.0), Vector3(4.2, 1.24, 1.15), float(sb[1]))
 
@@ -425,7 +587,8 @@ func _sandstone_perimeter_and_covers():
 		[Vector3(13.5, 0.0, -126.0), -18.0], [Vector3(56.0, 0.0, -132.0), 34.0],
 	]
 	for am in ammo_spots:
-		var ap := AhsarahLayout.on_ground(am[0])
+		var a_in: Vector3 = am[0]
+		var ap := Vector3(a_in.x, AhsarahLayout.min_ground_height(a_in.x, a_in.z, 1.1), a_in.z)
 		_place_arch(cov, "military_ammo_stack", ap, float(am[1]), 1.0, true)
 		_add_solid_box(cov, ap + Vector3(0.0, 0.58, 0.0), Vector3(2.2, 1.16, 1.5), float(am[1]))
 
@@ -437,10 +600,11 @@ func _sandstone_perimeter_and_covers():
 		[Vector3(24.0, 0.0, -76.0), -18.0, Color("9a4c32")],
 	]
 	for cs in cont_specs:
-		var cpos := AhsarahLayout.on_ground(cs[0])
+		var c_in: Vector3 = cs[0]
+		var cpos := Vector3(c_in.x, AhsarahLayout.min_ground_height(c_in.x, c_in.z, 2.5), c_in.z)
 		var cbox := MeshInstance3D.new()
 		var cm := BoxMesh.new()
-		cm.size = Vector3(2.55, 2.65, 6.2)
+		cm.size = Vector3(2.55, 3.15, 6.2)
 		cbox.mesh = cm
 		var cmat := StandardMaterial3D.new()
 		cmat.albedo_color = cs[2]
@@ -448,36 +612,88 @@ func _sandstone_perimeter_and_covers():
 		cmat.roughness = 0.72
 		cmat.metallic = 0.28
 		cbox.material_override = cmat
-		cbox.position = cpos + Vector3(0.0, 1.30, 0.0)
+		cbox.position = cpos + Vector3(0.0, 1.05, 0.0)
 		cbox.rotation_degrees.y = float(cs[1])
 		cov.add_child(cbox)
-		_add_solid_box(cov, cbox.position, cm.size, float(cs[1]))
+		_add_solid_box(cov, cpos + Vector3(0.0, 1.32, 0.0), Vector3(2.55, 2.65, 6.2), float(cs[1]))
 
-	# Boundary desert rock & military hazard fence posts keeping players inside playable 156x196m canyon
-	for fx in [-78.0, 78.0]:
-		_add_solid_box(cov, Vector3(fx, 8.0, -70.0), Vector3(2.0, 24.0, 204.0))
-	_add_solid_box(cov, Vector3(0.0, 8.0, 28.0), Vector3(160.0, 24.0, 2.0))
+	# PHYSICAL STACKED DESERT BOULDER HALF-WALL PERIMETER replacing bare invisible air walls!
+	# Interlocking 10m sandstone rock-wall berms visually & physically enclose East, West, South & North Dam flanks!
+	var perim := Node3D.new()
+	perim.name = "AhsarahPerimeterRockWalls"
+	cov.add_child(perim)
+	# West (X=-76.2) & East (X=+76.2) stacked desert rock walls spanning Z=-150..+26
+	for side_x in [-76.2, 76.2]:
+		var yaw_base := 90.0 if side_x < 0.0 else -90.0
+		var z_cur := -146.0
+		var seg_i := 0
+		while z_cur <= 24.0:
+			var wy := AhsarahLayout.min_ground_height(side_x, z_cur, 3.5)
+			var jitter_x := (0.6 if seg_i % 2 == 0 else -0.5) * (1.0 if side_x > 0 else -1.0)
+			var sc_w := 1.02 + (0.08 if seg_i % 3 == 0 else 0.0)
+			_place_arch(perim, "desert_perimeter_rockwall", Vector3(side_x + jitter_x, wy - 0.15, z_cur), yaw_base + (5.0 if seg_i % 2 == 0 else -5.0), sc_w, false)
+			z_cur += 9.4
+			seg_i += 1
+	# South perimeter stacked desert rock wall along Z=+26.2 spanning X=-76..+76
+	var x_cur := -72.0
+	var s_i := 0
+	while x_cur <= 72.0:
+		var wy := AhsarahLayout.min_ground_height(x_cur, 26.2, 3.5)
+		var jitter_z := 0.55 if s_i % 2 == 0 else -0.45
+		_place_arch(perim, "desert_perimeter_rockwall", Vector3(x_cur, wy - 0.15, 26.2 + jitter_z), 180.0 + (4.5 if s_i % 2 == 0 else -4.5), 1.02, false)
+		x_cur += 9.4
+		s_i += 1
+	# North perimeter rock walls bridging East/West edges seamlessly into Zero Dam's flanking canyon cliffs (Z=-148.5)
+	for nx in [-70.0, -61.0, -52.0, 52.0, 61.0, 70.0]:
+		var wy := AhsarahLayout.min_ground_height(nx, -148.5, 3.5)
+		_place_arch(perim, "desert_perimeter_rockwall", Vector3(nx, wy - 0.15, -148.5), 6.0 if nx < 0 else -6.0, 1.15, false)
+
+	# Smooth-sliding solid colliders aligned right along the inner face of the stacked stone perimeter walls
+	_add_solid_box(cov, Vector3(-75.0, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
+	_add_solid_box(cov, Vector3(75.0, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
+	_add_solid_box(cov, Vector3(0.0, 8.0, 25.0), Vector3(154.0, 24.0, 2.2))
+	_add_solid_box(cov, Vector3(0.0, 8.0, -149.0), Vector3(154.0, 24.0, 2.2))
 
 func _desert_flora_and_boulders():
 	var flora := Node3D.new()
 	flora.name = "AhsarahDesertFlora"
 	add_child(flora)
 
-	# 7 Lush Date-Palm Clusters ringing the South Oasis & desert wadi springs!
+	# 7 Lush Date-Palm Clusters ringing the South Oasis & desert wadi springs — EVERY trunk has solid physics collision!
 	var palm_spots := [
 		[Vector3(-10.5, 0.0, 17.5), 15.0, 1.05],
 		[Vector3(-23.5, 0.0, 14.5), 110.0, 1.12],
-		[Vector3(-20.5, 0.0, 4.5), 225.0, 0.96],
-		[Vector3(-9.0, 0.0, 5.8), 305.0, 0.92],
+		[Vector3(-21.2, 0.0, 5.2), 225.0, 0.96],
+		[Vector3(-9.2, 0.0, 5.8), 305.0, 0.92],
 		[Vector3(14.5, 0.0, 14.5), 48.0, 1.0],
 		[Vector3(19.5, 0.0, -10.0), 165.0, 0.94],
 		[Vector3(-18.5, 0.0, -18.0), 72.0, 0.90],
 	]
+	# Local trunk offsets matching build_oasis_palm_cluster() in Blender 4.5
+	var palm_trunk_offsets := [
+		[Vector2(0.0, 0.0), 0.44, 6.2],
+		[Vector2(-1.45, 0.85), 0.38, 5.2],
+		[Vector2(1.30, -0.75), 0.34, 4.4],
+	]
 	for ps in palm_spots:
-		var pp := AhsarahLayout.on_ground(ps[0])
-		_place_arch(flora, "oasis_palm_cluster", pp - Vector3(0.0, 0.15, 0.0), float(ps[1]), float(ps[2]), true)
+		var p_in: Vector3 = ps[0]
+		var py := AhsarahLayout.min_ground_height(p_in.x, p_in.z, 1.5)
+		var pp := Vector3(p_in.x, py - 0.08, p_in.z)
+		var yaw_deg: float = float(ps[1])
+		var sc: float = float(ps[2])
+		_place_arch(flora, "oasis_palm_cluster", pp, yaw_deg, sc, true)
+		var rad := deg_to_rad(yaw_deg)
+		var ca := cos(rad)
+		var sa := sin(rad)
+		for tr in palm_trunk_offsets:
+			var off: Vector2 = tr[0]
+			# Godot Y-rotation maps local (x, z) -> (x*cos + z*sin, -x*sin + z*cos)
+			var wx := pp.x + (off.x * ca + off.y * sa) * sc
+			var wz := pp.z + (-off.x * sa + off.y * ca) * sc
+			var tr_h := float(tr[2]) * sc
+			_add_solid_cylinder(flora, Vector3(wx, pp.y + tr_h * 0.5, wz), float(tr[1]) * sc, tr_h)
 
-	# 14 Flat-topped Umbrella Desert Acacia Trees scattered along ridges & bazaar approaches
+	# 14 Flat-topped Umbrella Desert Acacia Trees — EVERY trunk deeply grounded with solid collision!
 	var acacia_spots := [
 		Vector3(24.0, 0.0, 8.0), Vector3(-34.0, 0.0, -6.0), Vector3(56.0, 0.0, -18.0),
 		Vector3(-62.0, 0.0, -24.0), Vector3(14.0, 0.0, -46.0), Vector3(-22.0, 0.0, -64.0),
@@ -486,42 +702,34 @@ func _desert_flora_and_boulders():
 		Vector3(32.0, 0.0, -118.0), Vector3(-28.0, 0.0, -142.0),
 	]
 	for idx in acacia_spots.size():
-		var ap := AhsarahLayout.on_ground(acacia_spots[idx])
-		_place_arch(flora, "desert_acacia_tree", ap - Vector3(0.0, 0.12, 0.0), float(idx) * 53.0, rng.randf_range(0.85, 1.18), true)
+		var a_in: Vector3 = acacia_spots[idx]
+		var ap := Vector3(a_in.x, AhsarahLayout.min_ground_height(a_in.x, a_in.z, 0.8) - 0.08, a_in.z)
+		var sc: float = rng.randf_range(0.85, 1.18)
+		_place_arch(flora, "desert_acacia_tree", ap, float(idx) * 53.0, sc, true)
+		_add_solid_cylinder(flora, ap + Vector3(0.0, 2.3 * sc, 0.0), 0.44 * sc, 4.6 * sc)
 
-	# Warm ochre canyon sandstone outcrop boulders framing edges via fast MultiMeshInstance3D!
-	var rock_mesh := SphereMesh.new()
-	rock_mesh.radius = 2.6
-	rock_mesh.height = 3.2
-	rock_mesh.radial_segments = 9
-	rock_mesh.rings = 5
-	var rock_mat := StandardMaterial3D.new()
-	rock_mat.albedo_texture = load(SANDSTONE_TEX)
-	rock_mat.albedo_color = Color("d89b62")
-	rock_mat.roughness = 0.92
-	var rock_xforms: Array[Transform3D] = []
-	for i in 48:
+	# Sculpted faceted Saharan sandstone outcrop boulders (Blender 4.5 desert_boulder_a / b)
+	# Replaces smooth brick-textured walk-through spheres — EVERY boulder is deeply grounded AND solid!
+	var boulders_root := Node3D.new()
+	boulders_root.name = "DesertCanyonRocks"
+	flora.add_child(boulders_root)
+	var placed_boulders := 0
+	for i in 52:
 		var side := -1.0 if (i % 2 == 0) else 1.0
-		var rx := side * rng.randf_range(56.0, 77.0)
-		var rz := rng.randf_range(-154.0, 22.0)
-		if AhsarahLayout.clear_for_route(rx, rz, 3.0):
+		var rx := side * rng.randf_range(54.0, 71.0)
+		var rz := rng.randf_range(-142.0, 18.0)
+		if AhsarahLayout.clear_for_route(rx, rz, 3.6):
 			continue
-		var ry := AhsarahLayout.height(rx, rz)
-		var sc := Vector3(rng.randf_range(0.8, 2.2), rng.randf_range(0.6, 1.9), rng.randf_range(0.8, 2.0))
-		rock_xforms.append(Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(sc), Vector3(rx, ry + sc.y * 0.45, rz)))
-	if not rock_xforms.is_empty():
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = rock_mesh
-		mm.instance_count = rock_xforms.size()
-		for i in rock_xforms.size():
-			mm.set_instance_transform(i, rock_xforms[i])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "DesertCanyonRocks"
-		mmi.multimesh = mm
-		mmi.material_override = rock_mat
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		flora.add_child(mmi)
+		var ry := AhsarahLayout.min_ground_height(rx, rz, 1.8)
+		var sc := rng.randf_range(0.82, 1.48)
+		var is_tall := (i % 3 == 0)
+		var b_name := "desert_boulder_b" if is_tall else "desert_boulder_a"
+		var byaw := rng.randf_range(0.0, 360.0)
+		_place_arch(boulders_root, b_name, Vector3(rx, ry - 0.14, rz), byaw, sc, true)
+		var col_r := (1.65 if is_tall else 2.05) * sc
+		var col_h := (3.5 if is_tall else 2.2) * sc
+		_add_solid_cylinder(boulders_root, Vector3(rx, ry + col_h * 0.45, rz), col_r, col_h)
+		placed_boulders += 1
 
 func _stations_and_targets():
 	for data in AhsarahLayout.STATIONS:
@@ -543,7 +751,11 @@ func _tactical_crates_and_pickups():
 		["零号大坝高台特勤秘箱", 3, Vector3(36.0, 0.0, -138.0)],
 	]
 	for cs in crate_specs:
-		var gp := AhsarahLayout.on_ground(cs[2])
+		var cpos_in: Vector3 = cs[2]
+		var gp := AhsarahLayout.on_ground(cpos_in)
+		# Lift crate inside Brakkesh main pavilion cleanly onto the raised sandstone terrace floor (+0.60m)
+		if str(cs[0]) == "巴克什拱廊珍宝箱":
+			gp.y = AhsarahLayout.min_ground_height(44.0, -28.0, 4.2) + 0.60
 		var cr: Node3D = game._make_crate(str(cs[0]), int(cs[1]), gp)
 		TacticalProps.build_tiered_vault_crate(game, cr, int(cs[1]))
 

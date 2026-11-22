@@ -161,6 +161,10 @@ func run():
 				and aai.find_child("ahsarah_fortress_gatehouse", true, false) != null
 				and aai.find_child("brakkesh_sandstone_pavilion", true, false) != null
 				and aai.find_child("dimensional_rift_wall", true, false) != null
+				and aai.find_child("desert_boulder_a", true, false) != null
+				and aai.find_child("desert_boulder_b", true, false) != null
+				and aai.find_child("desert_perimeter_rockwall", true, false) != null
+				and aai.find_child("oasis_spring_head", true, false) != null
 			)
 			aai.free()
 	verify(ah_arch_ok, "standalone PCK v090_ahsarah_architecture.glb contains Zero Dam, Babel Tower, Ahsarah Gatehouse, Brakkesh Pavilion & Dimensional Rift Wall")

@@ -261,10 +261,6 @@ func _build_camp_npc():
 	camp_npc_node.set_meta("camp_bounty_npc", true)
 	add_child(camp_npc_node)
 
-func reposition_camp_npc():
-	if is_instance_valid(camp_npc_node):
-		camp_npc_node.position = game.active_layout.on_ground(game.active_layout.SPAWN + Vector3(3.6, 0.0, -2.3))
-
 	# Stylized Jiangnan ranger liaison silhouette standing neatly beside Camp Command Tent
 	var coat_mat := StandardMaterial3D.new()
 	coat_mat.albedo_color = Color("2b5a4d")
@@ -309,6 +305,10 @@ func reposition_camp_npc():
 	var lbl: Label3D = game._label3d(camp_npc_node, "陈向导 · 烟山委托与游侠档案\n[F] 查看名望委托", Vector3(0, 2.26, 0), 26, Color("ffd87a"))
 	lbl.pixel_size = 0.0052
 	lbl.visibility_range_end = 18.0
+
+func reposition_camp_npc():
+	if is_instance_valid(camp_npc_node):
+		camp_npc_node.position = game.active_layout.on_ground(game.active_layout.SPAWN + Vector3(3.6, 0.0, -2.3))
 
 func _build_modal_ui():
 	modal_overlay = Control.new()

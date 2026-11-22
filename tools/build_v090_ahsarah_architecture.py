@@ -239,10 +239,53 @@ def build_materials() -> tuple[list, dict[str, int]]:
         ("Mat_KarstDark", "414b4e", 0.88, 0.08, None, 0.0, 0.0),             # 23
         ("Mat_RiftGlow", "48e5d8", 0.16, 0.10, "3cd8d0", 2.6, 0.3),          # 24
         ("Mat_Copper", "b86f42", 0.34, 0.80, None, 0.0, 0.15),               # 25
+        ("Mat_DesertRock", "b97946", 0.94, 0.0, None, 0.0, 0.0),             # 26
+        ("Mat_DesertRockDark", "8e5630", 0.96, 0.0, None, 0.0, 0.0),         # 27
+        ("Mat_DesertRockLight", "d49c64", 0.92, 0.0, None, 0.0, 0.0),        # 28
+        ("Mat_OasisReed", "5c8a3e", 0.80, 0.0, None, 0.0, 0.0),              # 29
     ]
     mat_list = [make_mat(*s) for s in specs]
     idx = {s[0]: i for i, s in enumerate(specs)}
     return mat_list, idx
+
+
+def add_sculpted_rock(bm: bmesh.types.BMesh, center_gd, radii_gd, seed: int, mat_idx=26, strata_strength=0.22):
+    """Create a crisp faceted, wind-eroded stratified desert sandstone boulder (NO smooth eggs/bricks!)."""
+    rng = random.Random(seed)
+    ret = bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
+    verts = ret["verts"]
+    cx, cy, cz = center_gd
+    rx, ry, rz = radii_gd
+    # Random angular plane directions for geological cleavage facets
+    p1 = Vector((rng.uniform(-1, 1), rng.uniform(0.1, 0.9), rng.uniform(-1, 1))).normalized()
+    p2 = Vector((rng.uniform(-1, 1), rng.uniform(-0.2, 0.8), rng.uniform(-1, 1))).normalized()
+    p3 = Vector((rng.uniform(-1, 1), rng.uniform(0.3, 1.0), rng.uniform(-1, 1))).normalized()
+    phase_a = rng.uniform(0.0, math.tau)
+    phase_b = rng.uniform(0.0, math.tau)
+    for v in verts:
+        p = v.co.copy()
+        # Horizontal sedimentary strata ledges + angular wind erosion
+        strata = math.sin(p.z * 7.5 + phase_a) * strata_strength + math.cos(p.x * 3.1 + p.y * 2.7 + phase_b) * 0.14
+        r_mult = 1.0 + strata
+        # Flatten bottom slightly & add geological cleavage bevels
+        if p.dot(p1) > 0.55:
+            r_mult *= 0.82
+        if p.dot(p2) > 0.60:
+            r_mult *= 0.84
+        if p.dot(p3) > 0.65:
+            r_mult *= 0.78
+        # Godot coordinates: p.x -> x, p.z -> y (up), -p.y -> z
+        gx = cx + p.x * rx * r_mult
+        gy = cy + p.z * ry * r_mult
+        gz = cz - p.y * rz * r_mult
+        # Wide stable base tucked below center
+        if p.z < -0.25:
+            gx = cx + (gx - cx) * 1.14
+            gz = cz + (gz - cz) * 1.14
+        v.co = gd_to_bl((gx, gy, gz))
+    for f in bm.faces:
+        if all(v in verts for v in f.verts):
+            f.material_index = mat_idx
 
 
 def build_zero_dam_wall(mats, M):
@@ -255,10 +298,20 @@ def build_zero_dam_wall(mats, M):
     CYAN = M["Mat_HaavkCyan"]
     AMBER = M["Mat_AmberGlow"]
 
-    # Main stepped battered dam core (wider at base for true hydro-dam solidity)
-    add_box(bm, (0.0, 6.0, 0.0), (116.0, 12.0, 14.5), C_DARK)
+    # Main stepped battered dam core (deeply rooted down to y=-14m so never exposed on canyon slopes!)
+    add_box(bm, (0.0, -1.0, 0.0), (118.0, 26.0, 15.6), C_DARK)
     add_box(bm, (0.0, 19.0, -0.8), (114.0, 14.0, 12.0), C_MAIN)
     add_box(bm, (0.0, 32.0, -1.6), (112.0, 12.0, 9.6), C_MAIN)
+    # Massive sculpted sandstone canyon cliff abutment wings locking BOTH sides of the dam into canyon mountains!
+    ROCK_M = M["Mat_DesertRock"]
+    ROCK_D = M["Mat_DesertRockDark"]
+    ROCK_L = M["Mat_DesertRockLight"]
+    for sgn_idx, sgn in enumerate((-1.0, 1.0)):
+        # Sweeping stepped red-ochre canyon rock shoulders anchoring dam flanks (|x|>=68m, strictly behind z=-150m so Helipad & Radar stay 100% clear!)
+        add_sculpted_rock(bm, (sgn * 70.0, 14.0, -2.0), (18.0, 26.0, 12.0), 101 + sgn_idx * 17, ROCK_D, 0.18)
+        add_sculpted_rock(bm, (sgn * 86.0, 18.0, 1.0), (20.0, 29.0, 14.0), 137 + sgn_idx * 19, ROCK_M, 0.18)
+        add_sculpted_rock(bm, (sgn * 76.0, 5.0, 6.0), (12.0, 13.0, 9.0), 173 + sgn_idx * 23, ROCK_L, 0.16)
+        add_sculpted_rock(bm, (sgn * 94.0, 11.0, 8.0), (16.0, 20.0, 13.0), 251 + sgn_idx * 31, ROCK_D, 0.18)
     # Horizontal concrete architectural lift bands
     for ly in (11.8, 19.2, 26.2, 33.4, 37.8):
         add_box(bm, (0.0, ly, 4.35 - (ly * 0.06)), (113.0, 0.65, 1.4), C_DARK)
@@ -313,8 +366,8 @@ def build_babel_radar_tower(mats, M):
     CYAN = M["Mat_HaavkCyan"]
     RED = M["Mat_AhsarahRed"]
 
-    # Heavy octagonal concrete plinth
-    add_cyl(bm, (0.0, 1.6, 0.0), 4.6, 4.1, 3.2, 8, C_DARK)
+    # Heavy octagonal concrete plinth deeply grounded down to y=-3.0m
+    add_cyl(bm, (0.0, 0.1, 0.0), 4.9, 4.1, 6.2, 8, C_DARK)
     add_cyl(bm, (0.0, 3.4, 0.0), 4.2, 3.8, 0.6, 8, C_MAIN)
     # Tapered octagonal reinforced concrete shaft
     add_cyl(bm, (0.0, 9.8, 0.0), 3.1, 2.55, 12.6, 8, C_MAIN)
@@ -373,10 +426,14 @@ def build_ahsarah_fortress_gatehouse(mats, M):
     AMBER = M["Mat_AmberGlow"]
     SANDBAG = M["Mat_Sandbag"]
 
-    # Stepped fortress stone base plinth & wide grand south entry stairs
-    add_box(bm, (0.0, 0.35, 0.0), (20.8, 0.70, 14.2), S_DK)
+    # Stepped fortress stone base plinth deeply grounded to y=-1.60m + solid grand south entry stairs
+    add_box(bm, (0.0, -0.45, 0.0), (21.2, 2.30, 14.6), S_DK)
+    # Extended front porch foundation pad under left shade awning & entry stairs (y=-1.4..+0.04)
+    add_box(bm, (-7.0, -0.68, 7.6), (6.0, 1.44, 2.6), S_DK)
     for st in range(4):
-        add_box(bm, (0.0, 0.10 + st * 0.16, 7.3 + (3 - st) * 0.45), (6.4, 0.18, 0.50), S_LT)
+        top_y = 0.18 + st * 0.165
+        h_solid = top_y + 1.20
+        add_box(bm, (0.0, top_y - h_solid * 0.5, 7.3 + (3 - st) * 0.45), (6.5, h_solid, 0.54), S_LT)
 
     # Twin flanking battered kasbah towers (left x=-7.0, right x=+7.0)
     for sgn in (-1.0, 1.0):
@@ -435,16 +492,18 @@ def build_ahsarah_fortress_gatehouse(mats, M):
         add_box(bm, (sgn * 2.85, 3.15, 5.38), (0.28, 0.44, 0.28), STEEL)
         add_box(bm, (sgn * 2.85, 3.15, 5.42), (0.18, 0.28, 0.18), AMBER)
 
-    # Front slanted canvas shade awning on left wing
+    # Front slanted canvas shade awning on left wing (posts deeply grounded down to y=-1.2m + stone plinth collars!)
     add_box(bm, (-7.0, 3.7, 6.65), (5.4, 0.10, 2.4), CANVAS, (16.0, 0.0, 0.0))
     for px in (-9.3, -4.7):
-        add_cyl(bm, (px, 1.9, 7.7), 0.07, 0.07, 3.3, 6, WOOD)
+        add_cyl(bm, (px, 1.15, 7.7), 0.08, 0.07, 4.7, 6, WOOD)
+        add_box(bm, (px, 0.16, 7.7), (0.34, 0.36, 0.34), S_DK)
 
     return finalize_obj("ahsarah_fortress_gatehouse", bm, mats, smooth=False)
 
 
 def build_brakkesh_sandstone_pavilion(mats, M):
-    """Detailed Brakkesh sandstone arched bazaar pavilion (~8.6m x 7.0m x 6.4m)."""
+    """Detailed Brakkesh sandstone arched bazaar pavilion (~8.6m x 9.6m x 7.6m) with deep foundations,
+    solid front stone apron terrace, grounded awning posts & seated terracotta amphorae."""
     bm = bmesh.new()
     SAND = M["Mat_SandstoneMain"]
     S_DK = M["Mat_SandstoneDark"]
@@ -455,10 +514,15 @@ def build_brakkesh_sandstone_pavilion(mats, M):
     RED = M["Mat_AhsarahRed"]
     BRASS = M["Mat_Brass"]
 
-    # Raised sandstone terrace floor & 3 broad front steps
-    add_box(bm, (0.0, 0.30, 0.0), (8.6, 0.60, 7.0), S_DK)
+    # Raised sandstone terrace floor deeply grounded down to y=-1.50m so zero gaps ever appear on slopes!
+    add_box(bm, (0.0, -0.45, 0.0), (8.8, 2.10, 7.2), S_DK)
+    # Continuous solid front stone apron terrace extending under stairs, awning posts & amphorae (z=3.4..5.75, y=-1.4..+0.04)
+    add_box(bm, (0.0, -0.68, 4.62), (8.4, 1.44, 2.35), S_DK)
+    # 3 solid stone entry steps rising cleanly from apron (y=0.04) to pavilion floor (y=0.60), extending deep into apron
     for st in range(3):
-        add_box(bm, (0.0, 0.10 + st * 0.16, 3.72 + (2 - st) * 0.36), (3.8, 0.18, 0.40), S_LT)
+        top_y = 0.22 + st * 0.18
+        h_solid = top_y + 1.10
+        add_box(bm, (0.0, top_y - h_solid * 0.5, 3.74 + (2 - st) * 0.38), (4.0, h_solid, 0.44), S_LT)
 
     # Four arched perimeter walls (walkable open bazaar gallery!)
     add_arch_opening_wall(bm, 0.0, 0.6, 3.05, 8.0, 3.8, 0.68, 4.4, 3.1, SAND, along_z=False)
@@ -475,15 +539,18 @@ def build_brakkesh_sandstone_pavilion(mats, M):
     add_dome(bm, (0.0, 5.20, 0.0), 2.15, 1.85, 2.15, 16, 7, S_LT)
     add_cyl(bm, (0.0, 7.25, 0.0), 0.07, 0.02, 0.65, 8, BRASS)
 
-    # Front market fabric awning + terracotta ceramic amphorae + hanging desert rug
-    add_box(bm, (0.0, 3.55, 4.45), (5.2, 0.09, 2.2), CANVAS, (15.0, 0.0, 0.0))
+    # Front market fabric awning + deeply grounded wooden posts with stone plinth bases + seated terracotta amphorae!
+    add_box(bm, (0.0, 3.55, 4.45), (5.4, 0.09, 2.2), CANVAS, (15.0, 0.0, 0.0))
     for px in (-2.4, 2.4):
-        add_cyl(bm, (px, 1.80, 5.45), 0.06, 0.06, 3.1, 6, WOOD)
-    # Terracotta amphorae jars beside doorway
-    for jx, jz, sc in ((-3.0, 3.9, 1.0), (-2.4, 4.1, 0.78), (3.0, 3.95, 0.92)):
-        add_cyl(bm, (jx, 0.45 * sc, jz), 0.18 * sc, 0.30 * sc, 0.50 * sc, 10, TERRA)
-        add_cyl(bm, (jx, 0.82 * sc, jz), 0.30 * sc, 0.14 * sc, 0.32 * sc, 10, TERRA)
-        add_cyl(bm, (jx, 1.02 * sc, jz), 0.14 * sc, 0.17 * sc, 0.14 * sc, 10, S_DK)
+        add_cyl(bm, (px, 1.05, 5.42), 0.075, 0.065, 4.5, 6, WOOD)
+        add_box(bm, (px, 0.16, 5.42), (0.32, 0.36, 0.32), S_LT)
+    # Terracotta amphorae jars resting firmly ON the solid stone apron terrace (bottom embedded cleanly at y=-0.02!)
+    for jx, jz, sc in ((-3.0, 3.95, 1.0), (-2.35, 4.25, 0.78), (3.0, 4.0, 0.92)):
+        # Flat stoneware foot seated directly into apron y=0.04
+        add_cyl(bm, (jx, 0.04 * sc, jz), 0.22 * sc, 0.20 * sc, 0.12 * sc, 10, S_DK)
+        add_cyl(bm, (jx, 0.28 * sc, jz), 0.18 * sc, 0.31 * sc, 0.46 * sc, 10, TERRA)
+        add_cyl(bm, (jx, 0.64 * sc, jz), 0.31 * sc, 0.14 * sc, 0.32 * sc, 10, TERRA)
+        add_cyl(bm, (jx, 0.84 * sc, jz), 0.14 * sc, 0.18 * sc, 0.14 * sc, 10, S_DK)
     # Woven crimson desert rug draped over upper parapet
     add_box(bm, (-2.0, 4.15, 3.46), (1.35, 1.55, 0.06), RED)
     add_box(bm, (-2.0, 4.15, 3.49), (1.05, 1.10, 0.03), M["Mat_WarningYellow"])
@@ -501,8 +568,8 @@ def build_cement_silo_complex(mats, M):
     WARN = M["Mat_WarningYellow"]
     TERRA = M["Mat_Terracotta"]
 
-    # Raised concrete industrial loading apron
-    add_box(bm, (0.0, 0.30, 0.0), (13.6, 0.60, 8.2), C_DARK)
+    # Raised concrete industrial loading apron deeply grounded to y=-1.80m
+    add_box(bm, (0.0, -0.60, 0.0), (14.0, 2.40, 8.6), C_DARK)
     # Twin tall cylindrical concrete silos (x = -3.4 and x = +3.4)
     for sx in (-3.4, 3.4):
         # 4 heavy steel support legs under discharge hopper
@@ -555,8 +622,8 @@ def build_substation_transformer_bay(mats, M):
     COPPER = M["Mat_Copper"]
     TERRA = M["Mat_Terracotta"]
 
-    # Concrete equipment pad with yellow hazard border
-    add_box(bm, (0.0, 0.22, 0.0), (7.6, 0.44, 5.4), C_DARK)
+    # Concrete equipment pad deeply grounded down to y=-1.40m with yellow hazard border
+    add_box(bm, (0.0, -0.48, 0.0), (7.8, 1.84, 5.6), C_DARK)
     add_box(bm, (0.0, 0.46, 2.62), (7.6, 0.08, 0.18), WARN)
     add_box(bm, (0.0, 0.46, -2.62), (7.6, 0.08, 0.18), WARN)
 
@@ -662,6 +729,8 @@ def build_oasis_palm_cluster(mats, M):
         (1.30, -0.75, 5.8, 0.95, -0.95, 0.28, 10),
     ]
     for bx, bz, height, lean_x, lean_z, r_base, n_fronds in trunks:
+        # Deep flared root flare extending down to y=-1.15m so trunks NEVER float even on steep oasis banks!
+        add_cyl_pts(bm, (bx, -1.15, bz), (bx, 0.08, bz), r_base * 1.48, r_base * 1.04, 8, TRUNK)
         segs = 11
         prev = (bx, 0.0, bz)
         for i in range(1, segs + 1):
@@ -719,6 +788,8 @@ def build_desert_acacia_tree(mats, M):
     LEAF_A = M["Mat_PalmFrond"]
     LEAF_B = M["Mat_PalmFrondSun"]
 
+    # Deeply grounded root flare down to y=-1.15m so acacia trunks never hover on slopes
+    add_cyl_pts(bm, (0.0, -1.15, 0.0), (0.0, 0.05, 0.0), 0.50, 0.35, 8, TRUNK)
     add_cyl_pts(bm, (0.0, 0.0, 0.0), (0.18, 2.3, 0.08), 0.34, 0.24, 8, TRUNK)
     branches = [
         ((0.18, 2.2, 0.08), (-2.1, 4.6, 0.8), 2.3, 0.68),
@@ -741,6 +812,8 @@ def build_sandbag_bunker_wall(mats, M):
     WOOD = M["Mat_CedarWood"]
     OLIVE = M["Mat_OliveMil"]
 
+    # Compacted earthen/sandbag footing berm extending down to y=-0.75m so bunkers sit flush on slopes
+    add_box(bm, (0.0, -0.34, -0.18), (4.45, 0.84, 1.05), BAG)
     for row in range(4):
         n_bags = 7 - (row % 2)
         y = 0.15 + row * 0.27
@@ -751,8 +824,8 @@ def build_sandbag_bunker_wall(mats, M):
             add_sphere(bm, (x, y, z), (0.34, 0.16, 0.22), 9, 6, BAG)
     for px in (-2.05, 0.0, 2.05):
         pz = (px * px) * 0.085 - 0.52
-        add_cyl(bm, (px, 0.62, pz), 0.06, 0.06, 1.25, 6, WOOD)
-    add_box(bm, (-1.1, 0.28, -0.82), (0.92, 0.52, 0.54), OLIVE)
+        add_cyl(bm, (px, 0.28, pz), 0.06, 0.06, 1.95, 6, WOOD)
+    add_box(bm, (-1.1, 0.10, -0.82), (0.94, 0.88, 0.56), OLIVE)
     add_box(bm, (-1.1, 0.55, -0.82), (0.96, 0.08, 0.58), M["Mat_SteelDark"])
 
     return finalize_obj("sandbag_bunker_wall", bm, mats, smooth=True)
@@ -768,8 +841,8 @@ def build_military_ammo_stack(mats, M):
     RED = M["Mat_AhsarahRed"]
     TAN = M["Mat_CanvasTan"]
 
-    # Wooden slatted pallet
-    add_box(bm, (0.0, 0.08, 0.0), (2.2, 0.16, 1.45), WOOD)
+    # Deeply grounded wooden slatted pallet footing (y=-0.50..+0.16)
+    add_box(bm, (0.0, -0.17, 0.0), (2.25, 0.66, 1.50), WOOD)
     # Stacked stamped military ammo crates with brass corner latches
     crates = [
         (-0.52, 0.44, 0.12, 1.02, 0.54, 0.62, 4.0),
@@ -884,6 +957,81 @@ def build_desert_mesa_ring():
     return obj
 
 
+def build_desert_boulder_a(mats, M):
+    """Sculpted layered wind-eroded Saharan sandstone boulder cluster (~4.4m x 2.5m x 3.5m, rooted to y=-1.1m)."""
+    bm = bmesh.new()
+    add_sculpted_rock(bm, (0.0, 0.62, 0.0), (2.05, 1.48, 1.65), 901, M["Mat_DesertRock"], 0.20)
+    add_sculpted_rock(bm, (1.45, 0.28, 0.65), (1.15, 0.92, 0.98), 902, M["Mat_DesertRockDark"], 0.18)
+    add_sculpted_rock(bm, (-1.35, 0.22, -0.55), (1.10, 0.85, 1.05), 903, M["Mat_DesertRockLight"], 0.18)
+    return finalize_obj("desert_boulder_a", bm, mats, smooth=False)
+
+
+def build_desert_boulder_b(mats, M):
+    """Sculpted tall stratified desert crag formation (~3.6m x 3.8m x 3.0m, rooted to y=-1.2m)."""
+    bm = bmesh.new()
+    add_sculpted_rock(bm, (0.0, 1.15, 0.0), (1.55, 2.25, 1.38), 911, M["Mat_DesertRockDark"], 0.22)
+    add_sculpted_rock(bm, (-1.15, 0.45, 0.48), (1.05, 1.25, 1.05), 912, M["Mat_DesertRock"], 0.19)
+    add_sculpted_rock(bm, (1.18, 0.35, -0.40), (0.98, 1.05, 0.95), 913, M["Mat_DesertRockLight"], 0.18)
+    return finalize_obj("desert_boulder_b", bm, mats, smooth=False)
+
+
+def build_desert_perimeter_rockwall(mats, M):
+    """10m-wide stacked weathered desert sandstone boulder half-wall & canyon barrier (2.3m-3.4m tall, rooted to y=-1.9m).
+    Visually and physically encloses the playable canyon perimeter in place of bare invisible air walls!"""
+    bm = bmesh.new()
+    RM = M["Mat_DesertRock"]
+    RD = M["Mat_DesertRockDark"]
+    RL = M["Mat_DesertRockLight"]
+    S_DK = M["Mat_SandstoneDark"]
+    # Lower dry-stone retaining rock berm spanning full 10.6m width down to y=-1.9m (zero gaps underneath!)
+    add_box(bm, (0.0, -0.45, 0.0), (10.6, 2.9, 2.55), RD)
+    # Interlocking stacked natural desert boulders forming an organic, un-climbable 2.4m-3.5m rocky canyon half-wall!
+    boulder_specs = [
+        (-4.1, 0.85, 0.10, (1.85, 1.45, 1.55), 301, RM),
+        (-1.8, 1.15, -0.18, (2.05, 1.78, 1.68), 302, RD),
+        (0.65, 0.95, 0.15, (1.92, 1.52, 1.60), 303, RL),
+        (2.95, 1.28, -0.12, (2.15, 1.92, 1.72), 304, RM),
+        (4.65, 0.82, 0.14, (1.65, 1.38, 1.45), 305, RD),
+        # Upper stacked rock capstones & weathered dry-stone ledge slabs
+        (-3.0, 2.05, -0.05, (1.35, 0.85, 1.15), 306, RL),
+        (-0.5, 2.15, 0.08, (1.42, 0.95, 1.22), 307, RM),
+        (1.85, 2.22, -0.08, (1.48, 1.02, 1.18), 308, S_DK),
+        # Ground-hugging rubble rocks along front toe so it blends naturally into the desert sand
+        (-3.6, 0.15, 1.22, (0.95, 0.55, 0.78), 309, RL),
+        (0.1, 0.12, 1.35, (1.10, 0.52, 0.82), 310, RM),
+        (3.4, 0.16, 1.18, (0.92, 0.58, 0.75), 311, RD),
+    ]
+    for cx, cy, cz, rad, sd, m_idx in boulder_specs:
+        add_sculpted_rock(bm, (cx, cy, cz), rad, sd, m_idx, 0.20)
+    return finalize_obj("desert_perimeter_rockwall", bm, mats, smooth=False)
+
+
+def build_oasis_spring_head(mats, M):
+    """Natural rocky oasis spring outlet & desert reed cluster sitting along the recessed oasis bank."""
+    bm = bmesh.new()
+    RM = M["Mat_DesertRock"]
+    RD = M["Mat_DesertRockDark"]
+    RL = M["Mat_DesertRockLight"]
+    REED = M["Mat_OasisReed"]
+    WATER = M["Mat_RiftGlow"]
+    # Layered rocky spring mound dipping cleanly down to y=-1.2m into the pool bank
+    add_sculpted_rock(bm, (0.0, 0.35, -0.45), (1.85, 1.15, 1.35), 401, RD, 0.18)
+    add_sculpted_rock(bm, (-1.25, 0.10, 0.15), (1.15, 0.78, 1.05), 402, RM, 0.16)
+    add_sculpted_rock(bm, (1.28, 0.14, 0.10), (1.22, 0.82, 0.98), 403, RL, 0.16)
+    # Carved stone trickle spout & shimmering water cascade into the sunken basin
+    add_box(bm, (0.0, 0.32, 0.45), (0.62, 0.18, 0.95), M["Mat_SandstoneDark"], (14.0, 0.0, 0.0))
+    add_box(bm, (0.0, 0.39, 0.48), (0.34, 0.06, 0.92), WATER, (14.0, 0.0, 0.0))
+    # Oasis reed & desert sedge blade clusters along wet rocks
+    rng = random.Random(409)
+    for rx, rz in ((-1.75, 0.55), (-1.45, 0.92), (1.65, 0.65), (1.95, 0.35), (-0.75, 0.85), (0.85, 0.82)):
+        for _ in range(5):
+            lean_x = rng.uniform(-0.28, 0.28)
+            lean_z = rng.uniform(-0.28, 0.28)
+            h = rng.uniform(0.75, 1.45)
+            add_cyl_pts(bm, (rx, -0.45, rz), (rx + lean_x, h, rz + lean_z), 0.045, 0.008, 5, REED)
+    return finalize_obj("oasis_spring_head", bm, mats, smooth=False)
+
+
 def main():
     clear_scene()
     mats, M = build_materials()
@@ -901,6 +1049,10 @@ def main():
         build_military_ammo_stack(mats, M),
         build_dimensional_rift_wall(mats, M),
         build_desert_mesa_ring(),
+        build_desert_boulder_a(mats, M),
+        build_desert_boulder_b(mats, M),
+        build_desert_perimeter_rockwall(mats, M),
+        build_oasis_spring_head(mats, M),
     ]
     bpy.ops.export_scene.gltf(
         filepath=str(OUT_GLB),

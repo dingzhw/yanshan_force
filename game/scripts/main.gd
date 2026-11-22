@@ -610,7 +610,13 @@ func switch_map(map_id: String, force_rebuild: bool = false) -> bool:
 	if is_instance_valid(rangers) and rangers.has_method("reposition_camp_npc"):
 		rangers.reposition_camp_npc()
 	if is_instance_valid(camp_display_stand):
-		camp_display_stand.position = active_layout.on_ground(active_layout.SPAWN + Vector3(-6.8, 0.0, -3.7))
+		if target_id == "ahsarah":
+			camp_display_stand.position = active_layout.on_ground(Vector3(-5.5, 0.0, 17.8))
+			camp_display_stand.rotation.y = 0.55
+		else:
+			camp_display_stand.position = active_layout.on_ground(active_layout.SPAWN + Vector3(-6.8, 0.0, -3.7))
+			camp_display_stand.rotation.y = 0.25
+		refresh_camp_display_stand()
 	if is_instance_valid(player):
 		player.position = active_layout.on_ground(active_layout.SPAWN) + Vector3.UP * 0.15
 		player.yaw = 0.0
@@ -722,7 +728,8 @@ func _build_tower(at: Vector3) -> Node3D:
 	var tower = Node3D.new()
 	tower.name = "JiangnanWatchtower"
 	tower.position = at
-	add_child(tower)
+	# Parent to active landscape so switching to Ahsarah cleanly frees Yanshan's watchtower (zero sky ghost)!
+	(landscape if is_instance_valid(landscape) else self).add_child(tower)
 
 	var arch_glb := "res://assets/slice/v086_architecture.glb"
 	var tower_mesh: Mesh = landscape._extract_mesh(arch_glb, "watchtower_jiangnan") if is_instance_valid(landscape) else null
@@ -1941,7 +1948,11 @@ func _sync_question():
 			question_label.text = "靠近绿色终端，按 [F] 启动识词靶场"
 			if is_instance_valid(cloze_label):
 				cloze_label.text = ""
-			unit_label.text = "A 山脚营地 → 林间前哨 → B 竹林撤离点  |  自由探索与识词"
+			unit_label.text = (
+				"A 绿洲前哨 → 水泥厂 / 巴克什集市 → B 堡垒停机坪  |  自由探索与识词"
+				if is_ahsarah_map() else
+				"A 山脚营地 → 林间前哨 → B 竹林撤离点  |  自由探索与识词"
+			)
 		return
 	for i in choices.size():
 		_fit_word(targets[i], choices[i].english)
@@ -2730,7 +2741,8 @@ func _end_run(success: bool, title = ""):
 	if success:
 		header = "%s 带回 %d 件物资（总估值 %d 币）！可在「我的仓库」单件出售或锁存展陈。\n" % [mode_badge, banked_count, carried_value]
 	elif safe_saved_count > 0:
-		header = "%s 随身背包遗留烟山，但 🔒 安全箱成功保住 %d 件重宝（%d 币）入库！\n" % [mode_badge, safe_saved_count, safe_val_before]
+		var lost_place := "阿萨拉" if is_ahsarah_map() else "烟山"
+		header = "%s 随身背包遗留%s，但 🔒 安全箱成功保住 %d 件重宝（%d 币）入库！\n" % [mode_badge, lost_place, safe_saved_count, safe_val_before]
 	else:
 		header = "%s 本局已结束，学习记录已整理入档。\n" % mode_badge
 	var ind_cnt: int = rules.learning.run_independent

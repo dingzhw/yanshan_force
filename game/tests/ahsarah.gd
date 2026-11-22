@@ -151,6 +151,50 @@ func run():
 			ah_regional_hit += 1
 	verify(ah_red_seen < 35 and ah_gold_seen < 60 and ah_regional_hit >= 8, "Ahsarah Confidential loot strictly obeys pyramid apex odds while featuring regional Ahsarah treasures (red=%d, gold=%d, regional=%d /300)" % [ah_red_seen, ah_gold_seen, ah_regional_hit])
 
+	# 8b. Visual & Physics Polish Regression Suite (Bugfixes: zero orphaned Yanshan watchtower, solid flora/boulders, recessed oasis, stone perimeter walls, flat pavilion pads, Ahsarah practice HUD)
+	verify(game.find_child("JiangnanWatchtower", true, false) == null, "Yanshan JiangnanWatchtower is cleanly absent in Ahsarah Fortress (zero sky ghost)")
+	var flora_node: Node = game.landscape.find_child("AhsarahDesertFlora", true, false)
+	var flora_bodies := flora_node.find_children("*", "StaticBody3D", true, false).size() if flora_node != null else 0
+	verify(flora_bodies >= 55, "All palm trunks, acacia trunks & sculpted desert boulders have solid StaticBody3D colliders (bodies=%d)" % flora_bodies)
+	var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	await physics_frame
+	# Raycast directly into the Oasis Palm cluster trunk at (-10.5, 17.5) to confirm real physics collision blocks passage
+	var palm_y: float = game.active_layout.min_ground_height(-10.5, 17.5, 1.5)
+	var palm_ray := PhysicsRayQueryParameters3D.create(Vector3(-10.5, palm_y + 1.4, 20.5), Vector3(-10.5, palm_y + 1.4, 15.5))
+	var palm_hit: Dictionary = space.intersect_ray(palm_ray)
+	verify(not palm_hit.is_empty(), "Physics raycast hits Oasis Palm trunk collider solidly (no walk-through)")
+	# Verify recessed Oasis Pool sits strictly BELOW all 8 compass shoreline rim points (zero floating water disc!)
+	var oasis_pool: Node3D = game.landscape.find_child("OasisSpringPool", true, false)
+	var pool_center_y: float = game.active_layout.height(game.active_layout.OASIS_POOL.x, game.active_layout.OASIS_POOL.z)
+	var min_rim_y := 99.0
+	for ang_i in 8:
+		var ang := float(ang_i) * (TAU / 8.0)
+		var rx: float = game.active_layout.OASIS_POOL.x + cos(ang) * 7.2 * 1.25
+		var rz: float = game.active_layout.OASIS_POOL.z + sin(ang) * 5.2 * 1.25
+		min_rim_y = minf(min_rim_y, game.active_layout.height(rx, rz))
+	verify(oasis_pool != null and pool_center_y <= -0.95 and oasis_pool.position.y < min_rim_y - 0.15, "Oasis spring pool (y=%.2f) sits cleanly recessed inside basin (center=%.2f, min_rim=%.2f)" % [oasis_pool.position.y if oasis_pool != null else 99.0, pool_center_y, min_rim_y])
+	# Verify seamless Outer Desert Skirt & stacked sandstone Perimeter Rock Walls replace bare air walls
+	var skirt_node: Node = game.landscape.find_child("AhsarahOuterDesertSkirt", true, false)
+	var perim_node: Node = game.landscape.find_child("AhsarahPerimeterRockWalls", true, false)
+	verify(skirt_node != null and perim_node != null and perim_node.get_child_count() >= 48, "Seamless outer desert skirt & stacked stone perimeter rock half-walls enclose map (segments=%d)" % (perim_node.get_child_count() if perim_node != null else 0))
+	# Verify Brakkesh Bazaar pavilion footprints sit on flat graded pads (zero floating steps/posts/amphorae)
+	var pav_flat_ok := true
+	for pav_c in [Vector3(44.0, 0.0, -28.0), Vector3(36.0, 0.0, -46.0), Vector3(-52.0, 0.0, -104.0)]:
+		var y_min := 999.0
+		var y_max := -999.0
+		for ox in [-3.5, 0.0, 3.5]:
+			for oz in [-3.0, 0.0, 4.5]:
+				var hy: float = game.active_layout.height(pav_c.x + ox, pav_c.z + oz)
+				y_min = minf(y_min, hy)
+				y_max = maxf(y_max, hy)
+		if (y_max - y_min) > 0.20:
+			pav_flat_ok = false
+	verify(pav_flat_ok, "All Brakkesh sandstone pavilion pads are smoothly graded level (delta <= 0.20m across steps & porch)")
+	# Verify Practice Range HUD banner in Ahsarah uses Ahsarah route text (not Yanshan!)
+	game.start_action(false)
+	await frames(2)
+	verify("绿洲前哨" in game.unit_label.text and not ("山脚营地" in game.unit_label.text), "Ahsarah Practice Range banner displays Ahsarah route instead of Yanshan (%s)" % game.unit_label.text)
+
 	# 9. Clean Round-Trip back to Yanshan Base
 	verify(game.switch_map("yanshan"), "Round-trip switch_map('yanshan') restores Yanshan Base cleanly")
 	await frames(4)

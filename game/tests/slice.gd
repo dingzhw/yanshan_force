@@ -884,7 +884,7 @@ func run():
 	var cloud_inner: Node = game.landscape.get_node_or_null("MistyCloudSeaInner")
 	var wangdao_sign: Node3D = game.landscape.find_child("WangdaoSignpost", true, false) as Node3D
 	var sign_fwd: Vector3 = wangdao_sign.global_transform.basis.z if wangdao_sign != null else Vector3.ZERO
-	var tower_nd: Node = game.get_node_or_null("JiangnanWatchtower")
+	var tower_nd: Node = game.find_child("JiangnanWatchtower", true, false)
 	var tower_vis: Node = tower_nd.get_node_or_null("WatchtowerVisual") if tower_nd != null else null
 	var arch_forest: Node = game.landscape.get_node_or_null("TrailArchGate_Forest")
 	var arch_cloud: Node = game.landscape.get_node_or_null("TrailArchGate_CloudArena")

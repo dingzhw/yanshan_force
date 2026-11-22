@@ -582,21 +582,28 @@ func _pick_random_spell_words():
 		for w in shuffled_all:
 			if not (w in pool) and str(w.get("english", "")).strip_edges() != "":
 				pool.append(w)
-	var used_ids := {}
+	var used_words := {}
 	for sid in SPELL_CHALLENGE_IDS:
 		var picked: Dictionary = {}
-		# Mix review-due priority (first 16) with full-pack variety so every run feels genuinely fresh!
+		# Mix review-due priority (first 16) with full-pack variety while strictly deduplicating by lowercase English word!
 		var top_span := mini(pool.size(), 28)
-		for _attempt in 14:
+		for _attempt in 24:
 			if pool.is_empty():
 				break
 			var idx := rng.randi_range(0, top_span - 1) if (_attempt < 5 and top_span > 0) else rng.randi_range(0, pool.size() - 1)
 			var cand: Dictionary = pool[idx]
-			var wid := str(cand.get("id", cand.get("english", "")))
-			if not used_ids.has(wid):
+			var wkey := str(cand.get("english", "")).strip_edges().to_lower()
+			if wkey != "" and not used_words.has(wkey):
 				picked = cand
-				used_ids[wid] = true
+				used_words[wkey] = true
 				break
+		if picked.is_empty():
+			for cand in pool:
+				var wkey := str(cand.get("english", "")).strip_edges().to_lower()
+				if wkey != "" and not used_words.has(wkey):
+					picked = cand
+					used_words[wkey] = true
+					break
 		if picked.is_empty() and not pool.is_empty():
 			picked = pool[rng.randi_range(0, pool.size() - 1)]
 		current_spell_words[sid] = picked

@@ -68,9 +68,15 @@ def main():
 
     sky_score = np.clip((0.125 - warmth) / 0.10, 0.0, 1.0)
     upper_gate = np.clip((0.58 - yy) / 0.18, 0.0, 1.0)
-    top_fade = np.clip((yy - 0.06) / 0.14, 0.0, 1.0)
+    # Strictly fade top 18% of panorama to pure alpha=0.0 so ZERO sky hairline ever appears!
+    top_fade = np.clip((yy - 0.18) / 0.16, 0.0, 1.0)
     alpha = (1.0 - sky_score * upper_gate) * top_fade
     alpha = np.clip(alpha, 0.0, 1.0)
+
+    # Smoothly blend bottom 14% into warm desert floor gold (#c89f68) to marry seamlessly with outer terrain skirt!
+    bot_t = np.clip((yy - 0.84) / 0.16, 0.0, 1.0)
+    sand_floor = np.array([0.785, 0.625, 0.408], dtype=np.float32)
+    canvas = canvas * (1.0 - bot_t[:, :, None] * 0.72) + sand_floor[None, None, :] * (bot_t[:, :, None] * 0.72)
 
     # Warm-gold premultiply edge clean so zero grey/blue halo appears against bright desert sky
     haze = np.array([0.92, 0.78, 0.56], dtype=np.float32)

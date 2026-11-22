@@ -14,10 +14,10 @@ const MAX_Z = 40.0
 const GRID_WIDTH := 181   # -90..+90 inclusive
 const GRID_DEPTH := 221   # -180..+40 inclusive
 
-const FENCE_MIN_X = -78.0
-const FENCE_MAX_X = 78.0
-const FENCE_MIN_Z = -168.0
-const FENCE_MAX_Z = 28.0
+const FENCE_MIN_X = -75.0
+const FENCE_MAX_X = 75.0
+const FENCE_MIN_Z = -148.0
+const FENCE_MAX_Z = 25.0
 
 # Compatibility stubs for stream APIs (Ahsarah is arid desert with a small south oasis pool, no creek)
 const STREAM_Z_MIN = 9999.0
@@ -100,8 +100,22 @@ const BRANCHES = [
 	[Vector3(0.0, 0.0, -14.0), Vector3(22.0, 0.0, -22.0), BAZAAR_ARCH, Vector3(44.0, 0.0, -62.0), SUBSTATION, Vector3(48.0, 0.0, -114.0), EXIT],
 	# Mid-canyon cross link between Cement Plant and Bazaar
 	[CEMENT_PLANT, Vector3(-4.0, 0.0, -56.0), BAZAAR_ARCH],
-	# South Oasis trail
-	[SPAWN, Vector3(-12.0, 0.0, 14.0), Vector3(-26.0, 0.0, 2.0), Vector3(-24.0, 0.0, -26.0)]
+	# South Oasis trail (sweeps cleanly south-west around the recessed oasis spring pool!)
+	[SPAWN, Vector3(-6.0, 0.0, 20.0), Vector3(-28.0, 0.0, 14.0), Vector3(-28.0, 0.0, -8.0), Vector3(-24.0, 0.0, -26.0)]
+]
+
+# Explicit flat architectural grading pads [pos, inner_flat_radius, outer_blend_radius]
+# Ensures EVERY pavilion, silo, substation bay, barracks, radar tower & camp outpost sits dead-level with zero floating edges!
+const BUILDING_PADS = [
+	[Vector3(44.0, 0.0, -28.0), 8.2, 14.5],    # Brakkesh main arched bazaar pavilion
+	[Vector3(36.0, 0.0, -46.0), 8.0, 14.0],    # Brakkesh south bazaar pavilion
+	[Vector3(-52.0, 0.0, -104.0), 8.2, 14.5],  # West barracks pavilion
+	[Vector3(-54.0, 0.0, -44.0), 9.5, 16.0],   # Cement plant silo #1
+	[Vector3(-52.0, 0.0, -64.0), 9.0, 15.5],   # Cement plant silo #2
+	[Vector3(52.0, 0.0, -84.0), 7.2, 13.0],    # Haavk substation bay #1
+	[Vector3(52.0, 0.0, -96.0), 7.2, 13.0],    # Haavk substation bay #2
+	[RADAR_TOWER_WEST, 7.5, 13.5],             # West Babel radar tower
+	[RADAR_TOWER_EAST, 7.5, 13.5],             # East Babel radar tower
 ]
 
 const LAND_ANCHORS = [
@@ -126,18 +140,17 @@ static var grid_height_cache = {}
 static var fast_height_grid: PackedFloat32Array = PackedFloat32Array()
 
 static func base_height(x: float, z: float) -> float:
-	# Flat warm oasis basin around south spawn
-	if z > 2.0 and z <= 26.0 and absf(x) < 22.0:
-		return 0.0
-	# Gentle climb northward from south desert oasis (0m) up to Administrative Fortress plateau (5.4m)
-	var north_climb := smoothstep(-6.0, 134.0, -z) * 5.2
-	# Canyon rim shoulders rising smoothly near east/west map margins
-	var canyon_walls := smoothstep(52.0, 86.0, absf(x)) * 8.5
+	# Smooth flat oasis basin terrace around south spawn & oasis pool (z >= -2..28, x in -32..24)
+	var north_climb := smoothstep(-2.0, 136.0, -z) * 5.2
+	# Canyon rim shoulders rising smoothly near east/west map margins (and continuing naturally into outer dunes!)
+	var canyon_walls := smoothstep(54.0, 88.0, absf(x)) * 8.2
 	# Elevated NE Helipad Extraction Overlook shelf (7.0m)
 	var heli_pad := 2.0 * exp(-pow((x - EXIT.x) / 17.0, 2.0) - pow((z - EXIT.z) / 16.0, 2.0))
-	# Natural desert dune undulations in mid-canyon
-	var dunes := (sin(x * 0.075 + z * 0.042) * 1.15 + cos(z * 0.088 - x * 0.032) * 0.65) * smoothstep(2.0, 24.0, -z)
-	return north_climb + canyon_walls + heli_pad + dunes
+	# Natural desert dune undulations in mid-canyon (zero amplitude in south oasis flat zone!)
+	var oasis_flat := 1.0 - smoothstep(14.0, 32.0, Vector2((x + 6.0) / 1.15, z - 12.0).length())
+	var dunes := (sin(x * 0.075 + z * 0.042) * 1.15 + cos(z * 0.088 - x * 0.032) * 0.65) * smoothstep(-2.0, 22.0, -z)
+	var h := north_climb + canyon_walls + heli_pad + dunes
+	return lerpf(h, 0.0, oasis_flat)
 
 static func anchor_height(at: Vector3) -> float:
 	if at == ADMIN_FORTRESS or at == FORTRESS_GATE:
@@ -197,25 +210,36 @@ static func height(x: float, z: float) -> float:
 			bed = lerpf(segment.start_height, segment.end_height, t)
 	var road_t := 1.0 - smoothstep(2.8, ROAD_BLEND_RADIUS, nearest)
 	result = lerpf(result, bed, road_t)
+	# Level architectural grading pads for every pavilion, silo, substation & radar tower
+	for bp in BUILDING_PADS:
+		var bpos: Vector3 = bp[0]
+		var r_in: float = float(bp[1])
+		var r_out: float = float(bp[2])
+		var bd := Vector2(x - bpos.x, z - bpos.z).length()
+		if bd < r_out:
+			var bw := 1.0 - smoothstep(r_in, r_out, bd)
+			result = lerpf(result, base_height(bpos.x, bpos.z), bw)
 	# Flat Administrative Fortress Courtyard & Gatehouse Terrace (radius 24m at y=5.40m)
 	var fort_d := Vector2(x - ADMIN_FORTRESS.x, z - ADMIN_FORTRESS.z).length()
-	if fort_d < 29.0:
-		var fw := 1.0 - smoothstep(20.0, 29.0, fort_d)
+	if fort_d < 30.0:
+		var fw := 1.0 - smoothstep(21.5, 30.0, fort_d)
 		result = lerpf(result, CLOUD_ARENA_Y, fw)
 	var gate_d := Vector2(x - FORTRESS_GATE.x, z - FORTRESS_GATE.z).length()
-	if gate_d < 16.0:
-		var gw := 1.0 - smoothstep(9.5, 16.0, gate_d)
+	if gate_d < 17.0:
+		var gw := 1.0 - smoothstep(11.0, 17.0, gate_d)
 		result = lerpf(result, CLOUD_ARENA_Y, gw)
 	# Flat Helipad Extraction Plateau (y=7.0m)
 	var ex_d := Vector2(x - EXIT.x, z - EXIT.z).length()
-	if ex_d < 14.0:
-		var ew := 1.0 - smoothstep(8.2, 14.0, ex_d)
+	if ex_d < 14.5:
+		var ew := 1.0 - smoothstep(8.8, 14.5, ex_d)
 		result = lerpf(result, 7.0, ew)
-	# Shallow recessed South Oasis Spring Pool depression at (-16, 12)
-	var pool_d := Vector2((x - OASIS_POOL.x) / 8.5, (z - OASIS_POOL.z) / 6.2).length()
-	if pool_d < 1.25:
-		var pw := 1.0 - smoothstep(0.65, 1.25, pool_d)
-		result = lerpf(result, -0.55, pw)
+	# TRUE deeply recessed concave South Oasis Spring Pool basin at (-16, 12):
+	# Rim stays flat at y=0.0m, concave bank drops cleanly down to y=-1.10m so the water sheet at y=-0.34m
+	# intersects INTO the sloping sand shore 360° around with ZERO floating edge!
+	var pool_d := Vector2((x - OASIS_POOL.x) / 7.2, (z - OASIS_POOL.z) / 5.2).length()
+	if pool_d < 1.38:
+		var pw := 1.0 - smoothstep(0.62, 1.38, pool_d)
+		result = lerpf(result, -1.10, pw)
 	if integer_point:
 		grid_height_cache[key] = result
 	return result

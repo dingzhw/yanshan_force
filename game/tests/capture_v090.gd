@@ -35,7 +35,7 @@ func look_from(pos: Vector3, target: Vector3, hide_weapon: bool = true):
 		game.player.weapon_root.visible = not hide_weapon
 
 func run():
-	out_dir = ProjectSettings.globalize_path("res://../docs/v090-review")
+	out_dir = ProjectSettings.globalize_path("res://../docs/media")
 	DirAccess.make_dir_recursive_absolute(out_dir)
 
 	var tmp_profile := "user://capture_v090_profile.json"
