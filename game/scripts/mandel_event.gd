@@ -234,10 +234,10 @@ func _spawn_event_props():
 	var st_body := StaticBody3D.new()
 	var st_col := CollisionShape3D.new()
 	var st_shp := CylinderShape3D.new()
-	st_shp.radius = 1.35
-	st_shp.height = 2.0
+	st_shp.radius = 1.68
+	st_shp.height = 3.2
 	st_col.shape = st_shp
-	st_col.position.y = 1.0
+	st_col.position.y = 1.6
 	st_body.add_child(st_col)
 	decode_node.add_child(st_body)
 

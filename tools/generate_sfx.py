@@ -760,6 +760,138 @@ def gen_boss_ultimate() -> None:
     _write_wav("boss_ultimate.wav", out, 0.78)
 
 
+def gen_saeed_lmg_burst() -> None:
+    """Captain Saeed M249 6-round sweeping LMG burst: punchy 5.56mm cadence + metallic ammo-belt clatter."""
+    dur = 0.72
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 92011)
+    crack = _one_pole_hp(_one_pole_lp(raw, 5200.0), 750.0)
+    low = _one_pole_lp(raw, 680.0)
+    out = [0.0] * n
+    shots = [0.00, 0.095, 0.19, 0.285, 0.38, 0.475]
+    for s0 in shots:
+        idx0 = int(s0 * SAMPLE_RATE)
+        span = int(0.18 * SAMPLE_RATE)
+        for j in range(span):
+            k = idx0 + j
+            if k >= n:
+                break
+            t = j / SAMPLE_RATE
+            e_cr = math.exp(-t * 82.0) * min(1.0, t / 0.001)
+            e_lo = math.exp(-t * 32.0) * min(1.0, t / 0.0015)
+            f_p = 56.0 + 140.0 * math.exp(-t * 48.0)
+            clink = math.sin(2.0 * math.pi * 3150.0 * t) * math.exp(-t * 75.0) * 0.28
+            out[k] += (crack[k] * e_cr * 1.9 + (math.sin(2.0 * math.pi * f_p * t) + low[k] * 0.55) * e_lo * 1.1 + clink)
+    out = [math.tanh(s * 1.15) for s in out]
+    _write_wav("saeed_lmg_burst.wav", out, 0.72)
+
+
+def gen_saeed_fire_bolt() -> None:
+    """Captain Saeed incendiary crossbow twang + thermite flame whoosh ignition."""
+    dur = 0.62
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 92023)
+    fire_bp = _one_pole_hp(_one_pole_lp(raw, 2800.0), 260.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # Bowstring snap + metallic bolt release (0..180ms)
+        tw_env = math.exp(-t * 16.0) * min(1.0, t / 0.002)
+        f_tw = 190.0 + 185.0 * math.exp(-t * 18.0)
+        twang = (math.sin(2.0 * math.pi * f_tw * t) + 0.5 * math.sin(2.0 * math.pi * f_tw * 2.1 * t)) * tw_env
+        # Swelling thermite flame whoosh (30..620ms)
+        f_env = _envelope(max(0.0, t - 0.03), 0.06, 0.58, 1.5)
+        flame = fire_bp[i] * f_env * 1.45
+        out[i] = math.tanh((twang * 0.95 + flame) * 1.25)
+    _write_wav("saeed_fire_bolt.wav", out, 0.68)
+
+
+def gen_reis_shotgun_blast() -> None:
+    """Warlord Reis heavy S12K 12-gauge drum-shotgun cannon boom + desert canyon echo."""
+    dur = 0.78
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 92037)
+    boom_lp = _one_pole_lp(raw, 480.0)
+    pellet_hi = _one_pole_hp(_one_pole_lp(raw, 6200.0), 1100.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        e_sub = math.exp(-t * 11.5) * min(1.0, t / 0.0012)
+        f_sub = 38.0 + 135.0 * math.exp(-t * 28.0)
+        sub = (math.sin(2.0 * math.pi * f_sub * t) * 1.55 + boom_lp[i] * 1.65) * e_sub
+        e_hi = math.exp(-t * 48.0) * min(1.0, t / 0.0008)
+        blast = pellet_hi[i] * e_hi * 2.1
+        # Desert canyon slapback echoes
+        echo = 0.0
+        for dly, amp in ((0.14, 0.36), (0.31, 0.22)):
+            if t >= dly:
+                te = t - dly
+                echo += boom_lp[i] * math.exp(-te * 9.5) * amp
+        out[i] = math.tanh((sub + blast + echo) * 1.35)
+    _write_wav("reis_shotgun_blast.wav", out, 0.78)
+
+
+def gen_gramophone_chord() -> None:
+    """Warlord Reis antique brass gramophone war-symphony chord with warm vinyl horn resonance."""
+    dur = 1.05
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 92049)
+    crackle = _one_pole_hp(_one_pole_lp(raw, 4200.0), 1800.0)
+    # Dramatic D-minor orchestral brass horn chord (D3, A3, F4, A4, D5)
+    freqs = [146.83, 220.00, 349.23, 440.00, 587.33]
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = _envelope(t, 0.055, dur, 1.25)
+        vib = 1.0 + 0.0055 * math.sin(2.0 * math.pi * 5.8 * t)
+        brass = 0.0
+        for k, f in enumerate(freqs):
+            w = 1.0 / (1.0 + 0.25 * k)
+            # Horn-like odd/even harmonic richness
+            brass += w * (
+                math.sin(2.0 * math.pi * f * vib * t)
+                + 0.45 * math.sin(2.0 * math.pi * f * 2.0 * vib * t)
+                + 0.22 * math.sin(2.0 * math.pi * f * 3.0 * vib * t)
+            )
+        vinyl = crackle[i] * (0.14 if (i % 193 < 3) else 0.035)
+        out[i] = math.tanh((brass * 0.34 * env + vinyl * env) * 1.3)
+    _write_wav("gramophone_chord.wav", out, 0.66)
+
+
+def gen_dam_artillery_siren() -> None:
+    """Zero Dam industrial spillway air-raid siren + incoming artillery shell whistle + thunderous barrage."""
+    dur = 2.35
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 92061)
+    rumble = _one_pole_lp(raw, 280.0)
+    blast_mid = _one_pole_hp(_one_pole_lp(raw, 2100.0), 220.0)
+    out = [0.0] * n
+    siren_phase = 0.0
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # 1) Industrial air-raid dam siren rising & pulsing (0.0..1.35s)
+        s_env = _envelope(t, 0.08, 1.45, 1.2)
+        f_siren = 360.0 + 210.0 * math.sin(math.pi * min(1.0, t / 1.25))
+        siren_phase += 2.0 * math.pi * f_siren / SAMPLE_RATE
+        siren = math.tanh((math.sin(siren_phase) + 0.45 * math.sin(siren_phase * 2.0)) * 1.4) * s_env * 0.65
+        # 2) Descending incoming artillery shell whistle (0.55..1.30s)
+        whistle = 0.0
+        if 0.55 <= t <= 1.32:
+            tw = (t - 0.55) / 0.77
+            fw = 1580.0 - 940.0 * tw
+            whistle = math.sin(2.0 * math.pi * fw * (t - 0.55)) * math.sin(math.pi * tw) * 0.42
+        # 3) Triple rolling heavy artillery shell detonations (t = 1.15s, 1.38s, 1.62s)
+        boom = 0.0
+        for dly in (1.15, 1.38, 1.62):
+            if t >= dly:
+                tb = t - dly
+                eb = math.exp(-tb * 4.0) * min(1.0, tb / 0.008)
+                fb = 40.0 + 95.0 * math.exp(-tb * 10.0)
+                boom += (math.sin(2.0 * math.pi * fb * tb) * 1.2 + rumble[i] * 1.25 + blast_mid[i] * 0.75) * eb
+        out[i] = math.tanh((siren + whistle + boom) * 1.18)
+    _write_wav("dam_artillery_siren.wav", out, 0.78)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -799,7 +931,12 @@ def main() -> None:
     gen_warden_shield_deflect()
     gen_boss_slash()
     gen_boss_ultimate()
-    print("Generated 38 procedural SFX files in", OUT_DIR)
+    gen_saeed_lmg_burst()
+    gen_saeed_fire_bolt()
+    gen_reis_shotgun_blast()
+    gen_gramophone_chord()
+    gen_dam_artillery_siren()
+    print("Generated 43 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

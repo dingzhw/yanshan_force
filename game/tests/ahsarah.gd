@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.1" and game.active_map_id == "yanshan", "v0.9.1 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.2" and game.active_map_id == "yanshan", "v0.9.2 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -82,7 +82,7 @@ func run():
 	verify(game.switch_map("ahsarah"), "switch_map('ahsarah') succeeds after unlock")
 	await frames(4)
 	verify(game.is_ahsarah_map() and game.active_layout == game.AhsarahLayout, "Active map & layout switched cleanly to AhsarahLayout")
-	verify(game.crate_nodes.size() == 10 and game.pickup_nodes.size() == 17, "v0.9.1 Ahsarah mounts 10 Cipher Crates (incl. 2F Balcony & Dam Spillway Alcove) and 17 pickups (incl. Catwalk & 2F)")
+	verify(game.crate_nodes.size() == 10 and game.pickup_nodes.size() == 20, "v0.9.2 Ahsarah mounts 10 Cipher Crates and 20 sculpted pickups (ammo/medkit/EMP/stim/supply)")
 	verify(game.exploration.nodes.size() == 6 and game.wildlife.active_map_id == "ahsarah" and not game.wildlife.yanshan_root.visible and game.wildlife.ahsarah_root.visible and not game.cave_warden.map_enabled, "v0.9.1 Ahsarah mounts 6 lore terminals, switches Wildlife cleanly to Ahsarah desert ecology & disables Cave Warden")
 	var dam_found := is_instance_valid(game.landscape.find_child("AhsarahHeroLandmarks", true, false))
 	var pano_found := is_instance_valid(game.landscape.find_child("DesertHorizonPanorama", true, false))
@@ -286,9 +286,165 @@ func run():
 			charms_3d_ok = false
 	verify(charms_3d_ok, "All 3 Ahsarah 3D weapon charms (Mini MandelBrick, Fiery Owl, Heart of Africa) equip & mount sculpted 3D meshes on rifle")
 
-	# 9. Clean Round-Trip back to Yanshan Base
+	# 8g. v0.9.2 Comprehensive Desert Bugfix Audits (Bugs a-d) + Bespoke Saeed/Reis Boss Kits + Sculpted Tactical Pickups!
+	game.start_action(true, "normal")
+	await frames(4)
+	for _pf in 20:
+		await physics_frame
+	space = game.get_world_3d().direct_space_state
+
+	# Audit (a): ZERO disappearing camp soldiers — EVERY soldier across all 5 camps sits above ground with open sky!
+	var soldiers_checked := 0
+	var soldiers_ok := true
+	for z_i in 5:
+		for s in game.combat.living_soldiers(z_i):
+			soldiers_checked += 1
+			var gy: float = game.active_layout.height(s.position.x, s.position.z)
+			if s.position.y < gy - 0.15 or s.position.y > gy + 2.0:
+				soldiers_ok = false
+				printerr("  Soldier underground/floating z=%d pos=%s gy=%.2f" % [z_i, str(s.position), gy])
+			var sky_rq := PhysicsRayQueryParameters3D.create(Vector3(s.position.x, gy + 5.5, s.position.z), Vector3(s.position.x, gy + 0.25, s.position.z), 1)
+			var sky_hit: Dictionary = space.intersect_ray(sky_rq)
+			if not sky_hit.is_empty():
+				soldiers_ok = false
+				printerr("  Soldier obstructed overhead z=%d pos=%s hit=%s" % [z_i, str(s.position), str(sky_hit.position)])
+	verify(soldiers_checked >= 15 and soldiers_ok, "v0.9.2 Bug(a): ALL %d Ahsarah camp soldiers across 5 zones spawn cleanly above ground with open sky (zero buried/trapped bots)" % soldiers_checked)
+	# Verify floor-rescue watchdog instantly rescues an artificially dropped soldier
+	var sample_s = game.combat.living_soldiers(0)[0]
+	var sample_gy: float = game.active_layout.height(sample_s.position.x, sample_s.position.z)
+	sample_s.position.y = sample_gy - 3.5
+	sample_s._clamp_above_ground()
+	verify(sample_s.position.y >= sample_gy, "v0.9.2 Bug(a): Soldier floor-safety watchdog rescues underground coordinates cleanly (y=%.2f >= %.2f)" % [sample_s.position.y, sample_gy])
+
+	# Audit (b): 1.0m high-res terrain grid & level Cement Catwalk stair pad
+	var terr_mi: MeshInstance3D = game.landscape.find_child("AhsarahDesertTerrain", true, false)
+	var terr_tris: int = terr_mi.mesh.get_faces().size() / 3 if (terr_mi != null and terr_mi.mesh != null) else 0
+	var cat_y0: float = game.active_layout.height(-42.0, -54.0)
+	var cat_y1: float = game.active_layout.height(-33.5, -54.0)
+	verify(terr_tris >= 75000 and absf(cat_y0 - cat_y1) <= 0.12, "v0.9.2 Bug(b): 1.0m analytical desert terrain mesh (tris=%d) & level catwalk stair pad (delta=%.3fm)" % [terr_tris, absf(cat_y0 - cat_y1)])
+
+	# Audit (c): ZERO fake/hollow solid models — physics raycast probes hit EVERY hero structure solidly!
+	var cp1_y: float = game.active_layout.min_ground_height(-54.0, -44.0, 4.5)
+	var cp1_booth: Vector3 = Vector3(-54.0, cp1_y, -44.0) + Basis(Vector3.UP, deg_to_rad(14.0)) * Vector3(5.5, 1.8, 1.8)
+	var sb1_y: float = game.active_layout.min_ground_height(52.0, -84.0, 3.2)
+	var sb1_console: Vector3 = Vector3(52.0, sb1_y, -84.0) + Basis(Vector3.UP, deg_to_rad(-90.0)) * Vector3(2.45, 1.45, 0.0)
+	var rt_w_y: float = game.active_layout.min_ground_height(-34.0, -148.0, 3.8)
+	var wing_e_stair_under: Vector3 = Vector3(22.5, game.active_layout.CLOUD_ARENA_Y, -124.0) + Basis(Vector3.UP, deg_to_rad(-90.0)) * Vector3(-0.5, 1.2, -1.85)
+	var bath_y0: float = game.active_layout.min_ground_height(44.0, -28.0, 5.5)
+	var bath_pier: Vector3 = Vector3(44.0, bath_y0, -28.0) + Basis(Vector3.UP, deg_to_rad(-20.0)) * Vector3(2.62, 2.2, 4.75)
+	var pav_y0: float = game.active_layout.min_ground_height(36.0, -46.0, 4.2)
+	var pav_wall: Vector3 = Vector3(36.0, pav_y0, -46.0) + Basis(Vector3.UP, deg_to_rad(75.0)) * Vector3(3.10, 2.2, 3.05) * 0.94
+	var solid_probes := [
+		["Cement Silo Control Booth", cp1_booth + Vector3(0.0, 0.0, 3.2), cp1_booth - Vector3(0.0, 0.0, 3.2)],
+		["Substation Haavk Relay Console", sb1_console + Vector3(-3.0, 0.0, 0.0), sb1_console + Vector3(3.0, 0.0, 0.0)],
+		["Babel Radar Tower Plinth Rim", Vector3(-34.0 + 4.2, rt_w_y + 1.2, -144.0), Vector3(-34.0 + 4.2, rt_w_y + 1.2, -151.0)],
+		["Zero Dam Spillway Apron", Vector3(0.0, game.active_layout.CLOUD_ARENA_Y + 0.8, -144.5), Vector3(0.0, game.active_layout.CLOUD_ARENA_Y + 0.8, -149.5)],
+		["Fortress Wing Under-Stair Masonry", wing_e_stair_under + Vector3(0.0, 0.0, 2.2), wing_e_stair_under - Vector3(0.0, 0.0, 2.2)],
+		["Grand Bathhouse Arcade Pier", bath_pier + Vector3(0.0, 0.0, 2.0), bath_pier - Vector3(0.0, 0.0, 2.0)],
+		["South Bazaar Pavilion Wall", pav_wall + Vector3(2.0, 0.0, 0.0), pav_wall - Vector3(2.0, 0.0, 0.0)],
+		["Gatehouse Awning Post", Vector3(-9.3, game.active_layout.CLOUD_ARENA_Y + 1.8, -102.0 + 9.2), Vector3(-9.3, game.active_layout.CLOUD_ARENA_Y + 1.8, -102.0 + 6.2)],
+	]
+	var solid_hits := 0
+	for sp in solid_probes:
+		var srq := PhysicsRayQueryParameters3D.create(sp[1], sp[2], 1)
+		if not space.intersect_ray(srq).is_empty():
+			solid_hits += 1
+		else:
+			printerr("  HOLLOW MODEL DETECTED: %s" % str(sp[0]))
+	verify(solid_hits == solid_probes.size(), "v0.9.2 Bug(c): ALL %d/%d hero Ahsarah structures & props are 100%% physics-solid (zero walk-through models)" % [solid_hits, solid_probes.size()])
+
+	# Audit (d): ZERO buried hidden stashes or loose tables (all 18/18 sit on open ground with clear sky above!)
+	var loot_spots_checked := 0
+	var loot_spots_clear := 0
+	for lnode in game.world_loot.loose_nodes + game.world_loot.nest_nodes:
+		loot_spots_checked += 1
+		var lp: Vector3 = lnode.position
+		var lrq := PhysicsRayQueryParameters3D.create(lp + Vector3(0.0, 6.0, 0.0), lp - Vector3(0.0, 1.0, 0.0), 1)
+		var lhit: Dictionary = space.intersect_ray(lrq)
+		if not lhit.is_empty() and absf(lhit.position.y - lp.y) <= 0.28:
+			loot_spots_clear += 1
+		else:
+			printerr("  BURIED/OCCLUDED STASH: %s pos=%s hit=%s" % [str(lnode.get_meta("title", "")), str(lp), str(lhit.get("position", "NONE"))])
+	verify(loot_spots_checked == 18 and loot_spots_clear == 18, "v0.9.2 Bug(d): ALL %d/%d Ahsarah loose tables & desert amphora stashes sit cleanly on open ground (zero buried stashes)" % [loot_spots_clear, loot_spots_checked])
+
+	# Feature 2a: Sculpted Blender 4.5 tactical pickups + medkit pickup bugfix
+	var sculpted_pickups := 0
+	var sample_medkit: Node3D = null
+	for pnode in game.pickup_nodes:
+		if pnode.has_meta("tactical_item"):
+			if pnode.find_child("SculptedPickupMesh", true, false) != null:
+				sculpted_pickups += 1
+			if str(pnode.get_meta("tactical_item")) == "medkit" and sample_medkit == null:
+				sample_medkit = pnode
+	verify(sculpted_pickups == 14, "v0.9.2 mounts sculpted Blender 4.5 PBR meshes on all %d/14 Ahsarah tactical pickups (ammo/medkit/EMP/stim)" % sculpted_pickups)
+	var pre_meds: int = game.player.medkits
+	game.player.position = sample_medkit.position + Vector3(0.0, 0.1, 0.6)
+	game.closest_interaction = sample_medkit
+	game.interact()
+	verify(game.player.medkits == pre_meds + 1, "Picking up a sculpted tactical medkit increments player.medkits cleanly (not stims)")
+
+	# Feature 2b: Captain Saeed bespoke M249 LMG + Roll & Triple Incendiary Crossbow (burning fire_zones!) + Desert Smoke!
+	var saeed2 = game.combat.boss_unit
+	game.player.position = game.active_layout.on_ground(Vector3(0.0, 0.0, -116.0)) + Vector3.UP * 0.1
+	game.combat.engage_camp(2, true)
+	await frames(2)
+	saeed2.vanguard_move_state = "idle"
+	saeed2.vanguard_move_cd = 0.01
+	saeed2.saeed_move_cycle = 0
+	saeed2._step_saeed_boss_ai(0.05, game.player.position, 10.0)
+	verify(saeed2.vanguard_move_state == "saeed_lmg_windup", "Captain Saeed Move 1 triggers bespoke M249 LMG sweeping suppression windup")
+	saeed2.vanguard_move_state = "idle"
+	saeed2.vanguard_move_cd = 0.01
+	saeed2.saeed_move_cycle = 1
+	saeed2._step_saeed_boss_ai(0.05, game.player.position, 10.0)
+	verify(saeed2.vanguard_move_state == "saeed_roll_crossbow", "Captain Saeed Move 2 triggers acrobatic roll + triple incendiary crossbow")
+	for _sf in 14:
+		saeed2._step_saeed_boss_ai(0.06, game.player.position, 10.0)
+	verify(game.combat.boss_projectiles.size() >= 2, "Captain Saeed fires visible sculpted 3D incendiary crossbow bolts (count=%d)" % game.combat.boss_projectiles.size())
+	for _uf in 30:
+		game.combat.update(0.06)
+	verify(game.combat.fire_zones.size() >= 2, "Saeed's incendiary bolts ignite persistent burning fire pools across courtyard (pools=%d)" % game.combat.fire_zones.size())
+
+	# Feature 2c: Warlord Reis bespoke Gramophone Symphony Rings + S12K Drum Shotgun + Cluster Frag Grenades + Zero Dam Artillery Ultimate!
+	game.start_action(true, "confidential")
+	await frames(4)
+	var reis2 = game.combat.boss_unit
+	game.player.position = game.active_layout.on_ground(Vector3(0.0, 0.0, -114.0)) + Vector3.UP * 0.1
+	game.combat.engage_camp(2, true)
+	await frames(2)
+	reis2.ov_move_state = "idle"
+	reis2.ov_move_cd = 0.01
+	reis2.ov_move_cycle = 0
+	reis2._step_reis_boss_ai(0.05, game.player.position, 10.0)
+	reis2._step_reis_boss_ai(0.25, game.player.position, 10.0)
+	verify(reis2.ov_move_state == "reis_symphony_shock" and game.combat.sonic_rings.size() >= 1, "Warlord Reis Move 1 emits golden jumpable Brass Gramophone acoustic shockwave rings")
+	reis2.ov_move_state = "idle"
+	reis2.ov_move_cd = 0.01
+	reis2.ov_move_cycle = 2
+	reis2._step_reis_boss_ai(0.05, game.player.position, 10.0)
+	reis2._step_reis_boss_ai(0.60, game.player.position, 10.0)
+	var frag_cnt := 0
+	for bp in game.combat.boss_projectiles:
+		if str(bp.kind) == "frag_grenade":
+			frag_cnt += 1
+	verify(frag_cnt == 3, "Warlord Reis Move 3 launches 3 spinning 3D sculpted fragmentation grenades (count=%d)" % frag_cnt)
+	reis2.trigger_ultimate_tiandi()
+	var dam_shells := 0
+	for bp2 in game.combat.boss_projectiles:
+		if str(bp2.kind) == "dam_artillery":
+			dam_shells += 1
+	verify(reis2.overlord_ultimate_state == "descending" and dam_shells == 6 and is_instance_valid(reis2.mirror_mountain_node) and reis2.mirror_mountain_node.name == "ReisArtilleryUltimate", "Warlord Reis Ultimate launches 6 streaking Zero Dam Artillery shells from dam crest (zero Yanshan Mirror Mountain)")
+	game.combat.apply_ultimate_crush_to_10hp()
+	verify(game.combat.health == 10 and int(game.combat.shield) == 0, "Zero Dam Artillery Ultimate obeys non-lethal 10 HP crush balance rule")
+
+	# 9. Clean Round-Trip back to Yanshan Base (and verify Yanshan ALSO mounts sculpted v092 pickups!)
 	verify(game.switch_map("yanshan"), "Round-trip switch_map('yanshan') restores Yanshan Base cleanly")
 	await frames(4)
+	var ys_sculpted := 0
+	for yp in game.pickup_nodes:
+		if yp.has_meta("tactical_item") and yp.find_child("SculptedPickupMesh", true, false) != null:
+			ys_sculpted += 1
+	verify(ys_sculpted >= 15, "Great Yanshan ALSO upgrades tactical pickups to sculpted Blender 4.5 PBR models (%d mounted)" % ys_sculpted)
 	var ah_collision_zero := true
 	for da2 in game.wildlife.desert_animals:
 		if int(da2.area.collision_layer) != 0:

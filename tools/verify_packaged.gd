@@ -66,10 +66,10 @@ func run():
 				if st is AudioStream and st.get_length() > 0.01:
 					sfx_decoded += 1
 	var req_sfx_ok := true
-	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "warden_shield_deflect", "boss_skyfall", "boss_slash", "boss_ultimate", "skill_slam"]:
+	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "warden_shield_deflect", "boss_skyfall", "boss_slash", "boss_ultimate", "skill_slam", "saeed_lmg_burst", "saeed_fire_bolt", "reis_shotgun_blast", "gramophone_chord", "dam_artillery_siren"]:
 		if not ResourceLoader.exists("res://assets/sfx/" + sfx_n + ".wav"):
 			req_sfx_ok = false
-	verify(req_sfx_ok and sfx_total >= 38 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
+	verify(req_sfx_ok and sfx_total >= 43 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
 
 	var loot_ui_cls = load("res://scripts/loot_ui.gd")
 	var art_ids: PackedStringArray = loot_ui_cls.all_collectible_art_ids()
@@ -188,6 +188,23 @@ func run():
 		if not ResourceLoader.exists("res://assets/slice/wildlife/" + w91 + ".glb"):
 			wild_v91_ok = false
 	verify(wild_v91_ok, "standalone PCK includes all 4 v0.9.1 rigged desert wildlife GLBs (fennec/camel/falcon/scarab)")
+	var v92_pickups_ok := false
+	if ResourceLoader.exists("res://assets/slice/v092_tactical_pickups.glb"):
+		var p92_p = load("res://assets/slice/v092_tactical_pickups.glb")
+		if p92_p is PackedScene:
+			var pi92: Node = p92_p.instantiate()
+			v92_pickups_ok = (
+				pi92.find_child("pickup_ammo_crate", true, false) != null
+				and pi92.find_child("pickup_medkit", true, false) != null
+				and pi92.find_child("pickup_smoke_emp", true, false) != null
+				and pi92.find_child("pickup_energy_stim", true, false) != null
+				and pi92.find_child("ahsarah_desert_stash", true, false) != null
+				and pi92.find_child("ahsarah_loot_table", true, false) != null
+				and pi92.find_child("boss_incendiary_bolt", true, false) != null
+				and pi92.find_child("boss_frag_grenade", true, false) != null
+			)
+			pi92.free()
+	verify(v92_pickups_ok, "standalone PCK v092_tactical_pickups.glb contains all 8 sculpted Blender 4.5 pickups, desert stashes & boss ordnance")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

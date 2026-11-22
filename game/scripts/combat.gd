@@ -91,6 +91,9 @@ var zone_reinforce_left = {}
 var smoke_zones = []
 var danger_rings = []
 var sword_waves = []
+var fire_zones = []
+var boss_projectiles = []
+var sonic_rings = []
 var boss_barrage_cd: float = 4.5
 var active_attacker = null
 var active_attacker_idle: float = 0.0
@@ -138,6 +141,9 @@ func begin():
 	smoke_zones.clear()
 	danger_rings.clear()
 	sword_waves.clear()
+	fire_zones.clear()
+	boss_projectiles.clear()
+	sonic_rings.clear()
 	boss_barrage_cd = 4.5
 	shot_rng.randomize()
 	_deploy()
@@ -173,6 +179,9 @@ func stop():
 	smoke_zones.clear()
 	danger_rings.clear()
 	sword_waves.clear()
+	fire_zones.clear()
+	boss_projectiles.clear()
+	sonic_rings.clear()
 	boss_barrage_cd = 4.5
 	camp_covers.clear()
 	camp_outer_anchors.clear()
@@ -348,9 +357,7 @@ func _squad_archetypes(z_idx: int, wave_idx: int, count: int = 4) -> Array:
 func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
 	var base_y: float = game.active_layout.min_ground_height(at.x, at.z, 0.9) - 0.12
 	var uphill_y: float = maxf(at.y, maxf(game.active_layout.height(at.x - 1.0, at.z - 1.2), game.active_layout.height(at.x + 1.0, at.z - 1.2)))
-	# Castellated stepped Jiangnan parapet ('高低错落垛口战术矮垣'):
-	# - Center solid merlon (~1.84m, 1.04m wide) blocks shots during full shelter;
-	# - Left/right low firing wings (~0.72m) shield legs while keeping 100% of the chest English Word Shield unobstructed!
+	# Castellated stepped parapet: center solid merlon (~1.84m, 1.04m wide) + low side wings (~0.72m) keeping English Word Shields 100% readable!
 	var merlon_h: float = maxf(1.84, (uphill_y - base_y) + 1.80)
 	if low_front:
 		merlon_h = maxf(1.0, at.y - base_y + 0.78)
@@ -358,6 +365,39 @@ func _build_tactical_cover(at: Vector3, index: int, low_front: bool):
 	var root = Node3D.new()
 	root.position = Vector3(at.x, base_y, at.z)
 	arena.add_child(root)
+
+	if game.is_ahsarah_map():
+		# v0.9.2 Ahsarah Desert Sandstone & Sandbag Tactical Parapet (replaces Jiangnan white plaster on Ahsarah!)
+		var sand_mat := StandardMaterial3D.new()
+		sand_mat.albedo_color = Color("d8aa6e") if index % 2 == 0 else Color("cc9a5e")
+		sand_mat.albedo_texture = load("res://assets/slice/ahsarah_sandstone_albedo.jpg")
+		sand_mat.uv1_scale = Vector3(1.5, 1.2, 1.0)
+		sand_mat.roughness = 0.90
+		sand_mat.metallic_specular = 0.05
+
+		var center_m: MeshInstance3D = game._mesh_box(root, Vector3(0, merlon_h * 0.5, 0), Vector3(1.06, merlon_h, 0.88), Color.WHITE, true)
+		center_m.material_override = sand_mat
+		var low_w: MeshInstance3D = game._mesh_box(root, Vector3(0, wing_h * 0.5, 0), Vector3(2.10, wing_h, 0.84), Color.WHITE, true)
+		low_w.material_override = sand_mat
+
+		var base_mat := StandardMaterial3D.new()
+		base_mat.albedo_color = Color("96826a")
+		base_mat.albedo_texture = load("res://assets/slice/ahsarah_concrete_albedo.jpg")
+		base_mat.roughness = 0.88
+		var plinth_a: MeshInstance3D = game._mesh_box(root, Vector3(0, 0.22, 0), Vector3(2.16, 0.44, 0.92), Color.WHITE)
+		plinth_a.material_override = base_mat
+
+		var bag_mat := StandardMaterial3D.new()
+		bag_mat.albedo_color = Color("c9b186")
+		bag_mat.roughness = 0.95
+		var top_bag: MeshInstance3D = game._mesh_box(root, Vector3(0, merlon_h + 0.06, 0), Vector3(1.12, 0.14, 0.94), Color.WHITE)
+		top_bag.material_override = bag_mat
+		for sx in [-0.78, 0.78]:
+			var w_bag: MeshInstance3D = game._mesh_box(root, Vector3(sx, wing_h + 0.05, 0), Vector3(0.56, 0.11, 0.88), Color.WHITE)
+			w_bag.material_override = bag_mat
+		var warn_bar: MeshInstance3D = game._mesh_box(root, Vector3(0, merlon_h - 0.14, 0), Vector3(1.09, 0.06, 0.91), Color("b8442a"))
+		warn_bar.material_override.roughness = 0.80
+		return
 
 	var wall_mat = StandardMaterial3D.new()
 	wall_mat.albedo_color = Color("dedad0") if index % 2 == 0 else Color("d4d0c5")
@@ -488,9 +528,14 @@ func _deploy():
 		zone_respawn_grace[z_idx] = 0.0
 		zone_reinforce_left[z_idx] = 0.0
 		var covers := []
+		var custom_slots: Array = game.active_layout.COMBAT_COVER_POSITIONS[z_idx] if (game.is_ahsarah_map() and z_idx < game.active_layout.COMBAT_COVER_POSITIONS.size()) else []
 		for i in CAMP_COVER_COUNT:
-			var off2: Vector2 = cover_offsets[i]
-			var barrier: Vector3 = game.active_layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
+			var barrier: Vector3
+			if i < custom_slots.size():
+				barrier = game.active_layout.on_ground(custom_slots[i])
+			else:
+				var off2: Vector2 = cover_offsets[i]
+				barrier = game.active_layout.on_ground(center + Vector3(off2.x, 0.0, off2.y))
 			_build_tactical_cover(barrier, i, i > 0 and i < CAMP_COVER_COUNT - 1)
 			covers.append(barrier)
 		camp_covers[z_idx] = covers
@@ -795,12 +840,13 @@ func engage_camp(z_idx: int, preserve_prompt: bool = false):
 				if boss_unit.skyfall_state == "idle":
 					boss_unit.trigger_skyfall()
 				if is_ah:
-					game._notice("🎷 阿萨拉军阀·雷斯摇响留声机：『把留声机开大声点！没有交响乐的战场，简直粗俗不堪！』请按 1→5 顺序破除 5 面重词盾！", Color("ffd15c"))
+					game.play_sfx("gramophone_chord", -6)
+					game._notice("🎷 阿萨拉军阀·雷斯摇响留声机：『把留声机开大声点！没有交响乐的战场，简直粗俗不堪！』警惕交响声波、S12K重霰弹与破片手雷，按 1→5 破除重词盾！", Color("ffd15c"))
 				else:
 					game._notice("⚡ 天降震地！【雾隐机关王·玄铁词尊】轰然降临 %s！请严格按 1→5 顺序击破全身 5 块词盾（打错顺序满血洗牌）！" % z_title, Color("ffd15c"))
 			else:
 				if is_ah:
-					game._notice("🦅 赤枭·赛伊德现身 %s：『父亲教导我，好的猎人懂得尊重猎物……但你，不配！』警惕翻滚位移与燃烧弹红圈！" % z_title, Color("ff9e58"))
+					game._notice("🦅 赤枭·赛伊德现身 %s：『父亲教导我，好的猎人懂得尊重猎物……但你，不配！』警惕【M249 机枪扫射】与【翻滚三联燃烧弩】！" % z_title, Color("ff9e58"))
 				else:
 					game._notice("⚠ 惊动雾隐帮【%s】（第 %d/%d 波 · %d兵 · %s）：雾隐先锋·铁面词卫登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
 				game.play_sfx("boss_phase", -11)
@@ -959,6 +1005,103 @@ func update(delta: float):
 				sw.node.queue_free()
 			sword_waves.remove_at(i)
 
+	# v0.9.2 Captain Saeed Persistent Burning Fire Pools ("赤枭燃烧弩火区")
+	for i in range(fire_zones.size() - 1, -1, -1):
+		var fz: Dictionary = fire_zones[i]
+		fz.left = float(fz.left) - delta
+		fz.tick_cd = maxf(0.0, float(fz.tick_cd) - delta)
+		if is_instance_valid(fz.node):
+			var fn: Node3D = fz.node
+			var fade_s := clampf(float(fz.left) / 1.2, 0.15, 1.0)
+			fn.scale = Vector3(1.0, fade_s * (0.88 + 0.18 * sin(Time.get_ticks_msec() * 0.014 + float(i))), 1.0)
+		if is_instance_valid(game.player) and float(fz.tick_cd) <= 0.0:
+			var fp: Vector3 = fz.pos
+			var d_f := Vector2(game.player.position.x - fp.x, game.player.position.z - fp.z).length()
+			if d_f <= float(fz.radius) and absf(game.player.position.y - fp.y) < 1.8:
+				fz.tick_cd = 0.78
+				apply_player_damage(int(fz.damage))
+				game._notice("🔥 踩入赤枭燃烧弩火区！迅速移出火焰范围！", Color("ff7838"))
+		if float(fz.left) <= 0.0:
+			if is_instance_valid(fz.node):
+				fz.node.queue_free()
+			fire_zones.remove_at(i)
+
+	# v0.9.2 Ahsarah Boss Parabolic Ordnance (Saeed Incendiary Bolts, Reis Frag Grenades & Zero Dam Artillery Shells!)
+	for i in range(boss_projectiles.size() - 1, -1, -1):
+		var bp: Dictionary = boss_projectiles[i]
+		bp.elapsed = float(bp.elapsed) + delta
+		var dur: float = maxf(0.05, float(bp.duration))
+		var t_frac: float = clampf(float(bp.elapsed) / dur, 0.0, 1.0)
+		var p_from: Vector3 = bp.from
+		var p_to: Vector3 = bp.to
+		var arc_h: float = float(bp.arc)
+		var cur_p: Vector3 = p_from.lerp(p_to, t_frac)
+		cur_p.y += sin(PI * t_frac) * arc_h
+		if is_instance_valid(bp.node):
+			var bnode: Node3D = bp.node
+			bnode.visible = float(bp.elapsed) >= 0.0
+			var prev_p := bnode.position
+			bnode.position = cur_p
+			if str(bp.kind) == "frag_grenade":
+				bnode.rotation += Vector3(6.8, 5.2, 4.4) * delta
+			elif cur_p.distance_squared_to(prev_p) > 0.0001:
+				var up_a := Vector3.RIGHT if absf((cur_p - prev_p).normalized().y) > 0.98 else Vector3.UP
+				bnode.look_at(cur_p + (cur_p - prev_p), up_a)
+		if bp.has("ring_inner") and is_instance_valid(bp.ring_inner):
+			(bp.ring_inner as Node3D).scale = Vector3(maxf(0.05, t_frac), 1.0, maxf(0.05, t_frac))
+		if t_frac >= 1.0:
+			var kind_p: String = str(bp.kind)
+			if kind_p == "incendiary_bolt":
+				spawn_fire_zone(p_to, float(bp.radius), 6.2, int(bp.damage))
+				_spawn_impact_burst(p_to, Color("ff6e24"), 1.65)
+			elif kind_p == "frag_grenade":
+				_spawn_impact_burst(p_to, Color("ff5028"), 2.8)
+				game.play_sfx("skill_slam", -9)
+				if is_instance_valid(game.player):
+					if game.player.position.distance_to(p_to) <= float(bp.radius):
+						apply_player_damage(int(bp.damage))
+						game.player.add_screen_shake(0.42)
+						game._notice("💥 被雷斯【集束破片手雷】炸伤！注意手雷落点红圈！", Color("ff6842"))
+					else:
+						game._notice("★ 成功闪避雷斯集束破片手雷！", game.MINT)
+			elif kind_p == "dam_artillery":
+				_spawn_impact_burst(p_to, Color("ff7828"), 4.6)
+				if is_instance_valid(game.player):
+					game.player.add_screen_shake(0.55)
+			if is_instance_valid(bp.node):
+				bp.node.queue_free()
+			if bp.has("ring_node") and is_instance_valid(bp.ring_node):
+				bp.ring_node.queue_free()
+			boss_projectiles.remove_at(i)
+
+	# v0.9.2 Warlord Reis Brass Gramophone Acoustic Shockwave Rings ("留声机交响威压")
+	for i in range(sonic_rings.size() - 1, -1, -1):
+		var sr: Dictionary = sonic_rings[i]
+		sr.radius = float(sr.radius) + float(sr.speed) * delta
+		var r_cur: float = float(sr.radius)
+		var r_max: float = float(sr.max_radius)
+		if is_instance_valid(sr.node):
+			var snode: Node3D = sr.node
+			snode.scale = Vector3(r_cur, 1.0, r_cur)
+			if sr.has("mat") and sr.mat is StandardMaterial3D:
+				(sr.mat as StandardMaterial3D).albedo_color.a = clampf((1.0 - r_cur / r_max) * 0.85, 0.0, 0.85)
+		if not bool(sr.hit_player) and is_instance_valid(game.player):
+			var org: Vector3 = sr.origin
+			var d_xz := Vector2(game.player.position.x - org.x, game.player.position.z - org.z).length()
+			var d_y: float = float(game.player.position.y) - org.y
+			# Jumpable acoustic shockwave! Only hits if player is at ring radius AND didn't jump over it (<1.15m above ground)
+			if absf(d_xz - r_cur) <= 1.15 and d_y >= -0.8 and d_y <= 1.15:
+				sr.hit_player = true
+				apply_player_damage(int(sr.damage))
+				var push_dir := Vector3(game.player.position.x - org.x, 0.0, game.player.position.z - org.z)
+				if push_dir.length_squared() > 0.04 and game.player.has_method("apply_knockback"):
+					game.player.apply_knockback(push_dir.normalized() * 4.5 + Vector3.UP * 1.2)
+				game._notice("🎷 被雷斯【留声机交响声波】震退！按 [Space] 跳起可越过金色声环！", Color("ffd15c"))
+		if r_cur >= r_max:
+			if is_instance_valid(sr.node):
+				sr.node.queue_free()
+			sonic_rings.remove_at(i)
+
 	if is_instance_valid(game.exploration) and game.exploration.safe():
 		if zone >= 0:
 			disengage_active_camp(false)
@@ -974,8 +1117,8 @@ func update(delta: float):
 		if living_soldiers(zone).is_empty():
 			_complete_current_wave(zone)
 			return
-		# v0.8.6 Normal Mode Boss Mortar Barrage (balanced with Shield-Charge Slam & Energy Wave!)
-		if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and not boss_unit.is_skyfall_overlord and boss_unit.stun_left <= 0.0 and boss_unit.vanguard_move_state == "idle" and not player_in_smoke():
+		# v0.8.6 Yanshan Normal Mode Boss Mortar Barrage (on Ahsarah, Captain Saeed uses his bespoke M249 + Incendiary Crossbow kit!)
+		if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and not boss_unit.is_skyfall_overlord and not boss_unit.is_ahsarah_unit and boss_unit.stun_left <= 0.0 and boss_unit.vanguard_move_state == "idle" and not player_in_smoke():
 			boss_barrage_cd -= delta
 			if boss_barrage_cd <= 0.0:
 				boss_barrage_cd = 4.6 if game.rules.is_confidential() else 6.2
@@ -1131,15 +1274,21 @@ func show_question():
 		soldier.show_word(w_text, false)
 
 	var overlord_active: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord)
+	var is_ah_q: bool = game.is_ahsarah_map()
 	if overlord_active and prompt_reveal_left <= 0.0:
 		if boss_unit.overlord_ultimate_state in ["descending", "holding", "lifting"]:
-			game.question_label.text = "☄ 终极技【天地万象】压顶合拢！！"
-			if is_instance_valid(game.cloze_label):
-				game.cloze_label.text = "倒悬镜像烟山降临演武坛 · 准备迎接重压后迅速治疗！"
+			if is_ah_q:
+				game.question_label.text = "💥 终极技【零号大坝重炮洗地 · 泄洪警报】！！"
+				if is_instance_valid(game.cloze_label):
+					game.cloze_label.text = "零号大坝岸防重炮齐射行政堡垒中庭 · 准备迎接冲击后迅速治疗！"
+			else:
+				game.question_label.text = "☄ 终极技【天地万象】压顶合拢！！"
+				if is_instance_valid(game.cloze_label):
+					game.cloze_label.text = "倒悬镜像烟山降临演武坛 · 准备迎接重压后迅速治疗！"
 		elif boss_unit.overlord_ultimate_state == "recovery":
 			game.question_label.text = "💊 喘息回血窗 %.1fs · 速按 [H]医疗包 / [T]能量饮！" % boss_unit.overlord_recovery_left
 			if is_instance_valid(game.cloze_label):
-				game.cloze_label.text = "玄铁词尊力竭跪地 · 即将重启第二轮 3 面高速旋转金盾！"
+				game.cloze_label.text = "大坝炮管过热冷却 · 雷斯即将重启第二轮 3 面高速公转金盾！" if is_ah_q else "玄铁词尊力竭跪地 · 即将重启第二轮 3 面高速旋转金盾！"
 		else:
 			var exp_w: Dictionary = boss_unit.expected_overlord_word()
 			var tot_sh: int = maxi(1, boss_unit.overlord_seq_words.size())
@@ -1476,14 +1625,16 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 		if soldier.overlord_ultimate_state != "none":
 			game.show_hitmarker(false)
 			game.play_sfx("dry_fire", -11)
-			game._notice("☄ 玄铁词尊正处于【天地万象】压顶/喘息阶段，暂不可破盾！", Color("ffd15c"))
+			var ult_title := "军阀·雷斯正处于【零号大坝重炮洗地】压制/冷却阶段" if game.is_ahsarah_map() else "玄铁词尊正处于【天地万象】压顶/喘息阶段"
+			game._notice("☄ %s，暂不可破盾！" % ult_title, Color("ffd15c"))
 			return true
 		var hit_zone_str := str(collider.get_meta("hit_zone", "")) if (collider is Object) else ""
 		if hit_zone_str != "multi_shield":
 			game.show_hitmarker(false)
 			game.play_sfx("dry_fire", -10)
 			var tot_sh_h: int = maxi(1, soldier.overlord_seq_words.size())
-			game._notice("🛡 雾隐机关王玄铁装甲反弹！请按 1→%d 顺序击破英文词盾！" % tot_sh_h, Color("ffd15c"))
+			var armor_who := "军阀·雷斯重型防弹大衣" if game.is_ahsarah_map() else "雾隐机关王玄铁装甲"
+			game._notice("🛡 %s反弹！请按 1→%d 顺序击破英文词盾！" % [armor_who, tot_sh_h], Color("ffd15c"))
 			show_question()
 			return true
 		var slot_idx := int(collider.get_meta("shield_slot", -1))
@@ -1516,11 +1667,15 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				_advance_wave_after_kill(target_z)
 			elif bool(br.get("entered_round_two", false)):
 				soldier.configure_overlord_round_two(_build_wave_words(3))
-				game.play_sfx("boss_phase", -6)
+				game.play_sfx("gramophone_chord" if game.is_ahsarah_map() else "boss_phase", -6)
 				game.screen_flash.color = Color(1.0, 0.72, 0.20, 0.22)
 				var r2_nxt: Dictionary = soldier.expected_overlord_word()
 				prompt_timer_left = prompt_timer_max
-				game._notice("🔥 第二轮觉醒！玄铁词尊召唤 3 面高速公转金盾——10 秒内按 1→3 顺序破盾斩杀，超时降下【天地万象】！", Color("ffd15c"))
+				if game.is_ahsarah_map():
+					_spawn_boss_support_drones(soldier, 2)
+					game._notice("🎷 二轮戒严！雷斯召唤卫队护驾 + 3 面高速公转金盾——10 秒内按 1→3 破盾，超时触发【零号大坝重炮洗地】！", Color("ffd15c"))
+				else:
+					game._notice("🔥 第二轮觉醒！玄铁词尊召唤 3 面高速公转金盾——10 秒内按 1→3 顺序破盾斩杀，超时降下【天地万象】！", Color("ffd15c"))
 				show_question()
 				if game.has_method("flash_word_switch_banner"):
 					game.flash_word_switch_banner()
@@ -1562,7 +1717,8 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			if soldier.overlord_round >= 2:
 				game._notice("⚠ 二轮顺序错误（应击 %s）！3 面公转金盾重洗且倒计时缩短！" % str(exp_word.get("english", "")), Color("ff5c66"))
 			else:
-				game._notice("⚠ 破防顺序错误（应击 %s）！雾隐机关王怒吼震地——一轮血量回满 500/500 且 5 块词盾重新洗牌！" % str(exp_word.get("english", "")), Color("ff5c66"))
+				var ov_who := "军阀·雷斯重甲怒吼" if game.is_ahsarah_map() else "雾隐机关王怒吼震地"
+				game._notice("⚠ 破防顺序错误（应击 %s）！%s——一轮血量回满 500/500 且 5 块词盾重新洗牌！" % [str(exp_word.get("english", "")), ov_who], Color("ff5c66"))
 			show_question()
 		return true
 
@@ -1597,7 +1753,8 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			game.show_hitmarker(false)
 			game.play_sfx("dry_fire", -10)
 			var mat_name := "三盾困阵" if soldier.vanguard_active_count >= 3 else "双盾择词"
-			game._notice("🛡 铁面词卫重甲反弹！请辨词射击【%s】对应的 %s 全息词盾！" % [str(game.question.get("chinese", "")), mat_name], Color("ffd15c"))
+			var van_who := "赤枭·赛伊德" if game.is_ahsarah_map() else "铁面词卫"
+			game._notice("🛡 %s重甲反弹！请辨词射击【%s】对应的 %s 全息词盾！" % [van_who, str(game.question.get("chinese", "")), mat_name], Color("ffd15c"))
 			return true
 		var v_slot := int(collider.get_meta("vanguard_slot", -1))
 		var exp_v_slot: int = soldier.expected_vanguard_slot()
@@ -1608,7 +1765,8 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			var v_dead: bool = soldier.apply_damage(v_dmg, true, true)
 			soldier._spawn_shatter_fx(collider.global_position)
 			var mode_lbl := "三盾困阵" if soldier.vanguard_active_count >= 3 else "双盾择词"
-			_score_wave_correct(soldier, true, "⚡ 精准击破铁面【%s】" % mode_lbl)
+			var van_tag := "赤枭" if game.is_ahsarah_map() else "铁面"
+			_score_wave_correct(soldier, true, "⚡ 精准击破%s【%s】" % [van_tag, mode_lbl])
 			if v_dead:
 				_on_boss_defeated(soldier)
 				_advance_wave_after_kill(target_z)
@@ -1627,8 +1785,9 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			game.speak_english(str(exp_v_word.get("english", "")))
 			game.screen_flash.color = Color(1.0, 0.28, 0.16, 0.16)
 			strike(soldier, true)
-			game._notice("✕ 击中干扰词盾（应击 %s · %s）！铁面词盾阵重洗并反击！" % [
-				str(exp_v_word.get("english", "")), str(exp_v_word.get("chinese", ""))
+			var van_who2 := "赤枭" if game.is_ahsarah_map() else "铁面"
+			game._notice("✕ 击中干扰词盾（应击 %s · %s）！%s词盾阵重洗并反击！" % [
+				str(exp_v_word.get("english", "")), str(exp_v_word.get("chinese", "")), van_who2
 			], Color("ff8080"))
 			_rotate_boss_word_and_prompt(soldier)
 		return true
@@ -1732,7 +1891,8 @@ func melee_strike(camera: Camera3D) -> bool:
 		game.show_hitmarker(false)
 		_apply_melee_knockback(best_soldier, 4.6)
 		apply_player_damage(24 if game.rules.is_confidential() else 16)
-		game._notice("🛡 玄铁词尊装甲反弹匕首并震退反击！请用步枪按 1→5 顺序射击全身词盾！", Color("ff8080"))
+		var ov_m := "军阀·雷斯重甲" if game.is_ahsarah_map() else "玄铁词尊装甲"
+		game._notice("🛡 %s反弹匕首并震退反击！请用步枪按 1→5 顺序射击全身词盾！" % ov_m, Color("ff8080"))
 		return true
 
 	if best_soldier.archetype == Soldier.Archetype.BOSS_WARDEN and best_soldier.exposed_left > 0.0 and best_soldier.boss_core_pulse_shots > 0 and best_soldier.option != game.answer_index:
@@ -1826,13 +1986,14 @@ func _spawn_boss_support_drones(boss, max_new: int = 2):
 		return
 	var covers: Array = camp_covers.get(2, [])
 	var extra_words := _build_wave_words(to_add)
+	var support_arch: int = Soldier.Archetype.ASSAULT_BOT if game.is_ahsarah_map() else Soldier.Archetype.SCOUT_DRONE
 	for i in to_add:
 		var slot_opt: int = troops[2].size()
 		var drone := Soldier.new()
 		arena.add_child(drone)
 		var bar: Vector3 = covers[(i * 5) % maxi(1, covers.size())] if not covers.is_empty() else (boss.position + Vector3(-3.0 if i == 0 else 3.0, 0, -2.0))
-		drone.setup(self, 2, slot_opt, bar, Soldier.Archetype.SCOUT_DRONE, false)
-		drone.position = game.active_layout.on_ground(boss.position + Vector3(-2.6 if i == 0 else 2.6, 0.0, 1.4)) + Vector3.UP * 0.1
+		drone.setup(self, 2, slot_opt, bar, support_arch, false)
+		drone.position = game.active_layout.on_ground(boss.position + Vector3(-2.8 if i == 0 else 2.8, 0.0, 1.8)) + Vector3.UP * 0.1
 		var dw: Dictionary = extra_words[i]
 		drone.assigned_word = dw
 		drone.set_nemesis_bounty(game.rules.learning.is_nemesis(str(dw.get("id", ""))))
@@ -1853,25 +2014,38 @@ func on_boss_phase_shift(boss, next_phase: int):
 		if not boss.vanguard_drones_spawned:
 			boss.vanguard_drones_spawned = true
 			_spawn_boss_support_drones(boss, 2)
-		boss.vanguard_move_cd = 2.8
+		boss.vanguard_move_cd = 2.4
 		if game.is_ahsarah_map():
-			game._notice("🔥 赤枭·赛伊德进入二阶【双盾猎杀】！『你掉进陷阱里了！』双肩词盾展开 + 卫队增援！", Color("ff9e58"))
+			deploy_boss_sand_smoke(boss.position)
+			game._notice("🔥 赤枭·赛伊德引爆【荒漠烟幕转点】进入二阶！『你掉进陷阱里了！』双肩词盾展开 + 卫队增援！", Color("ff9e58"))
+			if is_instance_valid(game.player):
+				spawn_incendiary_bolt(boss.position + Vector3.UP * 1.8, game.player.position, 8)
+				game.play_sfx("saeed_fire_bolt", -8)
 		else:
 			game._notice("★ 铁面词卫进入二阶【双盾择词】！左右双肩词盾展开 + 侦察蜂增援，识词击破并防备冲锋震地！", Color("5ce0d8"))
-		if is_instance_valid(game.player):
-			spawn_danger_ring(game.player.position, 3.4, 22)
+			if is_instance_valid(game.player):
+				spawn_danger_ring(game.player.position, 3.4, 22)
 	elif next_phase == 1:
 		boss.configure_vanguard_shields(_build_wave_words(3), 3)
 		if wave_words.has(2) and boss.option < wave_words[2].size():
 			wave_words[2][boss.option] = boss.expected_vanguard_word()
-		boss.vanguard_move_cd = 2.2
+		boss.vanguard_move_cd = 1.9
 		if game.is_ahsarah_map():
-			game._notice("🦅 赤枭·赛伊德进入终阶【赤枭狂袭】！『这片大坝属于阿萨拉！』三面词盾展开 + 猎枭弩波！", Color("ff6842"))
+			deploy_boss_sand_smoke(boss.position)
+			game._notice("🦅 赤枭·赛伊德进入终阶【赤枭三盾狂袭】！『这片大坝属于阿萨拉！』三联燃烧弩齐射！", Color("ff6842"))
+			if is_instance_valid(game.player):
+				var base_dir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z)
+				var b_len := clampf(base_dir.length(), 4.0, 24.0)
+				var b_fwd := base_dir.normalized() if base_dir.length_squared() > 0.04 else Vector3.BACK
+				for ang_d in [-16.0, 0.0, 16.0]:
+					var tgt: Vector3 = boss.position + b_fwd.rotated(Vector3.UP, deg_to_rad(ang_d)) * b_len
+					spawn_incendiary_bolt(boss.position + Vector3.UP * 1.8, tgt, 8)
+				game.play_sfx("saeed_fire_bolt", -7)
 		else:
 			game._notice("🔥 铁面词卫进入终阶【三盾困阵】！三面全息词盾展开并释放【震荡冲击波】，横向闪避！", Color("ff9f43"))
-		if is_instance_valid(game.player):
-			var wdir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z).normalized()
-			spawn_sword_wave(boss.position, wdir, 18)
+			if is_instance_valid(game.player):
+				var wdir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z).normalized()
+				spawn_sword_wave(boss.position, wdir, 18)
 	zone_prompt_option[2] = boss.option
 	show_question()
 
@@ -2162,10 +2336,371 @@ func apply_ultimate_crush_to_10hp():
 			game.player.apply_knockback(Vector3(0.0, 1.4, 4.2))
 	game.screen_flash.color = Color(1.0, 0.16, 0.12, 0.38)
 	if game.is_ahsarah_map():
-		game._notice("💥【交响终曲 · 炮火洗地】轰击命中！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
+		game._notice("💥【零号大坝重炮洗地 · 泄洪警报】轰击命中！护盾清零、生命骤降至 10 HP！准备趁 4.5s 炮管冷却窗回血！", Color("ff4757"))
 	else:
 		game._notice("💥【天地万象】倒悬山压顶！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
 	show_question()
+
+func _spawn_impact_burst(at_pos: Vector3, col: Color, radius: float = 2.2):
+	if not is_instance_valid(arena):
+		return
+	var gpos: Vector3 = game.active_layout.on_ground(at_pos)
+	var orb := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = radius * 0.45
+	sm.height = radius * 0.90
+	sm.radial_segments = 12
+	sm.rings = 6
+	orb.mesh = sm
+	orb.position = gpos + Vector3(0.0, radius * 0.35, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.85)
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 3.2
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	orb.material_override = mat
+	arena.add_child(orb)
+	var tw := orb.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(orb, "scale", Vector3.ONE * 2.4, 0.38)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.40)
+	tw.chain().tween_callback(orb.queue_free)
+
+func _spawn_tracer_beam(from: Vector3, to: Vector3, col: Color, thickness: float = 0.06, duration: float = 0.22):
+	if not is_instance_valid(arena):
+		return
+	var dist := from.distance_to(to)
+	if dist < 0.2:
+		return
+	var beam := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(thickness, thickness, dist)
+	beam.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = col
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 3.4
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam.material_override = mat
+	arena.add_child(beam)
+	beam.global_position = (from + to) * 0.5
+	var up_a := Vector3.RIGHT if absf((to - from).normalized().y) > 0.98 else Vector3.UP
+	beam.look_at(to, up_a)
+	var tw := beam.create_tween()
+	tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tw.tween_callback(beam.queue_free)
+
+func fire_saeed_lmg_tracer(from: Vector3, dir_vec: Vector3, dmg_val: int = 12):
+	## v0.9.2 Captain Saeed M249 LMG sweeping tracer round — blocked cleanly by walls/covers!
+	if not is_instance_valid(arena):
+		return
+	var d := dir_vec.normalized()
+	var max_dist := 34.0
+	var end_pt := from + d * max_dist
+	var rq := PhysicsRayQueryParameters3D.create(from, end_pt, 1)
+	var wall_hit := get_world_3d().direct_space_state.intersect_ray(rq)
+	if not wall_hit.is_empty():
+		end_pt = wall_hit.position
+	_spawn_tracer_beam(from, end_pt, Color("ffb838"), 0.065, 0.20)
+	if is_instance_valid(game.player) and not player_in_smoke():
+		var p_aim := player_aim_point()
+		var seg := end_pt - from
+		var seg_len_sq := seg.length_squared()
+		if seg_len_sq > 0.04:
+			var proj := clampf((p_aim - from).dot(seg) / seg_len_sq, 0.0, 1.0)
+			var closest := from + seg * proj
+			if closest.distance_to(p_aim) <= 0.85 and not blocked(from, p_aim) and not blocked(p_aim, from):
+				apply_player_damage(dmg_val)
+
+func spawn_fire_zone(at_pos: Vector3, radius: float = 2.55, duration: float = 6.2, tick_dmg: int = 8):
+	## v0.9.2 Captain Saeed Incendiary Crossbow persistent burning fire pool!
+	if not is_instance_valid(arena):
+		return
+	var gpos: Vector3 = game.active_layout.on_ground(at_pos)
+	var root := Node3D.new()
+	root.position = gpos + Vector3(0.0, 0.06, 0.0)
+	arena.add_child(root)
+
+	# Glowing scorched ember disc
+	var base := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = radius
+	cm.bottom_radius = radius * 1.04
+	cm.height = 0.06
+	cm.radial_segments = 20
+	base.mesh = cm
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.95, 0.24, 0.08, 0.56)
+	bmat.emission_enabled = true
+	bmat.emission = Color("ff4c18")
+	bmat.emission_energy_multiplier = 2.2
+	bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	base.material_override = bmat
+	root.add_child(base)
+
+	# 6 flickering 3D flame tongues rising from embers!
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = Color(1.0, 0.64, 0.14, 0.88)
+	fmat.emission_enabled = true
+	fmat.emission = Color("ff8020")
+	fmat.emission_energy_multiplier = 3.0
+	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for k in 6:
+		var ang := TAU * float(k) / 5.0 if k < 5 else 0.0
+		var rr := radius * 0.52 if k < 5 else 0.0
+		var flame := MeshInstance3D.new()
+		var fm := CylinderMesh.new()
+		fm.top_radius = 0.02
+		fm.bottom_radius = 0.34 if k == 5 else 0.24
+		fm.height = 1.25 if k == 5 else 0.85
+		fm.radial_segments = 8
+		flame.mesh = fm
+		flame.position = Vector3(cos(ang) * rr, fm.height * 0.45, sin(ang) * rr)
+		flame.material_override = fmat
+		root.add_child(flame)
+
+	fire_zones.append({"pos": gpos, "radius": radius, "left": duration, "tick_cd": 0.25, "damage": tick_dmg, "node": root})
+
+func spawn_incendiary_bolt(from: Vector3, target_pos: Vector3, tick_dmg: int = 8):
+	## v0.9.2 Captain Saeed sculpted fiery incendiary crossbow bolt arcing to ignite a fire pool!
+	if not is_instance_valid(arena):
+		return
+	var gto: Vector3 = game.active_layout.on_ground(target_pos)
+	var bnode := Node3D.new()
+	bnode.position = from
+	arena.add_child(bnode)
+	var bolt_m: Mesh = game.landscape._extract_mesh("res://assets/slice/v092_tactical_pickups.glb", "boss_incendiary_bolt") if is_instance_valid(game.landscape) else null
+	if bolt_m != null:
+		var mi := MeshInstance3D.new()
+		mi.mesh = bolt_m
+		mi.scale = Vector3.ONE * 1.45
+		bnode.add_child(mi)
+	else:
+		var mi2: MeshInstance3D = game._mesh_box(bnode, Vector3.ZERO, Vector3(0.14, 0.14, 1.1), Color("ff661a"))
+		mi2.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var dist := from.distance_to(gto)
+	var dur := clampf(dist / 22.0, 0.32, 0.92)
+	boss_projectiles.append({
+		"kind": "incendiary_bolt",
+		"from": from,
+		"to": gto,
+		"elapsed": 0.0,
+		"duration": dur,
+		"arc": clampf(dist * 0.14, 1.1, 3.2),
+		"radius": 2.55,
+		"damage": tick_dmg,
+		"node": bnode,
+	})
+
+func deploy_boss_sand_smoke(at_pos: Vector3):
+	## v0.9.2 Captain Saeed warm Saharan desert smoke cloud when shifting phases/positions!
+	if not is_instance_valid(arena):
+		return
+	var gpos: Vector3 = game.active_layout.on_ground(at_pos)
+	var root := Node3D.new()
+	root.position = gpos
+	arena.add_child(root)
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(0.84, 0.70, 0.50, 0.34)
+	smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	for i in 6:
+		var puff := MeshInstance3D.new()
+		var sp := SphereMesh.new()
+		sp.radius = 1.65 + float(i % 2) * 0.45
+		sp.height = 2.35
+		sp.radial_segments = 10
+		sp.rings = 6
+		puff.mesh = sp
+		var ang := TAU * float(i) / 5.0 if i < 5 else 0.0
+		var rr := 1.45 if i < 5 else 0.0
+		puff.position = Vector3(cos(ang) * rr, 1.15, sin(ang) * rr)
+		puff.material_override = smat
+		root.add_child(puff)
+	var tw := root.create_tween()
+	tw.tween_interval(3.2)
+	tw.tween_property(root, "scale", Vector3(1.4, 0.15, 1.4), 1.3)
+	tw.tween_callback(root.queue_free)
+
+func spawn_reis_gramophone_wave(origin: Vector3, max_r: float = 20.0, dmg_val: int = 16):
+	## v0.9.2 Warlord Reis Brass Gramophone Symphony Acoustic Shockwave Ring (jumpable!)
+	if not is_instance_valid(arena):
+		return
+	var gpos: Vector3 = game.active_layout.on_ground(origin)
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.86
+	tm.outer_radius = 1.0
+	tm.rings = 28
+	tm.ring_segments = 8
+	ring.mesh = tm
+	ring.position = gpos + Vector3(0.0, 0.42, 0.0)
+	ring.scale = Vector3(1.2, 1.0, 1.2)
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = Color(1.0, 0.80, 0.28, 0.85)
+	rmat.emission_enabled = true
+	rmat.emission = Color("ffbe38")
+	rmat.emission_energy_multiplier = 2.8
+	rmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring.material_override = rmat
+	arena.add_child(ring)
+	sonic_rings.append({
+		"origin": gpos,
+		"radius": 1.2,
+		"max_radius": max_r,
+		"speed": 14.5,
+		"damage": dmg_val,
+		"hit_player": false,
+		"node": ring,
+		"mat": rmat,
+	})
+
+func fire_reis_shotgun_cone(from: Vector3, aim_dir: Vector3, pellets: int = 7, dmg_per_hit: int = 9):
+	## v0.9.2 Warlord Reis S12K Heavy Drum-Shotgun blazing 7-pellet buckshot blast cone!
+	if not is_instance_valid(arena):
+		return
+	var base_d := aim_dir.normalized()
+	var total_dmg := 0
+	for k in pellets:
+		var frac := (float(k) / float(maxi(1, pellets - 1))) - 0.5
+		var yaw_off := deg_to_rad(frac * 28.0)
+		var pitch_off := deg_to_rad(((k % 3) - 1) * 2.2)
+		var p_dir := base_d.rotated(Vector3.UP, yaw_off)
+		p_dir.y = clampf(p_dir.y + pitch_off, -0.35, 0.35)
+		p_dir = p_dir.normalized()
+		var end_pt := from + p_dir * 24.0
+		var rq := PhysicsRayQueryParameters3D.create(from, end_pt, 1)
+		var wh := get_world_3d().direct_space_state.intersect_ray(rq)
+		if not wh.is_empty():
+			end_pt = wh.position
+		_spawn_tracer_beam(from, end_pt, Color("ff7a28"), 0.055, 0.24)
+		if is_instance_valid(game.player) and not player_in_smoke() and total_dmg < 26:
+			var p_aim := player_aim_point()
+			var seg := end_pt - from
+			var slsq := seg.length_squared()
+			if slsq > 0.04:
+				var proj := clampf((p_aim - from).dot(seg) / slsq, 0.0, 1.0)
+				if (from + seg * proj).distance_to(p_aim) <= 0.92 and not blocked(from, p_aim) and not blocked(p_aim, from):
+					total_dmg = mini(26, total_dmg + dmg_per_hit)
+	if total_dmg > 0:
+		apply_player_damage(total_dmg)
+		if is_instance_valid(game.player):
+			game.player.add_screen_shake(0.38)
+		game._notice("💥 被雷斯【S12K 弹鼓重霰弹】轰中 -%d！保持距离并利用沙袋掩体！" % total_dmg, Color("ff6842"))
+
+func spawn_reis_frag_grenade(from: Vector3, target_pos: Vector3, radius: float = 3.5, dmg_val: int = 24):
+	## v0.9.2 Warlord Reis spinning 3D sculpted fragmentation grenade with ground blast ring!
+	if not is_instance_valid(arena):
+		return
+	var gto: Vector3 = game.active_layout.on_ground(target_pos)
+	var gnode := Node3D.new()
+	gnode.position = from
+	arena.add_child(gnode)
+	var gm: Mesh = game.landscape._extract_mesh("res://assets/slice/v092_tactical_pickups.glb", "boss_frag_grenade") if is_instance_valid(game.landscape) else null
+	if gm != null:
+		var mi := MeshInstance3D.new()
+		mi.mesh = gm
+		mi.scale = Vector3.ONE * 1.45
+		gnode.add_child(mi)
+	else:
+		var mi2: MeshInstance3D = game._mesh_box(gnode, Vector3.ZERO, Vector3(0.32, 0.36, 0.32), Color("ff4428"))
+		mi2.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# Ground ticking blast zone indicator
+	var rroot := Node3D.new()
+	rroot.position = gto + Vector3(0.0, 0.12, 0.0)
+	arena.add_child(rroot)
+	var outer := MeshInstance3D.new()
+	var om := CylinderMesh.new()
+	om.top_radius = radius
+	om.bottom_radius = radius
+	om.height = 0.07
+	outer.mesh = om
+	var omat := StandardMaterial3D.new()
+	omat.albedo_color = Color(0.96, 0.22, 0.14, 0.32)
+	omat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	omat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	outer.material_override = omat
+	rroot.add_child(outer)
+	var inner := MeshInstance3D.new()
+	var im := CylinderMesh.new()
+	im.top_radius = radius
+	im.bottom_radius = radius
+	im.height = 0.09
+	inner.mesh = im
+	inner.scale = Vector3(0.05, 1.0, 0.05)
+	var imat := StandardMaterial3D.new()
+	imat.albedo_color = Color(1.0, 0.36, 0.16, 0.56)
+	imat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	imat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	inner.material_override = imat
+	rroot.add_child(inner)
+
+	boss_projectiles.append({
+		"kind": "frag_grenade",
+		"from": from,
+		"to": gto,
+		"elapsed": 0.0,
+		"duration": 1.50,
+		"arc": 5.2,
+		"radius": radius,
+		"damage": dmg_val,
+		"node": gnode,
+		"ring_node": rroot,
+		"ring_inner": inner,
+	})
+
+func launch_zero_dam_artillery_salvo(arena_center: Vector3, arena_y: float):
+	## v0.9.2 Zero Dam Exclusive Ultimate Visuals: 6 heavy glowing artillery shells screaming down from the Zero Dam crest!
+	if not is_instance_valid(arena):
+		return
+	var targets := [
+		Vector3(-9.5, arena_y, -118.0),
+		Vector3(9.5, arena_y, -118.0),
+		Vector3(-12.0, arena_y, -126.5),
+		Vector3(12.0, arena_y, -126.5),
+		Vector3(-4.2, arena_y, -123.0),
+		Vector3(4.2, arena_y, -129.0),
+	]
+	for idx_s in targets.size():
+		var tgt: Vector3 = targets[idx_s]
+		var dam_origin := Vector3(arena_center.x + (float(idx_s) - 2.5) * 9.5, arena_y + 37.0, -151.0)
+		var snode := Node3D.new()
+		snode.position = dam_origin
+		arena.add_child(snode)
+		var body := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.08
+		cm.bottom_radius = 0.28
+		cm.height = 2.4
+		body.mesh = cm
+		body.rotation_degrees.x = 90.0
+		var smat := StandardMaterial3D.new()
+		smat.albedo_color = Color("ffb838")
+		smat.emission_enabled = true
+		smat.emission = Color("ff5c18")
+		smat.emission_energy_multiplier = 4.2
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		body.material_override = smat
+		snode.add_child(body)
+		boss_projectiles.append({
+			"kind": "dam_artillery",
+			"from": dam_origin,
+			"to": tgt,
+			"elapsed": -float(idx_s) * 0.14,
+			"duration": 1.15,
+			"arc": 7.5,
+			"radius": 4.2,
+			"damage": 0,
+			"node": snode,
+		})
 
 func rearm_overlord_round_two():
 	if not is_instance_valid(boss_unit) or boss_unit.defeated or not boss_unit.is_skyfall_overlord:
@@ -2194,10 +2729,14 @@ func clear_shot(at: Vector3) -> bool:
 	if player_in_smoke():
 		return false
 	var target_pt := player_aim_point()
-	if not blocked(at + Vector3.UP * 1.40, target_pt):
+	var origin_a := at + Vector3.UP * 1.40
+	# v0.9.2 Bidirectional wall check: guarantees NO enemy inside/behind solid geometry can EVER shoot through backfaces!
+	if not blocked(origin_a, target_pt) and not blocked(target_pt, origin_a):
 		return true
-	if absf(target_pt.y - (at.y + 1.40)) > 1.85:
-		return not blocked(at + Vector3.UP * 1.68, target_pt + Vector3.UP * 0.10)
+	if absf(target_pt.y - origin_a.y) > 1.85:
+		var origin_b := at + Vector3.UP * 1.68
+		var target_b := target_pt + Vector3.UP * 0.10
+		return not blocked(origin_b, target_b) and not blocked(target_b, origin_b)
 	return false
 
 func _pick_next_attacker(z_idx: int):

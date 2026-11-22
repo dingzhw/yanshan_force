@@ -28,12 +28,12 @@ const STREAM_POINTS = []
 const SPAWN = Vector3(0.0, 0.0, 14.0)
 const OASIS_POOL = Vector3(-16.0, 0.0, 12.0)
 
-const CEMENT_PLANT = Vector3(-46.0, 0.0, -48.0)
+const CEMENT_PLANT = Vector3(-39.0, 0.0, -35.0)
 const CEMENT_CATWALK = Vector3(-42.0, 0.0, -54.0)
-const BAZAAR_ARCH = Vector3(38.0, 0.0, -36.0)
+const BAZAAR_ARCH = Vector3(33.5, 0.0, -36.5)
 const GRAND_BATHHOUSE = Vector3(44.0, 0.0, -28.0)
-const SUBSTATION = Vector3(46.0, 0.0, -88.0)
-const WEST_BARRACKS = Vector3(-44.0, 0.0, -108.0)
+const SUBSTATION = Vector3(42.5, 0.0, -89.0)
+const WEST_BARRACKS = Vector3(-41.5, 0.0, -112.5)
 const ADMIN_FORTRESS = Vector3(0.0, 0.0, -124.0)
 const FORTRESS_WEST_WING = Vector3(-22.5, 0.0, -124.0)
 const FORTRESS_EAST_WING = Vector3(22.5, 0.0, -124.0)
@@ -71,6 +71,56 @@ const COMBAT_ZONES = [
 	{"id": "admin_fortress", "title": "阿萨拉行政堡垒 · 核心中枢", "at": ADMIN_FORTRESS, "waves": 3, "squad": 5, "aggro": 17.5, "pursuit": 94.0, "boss": true, "faction": "ahsarah"},
 	{"id": "substation", "title": "哈夫克集团 · 东区变电站", "at": SUBSTATION, "waves": 3, "squad": 5, "aggro": 16.0, "pursuit": 88.0, "boss": false, "faction": "haavk"},
 	{"id": "west_bastion", "title": "阿萨拉卫队 · 大坝西翼哨所", "at": WEST_BARRACKS, "waves": 3, "squad": 5, "aggro": 15.8, "pursuit": 86.0, "boss": false, "faction": "ahsarah"}
+]
+
+# v0.9.2 Hand-verified open-air desert tactical cover slots per combat zone (100% clear of silos, transformer bays,
+# bathhouse, pavilions, catwalk, containers & Mandel pedestal so ZERO soldiers ever spawn inside or under solid props!)
+const COMBAT_COVER_POSITIONS = [
+	# Zone 0: Cement Plant open loading plaza (south of Silo #1 & containers)
+	[
+		Vector3(-45.5, 0.0, -32.5),
+		Vector3(-42.5, 0.0, -35.8),
+		Vector3(-39.0, 0.0, -34.2),
+		Vector3(-35.5, 0.0, -36.0),
+		Vector3(-32.2, 0.0, -34.0),
+		Vector3(-35.0, 0.0, -29.8),
+	],
+	# Zone 1: Brakkesh Bazaar open sunlit square (between Grand Bathhouse & South Pavilion)
+	[
+		Vector3(28.5, 0.0, -37.2),
+		Vector3(31.5, 0.0, -39.0),
+		Vector3(35.0, 0.0, -37.6),
+		Vector3(38.6, 0.0, -38.8),
+		Vector3(42.2, 0.0, -37.2),
+		Vector3(32.5, 0.0, -33.2),
+	],
+	# Zone 2: Administrative Fortress dead-flat Courtyard (y=5.40m, clear of Twin 2F Wings & Mandel pedestal!)
+	[
+		Vector3(-11.0, 0.0, -124.2),
+		Vector3(-7.0, 0.0, -127.6),
+		Vector3(-3.5, 0.0, -124.8),
+		Vector3(3.5, 0.0, -124.8),
+		Vector3(7.0, 0.0, -127.6),
+		Vector3(11.0, 0.0, -124.2),
+	],
+	# Zone 3: Haavk Substation open switchyard (strictly west of Transformer Bays x>=49.2!)
+	[
+		Vector3(37.2, 0.0, -88.2),
+		Vector3(39.8, 0.0, -91.5),
+		Vector3(43.2, 0.0, -90.5),
+		Vector3(46.2, 0.0, -89.8),
+		Vector3(45.8, 0.0, -85.8),
+		Vector3(41.5, 0.0, -85.2),
+	],
+	# Zone 4: West Bastion staging square (strictly east/south of West Barracks Pavilion!)
+	[
+		Vector3(-47.2, 0.0, -114.2),
+		Vector3(-44.0, 0.0, -116.4),
+		Vector3(-40.6, 0.0, -114.6),
+		Vector3(-37.4, 0.0, -116.0),
+		Vector3(-35.6, 0.0, -110.8),
+		Vector3(-41.8, 0.0, -109.6),
+	],
 ]
 
 # Exploration & lore node anchors (6 Ahsarah story terminals)
@@ -119,20 +169,25 @@ const BRANCHES = [
 ]
 
 # Explicit flat architectural grading pads [pos, inner_flat_radius, outer_blend_radius]
-# Ensures EVERY pavilion, bathhouse, catwalk, decode station, silo, substation bay, barracks & radar tower sits dead-level!
+# Ensures EVERY pavilion, bathhouse, catwalk (+ stair foot), decode station, silo, substation bay, barracks,
+# shipping container & radar tower sits dead-level with ZERO sand clipping!
 const BUILDING_PADS = [
-	[GRAND_BATHHOUSE, 10.2, 16.5],             # v0.9.1 Brakkesh Grand Dome Bathhouse
-	[Vector3(36.0, 0.0, -46.0), 8.0, 14.0],    # Brakkesh south bazaar pavilion
-	[Vector3(-52.0, 0.0, -104.0), 8.2, 14.5],  # West barracks pavilion
-	[Vector3(-54.0, 0.0, -44.0), 9.5, 16.0],   # Cement plant silo #1
-	[Vector3(-52.0, 0.0, -64.0), 9.0, 15.5],   # Cement plant silo #2
-	[Vector3(-40.0, 0.0, -54.0), 8.5, 14.5],   # v0.9.1 Cement plant elevated steel catwalk & stair pad
-	[Vector3(52.0, 0.0, -84.0), 7.2, 13.0],    # Haavk substation bay #1
-	[Vector3(52.0, 0.0, -96.0), 7.2, 13.0],    # Haavk substation bay #2
-	[RADAR_TOWER_WEST, 7.5, 13.5],             # West Babel radar tower
-	[RADAR_TOWER_EAST, 7.5, 13.5],             # East Babel radar tower
-	[Vector3(24.0, 0.0, -34.0), 4.2, 8.5],     # v0.9.1 MandelBrick decode station (Bazaar)
-	[Vector3(-28.0, 0.0, -56.0), 4.2, 8.5],    # v0.9.1 MandelBrick decode station (Cement)
+	[GRAND_BATHHOUSE, 11.2, 17.5],             # v0.9.1 Brakkesh Grand Dome Bathhouse + front stairs
+	[Vector3(36.0, 0.0, -46.0), 8.8, 15.0],    # Brakkesh south bazaar pavilion + front apron
+	[Vector3(-52.0, 0.0, -104.0), 8.8, 15.0],  # West barracks pavilion + front apron
+	[Vector3(-54.0, 0.0, -44.0), 10.6, 17.2],  # Cement plant silo #1 + east control booth
+	[Vector3(-52.0, 0.0, -64.0), 10.2, 16.8],  # Cement plant silo #2 + east control booth
+	[Vector3(52.0, 0.0, -84.0), 7.8, 13.8],    # Haavk substation bay #1
+	[Vector3(52.0, 0.0, -96.0), 7.8, 13.8],    # Haavk substation bay #2
+	[RADAR_TOWER_WEST, 8.2, 14.2],             # West Babel radar tower octagonal plinth
+	[RADAR_TOWER_EAST, 8.2, 14.2],             # East Babel radar tower octagonal plinth
+	[Vector3(24.0, 0.0, -34.0), 4.6, 8.2],     # MandelBrick decode station (Bazaar)
+	[Vector3(-28.0, 0.0, -56.0), 4.2, 6.8],    # MandelBrick decode station (Cement)
+	[Vector3(-36.0, 0.0, -45.0), 4.5, 9.0],    # Cement container #1
+	[Vector3(-42.0, 0.0, -70.0), 4.5, 9.0],    # Cement container #2
+	[Vector3(-22.0, 0.0, -80.0), 4.5, 9.0],    # Mid-west container #3
+	[Vector3(24.0, 0.0, -76.0), 4.5, 9.0],     # Mid-east container #4
+	[Vector3(-38.0, 0.0, -54.0), 10.8, 15.5],  # v0.9.2 Cement elevated catwalk + full +X stair landing (applied last for dead-level pad!)
 ]
 
 const LAND_ANCHORS = [
@@ -242,12 +297,12 @@ static func height(x: float, z: float) -> float:
 		var fw := 1.0 - smoothstep(27.5, 35.5, fort_d)
 		result = lerpf(result, CLOUD_ARENA_Y, fw)
 	var gate_d := Vector2(x - FORTRESS_GATE.x, z - FORTRESS_GATE.z).length()
-	if gate_d < 17.0:
-		var gw := 1.0 - smoothstep(11.0, 17.0, gate_d)
+	if gate_d < 19.5:
+		var gw := 1.0 - smoothstep(13.5, 19.5, gate_d)
 		result = lerpf(result, CLOUD_ARENA_Y, gw)
-	# Flat Zero Dam Underground Floodway / Spillway Shortcut Tunnel bed (x∈[-36..+36], z∈[-147..-137] at y=5.40m)
-	var tun_dx := maxf(0.0, absf(x) - 36.5)
-	var tun_dz := maxf(0.0, absf(z - SPILLWAY_TUNNEL_CENTER.z) - 5.8)
+	# Flat Zero Dam Underground Floodway / Spillway Shortcut Tunnel bed (x∈[-38..+38], z∈[-148.0..-136.0] at y=5.40m)
+	var tun_dx := maxf(0.0, absf(x) - 38.0)
+	var tun_dz := maxf(0.0, absf(z - (SPILLWAY_TUNNEL_CENTER.z - 0.8)) - 6.8)
 	var tun_d := Vector2(tun_dx, tun_dz).length()
 	if tun_d < 6.5:
 		var tw := 1.0 - smoothstep(0.0, 6.5, tun_d)

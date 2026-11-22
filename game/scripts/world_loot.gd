@@ -44,28 +44,29 @@ const NEST_SPOTS = [
 	{"id": "nest_north_creek_willow", "title": "北岭源头老柳根暗匣", "at": Vector3(12.0, 0.0, -182.0), "kind": "nest"}
 ]
 
+# v0.9.2 Hand-verified open-air Ahsarah loose supply tables & desert amphora stashes (ZERO buried under buildings/floors!)
 const AHSARAH_LOOSE_SPOTS = [
 	{"id": "ah_loose_oasis", "title": "绿洲前哨军用物资台", "at": Vector3(-5.8, 0.0, 12.2), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "ah_loose_cement", "title": "水泥厂筒仓石台", "at": Vector3(-42.0, 0.0, -52.0), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "ah_loose_bazaar", "title": "巴克什拱廊展示案", "at": Vector3(41.0, 0.0, -30.5), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "ah_loose_substation", "title": "变电站检修石台", "at": Vector3(43.5, 0.0, -90.5), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "ah_loose_barracks", "title": "西翼哨所弹药石台", "at": Vector3(-43.5, 0.0, -104.0), "y_off": 0.44, "pedestal": true, "high": false},
-	{"id": "ah_loose_admin_w", "title": "行政堡垒西廊战备台", "at": Vector3(-13.5, 0.0, -121.0), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "ah_loose_admin_e", "title": "行政堡垒东廊机密台", "at": Vector3(13.5, 0.0, -121.0), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "ah_loose_helipad", "title": "停机坪撤离物资台", "at": Vector3(46.0, 0.0, -133.0), "y_off": 0.44, "pedestal": true, "high": true}
+	{"id": "ah_loose_cement", "title": "水泥厂南广场物资台", "at": Vector3(-47.0, 0.0, -35.8), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_bazaar", "title": "巴克什集市广场商案", "at": Vector3(30.0, 0.0, -32.0), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_substation", "title": "变电站北坪检修台", "at": Vector3(45.5, 0.0, -79.5), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_barracks", "title": "西翼哨所弹药箱台", "at": Vector3(-44.0, 0.0, -104.5), "y_off": 0.44, "pedestal": true, "high": false},
+	{"id": "ah_loose_admin_w", "title": "行政堡垒西廊战备台", "at": Vector3(-14.0, 0.0, -120.5), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_admin_e", "title": "行政堡垒东廊机密台", "at": Vector3(14.0, 0.0, -120.5), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "ah_loose_helipad", "title": "停机坪撤离物资台", "at": Vector3(45.5, 0.0, -135.5), "y_off": 0.44, "pedestal": true, "high": true}
 ]
 
 const AHSARAH_NEST_SPOTS = [
-	{"id": "ah_nest_oasis_palm", "title": "绿洲椰枣树根暗缝", "at": Vector3(-11.5, 0.0, 16.5), "kind": "crevice"},
-	{"id": "ah_nest_oasis_bank", "title": "绿洲水岸砂岩缝", "at": Vector3(-21.5, 0.0, 8.0), "kind": "crevice"},
-	{"id": "ah_nest_cement_yard", "title": "水泥厂货柜暗角", "at": Vector3(-37.5, 0.0, -42.5), "kind": "crevice"},
-	{"id": "ah_nest_bazaar_jar", "title": "巴克什陶罐暗格", "at": Vector3(45.5, 0.0, -24.5), "kind": "crevice"},
-	{"id": "ah_nest_bazaar_arch", "title": "拱门集市墙角藏点", "at": Vector3(34.0, 0.0, -49.5), "kind": "crevice"},
-	{"id": "ah_nest_substation", "title": "变电站围栏石隙", "at": Vector3(48.5, 0.0, -80.0), "kind": "crevice"},
-	{"id": "ah_nest_west_wall", "title": "西翼大坝沙袋暗囊", "at": Vector3(-50.5, 0.0, -112.0), "kind": "crevice"},
-	{"id": "ah_nest_fortress_w", "title": "行政堡垒西门暗缝", "at": Vector3(-11.0, 0.0, -106.0), "kind": "crevice"},
-	{"id": "ah_nest_fortress_e", "title": "行政堡垒东门暗缝", "at": Vector3(11.0, 0.0, -106.0), "kind": "crevice"},
-	{"id": "ah_nest_dam_overlook", "title": "大坝坡脚岩缝秘藏", "at": Vector3(18.0, 0.0, -142.0), "kind": "crevice"}
+	{"id": "ah_nest_oasis_palm", "title": "绿洲椰枣林陶罐暗格", "at": Vector3(-12.5, 0.0, 18.2), "kind": "desert_stash"},
+	{"id": "ah_nest_oasis_bank", "title": "绿洲西岸砂岩陶瓮", "at": Vector3(-25.8, 0.0, 8.8), "kind": "desert_stash"},
+	{"id": "ah_nest_cement_yard", "title": "水泥厂货柜东侧暗格", "at": Vector3(-32.2, 0.0, -45.5), "kind": "desert_stash"},
+	{"id": "ah_nest_bazaar_jar", "title": "巴克什浴场外廊陶罐", "at": Vector3(34.5, 0.0, -24.0), "kind": "desert_stash"},
+	{"id": "ah_nest_bazaar_arch", "title": "南拱门集市阶旁暗格", "at": Vector3(29.2, 0.0, -46.5), "kind": "desert_stash"},
+	{"id": "ah_nest_substation", "title": "变电站北角砂岩暗格", "at": Vector3(47.2, 0.0, -76.2), "kind": "desert_stash"},
+	{"id": "ah_nest_west_wall", "title": "西翼大坝沙丘陶罐藏", "at": Vector3(-51.5, 0.0, -114.5), "kind": "desert_stash"},
+	{"id": "ah_nest_fortress_w", "title": "行政堡垒西门砂岩暗格", "at": Vector3(-13.5, 0.0, -108.5), "kind": "desert_stash"},
+	{"id": "ah_nest_fortress_e", "title": "行政堡垒东门砂岩暗格", "at": Vector3(13.5, 0.0, -108.5), "kind": "desert_stash"},
+	{"id": "ah_nest_dam_overlook", "title": "大坝泄洪口东坪暗格", "at": Vector3(30.5, 0.0, -134.5), "kind": "desert_stash"}
 ]
 
 var game
@@ -97,13 +98,18 @@ func interactable_nodes() -> Array:
 
 func _build_static_anchors():
 	var props_glb := "res://assets/slice/v064_world_props.glb"
-	var ped_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_stone_pedestal")
+	var v92_glb := "res://assets/slice/v092_tactical_pickups.glb"
+	var is_ah: bool = game.is_ahsarah_map()
+	var ped_mesh: Mesh = game.landscape._extract_mesh(v92_glb, "ahsarah_loot_table") if is_ah else game.landscape._extract_mesh(props_glb, "prop_stone_pedestal")
+	if ped_mesh == null:
+		ped_mesh = game.landscape._extract_mesh(props_glb, "prop_stone_pedestal")
 	var nest_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_bird_nest")
 	var crevice_mesh: Mesh = game.landscape._extract_mesh(props_glb, "prop_karst_crevice")
+	var desert_stash_mesh: Mesh = game.landscape._extract_mesh(v92_glb, "ahsarah_desert_stash")
 	drop_case_mesh = game.landscape._extract_mesh(props_glb, "prop_squad_drop_case")
 
-	var active_loose: Array = AHSARAH_LOOSE_SPOTS if game.is_ahsarah_map() else LOOSE_SPOTS
-	var active_nests: Array = AHSARAH_NEST_SPOTS if game.is_ahsarah_map() else NEST_SPOTS
+	var active_loose: Array = AHSARAH_LOOSE_SPOTS if is_ah else LOOSE_SPOTS
+	var active_nests: Array = AHSARAH_NEST_SPOTS if is_ah else NEST_SPOTS
 
 	# 1) Sculpted Stone Pedestals (top y = 0.44m)
 	for idx_l in active_loose.size():
@@ -149,20 +155,26 @@ func _build_static_anchors():
 		add_child(nroot)
 
 		var prop_mi := MeshInstance3D.new()
-		prop_mi.mesh = nest_mesh if str(nspec.kind) == "nest" else crevice_mesh
+		var n_kind := str(nspec.kind)
+		if n_kind == "desert_stash" and desert_stash_mesh != null:
+			prop_mi.mesh = desert_stash_mesh
+		elif n_kind == "nest":
+			prop_mi.mesh = nest_mesh
+		else:
+			prop_mi.mesh = crevice_mesh
 		prop_mi.rotation.y = float(idx_n) * 1.15
 		prop_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		nroot.add_child(prop_mi)
 
 		var spark := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.024
-		sm.height = 0.048
+		sm.radius = 0.032 if n_kind == "desert_stash" else 0.024
+		sm.height = 0.064 if n_kind == "desert_stash" else 0.048
 		spark.mesh = sm
 		spark.name = "Glint"
-		spark.position = Vector3(0.0, 0.30, 0.0)
+		spark.position = Vector3(0.0, 0.64 if n_kind == "desert_stash" else 0.30, 0.0)
 		spark.material_override = glint_mat
-		spark.visibility_range_end = 5.2
+		spark.visibility_range_end = 9.0 if n_kind == "desert_stash" else 5.2
 		nroot.add_child(spark)
 		nest_nodes.append(nroot)
 

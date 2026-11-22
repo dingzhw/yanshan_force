@@ -94,7 +94,14 @@ var saeed_cloak: Node3D = null
 var saeed_roll_cd: float = 5.2
 var saeed_roll_left: float = 0.0
 var saeed_roll_dir: Vector3 = Vector3.ZERO
+var saeed_move_cycle: int = 0
+var saeed_burst_left: int = 0
+var saeed_burst_cd: float = 0.0
+var saeed_aim_dir: Vector3 = Vector3.BACK
 var reis_gramophone: Node3D = null
+var reis_wave_left: int = 0
+var reis_wave_cd: float = 0.0
+var reis_action_done: bool = false
 
 const OVERLORD_SHIELD_SPECS := [
 	{"part": "左肩甲", "pos": Vector3(-2.15, 3.12, 0.92)},
@@ -203,8 +210,15 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	is_skyfall_overlord = (bot_type == Archetype.BOSS_WARDEN and skyfall_mode)
 	saeed_cloak = null
 	reis_gramophone = null
-	saeed_roll_cd = 5.0
+	saeed_roll_cd = 4.6
 	saeed_roll_left = 0.0
+	saeed_move_cycle = 0
+	saeed_burst_left = 0
+	saeed_burst_cd = 0.0
+	saeed_aim_dir = Vector3.BACK
+	reis_wave_left = 0
+	reis_wave_cd = 0.0
+	reis_action_done = false
 	skyfall_state = "idle" if is_skyfall_overlord else "landed"
 	skyfall_y_offset = 0.0
 	skyfall_vel = 0.0
@@ -247,12 +261,12 @@ func setup(controller, zone_index: int, index: int, barrier: Vector3, bot_type: 
 	if is_skyfall_overlord:
 		home = combat.game.active_layout.on_ground(combat.game.active_layout.CLOUD_ARENA_CENTER)
 	else:
-		home = combat.game.active_layout.on_ground(cover + Vector3(side * 1.35, 0, -1.65))
-	position = home + Vector3.UP * 0.06
+		home = combat.game.active_layout.on_ground(cover + Vector3(side * 1.15, 0, -1.45))
+	position = home + Vector3.UP * 0.12
 	patrol = [
 		home,
-		combat.game.active_layout.on_ground(cover + Vector3(side * 1.85, 0, 0.55)),
-		combat.game.active_layout.on_ground(cover + Vector3(side * 1.55, 0, -2.55))
+		combat.game.active_layout.on_ground(cover + Vector3(side * 1.55, 0, 0.55)),
+		combat.game.active_layout.on_ground(cover + Vector3(side * 1.35, 0, -2.05))
 	]
 	patrol_index = 1
 	hover_clock = index * 1.3
@@ -912,7 +926,8 @@ func _build_vanguard_shields(game):
 		var smat: StandardMaterial3D = screen.material_override
 		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-		var tlbl: Label3D = game._label3d(area, "铁面·%s" % str(sp.part), Vector3(0, 0.21, 0.058), 17, Color("143832"))
+		var v_prefix := "赤枭" if is_ahsarah_unit else "铁面"
+		var tlbl: Label3D = game._label3d(area, "%s·%s" % [v_prefix, str(sp.part)], Vector3(0, 0.21, 0.058), 17, Color("143832"))
 		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		tlbl.pixel_size = 0.0044
 		tlbl.outline_size = 0
@@ -1011,36 +1026,11 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 					(sd.frame_mat as StandardMaterial3D).albedo_color = ok_col
 	if not engaged or stun_left > 0.0 or knockdown_left > 0.0 or combat.player_in_smoke():
 		return
-	# v0.9.0 Captain Saeed ("赤枭·赛伊德") billowing crimson cloak & agile sideways Tactical Evade Roll!
+	# v0.9.2 Bespoke Captain Saeed ("赤枭·赛伊德") Boss AI — 100% distinct from Yanshan Ironface Vanguard!
+	# Uses M249 LMG sweeping tracer bursts, acrobatic crimson-cloak roll + 3-bolt incendiary crossbow fire pools, & desert smoke flanks!
 	if is_ahsarah_unit and not is_skyfall_overlord:
-		if is_instance_valid(saeed_cloak):
-			saeed_cloak.rotation.x = sin(hover_clock * 4.5) * 0.14 + (0.48 if saeed_roll_left > 0.0 else 0.08)
-		if saeed_roll_left > 0.0:
-			saeed_roll_left = maxf(0.0, saeed_roll_left - delta)
-			var dst_r := position + saeed_roll_dir * (9.5 * delta)
-			var camp_c_r: Vector3 = combat.zone_center(zone)
-			var off_r := Vector2(dst_r.x - camp_c_r.x, dst_r.z - camp_c_r.z)
-			if off_r.length() <= 17.5:
-				position = combat.game.active_layout.on_ground(dst_r) + Vector3.UP * 0.06
-			visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.42 * signf(saeed_roll_dir.x if absf(saeed_roll_dir.x) > 0.1 else 1.0), minf(delta * 14.0, 1.0))
-			if saeed_roll_left <= 0.0:
-				visual_root.rotation.z = 0.0
-			return
-		saeed_roll_cd -= delta
-		if saeed_roll_cd <= 0.0 and distance < 32.0 and vanguard_move_state == "idle":
-			saeed_roll_cd = 5.4 if boss_phase >= 2 else 4.2
-			saeed_roll_left = 0.48
-			var to_p_s := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z).normalized()
-			var right_s := to_p_s.cross(Vector3.UP).normalized()
-			saeed_roll_dir = right_s * (1.0 if randf() < 0.5 else -1.0)
-			combat.game.play_sfx("boss_slash", -11)
-			var roll_lines := [
-				"🦅 赤枭·赛伊德翻滚位移：『我看到你了，小耗子！』",
-				"🦅 赤枭·赛伊德侧闪隐蔽：『你掉进陷阱里了！』",
-				"🦅 赤枭·赛伊德低吼：『这片荒漠与大坝属于阿萨拉！』"
-			]
-			combat.game._notice(roll_lines[randi() % roll_lines.size()], Color("ff9e58"))
-			return
+		_step_saeed_boss_ai(delta, player_at, distance)
+		return
 
 	# Action Move Set for Normal Mode Boss (Phase 2+: Shield-Charge Slam; Phase 3: Horizontal Energy Wave!)
 	if boss_phase >= 3:
@@ -1102,6 +1092,128 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 				combat.spawn_sword_wave(position, wdir, 18)
 			combat.game.play_sfx("boss_slash", -8)
 
+func _step_saeed_boss_ai(delta: float, player_at: Vector3, distance: float):
+	## v0.9.2 Captain Saeed ("赤枭·赛伊德") Exclusive Delta Force Zero Dam Combat Moveset:
+	## 1. 「M249 轻机枪扇形压制扫射」 (saeed_lmg_windup -> saeed_lmg_sweep)
+	## 2. 「猎枭侧滚 + 三联燃烧弩矢」 (saeed_roll_crossbow) leaving persistent burning fire pools!
+	## 3. 「荒漠烟幕战术转点」 (saeed_smoke_shift)
+	if is_instance_valid(saeed_cloak):
+		saeed_cloak.rotation.x = sin(hover_clock * 4.8) * 0.14 + (0.55 if vanguard_move_state == "saeed_roll_crossbow" else 0.08)
+
+	if vanguard_move_state == "idle":
+		visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.0, minf(delta * 10.0, 1.0))
+		visual_root.rotation.x = lerpf(visual_root.rotation.x, 0.0, minf(delta * 10.0, 1.0))
+		if is_instance_valid(ov_arm_l):
+			ov_arm_l.rotation.x = lerpf(ov_arm_l.rotation.x, 0.0, minf(delta * 8.0, 1.0))
+		if is_instance_valid(ov_arm_r):
+			ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, 0.0, minf(delta * 8.0, 1.0))
+		vanguard_move_cd -= delta
+		if vanguard_move_cd <= 0.0 and distance < 32.0:
+			var mv := saeed_move_cycle % 3
+			saeed_move_cycle += 1
+			var to_p := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z)
+			var fwd := to_p.normalized() if to_p.length_squared() > 0.04 else Vector3.BACK
+			saeed_aim_dir = fwd
+			if mv == 0:
+				# Move 1: M249 LMG Sweeping Suppression Burst
+				vanguard_move_state = "saeed_lmg_windup"
+				vanguard_move_timer = 0.80
+				saeed_burst_left = 6 if boss_phase <= 2 else 5
+				saeed_burst_cd = 0.0
+				combat.game.play_sfx("warning_lock", -9)
+				combat.game._notice("🔫 赤枭·赛伊德架起【M249 轻机枪】扇形压制扫射！『我看到你了，小耗子！』", Color("ffaa42"))
+			elif mv == 1:
+				# Move 2: Crimson-Cloak Tactical Roll + Triple Incendiary Crossbow Volley!
+				vanguard_move_state = "saeed_roll_crossbow"
+				vanguard_move_timer = 0.92
+				saeed_roll_left = 0.44
+				var right_v := fwd.cross(Vector3.UP).normalized()
+				saeed_roll_dir = right_v * (1.0 if (saeed_move_cycle % 2 == 0) else -1.0)
+				saeed_burst_left = 1  # triggers 3-bolt crossbow volley cleanly once right after roll!
+				combat.game.play_sfx("boss_slash", -10)
+				combat.game._notice("🔥 赤枭·赛伊德侧滚拉弓【三联燃烧弩矢】！『你掉进陷阱里了！』躲开地上燃烧火区！", Color("ff7838"))
+			else:
+				# Move 3: Desert Smoke Tactical Reposition Flank!
+				vanguard_move_state = "saeed_smoke_shift"
+				vanguard_move_timer = 0.65
+				var right_s := fwd.cross(Vector3.UP).normalized()
+				saeed_roll_dir = right_s * (-1.0 if (saeed_move_cycle % 2 == 0) else 1.0)
+				combat.deploy_boss_sand_smoke(position)
+				combat.game.play_sfx("smoke_emp", -10)
+				combat.game._notice("🌫 赤枭·赛伊德投掷【荒漠战术烟幕】侧翼转点！『这片荒漠与大坝属于阿萨拉！』", Color("e6c28a"))
+	elif vanguard_move_state == "saeed_lmg_windup":
+		vanguard_move_timer -= delta
+		if is_instance_valid(visor):
+			visor.albedo_color = Color("ffb838")
+		if is_instance_valid(ov_arm_r):
+			ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -0.55, minf(delta * 10.0, 1.0))
+		visual_root.rotation.x = lerpf(visual_root.rotation.x, -0.10, minf(delta * 8.0, 1.0))
+		if vanguard_move_timer <= 0.0:
+			vanguard_move_state = "saeed_lmg_sweep"
+			vanguard_move_timer = 0.85
+			saeed_burst_cd = 0.0
+			combat.game.play_sfx("saeed_lmg_burst", -7)
+	elif vanguard_move_state == "saeed_lmg_sweep":
+		vanguard_move_timer -= delta
+		saeed_burst_cd -= delta
+		if saeed_burst_left > 0 and saeed_burst_cd <= 0.0:
+			saeed_burst_cd = 0.115
+			var total_s := 6 if boss_phase <= 2 else 5
+			var shot_i := total_s - saeed_burst_left
+			var sweep_frac := (float(shot_i) / float(maxi(1, total_s - 1))) - 0.5
+			var sweep_ang := deg_to_rad(sweep_frac * 34.0)
+			var muzzle: Vector3 = global_position + Vector3(0.0, 1.65, 0.0) + saeed_aim_dir * 0.75
+			var p_aim_pt: Vector3 = combat.player_aim_point()
+			var aim_to_p: Vector3 = (p_aim_pt - muzzle).normalized()
+			var shot_dir: Vector3 = aim_to_p.rotated(Vector3.UP, sweep_ang)
+			combat.fire_saeed_lmg_tracer(muzzle, shot_dir, 10)
+			saeed_burst_left -= 1
+			if is_instance_valid(ov_arm_r):
+				ov_arm_r.rotation.x = -0.55 + sin(float(shot_i) * 2.4) * 0.10
+		if vanguard_move_timer <= 0.0:
+			vanguard_move_state = "idle"
+			vanguard_move_cd = 4.6 if boss_phase >= 2 else 3.6
+			visual_root.rotation.x = 0.0
+	elif vanguard_move_state == "saeed_roll_crossbow":
+		vanguard_move_timer -= delta
+		if saeed_roll_left > 0.0:
+			saeed_roll_left = maxf(0.0, saeed_roll_left - delta)
+			var dst_r := position + saeed_roll_dir * (10.5 * delta)
+			var camp_c_r: Vector3 = combat.zone_center(zone)
+			var off_r := Vector2(dst_r.x - camp_c_r.x, dst_r.z - camp_c_r.z)
+			if off_r.length() <= 16.5:
+				position = combat.game.active_layout.on_ground(dst_r) + Vector3.UP * 0.12
+			visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.48 * signf(saeed_roll_dir.x if absf(saeed_roll_dir.x) > 0.1 else 1.0), minf(delta * 16.0, 1.0))
+		else:
+			visual_root.rotation.z = lerpf(visual_root.rotation.z, 0.0, minf(delta * 14.0, 1.0))
+			if is_instance_valid(ov_arm_r):
+				ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -0.78, minf(delta * 12.0, 1.0))
+			if saeed_burst_left > 0:
+				saeed_burst_left = 0
+				combat.game.play_sfx("saeed_fire_bolt", -7)
+				var to_p2 := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z)
+				var dist_p2 := clampf(to_p2.length(), 4.5, 24.0)
+				var dir_p2 := to_p2.normalized() if to_p2.length_squared() > 0.04 else Vector3.BACK
+				var bolt_from := global_position + Vector3(0.0, 1.80, 0.0)
+				var spread_angles := [-16.0, 0.0, 16.0] if boss_phase <= 2 else [-11.0, 11.0]
+				for ang_d in spread_angles:
+					var tgt_b := position + dir_p2.rotated(Vector3.UP, deg_to_rad(ang_d)) * dist_p2
+					combat.spawn_incendiary_bolt(bolt_from, tgt_b, 8)
+		if vanguard_move_timer <= 0.0:
+			vanguard_move_state = "idle"
+			vanguard_move_cd = 4.8 if boss_phase >= 2 else 3.8
+			visual_root.rotation.z = 0.0
+	elif vanguard_move_state == "saeed_smoke_shift":
+		vanguard_move_timer -= delta
+		var dst_s := position + saeed_roll_dir * (8.5 * delta)
+		var camp_c_s: Vector3 = combat.zone_center(zone)
+		if Vector2(dst_s.x - camp_c_s.x, dst_s.z - camp_c_s.z).length() <= 16.5:
+			position = combat.game.active_layout.on_ground(dst_s) + Vector3.UP * 0.12
+		if vanguard_move_timer <= 0.0:
+			vanguard_move_state = "idle"
+			vanguard_move_cd = 3.6 if boss_phase >= 2 else 2.8
+	_clamp_above_ground()
+
 func _build_overlord_multi_shields(game):
 	multi_shields.clear()
 	overlord_shields_root = Node3D.new()
@@ -1141,7 +1253,8 @@ func _build_overlord_multi_shields(game):
 		var smat: StandardMaterial3D = screen.material_override
 		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-		var tlbl: Label3D = game._label3d(area, "玄铁·%s" % str(sp.part), Vector3(0, 0.21, 0.06), 17, Color("7a3500"))
+		var ov_prefix := "雷斯" if is_ahsarah_unit else "玄铁"
+		var tlbl: Label3D = game._label3d(area, "%s·%s" % [ov_prefix, str(sp.part)], Vector3(0, 0.21, 0.06), 17, Color("7a3500"))
 		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		tlbl.pixel_size = 0.0044
 		tlbl.outline_size = 0
@@ -1444,23 +1557,39 @@ func trigger_ultimate_tiandi():
 		m_root.position = Vector3(arena_c.x, arena_y + 44.0, arena_c.z)
 		combat.arena.add_child(m_root)
 		if is_ahsarah_unit:
-			# Warlord Reis's Golden Symphony Artillery Ring descending over the Fortress Courtyard!
+			# v0.9.2 Zero Dam Artillery & Spillway Overpressure Barrage (replaces Yanshan Mirror Mountain!)
+			# Spawns glowing crimson-amber target laser beacons in the Fortress Courtyard + launches 6 streaking shells from Zero Dam crest!
+			m_root.position = Vector3(arena_c.x, arena_y + 0.15, arena_c.z)
+			var flare_mat := StandardMaterial3D.new()
+			flare_mat.albedo_color = Color(1.0, 0.42, 0.14, 0.58)
+			flare_mat.emission_enabled = true
+			flare_mat.emission = Color("ff5818")
+			flare_mat.emission_energy_multiplier = 3.2
+			flare_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			flare_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			for bx_off in [-9.5, 0.0, 9.5]:
+				var beacon := MeshInstance3D.new()
+				var bcm := CylinderMesh.new()
+				bcm.top_radius = 0.25
+				bcm.bottom_radius = 0.95
+				bcm.height = 30.0
+				beacon.mesh = bcm
+				beacon.position = Vector3(bx_off, 15.0, 0.0)
+				beacon.material_override = flare_mat
+				m_root.add_child(beacon)
 			var ring := MeshInstance3D.new()
 			var tm := TorusMesh.new()
-			tm.inner_radius = 12.0
-			tm.outer_radius = 15.0
+			tm.inner_radius = 13.0
+			tm.outer_radius = 14.5
 			ring.mesh = tm
-			var rmat := StandardMaterial3D.new()
-			rmat.albedo_color = Color("ffb838")
-			rmat.emission_enabled = true
-			rmat.emission = Color("ff6228")
-			rmat.emission_energy_multiplier = 2.6
-			ring.material_override = rmat
+			ring.position = Vector3(0.0, 0.45, 0.0)
+			ring.material_override = flare_mat
 			m_root.add_child(ring)
 			mirror_mountain_node = m_root
-			combat.game.play_sfx("boss_ultimate", -4)
-			combat.game.screen_flash.color = Color(1.0, 0.56, 0.16, 0.24)
-			combat.game._notice("🎷 军阀·雷斯终极技【交响终曲 · 炮火洗地】！！『卫队！给我们的贵客奏响终曲！』", Color("ff6842"))
+			combat.launch_zero_dam_artillery_salvo(arena_c, arena_y)
+			combat.game.play_sfx("dam_artillery_siren", -4)
+			combat.game.screen_flash.color = Color(1.0, 0.44, 0.12, 0.26)
+			combat.game._notice("💥 零号大坝泄洪警报拉响！雷斯呼叫【大坝岸防重炮洗地】！！『卫队！给贵客奏响交响终曲！』", Color("ff6842"))
 		else:
 			var m_path := "res://assets/slice/v086_mirror_yanshan.glb"
 			if ResourceLoader.exists(m_path):
@@ -1502,7 +1631,7 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 				ov_arm_l.rotation.x = lerpf(ov_arm_l.rotation.x, -2.35, minf(delta * 6.0, 1.0))
 			if is_instance_valid(ov_arm_r):
 				ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -2.35, minf(delta * 6.0, 1.0))
-			if is_instance_valid(mirror_mountain_node):
+			if is_instance_valid(mirror_mountain_node) and not is_ahsarah_unit:
 				var frac := 1.0 - clampf(overlord_ultimate_timer / 1.35, 0.0, 1.0)
 				mirror_mountain_node.position.y = lerpf(arena_y + 44.0, arena_y + 5.2, frac * frac)
 			if overlord_ultimate_timer <= 0.0:
@@ -1519,7 +1648,7 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 				overlord_ultimate_state = "lifting"
 				overlord_ultimate_timer = 0.90
 		elif overlord_ultimate_state == "lifting":
-			if is_instance_valid(mirror_mountain_node):
+			if is_instance_valid(mirror_mountain_node) and not is_ahsarah_unit:
 				var lift_frac := 1.0 - clampf(overlord_ultimate_timer / 0.90, 0.0, 1.0)
 				mirror_mountain_node.position.y = lerpf(arena_y + 5.2, arena_y + 52.0, lift_frac)
 			if overlord_ultimate_timer <= 0.0:
@@ -1527,7 +1656,10 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 				overlord_ultimate_state = "recovery"
 				overlord_recovery_left = OVERLORD_RECOVERY_DURATION
 				overlord_ultimate_timer = OVERLORD_RECOVERY_DURATION
-				combat.game._notice("💊 倒悬镜像烟山散去！趁 %.1f 秒喘息窗速按 [H]医疗包 / [T]能量饮 回复状态！" % OVERLORD_RECOVERY_DURATION, Color("7ef5be"))
+				if is_ahsarah_unit:
+					combat.game._notice("💊 零号大坝重炮炮管过热冷却！趁 %.1f 秒喘息窗速按 [H]医疗包 / [T]能量饮 回复状态！" % OVERLORD_RECOVERY_DURATION, Color("7ef5be"))
+				else:
+					combat.game._notice("💊 倒悬镜像烟山散去！趁 %.1f 秒喘息窗速按 [H]医疗包 / [T]能量饮 回复状态！" % OVERLORD_RECOVERY_DURATION, Color("7ef5be"))
 				combat.show_question()
 		elif overlord_ultimate_state == "recovery":
 			overlord_recovery_left = overlord_ultimate_timer
@@ -1555,8 +1687,11 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 			trigger_ultimate_tiandi()
 			return
 
-	# 3) Articulated Action Move Set (Flash-Step Dash, Whirlwind Twin-Blade Cleave, Earth-Splitting Sword Wave, Dharma-Wheel Barrage)
+	# 3) Articulated Action Move Set
 	if not engaged or skyfall_state != "landed" or stun_left > 0.0:
+		return
+	if is_ahsarah_unit:
+		_step_reis_boss_ai(delta, player_at, distance)
 		return
 	if ov_move_state == "idle":
 		# Relaxed combat ready blade swing
@@ -1583,10 +1718,7 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 					off_a = off_a.normalized() * 15.5
 				ov_dash_target = combat.game.active_layout.on_ground(Vector3(arena_c.x + off_a.x, 0.0, arena_c.z + off_a.y))
 				combat.game.play_sfx("boss_slash", -8)
-				if is_ahsarah_unit:
-					combat.game._notice("🎷 军阀·雷斯重甲突进！『在阿萨拉，规矩由枪口和黄金说了算！』", Color("ffd15c"))
-				else:
-					combat.game._notice("⚡ 玄铁词尊施展【瞬步逼近】！注意走位拉扯！", Color("ffd15c"))
+				combat.game._notice("⚡ 玄铁词尊施展【瞬步逼近】！注意走位拉扯！", Color("ffd15c"))
 			elif mv_idx == 1 or (mv_idx == 0 and distance <= 9.5):
 				ov_move_state = "whirlwind"
 				ov_move_timer = 1.45
@@ -1644,6 +1776,98 @@ func _step_overlord_ai(delta: float, player_at: Vector3, distance: float, engage
 			ov_move_state = "idle"
 			ov_move_cd = 2.6 if overlord_round >= 2 else 3.5
 			visual_root.rotation.y = 0.0
+
+func _step_reis_boss_ai(delta: float, player_at: Vector3, distance: float):
+	## v0.9.2 Warlord Reis ("阿萨拉军阀·雷斯") Exclusive Delta Force Zero Dam Combat Moveset:
+	## 1. 「留声机交响威压 · 黄金声波」 (reis_symphony_shock) — 3 jumpable expanding golden brass sonic rings!
+	## 2. 「重甲突进 · S12K 弹鼓重霰弹轰击」 (reis_shotgun_rush) — heavy rush + 7-pellet blazing buckshot blast!
+	## 3. 「雷斯集束破片手雷阵」 (reis_cluster_grenades) — 3 spinning parabolic sculpted 3D fragmentation grenades!
+	if ov_move_state == "idle":
+		if is_instance_valid(ov_arm_l):
+			ov_arm_l.rotation.x = lerpf(ov_arm_l.rotation.x, sin(hover_clock * 2.0) * 0.12, minf(delta * 6.0, 1.0))
+			ov_arm_l.rotation.z = lerpf(ov_arm_l.rotation.z, 0.0, minf(delta * 6.0, 1.0))
+		if is_instance_valid(ov_arm_r):
+			ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -sin(hover_clock * 2.0) * 0.12, minf(delta * 6.0, 1.0))
+			ov_arm_r.rotation.z = lerpf(ov_arm_r.rotation.z, 0.0, minf(delta * 6.0, 1.0))
+		visual_root.rotation.y = lerpf(visual_root.rotation.y, 0.0, minf(delta * 8.0, 1.0))
+		ov_move_cd -= delta
+		if ov_move_cd <= 0.0 and not combat.player_in_smoke():
+			var mv_idx := ov_move_cycle % 3
+			ov_move_cycle += 1
+			reis_action_done = false
+			if mv_idx == 0:
+				# Move 1: Brass Gramophone Symphony Acoustic Shockwave Rings (3 jumpable rings!)
+				ov_move_state = "reis_symphony_shock"
+				ov_move_timer = 1.45
+				reis_wave_left = 3 if overlord_round >= 2 else 2
+				reis_wave_cd = 0.20
+				combat.game.play_sfx("gramophone_chord", -6)
+				combat.game._notice("🎷 军阀·雷斯高举留声机奏响【交响声波】！『没有交响乐的战场简直粗俗不堪！』按 [Space] 跳起躲过金环！", Color("ffd15c"))
+			elif mv_idx == 1:
+				# Move 2: Armored Surge + S12K Heavy Drum-Shotgun 7-Pellet Buckshot Cone!
+				ov_move_state = "reis_shotgun_rush"
+				ov_move_timer = 1.35
+				var dir_to := Vector3(player_at.x - position.x, 0.0, player_at.z - position.z).normalized()
+				var raw_dst := player_at - dir_to * 8.2 if distance > 9.0 else position
+				var arena_c: Vector3 = combat.game.active_layout.CLOUD_ARENA_CENTER
+				var off_a := Vector2(raw_dst.x - arena_c.x, raw_dst.z - arena_c.z)
+				if off_a.length() > 14.5:
+					off_a = off_a.normalized() * 14.5
+				ov_dash_target = combat.game.active_layout.on_ground(Vector3(arena_c.x + off_a.x, 0.0, arena_c.z + off_a.y))
+				combat.game.play_sfx("warning_lock", -8)
+				combat.game._notice("💥 军阀·雷斯重甲前压举起【S12K 弹鼓重霰弹】！『在阿萨拉，规矩由枪口和黄金说了算！』速找沙袋掩体！", Color("ff8048"))
+			else:
+				# Move 3: Cluster Fragmentation Grenade Barrage (3 parabolic spinning 3D grenades!)
+				ov_move_state = "reis_cluster_grenades"
+				ov_move_timer = 1.15
+				combat.game.play_sfx("boss_phase", -9)
+				combat.game._notice("💣 军阀·雷斯投掷【集束破片手雷阵】！『尝尝阿萨拉军工的礼花！』冲刺脱离红圈！", Color("ff6842"))
+	else:
+		ov_move_timer -= delta
+		if ov_move_state == "reis_symphony_shock":
+			if is_instance_valid(reis_gramophone):
+				reis_gramophone.rotation.y += delta * 12.0
+			if is_instance_valid(ov_arm_l):
+				ov_arm_l.rotation.x = lerpf(ov_arm_l.rotation.x, -1.85, minf(delta * 8.0, 1.0))
+			reis_wave_cd -= delta
+			if reis_wave_left > 0 and reis_wave_cd <= 0.0:
+				reis_wave_left -= 1
+				reis_wave_cd = 0.42
+				combat.spawn_reis_gramophone_wave(position, 21.0, 15)
+		elif ov_move_state == "reis_shotgun_rush":
+			if ov_move_timer > 0.65:
+				position = position.lerp(ov_dash_target, minf(delta * 5.8, 1.0))
+				if is_instance_valid(ov_arm_r):
+					ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -0.82, minf(delta * 10.0, 1.0))
+			else:
+				if not reis_action_done:
+					reis_action_done = true
+					var muzzle_r: Vector3 = global_position + Vector3(0.0, 2.05, 0.0)
+					var p_aim_r: Vector3 = combat.player_aim_point()
+					var aim_r: Vector3 = (p_aim_r - muzzle_r).normalized()
+					combat.fire_reis_shotgun_cone(muzzle_r, aim_r, 7, 9)
+					combat.game.play_sfx("reis_shotgun_blast", -6)
+				if is_instance_valid(ov_arm_r):
+					ov_arm_r.rotation.x = lerpf(ov_arm_r.rotation.x, -1.25, minf(delta * 16.0, 1.0))
+		elif ov_move_state == "reis_cluster_grenades":
+			if is_instance_valid(ov_arm_l):
+				ov_arm_l.rotation.x = lerpf(ov_arm_l.rotation.x, -1.95 if ov_move_timer > 0.65 else 0.72, minf(delta * 10.0, 1.0))
+			if ov_move_timer <= 0.65 and not reis_action_done:
+				reis_action_done = true
+				var g_from := global_position + Vector3(-0.6, 2.35, 0.0)
+				var pvel: Vector3 = combat.game.player.get_real_velocity() if is_instance_valid(combat.game.player) else Vector3.ZERO
+				var lead := Vector3(pvel.x, 0.0, pvel.z)
+				var lead_v := lead.normalized() * 3.8 if lead.length() > 0.5 else Vector3(3.6, 0.0, 0.0)
+				var side_v := lead_v.cross(Vector3.UP).normalized() * 3.6
+				var g_targets := [player_at, player_at + lead_v, player_at + side_v]
+				for gt in g_targets:
+					combat.spawn_reis_frag_grenade(g_from, gt, 3.4, 22)
+				combat.game.play_sfx("boss_slash", -8)
+		if ov_move_timer <= 0.0:
+			ov_move_state = "idle"
+			ov_move_cd = 2.6 if overlord_round >= 2 else 3.4
+			visual_root.rotation.y = 0.0
+	_clamp_above_ground()
 
 func show_word(word: String, _new_question: bool):
 	# NEVER revive a defeated soldier mid-wave! Dead units stay eliminated until the whole wave is cleared.
@@ -1838,6 +2062,7 @@ func _physics_process(delta: float):
 	if not engaged and distance > 36.0:
 		laser_beam.hide()
 		velocity = Vector3.ZERO
+		_clamp_above_ground()
 		if distance <= 98.0 and distance > 0.05:
 			rotation.y = atan2(toward_player.x, toward_player.z)
 		return
@@ -1870,7 +2095,7 @@ func _physics_process(delta: float):
 			return
 	elif archetype == Archetype.BOSS_WARDEN:
 		_step_vanguard_boss_ai(delta, player_at, distance, engaged)
-		if vanguard_move_state in ["charge_windup", "charging", "wave_windup"]:
+		if vanguard_move_state != "idle":
 			velocity = Vector3.ZERO
 			if distance > 0.05:
 				rotation.y = atan2(toward_player.x, toward_player.z)
@@ -1901,6 +2126,7 @@ func _physics_process(delta: float):
 			tag_label.text = "💫 震倒 %.1fs" % knockdown_left
 			tag_label.modulate = Color("ffd86b")
 		move_and_slide()
+		_clamp_above_ground()
 		if knockdown_left <= 0.0:
 			visual_root.rotation.x = 0.0
 			visual_root.rotation.z = 0.0
@@ -1915,6 +2141,7 @@ func _physics_process(delta: float):
 		visor.albedo_color = Color("56e8ff")
 		visual_root.rotation.z = sin(hover_clock * 28.0) * 0.045
 		move_and_slide()
+		_clamp_above_ground()
 		if stun_left <= 0:
 			visual_root.rotation.z = 0.0
 			_refresh_hp_bar()
@@ -2105,9 +2332,24 @@ func _walk(goal: Vector3, speed: float, delta: float):
 	velocity.z = direction.z * speed
 	velocity.y = -0.6 if is_on_floor() else velocity.y - 20.0 * delta
 	move_and_slide()
+	_clamp_above_ground()
 	if legs.size() >= 2:
 		var gait := Vector2(get_real_velocity().x, get_real_velocity().z).length()
 		stride += delta * gait * 4.6
 		var swing := sin(stride) * minf(gait * 0.16, 0.42)
 		legs[0].rotation.x = swing
 		legs[1].rotation.x = -swing
+
+func _clamp_above_ground():
+	## v0.9.2 Systemic Anti-Disappearing Soldier Watchdog:
+	## Keeps EVERY soldier strictly inside playable perimeter AND never sinking beneath terrain/floor!
+	if not is_instance_valid(combat) or not is_instance_valid(combat.game) or combat.game.active_layout == null:
+		return
+	var lay = combat.game.active_layout
+	if is_ahsarah_unit:
+		position.x = clampf(position.x, float(lay.FENCE_MIN_X) + 2.5, float(lay.FENCE_MAX_X) - 2.5)
+		position.z = clampf(position.z, float(lay.FENCE_MIN_Z) + 2.5, float(lay.FENCE_MAX_Z) - 2.5)
+	var gy: float = float(lay.fast_height(position.x, position.z))
+	if position.y < gy - 0.35:
+		position.y = gy + 0.12
+		velocity.y = 0.0

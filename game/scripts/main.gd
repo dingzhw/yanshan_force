@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.1"
+const VERSION = "0.9.2"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const AhsarahWorld = preload("res://scripts/ahsarah_world.gd")
 const MandelEvent = preload("res://scripts/mandel_event.gd")
@@ -2681,6 +2681,9 @@ func interact():
 		elif kind == "smoke_emp":
 			player.grenades += 1
 			_notice("拾取 %s · 按 [G] 投掷（当前 %d）" % [title, player.grenades], Color("7ceeff"))
+		elif kind == "medkit":
+			player.medkits += 1
+			_notice("拾取 %s · 按 [H] 治疗（当前 %d）" % [title, player.medkits], Color("ff8080"))
 		else:
 			player.stims += 1
 			_notice("拾取 %s · 按 [T] 使用（当前 %d）" % [title, player.stims], MINT)

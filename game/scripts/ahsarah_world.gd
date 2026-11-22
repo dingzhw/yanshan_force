@@ -8,6 +8,7 @@ const TacticalProps = preload("res://scripts/tactical_props.gd")
 
 const ARCH_GLB := "res://assets/slice/v090_ahsarah_architecture.glb"
 const FORTRESS_GLB := "res://assets/slice/v091_ahsarah_fortress.glb"
+const PICKUPS_GLB := "res://assets/slice/v092_tactical_pickups.glb"
 const HORIZON_TEX := "res://assets/slice/horizon_ahsarah.png"
 const SAND_TEX := "res://assets/slice/ahsarah_sand_albedo.jpg"
 const SANDSTONE_TEX := "res://assets/slice/ahsarah_sandstone_albedo.jpg"
@@ -112,6 +113,17 @@ func _add_solid_cylinder(parent: Node3D, center: Vector3, radius: float, height:
 	body.add_child(col)
 	return body
 
+func _make_mesh_solid(mi: MeshInstance3D) -> StaticBody3D:
+	## v0.9.2 Exact trimesh physics collision matching 100% of every visual face — ZERO hollow/walk-through models!
+	if mi == null or mi.mesh == null:
+		return null
+	mi.create_trimesh_collision()
+	for ch in mi.get_children():
+		if ch is StaticBody3D:
+			ch.add_to_group("solid_props")
+			return ch as StaticBody3D
+	return null
+
 func _atmosphere():
 	# Crisp sunlit North African clear desert sky — warm sand-gold horizon blending cleanly into cobalt azure zenith!
 	world_env = WorldEnvironment.new()
@@ -205,7 +217,8 @@ func _desert_horizon():
 	add_child(backdrop)
 
 func _terrain():
-	var step := 2.0
+	# v0.9.2: High-resolution 1.0m analytical desert terrain grid (exact 1:1 match with AhsarahLayout.fast_height_grid -> ZERO terrain clipping!)
+	var step := 1.0
 	var cols := int((AhsarahLayout.MAX_X - AhsarahLayout.MIN_X) / step) + 1
 	var rows := int((AhsarahLayout.MAX_Z - AhsarahLayout.MIN_Z) / step) + 1
 
@@ -418,8 +431,8 @@ void fragment() {
 
 	# Carved weathered spring rock head & reeds feeding water into the recessed north shoreline
 	var spring_pos := Vector3(AhsarahLayout.OASIS_POOL.x, -0.04, AhsarahLayout.OASIS_POOL.z - 5.1)
-	_place_arch(self, "oasis_spring_head", spring_pos, 0.0, 1.0, true)
-	_add_solid_box(self, spring_pos + Vector3(0.0, 0.5, -0.3), Vector3(3.4, 1.4, 2.2))
+	var spring_mi := _place_arch(self, "oasis_spring_head", spring_pos, 0.0, 1.0, true)
+	_make_mesh_solid(spring_mi)
 
 	# Natural shoreline rim boulders partially embedded along the wet sand bank for grounded transition!
 	var rim_rocks := [
@@ -431,8 +444,8 @@ void fragment() {
 		var rp := Vector3(AhsarahLayout.OASIS_POOL.x + float(rr[0]), 0.0, AhsarahLayout.OASIS_POOL.z + float(rr[1]))
 		var ry := AhsarahLayout.height(rp.x, rp.z)
 		var sc: float = float(rr[3])
-		_place_arch(self, "desert_boulder_a", Vector3(rp.x, ry - 0.16, rp.z), float(rr[2]), sc, true)
-		_add_solid_cylinder(self, Vector3(rp.x, ry + 0.35, rp.z), 1.65 * sc, 1.2 * sc)
+		var rock_mi := _place_arch(self, "desert_boulder_a", Vector3(rp.x, ry - 0.16, rp.z), float(rr[2]), sc, true)
+		_make_mesh_solid(rock_mi)
 
 func _hero_landmarks():
 	var root := Node3D.new()
@@ -441,8 +454,8 @@ func _hero_landmarks():
 
 	# 1) COLOSSAL NORTH ZERO DAM MONOLITH (114m concrete wall + flanking sculpted desert canyon abutments!)
 	var dam_y := AhsarahLayout.CLOUD_ARENA_Y - 1.2
-	_place_arch(root, "zero_dam_wall_monolith", Vector3(0.0, dam_y, -158.0), 0.0, 1.0, true)
-	_add_solid_box(root, Vector3(0.0, dam_y + 18.0, -156.0), Vector3(118.0, 42.0, 14.0))
+	var dam_mi := _place_arch(root, "zero_dam_wall_monolith", Vector3(0.0, dam_y, -158.0), 0.0, 1.0, true)
+	_make_mesh_solid(dam_mi)
 	# Solid cliff wing blockers locking both dam flanks into canyon walls (strictly north of z=-150m, clear of NE Helipad!)
 	_add_solid_box(root, Vector3(-72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
 	_add_solid_box(root, Vector3(72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
@@ -454,18 +467,26 @@ func _hero_landmarks():
 	for rt_pos in [AhsarahLayout.RADAR_TOWER_WEST, AhsarahLayout.RADAR_TOWER_EAST]:
 		var ry := AhsarahLayout.min_ground_height(rt_pos.x, rt_pos.z, 3.8)
 		var gp := Vector3(rt_pos.x, ry, rt_pos.z)
-		_place_arch(root, "babel_radar_tower", gp, 18.0 if rt_pos.x < 0 else -18.0, 1.0, true)
-		_add_solid_box(root, gp + Vector3(0.0, 10.0, 0.0), Vector3(7.4, 20.0, 7.4))
+		var rt_mi := _place_arch(root, "babel_radar_tower", gp, 18.0 if rt_pos.x < 0 else -18.0, 1.0, true)
+		_make_mesh_solid(rt_mi)
 
 	# 3) HERO ADMINISTRATIVE FORTRESS GATEHOUSE (Brakkesh sandstone twin towers + arched walkable passage!)
 	var fg := AhsarahLayout.on_ground(AhsarahLayout.FORTRESS_GATE)
 	_place_arch(root, "ahsarah_fortress_gatehouse", fg, 0.0, 1.0, true)
-	# Solid colliders ONLY on left & right flanking towers (x=-7 & x=+7), keeping central 4.8m arched gateway 100% WALKABLE!
-	_add_solid_box(root, fg + Vector3(-7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.4))
-	_add_solid_box(root, fg + Vector3(7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.4))
-	_add_solid_box(root, fg + Vector3(0.0, 6.6, 0.0), Vector3(8.2, 2.4, 10.2))  # Overhead command bridge
+	# Solid colliders on left & right flanking towers, outer concrete buttresses, front/rear arch cheeks & awning posts!
+	_add_solid_box(root, fg + Vector3(-7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.5))
+	_add_solid_box(root, fg + Vector3(7.0, 4.4, 0.0), Vector3(6.4, 8.8, 11.5))
+	for sgn_g in [-1.0, 1.0]:
+		for gz in [-5.25, 5.25]:
+			_add_solid_box(root, fg + Vector3(sgn_g * 9.55, 2.0, gz), Vector3(1.45, 4.2, 1.48))
+		for az in [-4.4, 4.4]:
+			_add_solid_box(root, fg + Vector3(sgn_g * 3.25, 3.8, az), Vector3(1.75, 6.2, 1.65))
+	# Front-left shade awning posts + stone plinth collars
+	for ax in [-9.3, -4.7]:
+		_add_solid_cylinder(root, fg + Vector3(ax, 1.85, 7.7), 0.22, 3.8)
+	_add_solid_box(root, fg + Vector3(0.0, 6.6, 0.0), Vector3(8.4, 2.5, 10.4))  # Overhead command bridge
 	# Walkable gatehouse tunnel floor (y=0..0.70m) + smooth front & rear step ramps so players ascend cleanly!
-	_add_solid_box(root, fg + Vector3(0.0, 0.35, 0.0), Vector3(6.8, 0.70, 14.2))
+	_add_solid_box(root, fg + Vector3(0.0, 0.35, 0.0), Vector3(6.8, 0.70, 14.4))
 	for r_sgn in [-1.0, 1.0]:
 		var ramp_b := _add_solid_box(root, fg + Vector3(0.0, 0.25, r_sgn * 8.1), Vector3(6.5, 0.28, 2.4), 0.0)
 		ramp_b.rotation_degrees.x = r_sgn * 17.0
@@ -473,14 +494,13 @@ func _hero_landmarks():
 	fg_lbl.pixel_size = 0.010
 	fg_lbl.visibility_range_end = 120.0
 
-	# 4) WEST CEMENT PLANT INDUSTRIAL SILOS (Zero Dam signature west wing!)
+	# 4) WEST CEMENT PLANT INDUSTRIAL SILOS (Zero Dam signature west wing — 100% trimesh solid silos + control booth + apron!)
 	var cp1 := Vector3(-54.0, AhsarahLayout.min_ground_height(-54.0, -44.0, 4.5), -44.0)
 	var cp2 := Vector3(-52.0, AhsarahLayout.min_ground_height(-52.0, -64.0, 4.5), -64.0)
-	_place_arch(root, "cement_silo_complex", cp1, 14.0, 1.0, true)
-	_add_solid_box(root, cp1 + Vector3(-3.4, 7.2, 0.0), Vector3(5.6, 14.4, 5.6), 14.0)
-	_add_solid_box(root, cp1 + Vector3(3.4, 7.2, 0.0), Vector3(5.6, 14.4, 5.6), 14.0)
-	_place_arch(root, "cement_silo_complex", cp2, -82.0, 0.88, true)
-	_add_solid_box(root, cp2 + Vector3(0.0, 6.4, 0.0), Vector3(6.2, 12.8, 10.6), -82.0)
+	var cp1_mi := _place_arch(root, "cement_silo_complex", cp1, 14.0, 1.0, true)
+	_make_mesh_solid(cp1_mi)
+	var cp2_mi := _place_arch(root, "cement_silo_complex", cp2, -82.0, 0.88, true)
+	_make_mesh_solid(cp2_mi)
 	var cp_lbl: Label3D = game._label3d(root, "西侧水泥厂 · CEMENT PLANT", cp1 + Vector3(2.0, 16.5, 0.0), 38, Color("f0d8a8"))
 	cp_lbl.pixel_size = 0.009
 	cp_lbl.visibility_range_end = 95.0
@@ -499,7 +519,7 @@ func _hero_landmarks():
 	# 5d) CEMENT PLANT CLIMBABLE +4.2m ELEVATED STEEL SNIPER CATWALK (-42, -54)
 	_build_cement_elevated_catwalk(root, AhsarahLayout.CEMENT_CATWALK, 90.0)
 
-	# 5e) SOUTH BAZAAR & WEST BARRACKS SANDSTONE ARCHED PAVILIONS
+	# 5e) SOUTH BAZAAR & WEST BARRACKS SANDSTONE ARCHED PAVILIONS (100% solid walls, roof, amphorae & awning posts!)
 	var pav_specs := [
 		[Vector3(36.0, 0.0, -46.0), 75.0, 0.94, ""],
 		[Vector3(-52.0, 0.0, -104.0), 32.0, 1.0, "西翼大坝营房"],
@@ -509,42 +529,51 @@ func _hero_landmarks():
 		var py := AhsarahLayout.min_ground_height(p_in.x, p_in.z, 4.2)
 		var pp := Vector3(p_in.x, py, p_in.z)
 		_place_arch(root, "brakkesh_sandstone_pavilion", pp, float(ps[1]), float(ps[2]), true)
-		# Exact Basis-rotated corner piers, walkable raised floor terrace, smooth step ramps & awning post colliders!
 		var sc: float = float(ps[2])
 		var yaw_deg: float = float(ps[1])
 		var rot_b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
-		for c_off in [Vector3(-3.3, 2.2, -2.7), Vector3(3.3, 2.2, -2.7), Vector3(-3.3, 2.2, 2.7), Vector3(3.3, 2.2, 2.7)]:
-			_add_solid_box(root, pp + (rot_b * c_off) * sc, Vector3(1.5, 4.4, 1.5) * sc, yaw_deg)
-		# Walkable raised sandstone floor (top at y=0.60*sc) + gentle entry ramps on front/back/sides
-		_add_solid_box(root, pp + Vector3(0.0, 0.30 * sc, 0.0), Vector3(8.4, 0.60, 7.0) * sc, yaw_deg)
+		# Full solid front/rear arch flanking walls (leaving center 4.4m arch open!)
+		for fz in [-3.05, 3.05]:
+			for fx in [-3.10, 3.10]:
+				_add_solid_box(root, pp + (rot_b * Vector3(fx, 2.50, fz)) * sc, Vector3(1.88, 3.90, 0.78) * sc, yaw_deg)
+		# Full solid left/right arch flanking walls (leaving center 3.2m side arches open!)
+		for sx in [-3.66, 3.66]:
+			for sz in [-2.35, 2.35]:
+				_add_solid_box(root, pp + (rot_b * Vector3(sx, 2.50, sz)) * sc, Vector3(0.78, 3.90, 1.56) * sc, yaw_deg)
+		# Roof slab & dome blocker
+		_add_solid_box(root, pp + (rot_b * Vector3(0.0, 4.58, 0.0)) * sc, Vector3(8.5, 0.55, 6.9) * sc, yaw_deg)
+		# Walkable raised sandstone floor (top at y=0.60*sc) + smooth entry ramps on front/back
+		_add_solid_box(root, pp + Vector3(0.0, 0.30 * sc, 0.0), Vector3(8.6, 0.60, 7.1) * sc, yaw_deg)
 		var front_ramp := _add_solid_box(root, pp + (rot_b * Vector3(0.0, 0.22, 4.25)) * sc, Vector3(4.0, 0.24, 1.9) * sc, yaw_deg)
 		front_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(18.0))
 		var back_ramp := _add_solid_box(root, pp + (rot_b * Vector3(0.0, 0.22, -4.15)) * sc, Vector3(4.2, 0.24, 1.7) * sc, yaw_deg)
 		back_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(-18.0))
-		# Solid front awning post colliders so players cannot clip through the awning posts
+		# Solid front awning posts & terracotta amphorae colliders
 		for p_off in [Vector3(-2.4, 1.6, 5.42), Vector3(2.4, 1.6, 5.42)]:
-			_add_solid_cylinder(root, pp + (rot_b * p_off) * sc, 0.18 * sc, 3.2 * sc)
+			_add_solid_cylinder(root, pp + (rot_b * p_off) * sc, 0.20 * sc, 3.4 * sc)
+		for jar_off in [Vector3(-3.0, 0.45, 3.95), Vector3(-2.35, 0.38, 4.25), Vector3(3.0, 0.42, 4.0)]:
+			_add_solid_cylinder(root, pp + (rot_b * jar_off) * sc, 0.34 * sc, 0.92 * sc)
 		if str(ps[3]) != "":
 			var pl: Label3D = game._label3d(root, str(ps[3]), pp + Vector3(0.0, 7.6, 0.0), 34, Color("ffe2a8"))
 			pl.pixel_size = 0.0085
 			pl.visibility_range_end = 85.0
 
-	# 6) EAST HAAVK ELECTRICAL SUBSTATION TRANSFORMER BAYS
+	# 6) EAST HAAVK ELECTRICAL SUBSTATION TRANSFORMER BAYS (100% trimesh solid pad + transformer + relay console!)
 	for sb_spec in [[Vector3(52.0, 0.0, -84.0), -90.0], [Vector3(52.0, 0.0, -96.0), -90.0]]:
 		var s_in: Vector3 = sb_spec[0]
 		var sp := Vector3(s_in.x, AhsarahLayout.min_ground_height(s_in.x, s_in.z, 3.2), s_in.z)
-		_place_arch(root, "substation_transformer_bay", sp, float(sb_spec[1]), 1.0, true)
-		_add_solid_box(root, sp + Vector3(0.0, 1.8, 0.0), Vector3(5.2, 3.6, 7.2), 0.0)
+		var sb_mi := _place_arch(root, "substation_transformer_bay", sp, float(sb_spec[1]), 1.0, true)
+		_make_mesh_solid(sb_mi)
 	var sub_lbl: Label3D = game._label3d(root, "哈夫克变电站 · HAAVK SUBSTATION", AhsarahLayout.on_ground(Vector3(50.0, 0.0, -90.0)) + Vector3(0.0, 6.2, 0.0), 36, Color("6ceeff"))
 	sub_lbl.pixel_size = 0.009
 	sub_lbl.visibility_range_end = 90.0
 
-	# 7) TACTICAL 4x4 DESERT RECON JEEPS (Oasis Camp, Mid-Wadi Road, Helipad Overlook)
+	# 7) TACTICAL 4x4 DESERT RECON JEEPS (100% trimesh solid body, fenders, hood & bumpers!)
 	for jp in [[Vector3(7.5, 0.0, 16.5), -142.0], [Vector3(-12.0, 0.0, -48.0), 28.0], [Vector3(44.0, 0.0, -132.0), -64.0]]:
 		var j_in: Vector3 = jp[0]
 		var jpos := Vector3(j_in.x, AhsarahLayout.min_ground_height(j_in.x, j_in.z, 1.8) - 0.04, j_in.z)
-		_place_arch(root, "tactical_desert_jeep", jpos, float(jp[1]), 1.0, true)
-		_add_solid_box(root, jpos + Vector3(0.0, 0.95, 0.0), Vector3(2.1, 1.9, 4.2), float(jp[1]))
+		var j_mi := _place_arch(root, "tactical_desert_jeep", jpos, float(jp[1]), 1.0, true)
+		_make_mesh_solid(j_mi)
 
 func _add_local_box(parent: Node3D, origin: Vector3, rot_b: Basis, yaw_deg: float, local_center: Vector3, dims: Vector3) -> StaticBody3D:
 	return _add_solid_box(parent, origin + rot_b * local_center, dims, yaw_deg)
@@ -570,6 +599,10 @@ func _build_fortress_interior_wing(parent: Node3D, pos: Vector3, yaw_deg: float,
 	var stair_angle := atan2(3.70, 6.6)
 	var stair_body := _add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-2.9, 1.69, -1.85), Vector3(7.65, 0.28, 1.96))
 	stair_body.rotate_object_local(Vector3(0.0, 0.0, 1.0), stair_angle)
+	# v0.9.2: Solid masonry under-staircase fill so players NEVER walk inside the stone stairs!
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-4.1, 0.36, -1.85), Vector3(1.8, 0.72, 1.92))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-2.3, 0.88, -1.85), Vector3(1.9, 1.76, 1.92))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-0.45, 1.52, -1.85), Vector3(1.85, 3.04, 1.92))
 	# Stair inner railing curb to prevent falling sideways off stairs
 	var rail_body := _add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-2.9, 2.50, -0.88), Vector3(7.4, 0.90, 0.14))
 	rail_body.rotate_object_local(Vector3(0.0, 0.0, 1.0), stair_angle)
@@ -656,12 +689,16 @@ func _build_brakkesh_grand_bathhouse(parent: Node3D, at_xz: Vector3, yaw_deg: fl
 	f_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(17.5))
 	var b_ramp := _add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 0.20, -5.95), Vector3(4.6, 0.24, 1.85))
 	b_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(-17.5))
-	# Outer corner & colonnade wall piers keeping central front/rear/side archways open & walkable!
+	# Outer corner & colonnade wall piers matching exact arch widths (ZERO walk-through masonry!)
 	for cz in [-4.75, 4.75]:
-		for px in [-6.1, -2.55, 2.55, 6.1]:
-			_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(px, 2.70, cz), Vector3(1.15, 4.30, 0.85))
+		for px in [-5.95, 5.95]:
+			_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(px, 2.70, cz), Vector3(1.25, 4.30, 0.88))
+		for px in [-2.62, 2.62]:
+			_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(px, 2.70, cz), Vector3(1.48, 4.30, 0.88))
 	for cx in [-6.05, 6.05]:
-		_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(cx, 2.70, 0.0), Vector3(0.85, 4.30, 1.40))
+		_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(cx, 2.70, 0.0), Vector3(0.88, 4.30, 1.68))
+		for sz in [-4.32, 4.32]:
+			_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(cx, 2.70, sz), Vector3(0.88, 4.30, 1.56))
 	# Roof deck & dome silhouette blocker
 	_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 5.05, 0.0), Vector3(13.2, 0.45, 10.6))
 	# Central octagonal fountain solid cylinder collider
@@ -693,6 +730,10 @@ func _build_cement_elevated_catwalk(parent: Node3D, at_xz: Vector3, yaw_deg: flo
 	var stair_ang := atan2(4.20, 7.25)
 	var stair_ramp := _add_local_box(parent, cp, rot_b, yaw_deg, Vector3(-0.7, 1.94, 5.175), Vector3(2.08, 0.28, 8.48))
 	stair_ramp.rotate_object_local(Vector3.RIGHT, stair_ang)
+	for h_sgn in [-1.0, 1.0]:
+		var s_rail := _add_local_box(parent, cp, rot_b, yaw_deg, Vector3(-0.7 + h_sgn * 1.04, 2.65, 5.175), Vector3(0.14, 1.12, 8.35))
+		s_rail.rotate_object_local(Vector3.RIGHT, stair_ang)
+	_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(-0.7, -0.35, 8.95), Vector3(2.4, 0.85, 1.15))
 	var cl: Label3D = game._label3d(parent, "水泥厂高架钢桥 · 可登高狙击", cp + Vector3(0.0, 6.1, 0.0), 30, Color("ffd884"))
 	cl.pixel_size = 0.008
 	cl.visibility_range_end = 85.0
@@ -746,21 +787,21 @@ func _sandstone_perimeter_and_covers():
 	for sb in sandbag_spots:
 		var s_in: Vector3 = sb[0]
 		var sp := Vector3(s_in.x, AhsarahLayout.min_ground_height(s_in.x, s_in.z, 1.6), s_in.z)
-		_place_arch(cov, "sandbag_bunker_wall", sp, float(sb[1]), 1.0, true)
-		_add_solid_box(cov, sp + Vector3(0.0, 0.62, 0.0), Vector3(4.2, 1.24, 1.15), float(sb[1]))
+		var sb_mi := _place_arch(cov, "sandbag_bunker_wall", sp, float(sb[1]), 1.0, true)
+		_make_mesh_solid(sb_mi)
 
 	var ammo_spots := [
 		[Vector3(-5.8, 0.0, 14.2), 14.0], [Vector3(6.2, 0.0, 12.0), -22.0],
-		[Vector3(-41.0, 0.0, -41.0), 8.0], [Vector3(-46.0, 0.0, -52.0), 42.0],
-		[Vector3(31.0, 0.0, -35.0), -15.0], [Vector3(40.0, 0.0, -94.0), 26.0],
-		[Vector3(-38.0, 0.0, -112.0), -30.0], [Vector3(-13.5, 0.0, -126.0), 12.0],
+		[Vector3(-41.0, 0.0, -41.0), 8.0], [Vector3(-47.5, 0.0, -37.5), 42.0],
+		[Vector3(27.0, 0.0, -42.5), -15.0], [Vector3(36.5, 0.0, -95.0), 26.0],
+		[Vector3(-34.5, 0.0, -115.0), -30.0], [Vector3(-13.5, 0.0, -126.0), 12.0],
 		[Vector3(13.5, 0.0, -126.0), -18.0], [Vector3(56.0, 0.0, -132.0), 34.0],
 	]
 	for am in ammo_spots:
 		var a_in: Vector3 = am[0]
 		var ap := Vector3(a_in.x, AhsarahLayout.min_ground_height(a_in.x, a_in.z, 1.1), a_in.z)
-		_place_arch(cov, "military_ammo_stack", ap, float(am[1]), 1.0, true)
-		_add_solid_box(cov, ap + Vector3(0.0, 0.58, 0.0), Vector3(2.2, 1.16, 1.5), float(am[1]))
+		var am_mi := _place_arch(cov, "military_ammo_stack", ap, float(am[1]), 1.0, true)
+		_make_mesh_solid(am_mi)
 
 	# 4 weathered shipping containers in West Cement Plant & North Checkpoint for Zero Dam tactical feel
 	var cont_specs := [
@@ -801,7 +842,8 @@ func _sandstone_perimeter_and_covers():
 			var wy := AhsarahLayout.min_ground_height(side_x, z_cur, 3.5)
 			var jitter_x := (0.6 if seg_i % 2 == 0 else -0.5) * (1.0 if side_x > 0 else -1.0)
 			var sc_w := 1.02 + (0.08 if seg_i % 3 == 0 else 0.0)
-			_place_arch(perim, "desert_perimeter_rockwall", Vector3(side_x + jitter_x, wy - 0.15, z_cur), yaw_base + (5.0 if seg_i % 2 == 0 else -5.0), sc_w, false)
+			var rw_mi := _place_arch(perim, "desert_perimeter_rockwall", Vector3(side_x + jitter_x, wy - 0.15, z_cur), yaw_base + (5.0 if seg_i % 2 == 0 else -5.0), sc_w, false)
+			_make_mesh_solid(rw_mi)
 			z_cur += 9.4
 			seg_i += 1
 	# South perimeter stacked desert rock wall along Z=+26.2 spanning X=-76..+76
@@ -810,19 +852,21 @@ func _sandstone_perimeter_and_covers():
 	while x_cur <= 72.0:
 		var wy := AhsarahLayout.min_ground_height(x_cur, 26.2, 3.5)
 		var jitter_z := 0.55 if s_i % 2 == 0 else -0.45
-		_place_arch(perim, "desert_perimeter_rockwall", Vector3(x_cur, wy - 0.15, 26.2 + jitter_z), 180.0 + (4.5 if s_i % 2 == 0 else -4.5), 1.02, false)
+		var sw_mi := _place_arch(perim, "desert_perimeter_rockwall", Vector3(x_cur, wy - 0.15, 26.2 + jitter_z), 180.0 + (4.5 if s_i % 2 == 0 else -4.5), 1.02, false)
+		_make_mesh_solid(sw_mi)
 		x_cur += 9.4
 		s_i += 1
 	# North perimeter rock walls bridging East/West edges seamlessly into Zero Dam's flanking canyon cliffs (Z=-148.5)
 	for nx in [-70.0, -61.0, -52.0, 52.0, 61.0, 70.0]:
 		var wy := AhsarahLayout.min_ground_height(nx, -148.5, 3.5)
-		_place_arch(perim, "desert_perimeter_rockwall", Vector3(nx, wy - 0.15, -148.5), 6.0 if nx < 0 else -6.0, 1.15, false)
+		var nw_mi := _place_arch(perim, "desert_perimeter_rockwall", Vector3(nx, wy - 0.15, -148.5), 6.0 if nx < 0 else -6.0, 1.15, false)
+		_make_mesh_solid(nw_mi)
 
-	# Smooth-sliding solid colliders aligned right along the inner face of the stacked stone perimeter walls
-	_add_solid_box(cov, Vector3(-75.0, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
-	_add_solid_box(cov, Vector3(75.0, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
-	_add_solid_box(cov, Vector3(0.0, 8.0, 25.0), Vector3(154.0, 24.0, 2.2))
-	_add_solid_box(cov, Vector3(0.0, 8.0, -149.0), Vector3(154.0, 24.0, 2.2))
+	# Smooth-sliding solid colliders aligned right along the INNER boulder face so players never clip into perimeter rocks!
+	_add_solid_box(cov, Vector3(-73.6, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
+	_add_solid_box(cov, Vector3(73.6, 8.0, -61.0), Vector3(2.2, 24.0, 178.0))
+	_add_solid_box(cov, Vector3(0.0, 8.0, 24.0), Vector3(154.0, 24.0, 2.2))
+	_add_solid_box(cov, Vector3(0.0, 8.0, -148.2), Vector3(154.0, 24.0, 2.2))
 
 func _desert_flora_and_boulders():
 	var flora := Node3D.new()
@@ -890,15 +934,13 @@ func _desert_flora_and_boulders():
 		var rz := rng.randf_range(-142.0, 18.0)
 		if AhsarahLayout.clear_for_route(rx, rz, 3.6):
 			continue
-		var ry := AhsarahLayout.min_ground_height(rx, rz, 1.8)
 		var sc := rng.randf_range(0.82, 1.48)
+		var ry := AhsarahLayout.min_ground_height(rx, rz, 2.4 * sc)
 		var is_tall := (i % 3 == 0)
 		var b_name := "desert_boulder_b" if is_tall else "desert_boulder_a"
 		var byaw := rng.randf_range(0.0, 360.0)
-		_place_arch(boulders_root, b_name, Vector3(rx, ry - 0.14, rz), byaw, sc, true)
-		var col_r := (1.65 if is_tall else 2.05) * sc
-		var col_h := (3.5 if is_tall else 2.2) * sc
-		_add_solid_cylinder(boulders_root, Vector3(rx, ry + col_h * 0.45, rz), col_r, col_h)
+		var b_mi := _place_arch(boulders_root, b_name, Vector3(rx, ry - 0.42 * sc, rz), byaw, sc, true)
+		_make_mesh_solid(b_mi)
 		placed_boulders += 1
 
 func _stations_and_targets():
@@ -913,15 +955,16 @@ func _tactical_crates_and_pickups():
 	var bath_y := AhsarahLayout.min_ground_height(AhsarahLayout.GRAND_BATHHOUSE.x, AhsarahLayout.GRAND_BATHHOUSE.z, 5.5) + 0.55
 	var bath_rot := Basis(Vector3.UP, deg_to_rad(-20.0))
 	var bath_crate_pos := Vector3(AhsarahLayout.GRAND_BATHHOUSE.x, bath_y, AhsarahLayout.GRAND_BATHHOUSE.z) + bath_rot * Vector3(3.15, 0.0, 0.0)
+	var wb_y := AhsarahLayout.min_ground_height(-52.0, -104.0, 4.2) + 0.60
 	var crate_specs := [
 		["绿洲前哨补给箱", 1, Vector3(-2.5, 0.0, 7.2), false],
 		["水泥厂工棚加密箱", 2, Vector3(-43.5, 0.0, -44.0), false],
 		["巴克什浴场珍宝箱", 2, bath_crate_pos, true],
-		["哈夫克变电站机密箱", 3, Vector3(48.0, 0.0, -90.0), false],
-		["西翼哨所军火箱", 2, Vector3(-48.5, 0.0, -104.0), false],
+		["哈夫克变电站机密箱", 3, Vector3(47.2, 0.0, -90.0), false],
+		["西翼哨所军火箱", 2, Vector3(-52.0, wb_y, -104.0), true],
 		["阿萨拉行政堡垒 · 西翼金库箱", 3, Vector3(-16.5, 0.0, -124.0), false],
 		["阿萨拉行政堡垒 · 核心曼德尔金库", 3, Vector3(0.0, 0.0, -133.5), false],
-		["零号大坝高台特勤秘箱", 3, Vector3(36.0, 0.0, -138.0), false],
+		["零号大坝高台特勤秘箱", 3, Vector3(38.5, 0.0, -135.5), false],
 		["零号大坝泄洪道秘库", 3, Vector3(0.0, AhsarahLayout.CLOUD_ARENA_Y + 0.04, -145.45), true],
 		["行政堡垒 · 东翼二层指挥箱", 3, Vector3(21.2, AhsarahLayout.CLOUD_ARENA_Y + 3.70, -124.0), true],
 	]
@@ -931,19 +974,22 @@ func _tactical_crates_and_pickups():
 		var cr: Node3D = game._make_crate(str(cs[0]), int(cs[1]), gp)
 		TacticalProps.build_tiered_vault_crate(game, cr, int(cs[1]))
 
-	# Tactical pickups (ammo crates, medkits, smoke EMP, energy stims) + field supply boxes (including elevated 2F & Catwalk loot!)
+	# Tactical pickups (sculpted v092 ammo crates, medkits, smoke EMP, energy stims) + field supply boxes!
 	var cat_y := AhsarahLayout.min_ground_height(AhsarahLayout.CEMENT_CATWALK.x, AhsarahLayout.CEMENT_CATWALK.z, 4.5) + 4.29
 	var pickup_specs := [
-		["ammo_crate", "军用弹药补给箱", Vector3(4.0, 0.0, 8.5), false],
+		["ammo_crate", "军用弹药补给箱", Vector3(3.6, 0.0, 7.6), false],
 		["ammo_crate", "水泥厂弹药补给箱", Vector3(-37.0, 0.0, -49.0), false],
-		["ammo_crate", "巴克什弹药补给箱", Vector3(34.0, 0.0, -42.0), false],
+		["ammo_crate", "巴克什弹药补给箱", Vector3(30.5, 0.0, -40.5), false],
 		["ammo_crate", "变电站弹药补给箱", Vector3(42.0, 0.0, -82.0), false],
 		["ammo_crate", "西翼弹药补给箱", Vector3(-36.0, 0.0, -108.0), false],
 		["ammo_crate", "行政堡垒弹药补给箱", Vector3(-9.0, 0.0, -112.0), false],
 		["ammo_crate", "堡垒二层狙击弹药箱", Vector3(-21.2, AhsarahLayout.CLOUD_ARENA_Y + 3.70, -126.0), true],
+		["medkit", "前哨野战急救包", Vector3(2.2, 0.0, 7.9), false],
 		["medkit", "沙漠急救医疗包", Vector3(-14.0, 0.0, -34.0), false],
 		["medkit", "行政堡垒急救包", Vector3(9.5, 0.0, -112.0), false],
+		["smoke_emp", "前哨战术 EMP 雷", Vector3(5.0, 0.0, 7.9), false],
 		["smoke_emp", "战术烟雾 EMP 罐", Vector3(26.0, 0.0, -64.0), false],
+		["stim", "前哨肾上腺能量饮", Vector3(3.6, 0.0, 8.9), false],
 		["stim", "沙漠能量饮", Vector3(-24.0, 0.0, -86.0), false],
 		["supply", "荒漠游击补给包", Vector3(-26.0, 0.0, -28.0), false],
 		["supply", "集市商队遗留箱", Vector3(28.0, 0.0, -22.0), false],
@@ -965,17 +1011,34 @@ func _tactical_crates_and_pickups():
 			pnode.set_meta("tactical_item", kind)
 			pnode.set_meta("tactical_id", "ah_tac_%d" % idx_p)
 			var col := Color("f0c048") if kind == "ammo_crate" else (Color("56e8ff") if kind == "smoke_emp" else (Color("ff6b6b") if kind == "medkit" else Color("6ae3a8")))
-			var bm := BoxMesh.new()
-			bm.size = Vector3(0.74, 0.42, 0.54) if kind == "ammo_crate" else Vector3(0.46, 0.32, 0.36)
-			var mi := MeshInstance3D.new()
-			mi.mesh = bm
-			mi.position.y = bm.size.y * 0.5
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = col
-			mat.roughness = 0.46
-			mat.metallic = 0.22
-			mi.material_override = mat
-			pnode.add_child(mi)
+			var mesh_name := "pickup_ammo_crate" if kind == "ammo_crate" else ("pickup_smoke_emp" if kind == "smoke_emp" else ("pickup_medkit" if kind == "medkit" else "pickup_energy_stim"))
+			var p_sc := 1.20 if kind == "ammo_crate" else (1.30 if kind == "medkit" else 1.55)
+			var mi := _place_from_glb(pnode, PICKUPS_GLB, mesh_name, Vector3.ZERO, float(idx_p) * 35.0, p_sc, true)
+			if mi == null:
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.74, 0.42, 0.54) if kind == "ammo_crate" else Vector3(0.46, 0.32, 0.36)
+				mi = MeshInstance3D.new()
+				mi.mesh = bm
+				mi.position.y = bm.size.y * 0.5
+				var mat := StandardMaterial3D.new()
+				mat.albedo_color = col
+				mat.roughness = 0.46
+				mat.metallic = 0.22
+				mi.material_override = mat
+				pnode.add_child(mi)
+			else:
+				mi.name = "SculptedPickupMesh"
+			# Subtle glowing tactical ring around base for crisp desert visibility
+			var ring := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.36
+			tm.outer_radius = 0.43
+			tm.rings = 16
+			tm.ring_segments = 6
+			ring.mesh = tm
+			ring.position.y = 0.03
+			ring.material_override = game._material(col, true)
+			pnode.add_child(ring)
 			var pl: Label3D = game._label3d(pnode, title + " · [F]", Vector3(0.0, 0.92, 0.0), 22, col)
 			pl.pixel_size = 0.0042
 			pl.visibility_range_end = 18.0

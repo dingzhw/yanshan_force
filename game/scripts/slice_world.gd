@@ -1917,19 +1917,30 @@ func _landmarks():
 		game.pickup_nodes.append(node)
 
 func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
-	var path := "res://assets/slice/tactical_pickups.glb"
-	if ResourceLoader.exists(path):
-		if not game.scene_cache.has(path):
-			game.scene_cache[path] = load(path)
-		var inst: Node3D = game.scene_cache[path].instantiate()
-		var sub = inst.find_child(mesh_name, true, false)
-		if is_instance_valid(sub):
-			inst.remove_child(sub)
-			sub.owner = null
-			sub.position = Vector3.ZERO
-			sub.scale = Vector3.ONE * (1.85 if mesh_name != "pickup_ammo_crate" else 1.45)
-			parent.add_child(sub)
-		inst.queue_free()
+	# v0.9.2: Prefer high-craftsmanship sculpted Blender 4.5 tactical pickups (v092_tactical_pickups.glb)!
+	var v92_path := "res://assets/slice/v092_tactical_pickups.glb"
+	var v92_name := "pickup_energy_stim" if mesh_name == "pickup_energy_drink" else mesh_name
+	var v92_mesh: Mesh = _extract_mesh(v92_path, v92_name)
+	if v92_mesh != null:
+		var mi := MeshInstance3D.new()
+		mi.name = "SculptedPickupMesh"
+		mi.mesh = v92_mesh
+		mi.scale = Vector3.ONE * (1.20 if v92_name == "pickup_ammo_crate" else (1.30 if v92_name == "pickup_medkit" else 1.55))
+		parent.add_child(mi)
+	else:
+		var path := "res://assets/slice/tactical_pickups.glb"
+		if ResourceLoader.exists(path):
+			if not game.scene_cache.has(path):
+				game.scene_cache[path] = load(path)
+			var inst: Node3D = game.scene_cache[path].instantiate()
+			var sub = inst.find_child(mesh_name, true, false)
+			if is_instance_valid(sub):
+				inst.remove_child(sub)
+				sub.owner = null
+				sub.position = Vector3.ZERO
+				sub.scale = Vector3.ONE * (1.85 if mesh_name != "pickup_ammo_crate" else 1.45)
+				parent.add_child(sub)
+			inst.queue_free()
 	var ring = MeshInstance3D.new()
 	var tm = TorusMesh.new()
 	tm.inner_radius = 0.34
