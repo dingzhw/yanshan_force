@@ -1,6 +1,7 @@
 # Godot cache & temporary files
 .godot/
 *.import
+*.gd.uid
 *.tmp
 __pycache__/
 *.pyc

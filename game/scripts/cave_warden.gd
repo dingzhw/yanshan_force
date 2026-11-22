@@ -478,15 +478,17 @@ func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool 
 		if state != "hunt":
 			state = "hunt"
 			game.play_sfx("warden_sonar", -7)
+			game.play_cn_voice("cave_03", dist, true)
 			spawn_sonar_ring(root_node.position, Color("ff5c5c"), 11.5)
 			if is_instance_valid(game.player):
 				game.player.add_screen_shake(0.28)
-			game._notice("⚠ 古洞循音石卫循声惊醒！按 [C]/[Z] 潜行静默 1.5 秒可令其放弃搜索并放开双臂！", Color("ff6b6b"))
+			game._notice("⚠ 古洞循音石卫循声惊醒！按 [C]/[Z] 潜行静默 1.5 秒脱搜！", Color("ff6b6b"))
 	elif noise_meter >= 30.0 and state == "patrol":
 		state = "investigate"
 		game.play_sfx("warden_sonar", -11)
+		game.play_cn_voice("cave_02", dist, false)
 		spawn_sonar_ring(root_node.position, Color("54f0ff"), 10.0)
-		game._notice("🌀 古洞循音石卫听到了动静！按 [C] 蹲伏或 [Z] 匍匐潜行静默，待其放开双臂再狙蓝核！", Color("7ceeff"))
+		game._notice("🌀 古洞循音石卫听到了动静！潜行静默待其放开双臂再狙蓝核！", Color("7ceeff"))
 	elif immediate_ping and sonar_cd <= 0.0:
 		sonar_cd = 1.6
 		game.play_sfx("warden_sonar", -12)
@@ -552,7 +554,8 @@ func start_sonic_lance(target_pos: Vector3):
 	lance_cd = (3.4 if enraged_resonance else 4.2) if is_conf else 4.8
 	_place_lance_beam(lance_origin, lance_dir, BALLISTIC_RANGE, Color(0.32, 0.92, 1.0, 0.62), 0.16)
 	game.play_sfx("warning_lock", -9)
-	game._notice("☄ 石卫循枪声锁定开火点，蓄力【穿石声波束】！快横向潜行移位躲开光束！", Color("ff8066"))
+	game.play_cn_voice("cave_04", root_node.position.distance_to(target_pos), true)
+	game._notice("☄ 石卫蓄力【穿石声波束】！快横向潜行移位躲开光束！", Color("ff8066"))
 	_sync_label()
 
 func _fire_sonic_lance():
@@ -906,6 +909,9 @@ func update(delta: float):
 	var dist_p := root_node.position.distance_to(ppos)
 	var player_in_cave := _player_inside_cave_territory(ppos)
 	var is_conf_m: bool = game.rules.is_confidential()
+	if state == "patrol" and dist_p <= 21.0 and sonar_cd <= 0.0 and game.cn_voice_cd <= 0.0:
+		sonar_cd = 16.0
+		game.play_cn_voice_group("cave_warden", "proximity", dist_p, false)
 
 	# Strictly enforce Yanxia Cave territory leash: exiting far beyond cave breaks hunt & drops guard!
 	if (state in ["hunt", "investigate"] or guard_arms or shot_origin_active) and not player_in_cave and (dist_p > BALLISTIC_RANGE or not shot_origin_active):

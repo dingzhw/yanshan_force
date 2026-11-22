@@ -40,16 +40,19 @@ func run():
 	verify(r.request_extraction(), "practice mode can begin extraction at 420 points")
 	verify(r.finish_extraction(), "practice extraction settles run cleanly")
 
-	# Combat Normal Operation loot, accuracy gate & warehouse economy checks
+	# Combat Normal Operation loot, accuracy gate, 15/20min timers & 3-camp extraction checks (v0.9.3)
 	r.start_run(true, "normal")
+	verify(is_equal_approx(r.run_time_limit_seconds(), 900.0), "v0.9.3: Normal Operation run duration is 15 minutes (900s)")
 	for i in 12:
 		r.open_question()
 		r.answer(true)
 	r.score = Rules.EXTRACTION_SCORE
 	r.outposts_cleared = 2
 	r.boss_defeated = true
+	verify(not r.can_extract(), "v0.9.3: 2 cleared camps still blocks extraction (3 camps required)")
+	r.outposts_cleared = 3
 	verify(r.add_loot("test", 35, 2), "combat mode field loot accessible")
-	verify(r.request_extraction(), "normal combat extraction succeeds at >=60% accuracy + 420 pts + 2 camps + boss")
+	verify(r.request_extraction(), "normal combat extraction succeeds at >=60% accuracy + 420 pts + 3 camps + boss")
 	verify(r.finish_extraction(), "extraction banks loot")
 	var wh_after_first = r.profile.warehouse.size()
 	verify(not r.finish_extraction() and r.profile.warehouse.size() == wh_after_first, "settlement cannot duplicate loot")
@@ -108,7 +111,7 @@ func run():
 	while game.rules.score < Rules.EXTRACTION_SCORE or game.rules.answered < 6:
 		game.rules.open_question()
 		game.rules.answer(true)
-	game.rules.outposts_cleared = 2
+	game.rules.outposts_cleared = Rules.REQUIRED_OUTPOSTS
 	game.rules.boss_defeated = true
 	verify(game.rules.score >= Rules.EXTRACTION_SCORE, "question sequence reaches 420 extraction threshold")
 

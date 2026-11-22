@@ -1,0 +1,721 @@
+{
+  "schema_version": 1,
+  "language": "zh-CN",
+  "audio_format": "ogg_vorbis_mono_24khz",
+  "usage_notice": "仅供个人与家庭离线教育试玩使用；对外公开分发前请通过 tools/build_cn_voice_pack.py 替换为开源语音或自录音频。",
+  "count": 63,
+  "total_bytes": 1430178,
+  "groups": {
+    "ahsarah_guard": [
+      "ag_01",
+      "ag_02",
+      "ag_03",
+      "ag_04",
+      "ag_05",
+      "ag_06",
+      "ag_07",
+      "ag_08"
+    ],
+    "boss_saeed": [
+      "saeed_01",
+      "saeed_02",
+      "saeed_03",
+      "saeed_04",
+      "saeed_05",
+      "saeed_06",
+      "saeed_07",
+      "saeed_08",
+      "saeed_09",
+      "saeed_10"
+    ],
+    "boss_reis": [
+      "reis_01",
+      "reis_02",
+      "reis_03",
+      "reis_04",
+      "reis_05",
+      "reis_06",
+      "reis_07",
+      "reis_08",
+      "reis_09",
+      "reis_10"
+    ],
+    "haavk_trooper": [
+      "haavk_01",
+      "haavk_02",
+      "haavk_03",
+      "haavk_04",
+      "haavk_05",
+      "haavk_06",
+      "haavk_07",
+      "haavk_08"
+    ],
+    "mistbound_soldier": [
+      "mb_01",
+      "mb_02",
+      "mb_03",
+      "mb_04",
+      "mb_05",
+      "mb_06",
+      "mb_07",
+      "mb_08"
+    ],
+    "boss_ironface": [
+      "iron_01",
+      "iron_02",
+      "iron_03",
+      "iron_04",
+      "iron_05",
+      "iron_06",
+      "iron_07"
+    ],
+    "boss_overlord": [
+      "over_01",
+      "over_02",
+      "over_03",
+      "over_04",
+      "over_05",
+      "over_06",
+      "over_07"
+    ],
+    "cave_warden": [
+      "cave_01",
+      "cave_02",
+      "cave_03",
+      "cave_04",
+      "cave_05"
+    ]
+  },
+  "entries": {
+    "ag_01": {
+      "id": "ag_01",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "proximity",
+      "file": "ag_01.ogg",
+      "text": "来！咱俩练练！",
+      "bytes": 15713,
+      "sha256": "d59c2e66fbd1ab6ac50ee94f39330de99fac4e128f41c8af9affafe1da5264b0"
+    },
+    "ag_02": {
+      "id": "ag_02",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "combat",
+      "file": "ag_02.ogg",
+      "text": "别让他们跑了，围上去！",
+      "bytes": 13526,
+      "sha256": "e33421f44c895e3387fbecbf99953ffd0fd337ac4dd54b43596d11415f472b0d"
+    },
+    "ag_03": {
+      "id": "ag_03",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "combat",
+      "file": "ag_03.ogg",
+      "text": "守住防线，都给我顶上去！",
+      "bytes": 15916,
+      "sha256": "d76e25454230fa63c0cc809c574bf55a100ffb5cbe88bb7cbce8e8bca1d9e2cf"
+    },
+    "ag_04": {
+      "id": "ag_04",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "proximity",
+      "file": "ag_04.ogg",
+      "text": "发现外来者！注意掩体，准备开火！",
+      "bytes": 24816,
+      "sha256": "b28e904681e2807f720d3b7ff70632364d744e740b44f5643c4076575486b939"
+    },
+    "ag_05": {
+      "id": "ag_05",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "proximity",
+      "file": "ag_05.ogg",
+      "text": "阿萨拉的地盘，可不是你想来就来的！",
+      "bytes": 21159,
+      "sha256": "022f82b14ebbd5c5aef4c962f5bb1f94b05720fe0318c557f175f79344109f68"
+    },
+    "ag_06": {
+      "id": "ag_06",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "combat",
+      "file": "ag_06.ogg",
+      "text": "快掩护我换位，别露破绽！",
+      "bytes": 14625,
+      "sha256": "61bfdc553f1141423b4745de3774f10d8e68b5ff1c474f5f13acdacbc74ecf27"
+    },
+    "ag_07": {
+      "id": "ag_07",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "combat",
+      "file": "ag_07.ogg",
+      "text": "小心侧翼包抄，把词盾撑紧了！",
+      "bytes": 20272,
+      "sha256": "56864b3fa33b8222494a82034563de70219836795bfea05f98249bdc05e38027"
+    },
+    "ag_08": {
+      "id": "ag_08",
+      "group": "ahsarah_guard",
+      "speaker": "阿萨拉卫队",
+      "tag": "proximity",
+      "file": "ag_08.ogg",
+      "text": "哟，还挺能躲的，咱俩接着练！",
+      "bytes": 21137,
+      "sha256": "f634cacb8e13e906323c09620fd5409cca3c56bbfacddfa17f058464b48798e5"
+    },
+    "saeed_01": {
+      "id": "saeed_01",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "intro",
+      "file": "saeed_01.ogg",
+      "text": "父亲教导我，好的猎人懂得尊重猎物……但你，不配！",
+      "bytes": 37608,
+      "sha256": "e5769563f35b3b803f5224bcafd31ddc8705ff000710992cde12562c387018b2"
+    },
+    "saeed_02": {
+      "id": "saeed_02",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "proximity",
+      "file": "saeed_02.ogg",
+      "text": "我看到你了，小耗子！",
+      "bytes": 17169,
+      "sha256": "cc7c52fe1711177c7b54b821d13878d4c51e4d53cc54b74c6d5bd123fbc6644e"
+    },
+    "saeed_03": {
+      "id": "saeed_03",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "combat",
+      "file": "saeed_03.ogg",
+      "text": "你掉进陷阱里了！",
+      "bytes": 15176,
+      "sha256": "6bc915afb06469f0a036fe4eabd32442a2abbe128d7ca3bf72f78e2855b3a0a1"
+    },
+    "saeed_04": {
+      "id": "saeed_04",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "proximity",
+      "file": "saeed_04.ogg",
+      "text": "赤枭的领地，轮不到外来者撒野！",
+      "bytes": 24722,
+      "sha256": "f724c5c21da9e9e598597ebcf64bc2473085b724675419e6958552647d38b5f7"
+    },
+    "saeed_05": {
+      "id": "saeed_05",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "skill_lmg",
+      "file": "saeed_05.ogg",
+      "text": "M249 火力压制！看你往哪儿躲！",
+      "bytes": 24349,
+      "sha256": "7d6cadec906d358f38650921fc5a6648e0af3abb649148c76f8e408a9a1020b6"
+    },
+    "saeed_06": {
+      "id": "saeed_06",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "skill_bolt",
+      "file": "saeed_06.ogg",
+      "text": "尝尝我的燃烧弩箭，烧断你的退路！",
+      "bytes": 25004,
+      "sha256": "86212ce6f231eb0078b7816bcb3b147d5ed40c9e0ebbfda4c7367146947e2b3b"
+    },
+    "saeed_07": {
+      "id": "saeed_07",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "skill_smoke",
+      "file": "saeed_07.ogg",
+      "text": "烟幕掩护，换位包抄！",
+      "bytes": 18589,
+      "sha256": "ed066ecaa4097eb7bbaf73751e78d148b9aeeb2ab8187219ca47bf1ded3c1c9e"
+    },
+    "saeed_08": {
+      "id": "saeed_08",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "phase",
+      "file": "saeed_08.ogg",
+      "text": "有两下子，居然破了我的词盾！",
+      "bytes": 20916,
+      "sha256": "210abafe6fcba2c3fb41635b2717bdfb168ab3ff8ffd7e2b3590d60ae29eac30"
+    },
+    "saeed_09": {
+      "id": "saeed_09",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "proximity",
+      "file": "saeed_09.ogg",
+      "text": "想带走曼德尔砖？先问问我手里的枪！",
+      "bytes": 25995,
+      "sha256": "0a5219cd9d225b14508c98dd6b48d478becd7cdcbbfe0815b90575b055b45d58"
+    },
+    "saeed_10": {
+      "id": "saeed_10",
+      "group": "boss_saeed",
+      "speaker": "赤枭·赛伊德",
+      "tag": "combat",
+      "file": "saeed_10.ogg",
+      "text": "还站得起来？那就继续，小耗子！",
+      "bytes": 25193,
+      "sha256": "a6a3a6d33ce09ae62689d37138fe6a259d0c84ab26ec0a6b04f1998bda57533c"
+    },
+    "reis_01": {
+      "id": "reis_01",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "intro",
+      "file": "reis_01.ogg",
+      "text": "把留声机开大声点！没有交响乐的战场，简直粗俗不堪！",
+      "bytes": 38193,
+      "sha256": "bc57f4d0faad84998980cb867d6dc2a2e315c23926f831ea0213a4099d573f95"
+    },
+    "reis_02": {
+      "id": "reis_02",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "proximity",
+      "file": "reis_02.ogg",
+      "text": "在阿萨拉，规矩由枪口和黄金说了算！",
+      "bytes": 27160,
+      "sha256": "634a6abe1aa24256c0b4c0be87e978e0cd6bd9ad9e38700d1a678381ceb1a0c5"
+    },
+    "reis_03": {
+      "id": "reis_03",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "skill_sonic",
+      "file": "reis_03.ogg",
+      "text": "听听这首交响乐，专为你的撤离倒计时准备的！",
+      "bytes": 28953,
+      "sha256": "6b0dd138acc7ddf36a3b60b3b89101332d2849e9dc95308864a91196eb321a87"
+    },
+    "reis_04": {
+      "id": "reis_04",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "skill_shotgun",
+      "file": "reis_04.ogg",
+      "text": "重甲突击！尝尝霰弹枪的滋味！",
+      "bytes": 24593,
+      "sha256": "0f4ac20badee8cad8170d9bf62b56e0cf0de52c0772823f57f4c6505e272acca"
+    },
+    "reis_05": {
+      "id": "reis_05",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "skill_grenade",
+      "file": "reis_05.ogg",
+      "text": "送你三颗破片手雷，跟着节奏跳支舞吧！",
+      "bytes": 26865,
+      "sha256": "faafa76093b499ba3a07881cf30ed827f17eb16750a03d7249975dc920e22e74"
+    },
+    "reis_06": {
+      "id": "reis_06",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "phase",
+      "file": "reis_06.ogg",
+      "text": "近卫们！出来好好招待一下我们的贵客！",
+      "bytes": 27185,
+      "sha256": "8008a4ce648cb8994d6804bcfdbba307e457b8a3551318b6022ceca99cb833dc"
+    },
+    "reis_07": {
+      "id": "reis_07",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "skill_ult",
+      "file": "reis_07.ogg",
+      "text": "零号大坝听令！重炮泄洪，全区覆盖！",
+      "bytes": 28209,
+      "sha256": "a66e5b4318bff9ce54724ba54b528ace0551738f1909cd943eff3e685c103620"
+    },
+    "reis_08": {
+      "id": "reis_08",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "combat",
+      "file": "reis_08.ogg",
+      "text": "哈哈哈，居然撑过了零号大坝的炮火！",
+      "bytes": 23034,
+      "sha256": "285fd1a32d12707157ecf023d66ed643370ed1dc39b90ce02cf0fc469db28921"
+    },
+    "reis_09": {
+      "id": "reis_09",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "proximity",
+      "file": "reis_09.ogg",
+      "text": "非洲之心，岂是你能轻易带走的？",
+      "bytes": 23579,
+      "sha256": "ca52896769ea1857ed9185ec3414854273db3f81d0e36cb03f9acef810d06bd6"
+    },
+    "reis_10": {
+      "id": "reis_10",
+      "group": "boss_reis",
+      "speaker": "阿萨拉军阀·雷斯",
+      "tag": "combat",
+      "file": "reis_10.ogg",
+      "text": "不错！你配听完这最后一曲！",
+      "bytes": 21494,
+      "sha256": "b116a255fa73ea80f985272210acb39bfb639ac9cfb60f51072029dbcd246401"
+    },
+    "haavk_01": {
+      "id": "haavk_01",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "proximity",
+      "file": "haavk_01.ogg",
+      "text": "警告，未授权目标进入哈夫克管制区。",
+      "bytes": 23220,
+      "sha256": "fd55e38a572123fd2bb347484669e44d8b555d1d29a7429252d17e002c754619"
+    },
+    "haavk_02": {
+      "id": "haavk_02",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "combat",
+      "file": "haavk_02.ogg",
+      "text": "安保协议三级启动，展开全息词盾阵列。",
+      "bytes": 24306,
+      "sha256": "80cb0f75011732ce3eb0745d0154146f806cd04caf5168b31b91e37cc3c929b1"
+    },
+    "haavk_03": {
+      "id": "haavk_03",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "combat",
+      "file": "haavk_03.ogg",
+      "text": "监测到曼德尔砖异常信号，立即拦截目标。",
+      "bytes": 24139,
+      "sha256": "dde38752dda08f4367fc13ee642e68e7b170b37e43f208785ad18714dde1e693"
+    },
+    "haavk_04": {
+      "id": "haavk_04",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "proximity",
+      "file": "haavk_04.ogg",
+      "text": "保护变电站核心资产，执行精准清除。",
+      "bytes": 24720,
+      "sha256": "2e96c5c17c534cc3a6d987977782dc7588ef3391c2253147b65fe9321938c46c"
+    },
+    "haavk_05": {
+      "id": "haavk_05",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "combat",
+      "file": "haavk_05.ogg",
+      "text": "目标已锁定，请求无人机协同压制。",
+      "bytes": 21597,
+      "sha256": "7a4e2c4a670463876fdf9621322cb9aa8e0b5021be0acf720c1e577810d6a5ae"
+    },
+    "haavk_06": {
+      "id": "haavk_06",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "proximity",
+      "file": "haavk_06.ogg",
+      "text": "哈夫克财产不容侵犯，立刻停止行动。",
+      "bytes": 23239,
+      "sha256": "583a9cc134b5955a752b4172ba1237f41cb9a8a1c96f02add05ecc0a7c3da94b"
+    },
+    "haavk_07": {
+      "id": "haavk_07",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "combat",
+      "file": "haavk_07.ogg",
+      "text": "敌方具备识词破盾能力，提高警戒等级。",
+      "bytes": 24607,
+      "sha256": "680e59583723524eddd644d4d173b0e38f8595c7d5ceee7469d056c79b8eaa74"
+    },
+    "haavk_08": {
+      "id": "haavk_08",
+      "group": "haavk_trooper",
+      "speaker": "哈夫克特勤",
+      "tag": "combat",
+      "file": "haavk_08.ogg",
+      "text": "封锁撤退通道，严禁数据外泄。",
+      "bytes": 18996,
+      "sha256": "9adeab674b8545ebe63f2ca9addaaa125f298da2f1aff3c198f7e5ee956dfcd5"
+    },
+    "mb_01": {
+      "id": "mb_01",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "proximity",
+      "file": "mb_01.ogg",
+      "text": "站住！烟山重地，谁敢擅闯！",
+      "bytes": 25655,
+      "sha256": "8a10dd63f7d322196aa2a12e56cd042b65079e55861ab9ea694bf78245397b5b"
+    },
+    "mb_02": {
+      "id": "mb_02",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "combat",
+      "file": "mb_02.ogg",
+      "text": "兄弟们，把词盾撑起来，别放他过桥！",
+      "bytes": 21626,
+      "sha256": "ca78fdefec00c38a1a8dc193418a15ae45e872a8238a40eeaaa564bc4033f63f"
+    },
+    "mb_03": {
+      "id": "mb_03",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "combat",
+      "file": "mb_03.ogg",
+      "text": "好小子，有两下子，吃我一记！",
+      "bytes": 22245,
+      "sha256": "d471bb4590738ab0cbd75fb7637d55a8901b37d8c42550381859e22d00648e6c"
+    },
+    "mb_04": {
+      "id": "mb_04",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "proximity",
+      "file": "mb_04.ogg",
+      "text": "休想动诚庄留下的秘藏箱！",
+      "bytes": 17312,
+      "sha256": "a3b63a53306f74f74cc7cc65a92da93f61cf5fa3754cf41c1a60b8414fbb9b79"
+    },
+    "mb_05": {
+      "id": "mb_05",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "combat",
+      "file": "mb_05.ogg",
+      "text": "快掩护，往竹林那边绕后包抄！",
+      "bytes": 19032,
+      "sha256": "60266a254625370579969924655f680653654831429beb72e1deeb920533df1a"
+    },
+    "mb_06": {
+      "id": "mb_06",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "combat",
+      "file": "mb_06.ogg",
+      "text": "英文认得挺溜，看你破不破得了这面盾！",
+      "bytes": 26336,
+      "sha256": "f9c4ff1ef8e4fb4556a6bc70bddb6bd5e9771e0157d8ce232ffd6abfa92c56e7"
+    },
+    "mb_07": {
+      "id": "mb_07",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "proximity",
+      "file": "mb_07.ogg",
+      "text": "盯紧山道，有人摸上来了！",
+      "bytes": 14999,
+      "sha256": "0873f9ef45e9d7fd806239a213c463671ebaedb7c58a5310f10e2f60b3f1bbe9"
+    },
+    "mb_08": {
+      "id": "mb_08",
+      "group": "mistbound_soldier",
+      "speaker": "雾隐词兵",
+      "tag": "proximity",
+      "file": "mb_08.ogg",
+      "text": "小心点，这家伙枪法不赖！",
+      "bytes": 18098,
+      "sha256": "ac925fe4d3937a1d8f12825214e1105952bade673f0f3b719e712468b54fe40f"
+    },
+    "iron_01": {
+      "id": "iron_01",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "intro",
+      "file": "iron_01.ogg",
+      "text": "想过云顶？先过我铁面词卫这一关！",
+      "bytes": 28333,
+      "sha256": "cc6a806d553676fd10889182d7398ddfa697460e1a3e947b927c23d148af2c78"
+    },
+    "iron_02": {
+      "id": "iron_02",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "phase2",
+      "file": "iron_02.ogg",
+      "text": "破一面盾算什么？双盾齐开！",
+      "bytes": 21916,
+      "sha256": "40e742f4e501c114c720f806b39d10b2567a16cca3b0c08f18ea766e7cd7e8e4"
+    },
+    "iron_03": {
+      "id": "iron_03",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "phase3",
+      "file": "iron_03.ogg",
+      "text": "三盾困阵已成，看你认不认得清！",
+      "bytes": 24908,
+      "sha256": "24b1982801fa4161fa063b88a6a5781563e35d1ecea626b96c02772d4f1384f3"
+    },
+    "iron_04": {
+      "id": "iron_04",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "combat",
+      "file": "iron_04.ogg",
+      "text": "侦察蜂升空，封死他的走位！",
+      "bytes": 22118,
+      "sha256": "1c850e6515289b77d981ef1b6e087c6d83960f3c2e1471de3cccc2700ace0b21"
+    },
+    "iron_05": {
+      "id": "iron_05",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "proximity",
+      "file": "iron_05.ogg",
+      "text": "别光躲在石头后面，出来拼真本事！",
+      "bytes": 24977,
+      "sha256": "021844fea09d0da3d2f8f086ae312682a24d181754973f2405920790994103b5"
+    },
+    "iron_06": {
+      "id": "iron_06",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "skill",
+      "file": "iron_06.ogg",
+      "text": "重盾冲锋，接招！",
+      "bytes": 15917,
+      "sha256": "ec8909952b884f4f88932a7f97090b037e5601ffe85504daaad1c23ba803310f"
+    },
+    "iron_07": {
+      "id": "iron_07",
+      "group": "boss_ironface",
+      "speaker": "雾隐先锋·铁面词卫",
+      "tag": "combat",
+      "file": "iron_07.ogg",
+      "text": "好本事，看来今天遇到硬茬了！",
+      "bytes": 21501,
+      "sha256": "ecc89a1b25f44a73fd1b0b24e632d0ce46b800a92afc034891e1a1752b32ded9"
+    },
+    "over_01": {
+      "id": "over_01",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "proximity",
+      "file": "over_01.ogg",
+      "text": "区区凡辈，也敢踏足云顶演武坛！",
+      "bytes": 24110,
+      "sha256": "d91d167fd46b59536f74227ac37103313dd6c4c188de05facbb3f8372c7c9fae"
+    },
+    "over_02": {
+      "id": "over_02",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "intro",
+      "file": "over_02.ogg",
+      "text": "雷云天降，玄铁词尊在此！",
+      "bytes": 20359,
+      "sha256": "6989f6f9da2c635bb28e06635feee128815e6bb6a5143aaaa219797bf9f0c176"
+    },
+    "over_03": {
+      "id": "over_03",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "skill",
+      "file": "over_03.ogg",
+      "text": "玄铁法轮起，万词皆为我刃！",
+      "bytes": 21855,
+      "sha256": "dc3e0ee644255bda17ef71cf977c72f59c0dda1c687bd668ac11413cb52f10e0"
+    },
+    "over_04": {
+      "id": "over_04",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "phase2",
+      "file": "over_04.ogg",
+      "text": "十息之内，若破不得三面金盾，便见识天地万象！",
+      "bytes": 33934,
+      "sha256": "52a039174c6bd4d574cc211f30bb35c18551b970dfe975a8108722b1d24609cc"
+    },
+    "over_05": {
+      "id": "over_05",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "skill_ult",
+      "file": "over_05.ogg",
+      "text": "云海倒悬，镜像烟山——镇！",
+      "bytes": 22615,
+      "sha256": "13c62609fa630c84111fe4db276a3a03484b8530383e92935691d705272b1ee3"
+    },
+    "over_06": {
+      "id": "over_06",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "combat",
+      "file": "over_06.ogg",
+      "text": "竟能从天地万象下稳住阵脚，有点意思！",
+      "bytes": 29894,
+      "sha256": "6f68d59891421627281d9229cce55cd9f92ffd4be52ae92aba3a12027b5a16a6"
+    },
+    "over_07": {
+      "id": "over_07",
+      "group": "boss_overlord",
+      "speaker": "雾隐机关王·玄铁词尊",
+      "tag": "combat",
+      "file": "over_07.ogg",
+      "text": "来吧，看看你的词汇量够不够硬！",
+      "bytes": 22008,
+      "sha256": "0786a8bdddf3b05236f5ba075cf79fcd0181bcacebd775b4fe02a92bfcbd8325"
+    },
+    "cave_01": {
+      "id": "cave_01",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "tag": "proximity",
+      "file": "cave_01.ogg",
+      "text": "擅入烟霞古洞者……止步！",
+      "bytes": 16679,
+      "sha256": "26a37b523abd73bc329b0bf91240ae4800162cbb822cdbe406bc2a50ecb0c961"
+    },
+    "cave_02": {
+      "id": "cave_02",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "tag": "alert",
+      "file": "cave_02.ogg",
+      "text": "我听见你的脚步了……",
+      "bytes": 12451,
+      "sha256": "092feed1e59448e1bf176c5fc26c880228c71845bd43e2680c6526ec76f821af"
+    },
+    "cave_03": {
+      "id": "cave_03",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "tag": "alert",
+      "file": "cave_03.ogg",
+      "text": "屏息静气，也藏不住你的动静！",
+      "bytes": 20529,
+      "sha256": "f42a8f6b6fb7ae776f01ef9a61f1aeb5e8c4a271133367d9e59746fb2eb4298e"
+    },
+    "cave_04": {
+      "id": "cave_04",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "tag": "skill_lance",
+      "file": "cave_04.ogg",
+      "text": "藏在暗处放冷枪？穿石声波——锁！",
+      "bytes": 23483,
+      "sha256": "d2b8e1cdcfd46467079e3e4e0a5796a5b950f483b0fe635f8b3ce260b51412a3"
+    },
+    "cave_05": {
+      "id": "cave_05",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "tag": "proximity",
+      "file": "cave_05.ogg",
+      "text": "休想染指一线天后的次元石壁！",
+      "bytes": 21314,
+      "sha256": "2097ce4b96c2158ccff325e25102960ebd15c5e94fb7b7a12ec13412ce8734c5"
+    }
+  }
+}

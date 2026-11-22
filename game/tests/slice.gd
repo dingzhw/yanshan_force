@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.2 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.3 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -171,7 +171,7 @@ func run():
 	while game.rules.score < game.Rules.EXTRACTION_SCORE:
 		game.rules.open_question()
 		game.rules.answer(true)
-	game.rules.outposts_cleared = 2
+	game.rules.outposts_cleared = game.Rules.REQUIRED_OUTPOSTS
 	game.rules.boss_defeated = true
 	game.player.position = game.exit_position
 	await frames(3)

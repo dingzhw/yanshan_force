@@ -217,6 +217,50 @@ func run():
 	verify(game.active_station == 0, "[F] triggers world interaction cleanly")
 	game._leave_station()
 
+	# v0.9.3 Full-body hero '少羽' (PlayerBody) & seamless 1P/3P camera switching + anti-wall-clip + optical ADS snap!
+	var pb = game.player.player_body
+	verify(is_instance_valid(pb) and is_instance_valid(pb.hips_pivot) and is_instance_valid(pb.head_pivot) and is_instance_valid(pb.leg_l_pivot) and is_instance_valid(pb.world_rifle_root), "v0.9.3: PlayerBody loads articulated full-body Shaoyu rig with legs, head & world rifle")
+	verify(not game.player.third_person and not pb.head_pivot.visible and pb.leg_l_pivot.visible and game.player.weapon_root.visible, "v0.9.3: 1P default hides head/arms while keeping real legs/boots visible below camera")
+	key(KEY_P, true)
+	key(KEY_P, false)
+	for i in 18:
+		await physics_frame
+	verify(game.player.third_person and pb.head_pivot.visible and not game.player.weapon_root.visible and game.player.camera.position.z > 1.2, "v0.9.3: [P] switches cleanly to 3P over-the-shoulder view with full body visible")
+	var aim_pt_3p: Vector3 = game.player.get_aim_target_position()
+	verify(aim_pt_3p.distance_to(game.player.global_position + Vector3(0, 1.44, 0)) < 0.35, "v0.9.3: get_aim_target_position() tracks Shaoyu's real body rather than trailing 3P camera")
+	# 3P Anti-wall-clip check
+	var back_wall := StaticBody3D.new()
+	back_wall.collision_layer = 1
+	var bw_cs := CollisionShape3D.new()
+	var bw_box := BoxShape3D.new()
+	bw_box.size = Vector3(3.0, 3.0, 0.25)
+	bw_cs.shape = bw_box
+	back_wall.add_child(bw_cs)
+	back_wall.position = game.player.position + Vector3(0.3, 1.5, 1.15)
+	game.add_child(back_wall)
+	for i in 12:
+		await physics_frame
+	verify(game.player.camera.position.z < 1.10, "v0.9.3: 3P camera boom anti-clip pulls forward cleanly in front of rear wall (z=%.2f)" % game.player.camera.position.z)
+	back_wall.queue_free()
+	for i in 12:
+		await physics_frame
+	# 3P ADS smart optical snap when scope_2x is equipped
+	game.rules.profile.owned.append("scope_2x")
+	game.rules.profile.equipped["optic"] = "scope_2x"
+	game.player.aiming = true
+	for i in 6:
+		await physics_frame
+	verify(game.player.effective_fp_view and game.player.weapon_root.visible and not pb.head_pivot.visible, "v0.9.3: 3P right-click ADS with 2x scope seamlessly snaps into 1P optical sight")
+	game.player.aiming = false
+	for i in 8:
+		await physics_frame
+	verify(not game.player.effective_fp_view and pb.head_pivot.visible and not game.player.weapon_root.visible, "v0.9.3: releasing ADS smoothly returns to 3P over-the-shoulder view")
+	key(KEY_F5, true)
+	key(KEY_F5, false)
+	for i in 6:
+		await physics_frame
+	verify(not game.player.third_person and game.player.effective_fp_view, "v0.9.3: [F5] switches smoothly back to 1P mode")
+
 	game.player.clear_movement_input()
 	game.queue_free()
 	await process_frame

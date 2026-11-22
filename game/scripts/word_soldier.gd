@@ -1043,9 +1043,10 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 				vanguard_move_timer = 0.90
 				combat.game.play_sfx("warning_lock", -9)
 				if is_ahsarah_unit:
-					combat.game._notice("🔥 赤枭·赛伊德拉弓齐射【猎枭弩波】！横向走位躲开轨迹！", Color("ff8048"))
+					combat.game._notice("🔥 赤枭·赛伊德拉弓齐射【猎枭弩波】！", Color("ff8048"))
 				else:
-					combat.game._notice("⚡ 铁面词卫蓄力【震荡冲击波】！横向走位躲开直线波束！", Color("ff9e66"))
+					combat.game.play_cn_voice_group("boss_ironface", "combat", distance, false)
+					combat.game._notice("⚡ 铁面词卫蓄力【震荡冲击波】！横向躲避！", Color("ff9e66"))
 			else:
 				vanguard_move_state = "charge_windup"
 				vanguard_move_timer = 0.95
@@ -1059,9 +1060,10 @@ func _step_vanguard_boss_ai(delta: float, player_at: Vector3, distance: float, e
 				vanguard_charge_target = combat.game.active_layout.on_ground(Vector3(camp_c.x + off_c.x, 0.0, camp_c.z + off_c.y))
 				combat.game.play_sfx("boss_phase", -10)
 				if is_ahsarah_unit:
-					combat.game._notice("🔥 赤枭·赛伊德突袭投掷【燃烧弹红圈】！『猎杀时间到了！』", Color("ff8048"))
+					combat.game._notice("🔥 赤枭·赛伊德突袭投掷【燃烧弹红圈】！", Color("ff8048"))
 				else:
-					combat.game._notice("⚡ 铁面词卫蓄力【冲锋震地】！迅速横向闪避冲击点！", Color("ffd15c"))
+					combat.game.play_cn_voice("iron_06", distance, true)
+					combat.game._notice("⚡ 铁面词卫蓄力【冲锋震地】！迅速横向闪避！", Color("ffd15c"))
 	elif vanguard_move_state == "charge_windup":
 		vanguard_move_timer -= delta
 		if is_instance_valid(visor):
@@ -1121,7 +1123,8 @@ func _step_saeed_boss_ai(delta: float, player_at: Vector3, distance: float):
 				saeed_burst_left = 6 if boss_phase <= 2 else 5
 				saeed_burst_cd = 0.0
 				combat.game.play_sfx("warning_lock", -9)
-				combat.game._notice("🔫 赤枭·赛伊德架起【M249 轻机枪】扇形压制扫射！『我看到你了，小耗子！』", Color("ffaa42"))
+				combat.game.play_cn_voice("saeed_05", distance, true)
+				combat.game._notice("🔫 赤枭·赛伊德架起【M249 轻机枪】扇形扫射！", Color("ffaa42"))
 			elif mv == 1:
 				# Move 2: Crimson-Cloak Tactical Roll + Triple Incendiary Crossbow Volley!
 				vanguard_move_state = "saeed_roll_crossbow"
@@ -1131,7 +1134,8 @@ func _step_saeed_boss_ai(delta: float, player_at: Vector3, distance: float):
 				saeed_roll_dir = right_v * (1.0 if (saeed_move_cycle % 2 == 0) else -1.0)
 				saeed_burst_left = 1  # triggers 3-bolt crossbow volley cleanly once right after roll!
 				combat.game.play_sfx("boss_slash", -10)
-				combat.game._notice("🔥 赤枭·赛伊德侧滚拉弓【三联燃烧弩矢】！『你掉进陷阱里了！』躲开地上燃烧火区！", Color("ff7838"))
+				combat.game.play_cn_voice("saeed_06", distance, true)
+				combat.game._notice("🔥 赤枭·赛伊德翻滚齐射【三联燃烧弩矢】！躲开地上火区！", Color("ff7838"))
 			else:
 				# Move 3: Desert Smoke Tactical Reposition Flank!
 				vanguard_move_state = "saeed_smoke_shift"
@@ -1140,7 +1144,8 @@ func _step_saeed_boss_ai(delta: float, player_at: Vector3, distance: float):
 				saeed_roll_dir = right_s * (-1.0 if (saeed_move_cycle % 2 == 0) else 1.0)
 				combat.deploy_boss_sand_smoke(position)
 				combat.game.play_sfx("smoke_emp", -10)
-				combat.game._notice("🌫 赤枭·赛伊德投掷【荒漠战术烟幕】侧翼转点！『这片荒漠与大坝属于阿萨拉！』", Color("e6c28a"))
+				combat.game.play_cn_voice("saeed_07", distance, true)
+				combat.game._notice("🌫 赤枭·赛伊德投掷【荒漠战术烟幕】侧翼转点！", Color("e6c28a"))
 	elif vanguard_move_state == "saeed_lmg_windup":
 		vanguard_move_timer -= delta
 		if is_instance_valid(visor):
@@ -1588,8 +1593,9 @@ func trigger_ultimate_tiandi():
 			mirror_mountain_node = m_root
 			combat.launch_zero_dam_artillery_salvo(arena_c, arena_y)
 			combat.game.play_sfx("dam_artillery_siren", -4)
+			combat.game.play_cn_voice("reis_07", 8.0, true)
 			combat.game.screen_flash.color = Color(1.0, 0.44, 0.12, 0.26)
-			combat.game._notice("💥 零号大坝泄洪警报拉响！雷斯呼叫【大坝岸防重炮洗地】！！『卫队！给贵客奏响交响终曲！』", Color("ff6842"))
+			combat.game._notice("💥 零号大坝泄洪警报！雷斯呼叫【大坝岸防重炮洗地】！！", Color("ff6842"))
 		else:
 			var m_path := "res://assets/slice/v086_mirror_yanshan.glb"
 			if ResourceLoader.exists(m_path):
@@ -1599,8 +1605,9 @@ func trigger_ultimate_tiandi():
 				m_root.add_child(minst)
 			mirror_mountain_node = m_root
 			combat.game.play_sfx("boss_ultimate", -4)
+			combat.game.play_cn_voice("over_05", 8.0, true)
 			combat.game.screen_flash.color = Color(1.0, 0.56, 0.16, 0.24)
-			combat.game._notice("☄ 终极技【天地万象】发动！！倒悬镜像烟山伴金阵压顶合拢！！", Color("ff5252"))
+			combat.game._notice("☄ 终极技【天地万象】发动！！倒悬镜像烟山压顶！！", Color("ff5252"))
 
 func _cleanup_ultimate_nodes():
 	if is_instance_valid(mirror_mountain_node):
@@ -1802,7 +1809,8 @@ func _step_reis_boss_ai(delta: float, player_at: Vector3, distance: float):
 				reis_wave_left = 3 if overlord_round >= 2 else 2
 				reis_wave_cd = 0.20
 				combat.game.play_sfx("gramophone_chord", -6)
-				combat.game._notice("🎷 军阀·雷斯高举留声机奏响【交响声波】！『没有交响乐的战场简直粗俗不堪！』按 [Space] 跳起躲过金环！", Color("ffd15c"))
+				combat.game.play_cn_voice("reis_03", distance, true)
+				combat.game._notice("🎷 军阀·雷斯奏响【交响声波】！按 [Space] 跳起越过金环！", Color("ffd15c"))
 			elif mv_idx == 1:
 				# Move 2: Armored Surge + S12K Heavy Drum-Shotgun 7-Pellet Buckshot Cone!
 				ov_move_state = "reis_shotgun_rush"
@@ -1815,13 +1823,15 @@ func _step_reis_boss_ai(delta: float, player_at: Vector3, distance: float):
 					off_a = off_a.normalized() * 14.5
 				ov_dash_target = combat.game.active_layout.on_ground(Vector3(arena_c.x + off_a.x, 0.0, arena_c.z + off_a.y))
 				combat.game.play_sfx("warning_lock", -8)
-				combat.game._notice("💥 军阀·雷斯重甲前压举起【S12K 弹鼓重霰弹】！『在阿萨拉，规矩由枪口和黄金说了算！』速找沙袋掩体！", Color("ff8048"))
+				combat.game.play_cn_voice("reis_04", distance, true)
+				combat.game._notice("💥 军阀·雷斯重甲前压【S12K 弹鼓重霰弹】！速找掩体！", Color("ff8048"))
 			else:
 				# Move 3: Cluster Fragmentation Grenade Barrage (3 parabolic spinning 3D grenades!)
 				ov_move_state = "reis_cluster_grenades"
 				ov_move_timer = 1.15
 				combat.game.play_sfx("boss_phase", -9)
-				combat.game._notice("💣 军阀·雷斯投掷【集束破片手雷阵】！『尝尝阿萨拉军工的礼花！』冲刺脱离红圈！", Color("ff6842"))
+				combat.game.play_cn_voice("reis_05", distance, true)
+				combat.game._notice("💣 军阀·雷斯投掷【集束破片手雷阵】！冲刺脱离红圈！", Color("ff6842"))
 	else:
 		ov_move_timer -= delta
 		if ov_move_state == "reis_symphony_shock":

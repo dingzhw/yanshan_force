@@ -220,7 +220,7 @@ func _run_formal_combat_supply_and_extract() -> Dictionary:
 	while game.rules.score < game.rules.extraction_score_required() or game.rules.answered < 18:
 		game.rules.open_question()
 		game.rules.answer(true)
-	game.rules.outposts_cleared = 2
+	game.rules.outposts_cleared = game.Rules.REQUIRED_OUTPOSTS
 	game.rules.boss_defeated = true
 	out.crate_opened = await crate_stop()
 	if not out.crate_opened:

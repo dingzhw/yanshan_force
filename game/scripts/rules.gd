@@ -7,6 +7,9 @@ const EXTRACTION_SCORE = 420
 const CONFIDENTIAL_EXTRACTION_SCORE = 520
 const EXTRACTION_SCORE_AHSARAH = 450
 const CONFIDENTIAL_EXTRACTION_SCORE_AHSARAH = 580
+const NORMAL_RUN_SECONDS = 900.0
+const CONFIDENTIAL_RUN_SECONDS = 1200.0
+const REQUIRED_OUTPOSTS = 3
 const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
@@ -31,8 +34,10 @@ const DEFAULT_SETTINGS = {
 	"auto_speak_on_switch": true,
 	"reduce_screen_shake": false,
 	"unlock_ahsarah_preview": false,
+	"default_third_person": false,
 	"sfx_volume": 1.0,
 	"voice_volume": 1.0,
+	"cn_voice_volume": 1.0,
 	"mouse_sensitivity": 1.0
 }
 
@@ -351,7 +356,7 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.9.2",
+	"saved_by_version": "0.9.3",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
@@ -408,6 +413,12 @@ func extraction_score_required() -> int:
 	if active_map == "ahsarah":
 		return CONFIDENTIAL_EXTRACTION_SCORE_AHSARAH if is_confidential() else EXTRACTION_SCORE_AHSARAH
 	return CONFIDENTIAL_EXTRACTION_SCORE if is_confidential() else EXTRACTION_SCORE
+
+func run_time_limit_seconds() -> float:
+	return CONFIDENTIAL_RUN_SECONDS if is_confidential() else NORMAL_RUN_SECONDS
+
+func required_outposts() -> int:
+	return REQUIRED_OUTPOSTS
 
 func ensure_map_profile():
 	if not profile.has("unlocked_maps") or not (profile["unlocked_maps"] is Array):
@@ -1019,7 +1030,7 @@ func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false)
 func can_extract() -> bool:
 	if phase != "active" or score < extraction_score_required():
 		return false
-	if combat_mode and (outposts_cleared < 2 or not boss_defeated or not accuracy_gate_met()):
+	if combat_mode and (outposts_cleared < REQUIRED_OUTPOSTS or not boss_defeated or not accuracy_gate_met()):
 		return false
 	return true
 
@@ -1057,7 +1068,7 @@ func _bank_items_to_warehouse(items: Array):
 func finish_extraction() -> bool:
 	if phase != "extracting":
 		return false
-	if combat_mode and outposts_cleared >= 2 and bag.size() < capacity():
+	if combat_mode and outposts_cleared >= REQUIRED_OUTPOSTS and bag.size() < capacity():
 		var bonus_r := 4
 		if is_confidential():
 			var p_c := loot_rng.randf()

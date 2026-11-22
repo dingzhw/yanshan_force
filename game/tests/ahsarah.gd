@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.2" and game.active_map_id == "yanshan", "v0.9.2 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.3" and game.active_map_id == "yanshan", "v0.9.3 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -451,6 +451,41 @@ func run():
 			ah_collision_zero = false
 			break
 	verify(not game.is_ahsarah_map() and game.crate_nodes.size() == 6 and game.wildlife.active_map_id == "yanshan" and game.wildlife.yanshan_root.visible and not game.wildlife.ahsarah_root.visible and ah_collision_zero and game.cave_warden.map_enabled, "Yanshan Base restores all 6 crates, 12 Jiangnan wildlife species, Cave Warden & isolates desert wildlife cleanly")
+
+	# =========================================================================
+	# 10. v0.9.3 Offline Chinese Faction/Boss Voices, 15/20-min Timers, Minimal HUD & Full-Body 3P Checks
+	# =========================================================================
+	var req_cn_groups := ["ahsarah_guard", "boss_saeed", "boss_reis", "haavk_trooper", "mistbound_soldier", "boss_ironface", "boss_overlord", "cave_warden"]
+	var cn_groups_ok := true
+	for grp in req_cn_groups:
+		if not game.cn_voice_groups.has(grp) or (game.cn_voice_groups[grp] as Array).size() < 5:
+			cn_groups_ok = false
+			break
+	var cn_decoded := 0
+	for lid in game.cn_voice_manifest.keys():
+		var st_cn: AudioStream = game.load_cn_voice_stream(str(lid))
+		if st_cn != null and st_cn.get_length() > 0.35:
+			cn_decoded += 1
+	verify(game.cn_voice_manifest.size() >= 60 and cn_decoded == game.cn_voice_manifest.size() and cn_groups_ok, "v0.9.3: all %d/%d offline Chinese faction & boss OGG voice clips decode across all 8 groups" % [cn_decoded, game.cn_voice_manifest.size()])
+	game.cn_voice_cd = 0.0
+	var bark_played: bool = game.play_cn_voice("reis_01", 8.0, true)
+	verify(bark_played and game.last_cn_voice_id == "reis_01" and game.radio_panel.visible and "留声机" in game.radio_label.text, "v0.9.3: play_cn_voice plays boss Chinese clip and displays compact radio caption")
+	var ag_id: String = game.play_cn_voice_group("ahsarah_guard", "proximity", 14.0, true)
+	verify(ag_id != "" and ag_id.begins_with("ag_"), "v0.9.3: play_cn_voice_group picks random Ahsarah Guard proximity bark (%s)" % ag_id)
+
+	# Match timers: 15 min Normal (900s) / 20 min Confidential (1200s) & 3 camps required
+	game.start_action(true, "normal")
+	verify(game.time_left > 895.0 and game.time_left <= 900.0 and game.Rules.REQUIRED_OUTPOSTS == 3, "v0.9.3: Normal Operation launches with 15-minute (900s) timer and 3-camp extraction target")
+	game.start_action(true, "confidential")
+	verify(game.time_left > 1195.0 and game.time_left <= 1200.0, "v0.9.3: Confidential Operation launches with 20-minute (1200s) timer")
+
+	# Minimal Delta Force HUD widgets & [F1] Intel Overlay toggle
+	verify(is_instance_valid(game.stance_widget) and is_instance_valid(game.weapon_glyph) and is_instance_valid(game.slot_medkit) and is_instance_valid(game.slot_emp) and is_instance_valid(game.slot_stim) and is_instance_valid(game.slot_skill) and is_instance_valid(game.ammo_big_label), "v0.9.3: minimal modern HUD builds vector stance silhouette, weapon glyph & 4 tactical icon slots")
+	verify(not game.intel_overlay.visible, "v0.9.3: verbose [F1] tactical intel drawer stays hidden by default to keep front view clear")
+	game.toggle_intel_overlay()
+	verify(game.intel_overlay.visible, "v0.9.3: toggle_intel_overlay() opens on-demand full status & keybinds card")
+	game.toggle_intel_overlay()
+	verify(not game.intel_overlay.visible, "v0.9.3: second toggle closes intel drawer cleanly")
 
 	if FileAccess.file_exists(tmp_profile):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_profile))

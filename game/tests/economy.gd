@@ -83,7 +83,7 @@ func run():
 	for i in 46:
 		game.rules.open_question()
 		game.rules.answer(i >= 24)
-	game.rules.outposts_cleared = 2
+	game.rules.outposts_cleared = game.Rules.REQUIRED_OUTPOSTS
 	game.rules.boss_defeated = true
 	verify(game.rules.score >= game.Rules.EXTRACTION_SCORE and not game.rules.crate_ready(1) and not game.rules.can_extract(), "v0.8.6: 47.8%% accuracy blocks Normal extraction (< 60%% threshold) even with 420+ pts & boss cleared")
 	# Raise accuracy past 60% (add 15 right => 37/61 = 60.7%) -> Normal extraction unlocks!
@@ -180,7 +180,7 @@ func run():
 	while game.rules.score < game.Rules.EXTRACTION_SCORE:
 		game.rules.open_question()
 		game.rules.answer(true)
-	game.rules.outposts_cleared = 2
+	game.rules.outposts_cleared = game.Rules.REQUIRED_OUTPOSTS
 	game.rules.boss_defeated = true
 	var prev_red_cnt := int(game.rules.profile.get("red_extracted", 0))
 	game.player.position = game.exit_position
@@ -248,6 +248,7 @@ func run():
 	# Confidential Operation 80% accuracy + 520-pt threshold gate check (v0.8.6)
 	var conf_gate = game.Rules.new()
 	conf_gate.start_run(true, "confidential")
+	verify(is_equal_approx(conf_gate.run_time_limit_seconds(), 1200.0), "v0.9.3: Confidential Operation run duration is 20 minutes (1200s)")
 	for gi in 10:
 		conf_gate.open_question()
 		conf_gate.answer(gi >= 3) # 7/10 = 70%
@@ -258,10 +259,12 @@ func run():
 	for _ok2 in 5:
 		conf_gate.open_question()
 		conf_gate.answer(true) # 12/15 = 80%
+	verify(not conf_gate.can_extract(), "v0.9.3: 2 cleared camps still blocks Confidential extraction (3 camps required)")
+	conf_gate.outposts_cleared = 3
 	conf_gate.score = 450
 	verify(not conf_gate.can_extract(), "v0.8.6: 450 pts still blocks Confidential extraction (< 520 threshold) even at >=80%% accuracy")
 	conf_gate.score = 520
-	verify(conf_gate.can_extract(), "v0.8.6: reaching >=80%% accuracy and >=520 pts unlocks Confidential extraction")
+	verify(conf_gate.can_extract(), "v0.8.6: reaching >=80%% accuracy and >=520 pts and 3 camps unlocks Confidential extraction")
 
 	# 2-Slot Encrypted Safe Box survives failed run while regular bag clears
 	game.start_action(true, "confidential")

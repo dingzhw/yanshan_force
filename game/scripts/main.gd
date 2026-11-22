@@ -18,7 +18,8 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.2"
+const VERSION = "0.9.3"
+const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const AhsarahWorld = preload("res://scripts/ahsarah_world.gd")
 const MandelEvent = preload("res://scripts/mandel_event.gd")
@@ -54,7 +55,7 @@ var crate_nodes = []
 var pickup_nodes = []
 var cached_interactables = []
 var exit_position = Layout.on_ground(Layout.EXIT)
-var time_left = 480.0
+var time_left = 900.0
 var extraction_left = 0.0
 var next_question_left = 0.0
 var wrong_words = []
@@ -65,6 +66,15 @@ var sfx_cache = {}
 var voice_manifest: Dictionary = {}
 var voice_cache: Dictionary = {}
 var voice_player: AudioStreamPlayer = null
+var cn_voice_manifest: Dictionary = {}
+var cn_voice_groups: Dictionary = {}
+var cn_voice_cache: Dictionary = {}
+var cn_voice_player: AudioStreamPlayer = null
+var cn_voice_cd: float = 0.0
+var cn_voice_rng := RandomNumberGenerator.new()
+var last_cn_voice_id: String = ""
+var last_cn_voice_text: String = ""
+var last_cn_voice_group_line: Dictionary = {}
 var last_voice_backend: String = ""
 var last_voice_key: String = ""
 var tts_voice_id = ""
@@ -96,14 +106,31 @@ var setting_strict_cb: CheckBox
 var setting_autospeak_cb: CheckBox
 var setting_shake_cb: CheckBox
 var setting_ahsarah_unlock_cb: CheckBox
+var setting_tp_cb: CheckBox
 var setting_sfx_slider: HSlider
 var setting_sfx_lbl: Label
 var setting_voice_slider: HSlider
 var setting_voice_lbl: Label
+var setting_cn_voice_slider: HSlider
+var setting_cn_voice_lbl: Label
 var setting_sens_slider: HSlider
 var setting_sens_lbl: Label
 var terminal_title_label: Label
 var radar_title_label: Label
+var stance_widget
+var weapon_glyph
+var ammo_big_label: Label
+var slot_medkit
+var slot_emp
+var slot_stim
+var slot_skill
+var objective_chip: Panel
+var objective_chip_label: Label
+var radio_panel: Panel
+var radio_label: Label
+var radio_left: float = 0.0
+var intel_overlay: Control
+var intel_visible: bool = false
 var sell_button: Button
 var armory_panel: Control
 var armory_progress: Label
@@ -196,6 +223,7 @@ func _ready():
 	variable_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500.0}
 	font = variable_font
 	_init_voice_pack()
+	_init_cn_voice_pack()
 	_init_tts()
 	_load_words()
 	sentences = LearningStore.load_sentences()
@@ -320,6 +348,107 @@ func _init_voice_pack():
 		voice_player.volume_db = -1.5
 		add_child(voice_player)
 
+func _init_cn_voice_pack():
+	cn_voice_rng.randomize()
+	cn_voice_manifest.clear()
+	cn_voice_groups.clear()
+	var path := "res://data/audio/cn_voice_manifest.json"
+	if FileAccess.file_exists(path):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if parsed is Dictionary:
+			if parsed.get("entries") is Dictionary:
+				cn_voice_manifest = parsed.entries
+			if parsed.get("groups") is Dictionary:
+				cn_voice_groups = parsed.groups
+	if not is_instance_valid(cn_voice_player):
+		cn_voice_player = AudioStreamPlayer.new()
+		cn_voice_player.volume_db = -2.5
+		add_child(cn_voice_player)
+
+func load_cn_voice_stream(line_id: String) -> AudioStream:
+	if line_id == "" or not cn_voice_manifest.has(line_id):
+		return null
+	if cn_voice_cache.has(line_id):
+		return cn_voice_cache[line_id]
+	var fname := str(cn_voice_manifest[line_id].get("file", ""))
+	if fname == "":
+		return null
+	var path := "res://assets/voice_cn/" + fname
+	if not ResourceLoader.exists(path):
+		return null
+	var stream = load(path)
+	if stream is AudioStream:
+		cn_voice_cache[line_id] = stream
+		return stream
+	return null
+
+func show_radio_caption(speaker: String, text: String, col: Color = GOLD, dur: float = 3.8):
+	last_cn_voice_text = "%s：%s" % [speaker, text]
+	if is_instance_valid(radio_panel) and is_instance_valid(radio_label):
+		radio_label.text = "🎙 %s：『%s』" % [speaker, text]
+		radio_label.add_theme_color_override("font_color", col)
+		radio_panel.show()
+		radio_left = dur
+
+func play_cn_voice(line_id: String, distance_m: float = 12.0, force_priority: bool = false, show_caption: bool = true) -> bool:
+	if line_id == "" or not cn_voice_manifest.has(line_id):
+		return false
+	if not force_priority and cn_voice_cd > 0.0:
+		return false
+	# English learning voice ALWAYS takes priority over ambient Chinese barks!
+	var en_busy: bool = is_instance_valid(voice_player) and voice_player.playing
+	if en_busy and not force_priority:
+		return false
+	var meta: Dictionary = cn_voice_manifest[line_id]
+	var stream := load_cn_voice_stream(line_id)
+	if stream == null:
+		return false
+	last_cn_voice_id = line_id
+	cn_voice_cd = 2.6 if force_priority else 4.2
+	var speaker: String = str(meta.get("speaker", "敌方频段"))
+	var sub: String = str(meta.get("text", ""))
+	if show_caption and sub != "":
+		var grp: String = str(meta.get("group", ""))
+		var cap_col := Color("ff9e58") if ("saeed" in grp or "ironface" in grp) else (
+			Color("ffd86b") if ("reis" in grp or "overlord" in grp) else (
+			Color("7ceeff") if ("haavk" in grp or "cave" in grp) else Color("f3d8a8")))
+		show_radio_caption(speaker, sub, cap_col, 3.8 if force_priority else 3.2)
+	var gain: float = float(rules.setting("cn_voice_volume", 1.0))
+	if qa_mode or DisplayServer.get_name() == "headless" or gain <= 0.005:
+		return true
+	if not is_instance_valid(cn_voice_player):
+		cn_voice_player = AudioStreamPlayer.new()
+		add_child(cn_voice_player)
+	var atten_db := clampf(-maxf(0.0, distance_m - 10.0) * 0.28, -11.0, 0.0)
+	var duck_db := -9.0 if en_busy else 0.0
+	cn_voice_player.volume_db = -2.0 + linear_to_db(gain) + atten_db + duck_db
+	cn_voice_player.stop()
+	cn_voice_player.stream = stream
+	cn_voice_player.play()
+	return true
+
+func play_cn_voice_group(group: String, preferred_tag: String = "", distance_m: float = 14.0, force_priority: bool = false, show_caption: bool = true) -> String:
+	if not cn_voice_groups.has(group):
+		return ""
+	var all_ids: Array = cn_voice_groups[group]
+	if all_ids.is_empty():
+		return ""
+	var pool_ids: Array = []
+	if preferred_tag != "":
+		for lid in all_ids:
+			if str(cn_voice_manifest.get(lid, {}).get("tag", "")) == preferred_tag:
+				pool_ids.append(lid)
+	if pool_ids.is_empty():
+		pool_ids = all_ids.duplicate()
+	var prev_id: String = str(last_cn_voice_group_line.get(group, ""))
+	if pool_ids.size() > 1 and prev_id in pool_ids:
+		pool_ids.erase(prev_id)
+	var chosen: String = str(pool_ids[cn_voice_rng.randi_range(0, pool_ids.size() - 1)])
+	if play_cn_voice(chosen, distance_m, force_priority, show_caption):
+		last_cn_voice_group_line[group] = chosen
+		return chosen
+	return ""
+
 func _init_tts():
 	if qa_mode or DisplayServer.get_name() == "headless":
 		return
@@ -375,6 +504,9 @@ func speak_english(text: String) -> bool:
 		voice_player.stop()
 		voice_player.stream = stream
 		voice_player.play()
+		# Gently duck any active Chinese enemy bark so English pronunciation stays crystal clear!
+		if is_instance_valid(cn_voice_player) and cn_voice_player.playing:
+			cn_voice_player.volume_db = minf(cn_voice_player.volume_db, -13.0)
 		return true
 	if qa_mode or DisplayServer.get_name() == "headless":
 		last_voice_backend = "tts" if tts_voice_id != "" else "none"
@@ -635,7 +767,7 @@ func switch_map(map_id: String, force_rebuild: bool = false) -> bool:
 		rangers.unlock_card("ahsarah_guard", false)
 		rangers.unlock_card("haavk_corp", false)
 	if is_instance_valid(radar_title_label):
-		radar_title_label.text = "N  ·  阿萨拉战术雷达" if target_id == "ahsarah" else "N  ·  烟山战术雷达"
+		radar_title_label.text = "N"
 	if is_instance_valid(minimap):
 		minimap.queue_redraw()
 	_refresh_terminal_title()
@@ -1085,138 +1217,208 @@ func _build_ui():
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(hud)
 
-	# ZONE 1: Top-Left Compact Mission & Telemetry Card
-	_panel(hud, Rect2(18, 16, 372, 166))
-	terminal_title_label = _text(hud, "YANSHAN · 烟山战术终端", Vector2(32, 22), Vector2(262, 22), 14, MINT)
-	fps_label = _text(hud, "", Vector2(298, 22), Vector2(78, 22), 13, Color("9ecfc0"))
-	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	stat_label = _text(hud, "", Vector2(32, 46), Vector2(346, 24), 16, CREAM)
-	mission_label = _text(hud, "", Vector2(32, 74), Vector2(346, 46), 13, GOLD)
-	mission_label.clip_text = true
-	guide_label = _text(hud, "", Vector2(32, 128), Vector2(346, 42), 12, Color("a9c7ba"))
-	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guide_label.clip_text = true
+	# =========================================================================
+	# v0.9.3 Delta Force-Inspired Ultra-Clean Minimal Tactical HUD (>70% clear view!)
+	# =========================================================================
 
-	# ZONE 2: Top-Center Sleek Word Prompt Card (with optional Textbook Cloze Context line)
-	question_panel = _panel(hud, Rect2(398, 16, 514, 116), Color(0.038, 0.095, 0.118, 0.88), Color(0.55, 0.90, 0.74, 0.55))
-	question_label = _text(hud, "", Vector2(412, 18), Vector2(486, 46), 25, CREAM)
+	# ZONE 1: Top-Left Ultra-Slim Transparent Telemetry Strip (Icons + Numbers only)
+	_panel(hud, Rect2(14, 12, 376, 36), Color(0.035, 0.075, 0.095, 0.54), Color(0.48, 0.82, 0.68, 0.28))
+	stat_label = _text(hud, "", Vector2(24, 18), Vector2(304, 24), 14, CREAM)
+	stat_label.clip_text = true
+	fps_label = _text(hud, "", Vector2(328, 20), Vector2(54, 20), 11, Color("9ecfc0"))
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	# Dynamic 1-line Objective Chip (hidden when idle; appears only when extract ready / MandelBrick / Prologue)
+	objective_chip = _panel(hud, Rect2(14, 52, 336, 26), Color(0.055, 0.12, 0.11, 0.66), Color("ffd86b"))
+	objective_chip_label = _text(objective_chip, "", Vector2(10, 3), Vector2(316, 20), 12, Color("ffe594"))
+	objective_chip_label.clip_text = true
+	objective_chip.hide()
+
+	# Enemy / Boss Chinese Radio Voice Subtitle Toast (only appears when enemy speaks!)
+	radio_panel = _panel(hud, Rect2(14, 82, 384, 52), Color(0.05, 0.08, 0.11, 0.80), Color("ffb84d"))
+	radio_label = _text(radio_panel, "", Vector2(10, 4), Vector2(364, 44), 12, Color("ffe3a6"))
+	radio_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	radio_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	radio_label.clip_text = false
+	radio_panel.hide()
+
+	# ZONE 2: Top-Center Sleek English Learning Strip (ONLY essential English learning cue!)
+	question_panel = _panel(hud, Rect2(404, 12, 472, 86), Color(0.035, 0.088, 0.110, 0.68), Color(0.55, 0.90, 0.74, 0.45))
+	question_label = _text(hud, "", Vector2(416, 14), Vector2(448, 38), 24, CREAM)
 	question_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	question_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	question_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	cloze_label = _text(hud, "", Vector2(412, 65), Vector2(486, 24), 15, Color("ffe08c"))
+	var speak_badge: Label = _text(hud, "🔊[X]", Vector2(826, 15), Vector2(44, 18), 11, Color("8de8c0"))
+	speak_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cloze_label = _text(hud, "", Vector2(416, 52), Vector2(448, 22), 14, Color("ffe08c"))
 	cloze_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cloze_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	cloze_label.clip_text = true
-	unit_label = _text(hud, "", Vector2(412, 91), Vector2(486, 36), 13, MINT)
+	unit_label = _text(hud, "", Vector2(416, 73), Vector2(448, 20), 11, Color("9de5c7"))
 	unit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	unit_label.clip_text = true
 
-	# v0.8.1 #4: Sleek unanswered-question countdown strip along bottom edge of Word Prompt Card
+	# Slim unanswered-question countdown strip along bottom edge of English Learning Strip
 	prompt_timer_bg = ColorRect.new()
-	prompt_timer_bg.position = Vector2(404, 126)
-	prompt_timer_bg.size = Vector2(502, 4)
-	prompt_timer_bg.color = Color(0.10, 0.20, 0.22, 0.85)
+	prompt_timer_bg.position = Vector2(408, 94)
+	prompt_timer_bg.size = Vector2(464, 3)
+	prompt_timer_bg.color = Color(0.10, 0.20, 0.22, 0.75)
 	prompt_timer_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt_timer_bg.hide()
 	hud.add_child(prompt_timer_bg)
 	prompt_timer_fill = ColorRect.new()
-	prompt_timer_fill.position = Vector2(404, 126)
-	prompt_timer_fill.size = Vector2(502, 4)
+	prompt_timer_fill.position = Vector2(408, 94)
+	prompt_timer_fill.size = Vector2(464, 3)
 	prompt_timer_fill.color = MINT
 	prompt_timer_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt_timer_fill.hide()
 	hud.add_child(prompt_timer_fill)
 
-	# Threat Warning Banner (only shown when actively locked on)
-	threat_banner = _panel(hud, Rect2(455, 138, 400, 30), Color(0.38, 0.09, 0.09, 0.90), Color("ff6b6b"))
-	threat_label = _text(threat_banner, "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！", Vector2(10, 4), Vector2(370, 22), 14, Color("ffd6d6"))
+	# Threat Warning Banner (compact, only shown when actively locked on / rage hunt)
+	threat_banner = _panel(hud, Rect2(460, 102, 360, 26), Color(0.42, 0.08, 0.08, 0.82), Color("ff6b6b"))
+	threat_label = _text(threat_banner, "⚠ 敌方火力锁定", Vector2(8, 2), Vector2(344, 22), 13, Color("ffd6d6"))
 	threat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	threat_banner.hide()
 
-	# ZONE 3: Top-Right Radar Minimap
-	_panel(hud, Rect2(1092, 16, 170, 196))
-	radar_title_label = _text(hud, "N  ·  烟山战术雷达", Vector2(1108, 22), Vector2(142, 20), 13, MINT)
+	# ZONE 3: Top-Right Compact Translucent Radar Minimap
+	_panel(hud, Rect2(1112, 12, 154, 154), Color(0.035, 0.075, 0.095, 0.54), Color(0.48, 0.82, 0.68, 0.30))
 	var map = MapWidget.new()
 	map.game = self
-	map.position = Vector2(1094, 44)
-	map.size = Vector2(166, 166)
+	map.position = Vector2(1114, 14)
+	map.size = Vector2(150, 150)
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(map)
 	minimap = map
+	radar_title_label = _text(hud, "N", Vector2(1116, 14), Vector2(146, 16), 11, MINT)
+	radar_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	# ZONE 4A: Bottom-Left Vitals (Shield/HP Bars) + Rarity Loot Slots
-	combat_panel = _panel(hud, Rect2(18, 542, 344, 160))
-	combat_label = _text(combat_panel, "", Vector2(14, 8), Vector2(316, 22), 14, CREAM)
+	# ZONE 4A: Bottom-Left Minimal Vitals + Vector Stance Silhouette + Compact Bag Icon Chip
+	combat_panel = _panel(hud, Rect2(14, 634, 286, 72), Color(0.035, 0.075, 0.095, 0.54), Color(0.48, 0.82, 0.68, 0.28))
+	stance_widget = HudWidgets.StanceSilhouette.new()
+	stance_widget.position = Vector2(8, 10)
+	stance_widget.size = Vector2(46, 52)
+	stance_widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_panel.add_child(stance_widget)
+
+	combat_label = _text(combat_panel, "", Vector2(62, 6), Vector2(216, 20), 13, CREAM)
+	combat_label.clip_text = true
 
 	var shield_bg = ColorRect.new()
-	shield_bg.position = Vector2(14, 33)
-	shield_bg.size = Vector2(316, 8)
-	shield_bg.color = Color(0.10, 0.20, 0.24, 0.9)
+	shield_bg.position = Vector2(62, 28)
+	shield_bg.size = Vector2(214, 6)
+	shield_bg.color = Color(0.10, 0.20, 0.24, 0.82)
 	shield_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(shield_bg)
 	shield_bar_fill = ColorRect.new()
-	shield_bar_fill.position = Vector2(14, 33)
-	shield_bar_fill.size = Vector2(316, 8)
+	shield_bar_fill.position = Vector2(62, 28)
+	shield_bar_fill.size = Vector2(214, 6)
 	shield_bar_fill.color = Color("56d8ff")
 	shield_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(shield_bar_fill)
 
 	var hp_bg = ColorRect.new()
-	hp_bg.position = Vector2(14, 45)
-	hp_bg.size = Vector2(316, 10)
-	hp_bg.color = Color(0.16, 0.12, 0.12, 0.9)
+	hp_bg.position = Vector2(62, 37)
+	hp_bg.size = Vector2(214, 8)
+	hp_bg.color = Color(0.16, 0.12, 0.12, 0.82)
 	hp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(hp_bg)
 	hp_bar_fill = ColorRect.new()
-	hp_bar_fill.position = Vector2(14, 45)
-	hp_bar_fill.size = Vector2(316, 10)
+	hp_bar_fill.position = Vector2(62, 37)
+	hp_bar_fill.size = Vector2(214, 8)
 	hp_bar_fill.color = Color("6ae3a8")
 	hp_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_panel.add_child(hp_bar_fill)
 
-	bag_label = _text(combat_panel, "", Vector2(14, 62), Vector2(316, 22), 14, GOLD)
+	bag_label = _text(combat_panel, "", Vector2(62, 48), Vector2(216, 20), 12, GOLD)
+	bag_label.clip_text = true
+
+	# ZONE 4B: Bottom-Right Minimal Weapon Counter + 4 Vector Tactical Icon Tiles ([H][G][T][V])
+	_panel(hud, Rect2(1012, 608, 254, 98), Color(0.035, 0.075, 0.095, 0.54), Color(0.48, 0.82, 0.68, 0.28))
+	weapon_glyph = HudWidgets.WeaponGlyph.new()
+	weapon_glyph.position = Vector2(1022, 616)
+	weapon_glyph.size = Vector2(56, 28)
+	weapon_glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(weapon_glyph)
+
+	ammo_big_label = _text(hud, "08 / 24", Vector2(1082, 611), Vector2(174, 34), 25, CREAM)
+	ammo_big_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	slot_medkit = HudWidgets.TacticalSlotIcon.new()
+	slot_medkit.position = Vector2(1024, 654)
+	slot_medkit.size = Vector2(52, 44)
+	slot_medkit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_medkit.configure("medkit", "H", font)
+	hud.add_child(slot_medkit)
+
+	slot_emp = HudWidgets.TacticalSlotIcon.new()
+	slot_emp.position = Vector2(1084, 654)
+	slot_emp.size = Vector2(52, 44)
+	slot_emp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_emp.configure("emp", "G", font)
+	hud.add_child(slot_emp)
+
+	slot_stim = HudWidgets.TacticalSlotIcon.new()
+	slot_stim.position = Vector2(1144, 654)
+	slot_stim.size = Vector2(52, 44)
+	slot_stim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_stim.configure("stim", "T", font)
+	hud.add_child(slot_stim)
+
+	slot_skill = HudWidgets.TacticalSlotIcon.new()
+	slot_skill.position = Vector2(1204, 654)
+	slot_skill.size = Vector2(52, 44)
+	slot_skill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_skill.configure("skill", "V", font)
+	hud.add_child(slot_skill)
+
+	# Subtle corner micro-hint (keeps bottom-center 100% unobstructed!)
+	_text(hud, "[P]视角  [F1]战况/按键", Vector2(308, 686), Vector2(150, 18), 11, Color(0.70, 0.82, 0.78, 0.56))
+
+	# On-Demand [F1] Tactical Intel & Keybind Drawer (houses verbose telemetry & legacy QA labels cleanly off-screen!)
+	intel_overlay = Control.new()
+	intel_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	intel_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(intel_overlay)
+	_panel(intel_overlay, Rect2(328, 128, 624, 412), Color(0.035, 0.082, 0.102, 0.90), Color("8de8c0"))
+	terminal_title_label = _text(intel_overlay, "YANSHAN · 烟山战术终端", Vector2(348, 140), Vector2(584, 24), 16, MINT)
+	mission_label = _text(intel_overlay, "", Vector2(348, 168), Vector2(584, 52), 13, GOLD)
+	mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide_label = _text(intel_overlay, "", Vector2(348, 224), Vector2(584, 42), 13, Color("b4d2c5"))
+	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ammo_label = _text(intel_overlay, "", Vector2(348, 270), Vector2(584, 66), 12, CREAM)
+	skill_panel = _panel(intel_overlay, Rect2(348, 340, 284, 34), Color(0.055, 0.095, 0.112, 0.90), Color("ffd15c"))
+	skill_label = _text(skill_panel, "⚡ 少羽 · [V] 天生神力 · 就绪！", Vector2(8, 3), Vector2(268, 20), 12, Color("ffd86b"))
+	skill_bar_fill = ColorRect.new()
+	skill_bar_fill.position = Vector2(8, 25)
+	skill_bar_fill.size = Vector2(268, 4)
+	skill_bar_fill.color = Color("ffd15c")
+	skill_panel.add_child(skill_bar_fill)
 	bag_slots_box = HFlowContainer.new()
-	bag_slots_box.position = Vector2(14, 86)
-	bag_slots_box.size = Vector2(316, 66)
+	bag_slots_box.position = Vector2(348, 382)
+	bag_slots_box.size = Vector2(584, 62)
 	bag_slots_box.add_theme_constant_override("h_separation", 5)
 	bag_slots_box.add_theme_constant_override("v_separation", 4)
-	bag_slots_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	combat_panel.add_child(bag_slots_box)
+	intel_overlay.add_child(bag_slots_box)
+	var controls_help: Label = _text(intel_overlay,
+		"快捷按键：[WASD]移动  [Shift]冲刺  [Space]跳  [C]蹲  [Z/Ctrl]趴  [Q/E]探头  [P/F5]1P/3P视角\n[1/2]枪刀  [R]换弹  [V]游侠技能  [F]交互  [X]听英语  [B]背包  [I]3D检视  [H/G/T]医疗/烟雾/能量  [F6]画质  [F1]收起",
+		Vector2(348, 456), Vector2(584, 68), 12, Color("9ec4b5"))
+	controls_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intel_overlay.hide()
 
-	# ZONE 4B-TOP: Ranger Active [V] Skill Card ('游侠·少羽 · [V] 天生神力')
-	skill_panel = _panel(hud, Rect2(954, 514, 308, 46), Color(0.055, 0.095, 0.112, 0.90), Color("ffd15c"))
-	skill_label = _text(skill_panel, "⚡ 少羽 · [V] 天生神力 · 就绪！", Vector2(12, 6), Vector2(284, 22), 14, Color("ffd86b"))
-	skill_label.clip_text = true
-	var sk_bg := ColorRect.new()
-	sk_bg.position = Vector2(12, 31)
-	sk_bg.size = Vector2(284, 7)
-	sk_bg.color = Color(0.10, 0.18, 0.20, 0.92)
-	sk_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_panel.add_child(sk_bg)
-	skill_bar_fill = ColorRect.new()
-	skill_bar_fill.position = Vector2(12, 31)
-	skill_bar_fill.size = Vector2(284, 7)
-	skill_bar_fill.color = Color("ffd15c")
-	skill_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_panel.add_child(skill_bar_fill)
-
-	# ZONE 4B: Bottom-Right Weapon, Reserve Ammo & Tactical Consumables Card
-	_panel(hud, Rect2(954, 566, 308, 136))
-	ammo_label = _text(hud, "", Vector2(968, 574), Vector2(282, 122), 14, CREAM)
-
-	# Center Prompts & Tactical Reticles
-	feedback_panel = _panel(hud, Rect2(340, 506, 600, 76), Color(0.04, 0.11, 0.12, 0.92), Color(0.55, 0.88, 0.72, 0.5))
+	# Center Prompts & Tactical Reticles (compact & only visible when active!)
+	feedback_panel = _panel(hud, Rect2(380, 542, 520, 56), Color(0.04, 0.10, 0.12, 0.84), Color(0.55, 0.88, 0.72, 0.45))
 	feedback_panel.hide()
-	feedback_label = _text(hud, "", Vector2(354, 512), Vector2(572, 64), 17, MINT)
+	feedback_label = _text(hud, "", Vector2(392, 546), Vector2(496, 48), 15, MINT)
 	feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	feedback_label.clip_text = true
 
-	interaction_panel = _panel(hud, Rect2(384, 594, 524, 38), Color(0.04, 0.09, 0.11, 0.82))
-	interaction_label = _text(hud, "", Vector2(394, 596), Vector2(504, 34), 16, GOLD)
+	interaction_panel = _panel(hud, Rect2(416, 610, 448, 34), Color(0.04, 0.09, 0.11, 0.78), Color(0.95, 0.82, 0.48, 0.50))
+	interaction_label = _text(interaction_panel, "", Vector2(8, 2), Vector2(432, 30), 15, GOLD)
 	interaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	interaction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	interaction_panel.hide()
 
 	crosshair_label = _text(hud, "+", Vector2(622, 338), Vector2(36, 42), 26, Color(0.92, 0.98, 0.94, 0.85))
 	crosshair_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1224,8 +1426,6 @@ func _build_ui():
 	hitmarker_label = _text(hud, "×", Vector2(616, 332), Vector2(48, 48), 34, MINT)
 	hitmarker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hitmarker_label.hide()
-
-	_text(hud, "[WASD]移动  [C]蹲 [Z]趴  [Q/E]探头  [V]游侠技能  [F]搜刮/交互  [B]背包  [I]检视  [X]读音  [1/2]枪刀  [H/G/T]道具  [F6]画质", Vector2(286, 682), Vector2(712, 22), 11, Color("a9c2b5")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	screen_flash = ColorRect.new()
 	screen_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1338,19 +1538,32 @@ func _build_ui():
 
 	setting_shake_cb = CheckBox.new()
 	setting_shake_cb.text = "减震动 / 关闭镜头震动（降低晕动，保留清晰文字与命中提示）"
-	setting_shake_cb.position = Vector2(662, 146)
-	setting_shake_cb.size = Vector2(506, 36)
-	setting_shake_cb.add_theme_font_size_override("font_size", 15)
+	setting_shake_cb.position = Vector2(662, 134)
+	setting_shake_cb.size = Vector2(506, 28)
+	setting_shake_cb.add_theme_font_size_override("font_size", 14)
 	setting_shake_cb.toggled.connect(func(on: bool):
 		rules.set_setting("reduce_screen_shake", on)
 		_save()
 	)
 	settings_panel.add_child(setting_shake_cb)
 
-	setting_sfx_lbl = _text(settings_panel, "枪械与环境音效音量：100%", Vector2(662, 202), Vector2(500, 26), 15, CREAM)
+	setting_tp_cb = CheckBox.new()
+	setting_tp_cb.text = "默认第三人称越肩视角（局内可随时按 [P]/[F5] 秒切 1P/3P）"
+	setting_tp_cb.position = Vector2(662, 166)
+	setting_tp_cb.size = Vector2(506, 28)
+	setting_tp_cb.add_theme_font_size_override("font_size", 14)
+	setting_tp_cb.toggled.connect(func(on: bool):
+		rules.set_setting("default_third_person", on)
+		if is_instance_valid(player):
+			player.set_third_person(on, true)
+		_save()
+	)
+	settings_panel.add_child(setting_tp_cb)
+
+	setting_sfx_lbl = _text(settings_panel, "枪械与环境音效音量：100%", Vector2(662, 200), Vector2(500, 24), 14, CREAM)
 	setting_sfx_slider = HSlider.new()
-	setting_sfx_slider.position = Vector2(662, 232)
-	setting_sfx_slider.size = Vector2(500, 26)
+	setting_sfx_slider.position = Vector2(662, 224)
+	setting_sfx_slider.size = Vector2(500, 24)
 	setting_sfx_slider.min_value = 0.0
 	setting_sfx_slider.max_value = 1.0
 	setting_sfx_slider.step = 0.05
@@ -1362,11 +1575,11 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_sfx_slider)
 
-	setting_voice_lbl = _text(settings_panel, "英语语音读音音量：100%", Vector2(662, 276), Vector2(336, 26), 15, MINT)
-	_button(settings_panel, "🔊 试听英语读音", Rect2(1012, 272, 150, 34), func(): speak_english("Dragon Boat Festival"))
+	setting_voice_lbl = _text(settings_panel, "英语语音读音音量：100%", Vector2(662, 256), Vector2(336, 24), 14, MINT)
+	_button(settings_panel, "🔊 试听英语读音", Rect2(1012, 252, 150, 30), func(): speak_english("Dragon Boat Festival"))
 	setting_voice_slider = HSlider.new()
-	setting_voice_slider.position = Vector2(662, 310)
-	setting_voice_slider.size = Vector2(500, 26)
+	setting_voice_slider.position = Vector2(662, 284)
+	setting_voice_slider.size = Vector2(500, 24)
 	setting_voice_slider.min_value = 0.0
 	setting_voice_slider.max_value = 1.0
 	setting_voice_slider.step = 0.05
@@ -1378,10 +1591,28 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_voice_slider)
 
-	setting_sens_lbl = _text(settings_panel, "鼠标视角灵敏度：1.00x", Vector2(662, 356), Vector2(500, 26), 15, GOLD)
+	setting_cn_voice_lbl = _text(settings_panel, "阵营与首领中文配音音量：100%", Vector2(662, 316), Vector2(336, 24), 14, GOLD)
+	_button(settings_panel, "🎙 试听中文配音", Rect2(1012, 312, 150, 30), func():
+		play_cn_voice("reis_01" if is_ahsarah_map() else "over_02", 6.0, true, false)
+	)
+	setting_cn_voice_slider = HSlider.new()
+	setting_cn_voice_slider.position = Vector2(662, 344)
+	setting_cn_voice_slider.size = Vector2(500, 24)
+	setting_cn_voice_slider.min_value = 0.0
+	setting_cn_voice_slider.max_value = 1.0
+	setting_cn_voice_slider.step = 0.05
+	setting_cn_voice_slider.value = 1.0
+	setting_cn_voice_slider.value_changed.connect(func(v: float):
+		rules.set_setting("cn_voice_volume", v)
+		setting_cn_voice_lbl.text = "阵营与首领中文配音音量：%d%%" % roundi(v * 100.0)
+		_save()
+	)
+	settings_panel.add_child(setting_cn_voice_slider)
+
+	setting_sens_lbl = _text(settings_panel, "鼠标视角灵敏度：1.00x", Vector2(662, 376), Vector2(500, 24), 14, GOLD)
 	setting_sens_slider = HSlider.new()
-	setting_sens_slider.position = Vector2(662, 386)
-	setting_sens_slider.size = Vector2(500, 26)
+	setting_sens_slider.position = Vector2(662, 400)
+	setting_sens_slider.size = Vector2(500, 24)
 	setting_sens_slider.min_value = 0.4
 	setting_sens_slider.max_value = 2.2
 	setting_sens_slider.step = 0.05
@@ -1396,8 +1627,8 @@ func _build_ui():
 	setting_strict_cb = CheckBox.new()
 	setting_strict_cb.text = "严格今日到期复习门禁（跨单元全词库必做，切单元不可跳过）"
 	setting_strict_cb.position = Vector2(662, 434)
-	setting_strict_cb.size = Vector2(506, 34)
-	setting_strict_cb.add_theme_font_size_override("font_size", 15)
+	setting_strict_cb.size = Vector2(506, 28)
+	setting_strict_cb.add_theme_font_size_override("font_size", 14)
 	setting_strict_cb.toggled.connect(func(on: bool):
 		rules.set_setting("strict_daily_review", on)
 		_save()
@@ -1407,9 +1638,9 @@ func _build_ui():
 
 	setting_autospeak_cb = CheckBox.new()
 	setting_autospeak_cb.text = "切换新词时立即自动朗读英文读音（听音索敌，不扣独立答对）"
-	setting_autospeak_cb.position = Vector2(662, 474)
-	setting_autospeak_cb.size = Vector2(506, 34)
-	setting_autospeak_cb.add_theme_font_size_override("font_size", 15)
+	setting_autospeak_cb.position = Vector2(662, 466)
+	setting_autospeak_cb.size = Vector2(506, 28)
+	setting_autospeak_cb.add_theme_font_size_override("font_size", 14)
 	setting_autospeak_cb.toggled.connect(func(on: bool):
 		rules.set_setting("auto_speak_on_switch", on)
 		_save()
@@ -1418,8 +1649,8 @@ func _build_ui():
 
 	setting_ahsarah_unlock_cb = CheckBox.new()
 	setting_ahsarah_unlock_cb.text = "试玩快捷开关：直接解锁【阿萨拉堡垒】战区（家长/试玩体验用）"
-	setting_ahsarah_unlock_cb.position = Vector2(662, 512)
-	setting_ahsarah_unlock_cb.size = Vector2(506, 34)
+	setting_ahsarah_unlock_cb.position = Vector2(662, 498)
+	setting_ahsarah_unlock_cb.size = Vector2(506, 28)
 	setting_ahsarah_unlock_cb.add_theme_font_size_override("font_size", 14)
 	setting_ahsarah_unlock_cb.toggled.connect(func(on: bool):
 		rules.set_setting("unlock_ahsarah_preview", on)
@@ -1432,8 +1663,8 @@ func _build_ui():
 	settings_panel.add_child(setting_ahsarah_unlock_cb)
 
 	var set_note: Label = _text(settings_panel,
-		"说明：\n• 局内随时按 [Esc] 打开本设置立即生效。\n• 主线解锁【阿萨拉堡垒】：在烟霞古洞机密击败循音石卫并开启次元石壁。\n• 低配核显可按 [F6] 关闭实时阴影，或使用「低负载启动.cmd」。",
-		Vector2(662, 554), Vector2(502, 102), 13, Color("9ec4b5"))
+		"说明：\n• 局内按 [P]/[F5] 秒切 1P/3P 视角；按 [F1] 开关完整战况与按键表。\n• 英语读音拥有最高优先级，播报单词时自动压低敌方中文喊话。\n• 低配核显可按 [F6] 关闭实时阴影，或使用「低负载启动.cmd」。",
+		Vector2(662, 536), Vector2(502, 110), 13, Color("9ec4b5"))
 	set_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	settings_panel.hide()
 
@@ -1514,6 +1745,8 @@ func _sync_settings_ui():
 		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", true)))
 	if is_instance_valid(setting_ahsarah_unlock_cb):
 		setting_ahsarah_unlock_cb.set_pressed_no_signal(bool(st.get("unlock_ahsarah_preview", false)))
+	if is_instance_valid(setting_tp_cb):
+		setting_tp_cb.set_pressed_no_signal(bool(st.get("default_third_person", false)))
 	if is_instance_valid(setting_sfx_slider):
 		var sv: float = float(st.get("sfx_volume", 1.0))
 		setting_sfx_slider.set_value_no_signal(sv)
@@ -1522,6 +1755,10 @@ func _sync_settings_ui():
 		var vv: float = float(st.get("voice_volume", 1.0))
 		setting_voice_slider.set_value_no_signal(vv)
 		setting_voice_lbl.text = "英语语音读音音量：%d%%" % roundi(vv * 100.0)
+	if is_instance_valid(setting_cn_voice_slider):
+		var cv: float = float(st.get("cn_voice_volume", 1.0))
+		setting_cn_voice_slider.set_value_no_signal(cv)
+		setting_cn_voice_lbl.text = "阵营与首领中文配音音量：%d%%" % roundi(cv * 100.0)
 	if is_instance_valid(setting_sens_slider):
 		var ms: float = float(st.get("mouse_sensitivity", 1.0))
 		setting_sens_slider.set_value_no_signal(ms)
@@ -1801,11 +2038,18 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		player.stims = rules.starter_stims()
 		player.stim_left = 0.0
 		player.weapon_slot = 0
-		time_left = 480.0
+		time_left = rules.run_time_limit_seconds()
 		next_question_left = 0.0
 		station_prompt_timer_left = 0.0
 		feedback_left = 0.0
 		feedback_panel.hide()
+		radio_left = 0.0
+		if is_instance_valid(radio_panel):
+			radio_panel.hide()
+		intel_visible = false
+		if is_instance_valid(intel_overlay):
+			intel_overlay.hide()
+		cn_voice_cd = 0.5
 		hitmarker_left = 0.0
 		hitmarker_label.hide()
 		wrong_words = []
@@ -1856,6 +2100,9 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		for child in player.weapon_root.get_children():
 			child.queue_free()
 		player.weapon_view = attach_weapon(player.weapon_root)
+		if is_instance_valid(player.player_body):
+			player.player_body.refresh_weapon_visuals()
+		player.set_third_person(bool(rules.setting("default_third_person", false)), true)
 		if eff_combat:
 			combat.begin()
 		else:
@@ -2039,7 +2286,8 @@ func _can_interact(node: Node3D) -> bool:
 	if node.has_meta("world_loot_kind") or node.has_meta("mandel_role"):
 		return true
 	var endpoint = _interaction_position(node) + Vector3(0, 0.6, 0)
-	var query = PhysicsRayQueryParameters3D.create(player.camera.global_position, endpoint, 3, [player.get_rid()])
+	var eye_from: Vector3 = player.get_eye_world_position() if player.has_method("get_eye_world_position") else player.camera.global_position
+	var query = PhysicsRayQueryParameters3D.create(eye_from, endpoint, 3, [player.get_rid()])
 	var hit = get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty() or hit.collider == node or node.is_ancestor_of(hit.collider)
 
@@ -2066,9 +2314,9 @@ func melee_strike(camera: Camera3D):
 			wildlife.melee_strike(camera)
 		return
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) <= 15:
-		var from = camera.global_position
-		var to = from - camera.global_basis.z * 4.2
-		var query = PhysicsRayQueryParameters3D.create(from, to, 3, [player.get_rid()])
+		var use_p_ray: bool = (camera == player.camera) and player.has_method("get_shoot_ray")
+		var ray_m: Dictionary = player.get_shoot_ray(4.2) if use_p_ray else {"from": camera.global_position, "to": camera.global_position - camera.global_basis.z * 4.2}
+		var query = PhysicsRayQueryParameters3D.create(ray_m.from, ray_m.to, 3, [player.get_rid()])
 		var result = get_world_3d().direct_space_state.intersect_ray(query)
 		if result and result.collider.get_meta("station_id", "") == stations[active_station].station_id and result.collider.has_meta("answer_index"):
 			play_sfx("knife_hit", -10)
@@ -2080,8 +2328,10 @@ func melee_strike(camera: Camera3D):
 func deploy_smoke_emp(camera: Camera3D):
 	if rules.phase != "active" or paused:
 		return
-	var from := camera.global_position
-	var dir := (-camera.global_basis.z).normalized()
+	var use_p_emp: bool = (camera == player.camera) and player.has_method("get_shoot_ray")
+	var ray_e: Dictionary = player.get_shoot_ray(14.0) if use_p_emp else {"from": camera.global_position, "dir": (-camera.global_basis.z).normalized()}
+	var from: Vector3 = ray_e.from
+	var dir: Vector3 = ray_e.dir
 	var target := from + dir * 6.5
 	var query := PhysicsRayQueryParameters3D.create(from, from + dir * 14.0, 1, [player.get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -2100,8 +2350,10 @@ func fire(camera: Camera3D):
 		return
 	rules.shots += 1
 	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
-	var from = camera.global_position
-	var to = from - camera.global_basis.z * 155.0
+	var use_p_fire: bool = (camera == player.camera) and player.has_method("get_shoot_ray")
+	var ray_f: Dictionary = player.get_shoot_ray(155.0) if use_p_fire else {"from": camera.global_position, "to": camera.global_position - camera.global_basis.z * 155.0}
+	var from: Vector3 = ray_f.from
+	var to: Vector3 = ray_f.to
 	var query = PhysicsRayQueryParameters3D.create(from, to, 7 if shooting_field else 3, [player.get_rid()])
 	query.collide_with_areas = shooting_field
 	var result = get_world_3d().direct_space_state.intersect_ray(query)
@@ -2322,6 +2574,11 @@ func _process(delta):
 	feedback_left = maxf(0, feedback_left - delta)
 	feedback_label.visible = feedback_left > 0
 	feedback_panel.visible = feedback_label.visible
+	cn_voice_cd = maxf(0.0, cn_voice_cd - delta)
+	if radio_left > 0.0:
+		radio_left = maxf(0.0, radio_left - delta)
+		if radio_left <= 0.0 and is_instance_valid(radio_panel):
+			radio_panel.hide()
 	screen_flash.color.a = maxf(0, screen_flash.color.a - delta * 0.22)
 
 	if hitmarker_left > 0:
@@ -2335,7 +2592,7 @@ func _process(delta):
 			var qst = question_panel.get_theme_stylebox("panel")
 			if qst is StyleBoxFlat:
 				var f_t := clampf(word_switch_flash / 0.48, 0.0, 1.0)
-				qst.border_color = Color(0.55, 0.90, 0.74, 0.55).lerp(Color("ffd86b"), f_t)
+				qst.border_color = Color(0.55, 0.90, 0.74, 0.45).lerp(Color("ffd86b"), f_t)
 				qst.set_border_width_all(2 if f_t > 0.25 else 1)
 
 	if rules.combat_mode and not ammo_respawn_timers.is_empty():
@@ -2354,47 +2611,64 @@ func _process(delta):
 			ammo_respawn_timers.erase(done_c)
 
 	crosshair_label.text = "◆" if player.weapon_slot == 1 else "+"
-	crosshair_label.visible = not (player.aiming and player.weapon_slot == 0)
+	crosshair_label.visible = not (player.aiming and player.weapon_slot == 0 and player.effective_fp_view)
 
-	var streak_str = ("  🔥×%d" % rules.streak) if rules.streak >= 3 else ""
-	fps_label.text = "%d FPS" % Engine.get_frames_per_second() if render_age > 1.5 else "预热中"
+	var streak_str = (" 🔥%d" % rules.streak) if rules.streak >= 3 else ""
+	fps_label.text = "%d" % Engine.get_frames_per_second() if render_age > 1.5 else "--"
 	_refresh_terminal_title()
+	var req_camps: int = Rules.REQUIRED_OUTPOSTS
 	if rules.prologue_mode and is_instance_valid(prologue) and prologue.active:
-		stat_label.text = "烟山初行 · 斥候 %d/%d | 线索 %s" % [prologue.scouts_cleared, prologue.scouts.size(), "已解开" if prologue.clue_solved else "待查验"]
+		stat_label.text = "✨ 序章 · 斥候 %d/%d · 线索 %s" % [prologue.scouts_cleared, prologue.scouts.size(), "✓" if prologue.clue_solved else "…"]
 		mission_label.text = "单人序章 · 备弹无限 · [J] 重查任务与英文线索\n[Esc] 可随时调减震动、独立音量与鼠标灵敏度"
 		question_label.text = prologue.current_objective_text()
 		if is_instance_valid(cloze_label):
 			cloze_label.text = ""
 		unit_label.text = prologue.current_subhint_text()
+		if is_instance_valid(objective_chip) and is_instance_valid(objective_chip_label):
+			objective_chip_label.text = "✨ 序章行动 · [J] 查看任务线索"
+			objective_chip.show()
 	elif rules.combat_mode:
-		stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
-			rules.score, rules.extraction_score_required(), roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
+		stat_label.text = "★%d/%d · 🎯%d%% · ⚑%d/%d · 🔑%d · ⏱%02d:%02d%s" % [
+			rules.score, rules.extraction_score_required(), roundi(rules.accuracy() * 100),
+			rules.outposts_cleared, req_camps, 1 if rules.boss_defeated else 0,
+			int(time_left) / 60, int(time_left) % 60, streak_str
 		]
 		var z_total: int = active_layout.COMBAT_ZONES.size()
-		var outpost_part = "营地 %d/%d(需2) · 密钥 %d/1" % [rules.outposts_cleared, z_total, 1 if rules.boss_defeated else 0]
+		var outpost_part = "营地 %d/%d(需%d) · 密钥 %d/1" % [rules.outposts_cleared, z_total, req_camps, 1 if rules.boss_defeated else 0]
 		var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
 		var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else ("荒漠生灵 0/4 · 零号大坝 × 巴克什" if is_ahsarah_map() else "生灵 0/12 · 奇植 0/12")
 		mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
 			outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 		]
+		if is_instance_valid(objective_chip) and is_instance_valid(objective_chip_label):
+			var m_line_top: String = mandel_event.status_hud_line() if is_instance_valid(mandel_event) else ""
+			if rules.can_extract():
+				objective_chip_label.text = "★ 撤离已解锁 · 前往 B 点信标 (%dm)" % roundi(player.position.distance_to(exit_position))
+				objective_chip.show()
+			elif m_line_top != "":
+				objective_chip_label.text = m_line_top
+				objective_chip.show()
+			else:
+				objective_chip.hide()
 	else:
-		# Clean Practice Range HUD: pure word/shooting practice without distracting combat timers or extraction gaps!
-		stat_label.text = "已答 %d 题  |  正确率 %d%%  |  积分 %d%s" % [
+		stat_label.text = "靶场 · 已答 %d · 🎯%d%% · ★%d%s" % [
 			rules.answered, roundi(rules.accuracy() * 100), rules.score, streak_str
 		]
 		var eco_part_p = wildlife.status_badge() if is_instance_valid(wildlife) else ("荒漠生灵 0/4 · 零号大坝 × 巴克什" if is_ahsarah_map() else "生灵 0/12 · 奇植 0/12")
 		mission_label.text = "自由靶场 · 纯识词练枪（无物资 / 无首领 / 无战绩成就）\n%s · %s" % [
 			exploration.status_text(), eco_part_p
 		]
+		if is_instance_valid(objective_chip):
+			objective_chip.hide()
 	_update_guide()
 	_update_combat_hud()
 
 	if rules.prologue_mode:
-		bag_label.text = "序章行囊 · 专注路线、识词与望稻亭信标调查 [J]"
+		bag_label.text = "✨ 序章 · [J]任务"
 	elif rules.can_loot():
-		bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), rules.safe_box_slots(), rules.total_carried_value()]
+		bag_label.text = "🎒 %d/%d  🔒 %d/%d  💰%d [B]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), rules.safe_box_slots(), rules.total_carried_value()]
 	else:
-		bag_label.text = "自由靶场 · 纯射击识词训练（不可搜集物资）"
+		bag_label.text = "🎯 自由靶场 · 纯训练"
 	_refresh_bag_pills()
 
 	var mods := []
@@ -2403,7 +2677,7 @@ func _process(delta):
 	elif rules.active_optic() == "red_dot":
 		mods.append("全息瞄具")
 	else:
-		mods.append("反射机械")
+		mods.append("机械瞄具")
 	if rules.active_muzzle() == "suppressor":
 		mods.append("消音器")
 	elif rules.active_muzzle() == "compensator":
@@ -2411,17 +2685,41 @@ func _process(delta):
 	if rules.active_grip() == "angled_grip":
 		mods.append("直角握把")
 	var optic_tag = " · ".join(mods)
-	var active_tag = "[2] 战术匕首 (高移速 · 应急回弹)" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪  |  [2] 匕首"
+	var active_tag = "[2] 战术匕首" if player.weapon_slot == 1 else "[1] YS-04 卡宾枪"
 	var reserve_str = "∞" if player.has_infinite_ammo() else str(maxi(0, player.reserve_ammo))
-	var ammo_line = "近战状态  ·  [左键/中键] 斩击（普通5刀/机密10刀回弹）" if player.weapon_slot == 1 else (
-		"换弹装填中…" if player.reload_left > 0 else "弹药 %02d / 备弹 %s   [R]换弹" % [player.ammo, reserve_str]
+	var ammo_line = "近战斩击" if player.weapon_slot == 1 else (
+		"换弹中…" if player.reload_left > 0 else "弹药 %02d / 备弹 %s" % [player.ammo, reserve_str]
 	)
-	var stim_suffix = ("  ⚡%.0fs" % player.stim_left) if player.stim_left > 0 else ""
-	ammo_label.text = "%s\n%s\n%s\n[H]医疗×%d  [G]烟雾×%d  [T]能量×%d%s" % [
+	var stim_suffix = (" ⚡%.0fs" % player.stim_left) if player.stim_left > 0 else ""
+	ammo_label.text = "%s · %s\n%s · [H]%d [G]%d [T]%d%s" % [
 		active_tag, ammo_line, optic_tag, player.medkits, player.grenades, player.stims, stim_suffix
 	]
+	if is_instance_valid(weapon_glyph):
+		weapon_glyph.set_knife(player.weapon_slot == 1)
+	if is_instance_valid(ammo_big_label):
+		if player.weapon_slot == 1:
+			ammo_big_label.text = "KNIFE"
+			ammo_big_label.add_theme_color_override("font_color", Color("ffd86b"))
+		elif player.reload_left > 0:
+			ammo_big_label.text = "RLD…"
+			ammo_big_label.add_theme_color_override("font_color", Color("ffd86b"))
+		else:
+			ammo_big_label.text = "%02d / %s" % [player.ammo, reserve_str]
+			ammo_big_label.add_theme_color_override("font_color", Color("ff6b6b") if player.ammo <= 2 else CREAM)
+	if is_instance_valid(slot_medkit):
+		slot_medkit.update_state(player.medkits, 1.0, 0.0)
+	if is_instance_valid(slot_emp):
+		slot_emp.update_state(player.grenades, 1.0, 0.0)
+	if is_instance_valid(slot_stim):
+		slot_stim.update_state(player.stims, 1.0, player.stim_left)
 	_update_ranger_skill_hud()
 	_update_interaction()
+
+func toggle_intel_overlay():
+	if not is_instance_valid(intel_overlay) or paused:
+		return
+	intel_visible = not intel_visible
+	intel_overlay.visible = intel_visible
 
 func _update_ranger_skill_hud():
 	if not is_instance_valid(skill_panel) or not is_instance_valid(rangers):
@@ -2431,7 +2729,9 @@ func _update_ranger_skill_hud():
 	var cd_left: float = float(rangers.skill_cooldown_left)
 	var ready_now: bool = cd_left <= 0.001
 	var frac: float = 1.0 if ready_now else clampf(1.0 - (cd_left / cd_max), 0.0, 1.0)
-	skill_bar_fill.size.x = 284.0 * frac
+	skill_bar_fill.size.x = 268.0 * frac
+	if is_instance_valid(slot_skill):
+		slot_skill.update_state(1 if ready_now else 0, frac, cd_left)
 	var st = skill_panel.get_theme_stylebox("panel")
 	if ready_now:
 		skill_label.text = "⚡ %s · [%s] %s · 就绪！" % [str(ar.name), str(ar.skill_key), str(ar.skill_name)]
@@ -2466,7 +2766,7 @@ func _update_prompt_timer_bar():
 	prompt_timer_fill.visible = active_bar
 	if active_bar:
 		var frac := clampf(left / limit, 0.0, 1.0)
-		prompt_timer_fill.size.x = 502.0 * frac
+		prompt_timer_fill.size.x = 464.0 * frac
 		prompt_timer_fill.color = Color("ff5c66") if left <= 2.8 else (GOLD if left <= 5.0 else MINT)
 
 func _extraction_blocker_short() -> String:
@@ -2475,8 +2775,8 @@ func _extraction_blocker_short() -> String:
 		return "差%d分" % (req_sc - rules.score)
 	if rules.combat_mode and not rules.boss_defeated:
 		return "需败B区首领"
-	if rules.combat_mode and rules.outposts_cleared < 2:
-		return "需攻克%d/2哨" % rules.outposts_cleared
+	if rules.combat_mode and rules.outposts_cleared < Rules.REQUIRED_OUTPOSTS:
+		return "需攻克%d/%d营" % [rules.outposts_cleared, Rules.REQUIRED_OUTPOSTS]
 	if rules.combat_mode and not rules.accuracy_gate_met():
 		return "正确率需≥%d%%" % roundi(rules.required_extract_accuracy() * 100)
 	return "待就绪"
@@ -2515,38 +2815,39 @@ func _update_guide():
 		guide_label.text = "看中文射英文 · 答对+%d分 · 3连击额外+%d分" % [Rules.BASE_ANSWER_SCORE, Rules.STREAK_BONUS_SCORE]
 
 func _update_combat_hud():
+	if is_instance_valid(stance_widget) and is_instance_valid(player):
+		stance_widget.set_state(player.stance, player.lean_dir, player.third_person)
+	var view_tag := "3P" if (is_instance_valid(player) and player.third_person) else "1P"
 	if combat.in_field():
 		var max_sh = maxf(1.0, float(rules.max_shield()))
-		shield_bar_fill.size.x = 316.0 * clampf(float(combat.shield) / max_sh, 0.0, 1.0)
-		hp_bar_fill.size.x = 316.0 * clampf(float(combat.health) / float(Combat.MAX_HEALTH), 0.0, 1.0)
+		shield_bar_fill.size.x = 214.0 * clampf(float(combat.shield) / max_sh, 0.0, 1.0)
+		hp_bar_fill.size.x = 214.0 * clampf(float(combat.health) / float(Combat.MAX_HEALTH), 0.0, 1.0)
 		hp_bar_fill.color = Color("6ae3a8") if combat.health > 55 else (Color("f4ca64") if combat.health > 28 else Color("ff5c66"))
 		var threats = combat.active_threat_count()
 		if combat.rage_hunt_left > 0.0:
 			threat_banner.show()
-			threat_label.text = "🔥 狂暴围剿 %.1fs · 敌营全员强袭 · 敌伤 ×%.1f！" % [combat.rage_hunt_left, combat.damage_multiplier()]
+			threat_label.text = "🔥 狂暴围剿 %.1fs · 敌伤 ×%.1f" % [combat.rage_hunt_left, combat.damage_multiplier()]
 		elif threats > 0:
 			threat_banner.show()
-			threat_label.text = "⚠ 敌方火力锁定 · 冲刺跑跳或隐蔽掩体！"
+			threat_label.text = "⚠ 敌方火力锁定 ×%d" % threats
 		else:
 			threat_banner.hide()
-		var stance_txt: String = player.stance_label() if is_instance_valid(player) else "站立"
-		var alert_tag = ("🔥狂暴×%.1f" % combat.damage_multiplier()) if combat.rage_hunt_left > 0.0 else ("烟雾隐蔽!" if combat.player_in_smoke() else ("闪避成功!" if combat.miss_left > 0 else ("敌攻×%.2f" % combat.damage_multiplier() if combat.wave_wrong_stacks > 0 else ("受瞄×%d" % threats if threats > 0 else "警戒中"))))
-		combat_label.text = "HP %d · 盾 %d/%d · %s · %s" % [combat.health, roundi(combat.shield), rules.max_shield(), stance_txt, alert_tag]
+		var alert_icon := (" 🔥×%.1f" % combat.damage_multiplier()) if combat.rage_hunt_left > 0.0 else (" ☁烟隐" if combat.player_in_smoke() else (" ⚠%d" % threats if threats > 0 else ""))
+		combat_label.text = "🛡%d  ♥%d  ·  %s%s" % [roundi(combat.shield), combat.health, view_tag, alert_icon]
 	else:
 		threat_banner.hide()
-		shield_bar_fill.size.x = 316.0
-		hp_bar_fill.size.x = 316.0
+		shield_bar_fill.size.x = 214.0
+		hp_bar_fill.size.x = 214.0
 		hp_bar_fill.color = Color("6ae3a8")
-		var stance_p: String = player.stance_label() if is_instance_valid(player) else "站立"
-		combat_label.text = ("烟山初行·单人序章  ·  无限备弹  ·  姿态：" if rules.prologue_mode else "自由靶场模式  ·  无限备弹  ·  姿态：") + stance_p
+		combat_label.text = "🛡MAX  ♥100  ·  %s" % view_tag
 
 func _extraction_blocker_text() -> String:
 	var missing := []
 	var req_sc: int = rules.extraction_score_required()
 	if rules.score < req_sc:
 		missing.append("还差 %d 积分（%d/%d）" % [req_sc - rules.score, rules.score, req_sc])
-	if rules.combat_mode and rules.outposts_cleared < 2:
-		missing.append("需攻克至少 2 处前哨（%d/2）" % rules.outposts_cleared)
+	if rules.combat_mode and rules.outposts_cleared < Rules.REQUIRED_OUTPOSTS:
+		missing.append("需攻克至少 %d 处营地（%d/%d）" % [Rules.REQUIRED_OUTPOSTS, rules.outposts_cleared, Rules.REQUIRED_OUTPOSTS])
 	if rules.combat_mode and not rules.boss_defeated:
 		missing.append("需击败 B 区首领夺取密钥")
 	if rules.combat_mode and not rules.accuracy_gate_met():
@@ -2637,15 +2938,16 @@ func _update_interaction():
 			else:
 				interaction_label.text = "[F] 单词拼写开盲盒 · " + sup_title
 	else:
+		interaction_panel.hide()
 		if rules.combat_mode:
-			interaction_label.text = "B点撤离信标 %d m  ·  %s" % [
+			interaction_label.text = "B点撤离信标 %dm · %s" % [
 				roundi(player.position.distance_to(exit_position)),
-				"已解锁可撤离" if rules.can_extract() else _extraction_blocker_short()
+				"可撤离" if rules.can_extract() else _extraction_blocker_short()
 			]
 		elif rules.can_extract():
-			interaction_label.text = "靶场积分已达标 · 可前往 B 点信标 (%d m) 结束或按 [Esc] 返回" % roundi(player.position.distance_to(exit_position))
+			interaction_label.text = "B点信标 (%dm)" % roundi(player.position.distance_to(exit_position))
 		else:
-			interaction_label.text = "靠近绿色终端按 [F] 开靶牌练词 · 按 [Esc] 随时返回营地"
+			interaction_label.text = ""
 
 func interact():
 	if rules.phase != "active" or paused:

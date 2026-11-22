@@ -548,12 +548,14 @@ func activate_skill() -> bool:
 	slam_uses_run += 1
 	if is_instance_valid(game.player.weapon_view) and game.player.weapon_view.has_method("trigger_ground_slam"):
 		game.player.weapon_view.trigger_ground_slam()
+	if is_instance_valid(game.player.player_body) and game.player.player_body.has_method("trigger_ground_slam"):
+		game.player.player_body.trigger_ground_slam()
 	game.play_sfx("skill_slam", -7)
 	game.player.add_screen_shake(0.42)
-	var origin: Vector3 = game.Layout.on_ground(game.player.position)
+	var origin: Vector3 = game.active_layout.on_ground(game.player.position)
 	var fwd_flat: Vector3 = -game.player.camera.global_basis.z
 	fwd_flat.y = 0.0
-	var vfx_origin: Vector3 = game.Layout.on_ground(origin + (fwd_flat.normalized() * 1.45 if fwd_flat.length_squared() > 0.01 else Vector3.ZERO))
+	var vfx_origin: Vector3 = game.active_layout.on_ground(origin + (fwd_flat.normalized() * 1.45 if fwd_flat.length_squared() > 0.01 else Vector3.ZERO))
 	_spawn_ground_slam_vfx(vfx_origin, float(r.skill_radius))
 
 	var knocked := 0

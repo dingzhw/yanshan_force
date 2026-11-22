@@ -1,6 +1,10 @@
 extends CharacterBody3D
-## First-person controller with tactical stances ([C] Crouch / [Z,Ctrl] Prone), hybrid [Q/E] cover lean,
-## dual weapons ([1] YS-04 / [2] Tactical Knife / [V] Quick Melee), [F] interact, [X] audio replay, and consumables.
+## First-person & Third-person full-body tactical controller (v0.9.3):
+## - Real 3D articulated player body ('游侠·少羽') with 1P leg/torso body awareness & seamless [P]/[F5] 3P over-the-shoulder camera
+## - Anti-wall-clipping 3P boom, zero-parallax crosshair shooting, smart 3P ADS optical scope snap
+## - Tactical stances ([C] Crouch / [Z,Ctrl] Prone), hybrid [Q/E] cover lean, dual weapons ([1] YS-04 / [2] Knife), [V] Ranger Skill
+
+const PlayerBody = preload("res://scripts/player_body.gd")
 
 const STANCE_STAND := 0
 const STANCE_CROUCH := 1
@@ -9,6 +13,11 @@ const LEAN_HOLD_THRESHOLD := 0.22
 const LEAN_MAX_OFFSET := 0.36
 const LEAN_MAX_ROLL := 0.22
 const RELOAD_SECONDS := 1.45
+const TP_DIST_STAND := 2.68
+const TP_DIST_CROUCH := 2.32
+const TP_DIST_PRONE := 2.18
+const TP_DIST_ADS_IRON := 1.66
+const TP_SHOULDER_X := 0.50
 
 const MOVEMENT_KEYS = [
 	KEY_W, KEY_A, KEY_S, KEY_D,
@@ -44,6 +53,12 @@ var footstep_clock = 0.0
 var held_keys = {}
 var aiming = false
 var weapon_view
+var player_body: Node3D
+var third_person: bool = false
+var cam_dist_cur: float = 0.0
+var cam_shoulder_cur: float = 0.0
+var cam_eye_offset: Vector3 = Vector3(0.0, 1.58, 0.0)
+var effective_fp_view: bool = true
 
 # Tactical stance & cover lean state
 var stance: int = STANCE_STAND
@@ -144,6 +159,10 @@ func _ready():
 	weapon_root = Node3D.new()
 	camera.add_child(weapon_root)
 	weapon_view = game.attach_weapon(weapon_root)
+	player_body = PlayerBody.new()
+	player_body.name = "PlayerBody"
+	add_child(player_body)
+	player_body.setup(game)
 	get_window().focus_exited.connect(clear_movement_input)
 
 func _unhandled_input(event):
@@ -197,6 +216,10 @@ func _unhandled_input(event):
 			game.loot_ui.inspect_best_in_bag()
 		elif code == KEY_J and is_instance_valid(game.prologue) and game.prologue.active:
 			game.prologue.open_task_log()
+		elif code == KEY_P or code == KEY_F5:
+			toggle_camera_view()
+		elif code == KEY_F1 and is_instance_valid(game) and game.has_method("toggle_intel_overlay"):
+			game.toggle_intel_overlay()
 
 func toggle_crouch():
 	if not active or game.paused:
@@ -257,10 +280,44 @@ func stance_label() -> String:
 		s_txt += "·右探"
 	return s_txt
 
+func set_third_person(enabled: bool, silent: bool = false):
+	third_person = enabled
+	if not third_person:
+		cam_dist_cur = 0.0
+		cam_shoulder_cur = 0.0
+		effective_fp_view = true
+	else:
+		effective_fp_view = false
+	if is_instance_valid(player_body):
+		player_body.set_first_person(effective_fp_view)
+	if is_instance_valid(weapon_root):
+		weapon_root.visible = effective_fp_view
+	if not silent and is_instance_valid(game):
+		game.play_sfx("weapon_change", -18)
+		game._notice("📷 已切换至【第三人称越肩视角】（[P]/[F5] 切回 · 装配瞄具右键自动切镜）" if third_person else "📷 已切换至【第一人称视角】（低头可见真实身体 · [P]/[F5] 切第三人称）", game.MINT)
+
+func toggle_camera_view():
+	if not active or game.paused:
+		return
+	set_third_person(not third_person)
+
+func get_eye_world_position() -> Vector3:
+	if is_inside_tree():
+		return to_global(cam_eye_offset)
+	return global_position + Vector3(0.0, current_eye_y, 0.0)
+
 func get_aim_target_position() -> Vector3:
-	if is_instance_valid(camera) and camera.is_inside_tree():
-		return camera.global_position - Vector3(0.0, 0.08, 0.0)
-	return global_position + Vector3(0.0, current_eye_y - 0.08, 0.0)
+	# Always return Shaoyu's REAL torso/head in world space (never the 3P camera behind him!)
+	var eye_p := get_eye_world_position()
+	return eye_p - Vector3(0.0, 0.14, 0.0)
+
+func get_shoot_ray(max_dist: float = 155.0) -> Dictionary:
+	# Zero-parallax center-crosshair ray: starts at the player plane along camera optical axis!
+	var cam_pos := camera.global_position if is_instance_valid(camera) else get_eye_world_position()
+	var dir := (-camera.global_basis.z).normalized() if is_instance_valid(camera) else (-global_basis.z).normalized()
+	var skip_d := maxf(0.0, cam_dist_cur - 0.12) if not effective_fp_view else 0.0
+	var origin := cam_pos + dir * skip_d
+	return {"from": origin, "to": origin + dir * max_dist, "dir": dir}
 
 func evasion_profile_multiplier() -> float:
 	var mult := 1.0
@@ -397,8 +454,8 @@ func _update_stance_and_lean(delta: float):
 			clamped_lat = side_sign * minf(absf(raw_lat), safe_d)
 
 	effective_lean = clamped_lat / LEAN_MAX_OFFSET
-	camera.position.x = clamped_lat
-	camera.position.y = current_eye_y - absf(clamped_lat) * 0.13
+	cam_eye_offset = Vector3(clamped_lat, current_eye_y - absf(clamped_lat) * 0.13, 0.0)
+	camera.position = cam_eye_offset
 	camera.rotation.z = -effective_lean * LEAN_MAX_ROLL
 
 func _physics_process(delta):
@@ -476,9 +533,73 @@ func _physics_process(delta):
 	camera.rotation.z = -effective_lean * LEAN_MAX_ROLL + shake_r
 
 	var ads_active := aiming and weapon_slot == 0
-	var target_fov = (36.0 if optic_id == "scope_2x" else (48.0 if optic_id == "red_dot" else 58.0)) if ads_active else 75.0
+	var use_optical_snap := third_person and ads_active and (optic_id in ["red_dot", "scope_2x"])
+	effective_fp_view = (not third_person) or use_optical_snap
+
+	var target_fov: float = 75.0
+	if ads_active:
+		if effective_fp_view:
+			target_fov = 36.0 if optic_id == "scope_2x" else (48.0 if optic_id == "red_dot" else 58.0)
+		else:
+			target_fov = 56.0
 	var fov_speed = 19.0 if grip_id == "angled_grip" else 13.0
 	camera.fov = lerpf(camera.fov, target_fov, minf(delta * fov_speed, 1))
+
+	if is_instance_valid(weapon_root):
+		weapon_root.visible = effective_fp_view
+	if is_instance_valid(player_body):
+		player_body.set_first_person(effective_fp_view)
+
+	if not effective_fp_view:
+		# Smooth anti-wall-clipping over-the-shoulder Third-Person camera boom!
+		var desired_dist := TP_DIST_ADS_IRON if ads_active else (TP_DIST_PRONE if stance == STANCE_PRONE else (TP_DIST_CROUCH if stance == STANCE_CROUCH else TP_DIST_STAND))
+		var desired_sh := -TP_SHOULDER_X if lean_dir < 0 else TP_SHOULDER_X
+		if ads_active:
+			desired_sh *= 0.90
+		var up_off := 0.28 if stance == STANCE_PRONE else (0.14 if stance == STANCE_CROUCH else (0.08 if ads_active else 0.18))
+		var boom_rate := minf(delta * 14.0, 1.0)
+		cam_shoulder_cur = lerpf(cam_shoulder_cur, desired_sh, boom_rate)
+
+		var cam_pitch: float = camera.rotation.x
+		var head_local := Vector3(cam_eye_offset.x, current_eye_y + up_off, 0.0)
+		var pivot_local := head_local + Vector3(cam_shoulder_cur, 0.0, 0.0)
+		var look_local := Vector3(0.0, sin(cam_pitch), -cos(cam_pitch)).normalized()
+		var desired_local := pivot_local - look_local * desired_dist
+		var resolved_dist := desired_dist
+
+		if is_inside_tree() and get_world_3d() != null:
+			var space := get_world_3d().direct_space_state
+			var head_w := to_global(head_local)
+			var pivot_w := to_global(pivot_local)
+			var q_sh := PhysicsRayQueryParameters3D.create(head_w, pivot_w, 1 | 4, [get_rid()])
+			var hit_sh := space.intersect_ray(q_sh)
+			if not hit_sh.is_empty():
+				var sh_vec := pivot_w - head_w
+				var sh_len := sh_vec.length()
+				if sh_len > 0.01:
+					var safe_sh := maxf(0.0, head_w.distance_to(hit_sh.position) - 0.20)
+					pivot_w = head_w + sh_vec.normalized() * minf(sh_len, safe_sh)
+			var cam_target_w := pivot_w + (to_global(desired_local) - to_global(pivot_local))
+			var q_boom := PhysicsRayQueryParameters3D.create(pivot_w, cam_target_w, 1 | 4, [get_rid()])
+			var hit_boom := space.intersect_ray(q_boom)
+			var final_w := cam_target_w
+			if not hit_boom.is_empty():
+				var pull_d := maxf(0.45, pivot_w.distance_to(hit_boom.position) - 0.24)
+				resolved_dist = minf(desired_dist, pull_d)
+				final_w = pivot_w + (cam_target_w - pivot_w).normalized() * resolved_dist
+			if is_instance_valid(game) and game.active_layout != null:
+				var min_gy: float = game.terrain_height(final_w.x, final_w.z) + 0.22
+				if final_w.y < min_gy:
+					final_w.y = min_gy
+			camera.position = to_local(final_w)
+			camera.rotation.z = -effective_lean * LEAN_MAX_ROLL * 0.42 + shake_r
+		else:
+			camera.position = desired_local
+		cam_dist_cur = lerpf(cam_dist_cur, resolved_dist, boom_rate)
+	else:
+		cam_dist_cur = 0.0
+		cam_shoulder_cur = 0.0
+
 	var progress = clampf(reload_left / RELOAD_SECONDS, 0, 1) if weapon_slot == 0 else 0.0
 	# Align optic reticle (y = 0.234) straight with camera optical axis when aiming; keep Knife rig torso-centered so shoulders stay behind lens!
 	var target_pose = Vector3(0.0, -0.234, -0.46) if ads_active else (Vector3(0.0, -0.145, -0.35) if weapon_slot == 1 else Vector3(0.21, -0.245, -0.58))
@@ -492,6 +613,9 @@ func _physics_process(delta):
 	weapon_root.rotation.z = lerpf(weapon_root.rotation.z, -effective_lean * (0.04 if ads_active else 0.11), minf(delta * 14.0, 1.0))
 	if is_instance_valid(weapon_view):
 		weapon_view.animate(delta, progress, Vector2(velocity.x, velocity.z).length(), ads_active)
+	if is_instance_valid(player_body):
+		var local_v := basis.inverse() * velocity
+		player_body.update_pose(delta, local_v, is_on_floor(), stance, effective_lean, pitch, ads_active, weapon_slot, recoil, progress)
 	if not active or game.paused:
 		velocity = Vector3.ZERO
 		return
@@ -563,6 +687,8 @@ func _perform_knife_slash():
 	slash_combo += 1
 	if is_instance_valid(weapon_view):
 		weapon_view.trigger_knife_slash(slash_combo)
+	if is_instance_valid(player_body):
+		player_body.trigger_knife_slash(slash_combo)
 	game.play_sfx("knife_slash", -8)
 	game.melee_strike(camera)
 
@@ -591,6 +717,8 @@ func shoot():
 	recoil = (0.65 if muzzle_id == "compensator" else (0.85 if grip_id == "angled_grip" else 1.0)) * stance_recoil
 	if is_instance_valid(weapon_view):
 		weapon_view.shot()
+	if is_instance_valid(player_body):
+		player_body.trigger_shot()
 	add_screen_shake(0.14 if muzzle_id == "suppressor" else (0.19 if muzzle_id == "compensator" else 0.25))
 	if muzzle_id == "suppressor":
 		game.play_sfx("shot_suppressed", -7)

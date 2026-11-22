@@ -100,6 +100,10 @@ var active_attacker_idle: float = 0.0
 var last_attacker_option: int = -1
 var wave_had_wrong_shot: bool = false
 var last_kill_pos: Vector3 = Vector3.ZERO
+var proximity_bark_cd: Dictionary = {}
+var proximity_bark_tick: float = 1.2
+var combat_bark_timer: float = 8.0
+var bark_rng := RandomNumberGenerator.new()
 
 func begin():
 	stop()
@@ -322,9 +326,9 @@ func _mark_zone_cleared(z_idx: int):
 		game.rangers.unlock_card("mistbound_syndicate", false)
 		game.rangers.record_bounty_progress("camp_cleared", 1)
 	game._sync_question()
-	game._notice("★ 已彻底肃清【%s】全部 3 波守军！+%d 积分 · 医疗包+1 备弹+%d（已攻克 %d/%d 营地，撤离需2处）" % [
+	game._notice("★ 已彻底肃清【%s】全部 3 波守军！+%d 积分 · 医疗包+1 备弹+%d（已攻克 %d/%d 营地，撤离需%d处）" % [
 		zone_info(z_idx).title, game.Rules.OUTPOST_CLEAR_SCORE, clear_ammo,
-		game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size()
+		game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size(), game.Rules.REQUIRED_OUTPOSTS
 	], game.MINT)
 
 func _roll_wave_squad_size(_z_idx: int, _wave_idx: int) -> int:
@@ -741,8 +745,9 @@ func _detect_aimed_camp() -> int:
 	if not game.player.aiming or game.player.weapon_slot != 0:
 		return -1
 	var cam: Camera3D = game.player.camera
-	var from := cam.global_position
-	var fwd := (-cam.global_basis.z).normalized()
+	var ray_sn: Dictionary = game.player.get_shoot_ray(SNIPER_PREVIEW_RANGE) if game.player.has_method("get_shoot_ray") else {"from": cam.global_position, "dir": (-cam.global_basis.z).normalized()}
+	var from: Vector3 = ray_sn.from
+	var fwd: Vector3 = ray_sn.dir
 	# 1) Direct crosshair hit on any living soldier within that camp's 3x-aggro sniper range (layer 1 auto-occludes terrain/walls)
 	var rq := PhysicsRayQueryParameters3D.create(from, from + fwd * SNIPER_PREVIEW_RANGE, 1 | Soldier.HIT_LAYER, [game.player.get_rid()])
 	rq.collide_with_areas = true
@@ -841,25 +846,30 @@ func engage_camp(z_idx: int, preserve_prompt: bool = false):
 					boss_unit.trigger_skyfall()
 				if is_ah:
 					game.play_sfx("gramophone_chord", -6)
-					game._notice("🎷 阿萨拉军阀·雷斯摇响留声机：『把留声机开大声点！没有交响乐的战场，简直粗俗不堪！』警惕交响声波、S12K重霰弹与破片手雷，按 1→5 破除重词盾！", Color("ffd15c"))
+					game.play_cn_voice("reis_01", 8.0, true)
+					game._notice("🎷 阿萨拉军阀·雷斯登场！按 1→5 顺序击破重词盾！", Color("ffd15c"))
 				else:
-					game._notice("⚡ 天降震地！【雾隐机关王·玄铁词尊】轰然降临 %s！请严格按 1→5 顺序击破全身 5 块词盾（打错顺序满血洗牌）！" % z_title, Color("ffd15c"))
+					game.play_cn_voice("over_02", 8.0, true)
+					game._notice("⚡ 【雾隐机关王·玄铁词尊】天降 %s！按 1→5 顺序破盾！" % z_title, Color("ffd15c"))
 			else:
 				if is_ah:
-					game._notice("🦅 赤枭·赛伊德现身 %s：『父亲教导我，好的猎人懂得尊重猎物……但你，不配！』警惕【M249 机枪扫射】与【翻滚三联燃烧弩】！" % z_title, Color("ff9e58"))
+					game.play_cn_voice("saeed_01", 8.0, true)
+					game._notice("🦅 赤枭·赛伊德现身 %s！警惕 M249 扫射与燃烧弩！" % z_title, Color("ff9e58"))
 				else:
-					game._notice("⚠ 惊动雾隐帮【%s】（第 %d/%d 波 · %d兵 · %s）：雾隐先锋·铁面词卫登场！爆头1枪或词盾2枪破防！" % [z_title, w_cur, w_max, alive.size(), pace_tag], Color("ffd15c"))
+					game.play_cn_voice("iron_01", 8.0, true)
+					game._notice("⚠ 雾隐先锋·铁面词卫登场（%s）！" % z_title, Color("ffd15c"))
 				game.play_sfx("boss_phase", -11)
 		else:
+			var grp_en := _voice_group_for_zone(z_idx, false)
+			game.play_cn_voice_group(grp_en, "combat", 12.0, false)
 			if is_ah:
 				var fac := str(zone_info(z_idx).get("faction", "ahsarah"))
 				if fac == "haavk":
-					game._notice("🔷 触发哈夫克【%s】第 %d/%d 波（%d兵）：『封锁变电站，守住曼德尔加密砖！』" % [z_title, w_cur, w_max, alive.size()], Color("66e8ff"))
+					game._notice("🔷 触发哈夫克【%s】第 %d/%d 波（%d兵）" % [z_title, w_cur, w_max, alive.size()], Color("66e8ff"))
 				else:
-					var barks := ["『来！咱俩练练！』", "『发现目标！包抄过去！』", "『守住阿萨拉！别让他们靠近行政堡垒！』"]
-					game._notice("🏜 触发【%s】第 %d/%d 波（%d兵）· 阿萨拉卫队：%s" % [z_title, w_cur, w_max, alive.size(), barks[z_idx % barks.size()]], game.GOLD)
+					game._notice("🏜 触发【%s】第 %d/%d 波（%d兵）· 阿萨拉卫队" % [z_title, w_cur, w_max, alive.size()], game.GOLD)
 			else:
-				game._notice("⚔ 触发雾隐帮【%s】第 %d/%d 波交火（%d兵 · %s）！词兵依托掩体周旋，抓闪身时机打头1枪/词盾2枪！" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
+				game._notice("⚔ 触发雾隐帮【%s】第 %d/%d 波（%d兵 · %s）" % [z_title, w_cur, w_max, alive.size(), pace_tag], game.GOLD)
 
 func disengage_active_camp(announce: bool = true):
 	if zone < 0:
@@ -904,9 +914,61 @@ func _camp_pull_distance(z_idx: int) -> float:
 			best = minf(best, sd + 2.2)
 	return best
 
+func _voice_group_for_zone(z_idx: int, prefer_boss: bool = false) -> String:
+	var is_ah: bool = game.is_ahsarah_map()
+	if z_idx == 2 and prefer_boss and is_instance_valid(boss_unit) and not boss_unit.defeated:
+		if is_ah:
+			return "boss_reis" if boss_unit.is_skyfall_overlord else "boss_saeed"
+		return "boss_overlord" if boss_unit.is_skyfall_overlord else "boss_ironface"
+	if is_ah:
+		var fac := str(zone_info(z_idx).get("faction", "ahsarah"))
+		return "haavk_trooper" if fac == "haavk" else "ahsarah_guard"
+	return "mistbound_soldier"
+
+func _update_proximity_voice_barks(delta: float):
+	if not in_field() or not is_instance_valid(game.player) or game.paused:
+		return
+	for zk in proximity_bark_cd.keys():
+		proximity_bark_cd[zk] = maxf(0.0, float(proximity_bark_cd[zk]) - delta)
+	if zone >= 0 and is_zone_engaged(zone):
+		combat_bark_timer -= delta
+		if combat_bark_timer <= 0.0:
+			combat_bark_timer = bark_rng.randf_range(9.5, 14.5)
+			var use_boss: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and bark_rng.randf() < 0.65)
+			var grp_c := _voice_group_for_zone(zone, use_boss)
+			var dist_c: float = game.player.position.distance_to(zone_center(zone))
+			game.play_cn_voice_group(grp_c, "combat", dist_c, false)
+		return
+	proximity_bark_tick -= delta
+	if proximity_bark_tick > 0.0:
+		return
+	proximity_bark_tick = 1.65
+	var best_z := -1
+	var best_d := 34.0
+	for z_idx in game.active_layout.COMBAT_ZONES.size():
+		if zone_cleared.get(z_idx, false):
+			continue
+		if living_soldiers(z_idx).is_empty():
+			continue
+		if float(proximity_bark_cd.get(z_idx, 0.0)) > 0.0:
+			continue
+		var d: float = _camp_pull_distance(z_idx)
+		if d <= minf(34.0, zone_aggro(z_idx) + 17.5) and d < best_d:
+			best_d = d
+			best_z = z_idx
+	if best_z >= 0:
+		if bark_rng.randf() < 0.58:
+			var prefer_b: bool = (best_z == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and bark_rng.randf() < 0.72)
+			var grp := _voice_group_for_zone(best_z, prefer_b)
+			if game.play_cn_voice_group(grp, "proximity", best_d, false) != "":
+				proximity_bark_cd[best_z] = bark_rng.randf_range(18.0, 26.0)
+		else:
+			proximity_bark_cd[best_z] = 5.5
+
 func update(delta: float):
 	if not in_field():
 		return
+	_update_proximity_voice_barks(delta)
 	attack_lock = maxf(0.0, attack_lock - delta)
 	suppress_lock = maxf(0.0, suppress_lock - delta)
 	miss_left = maxf(0.0, miss_left - delta)
@@ -1252,11 +1314,11 @@ func show_question():
 					else:
 						rest_hint = "🕊【%s】增援休整 %.0f 秒不主动追击（可离开或开枪迎战）  |  " % [zone_info(z_i).title, ceilf(g_l)]
 					break
-		game.question_label.text = "右键开镜瞄准敌营狙词，或靠近触发波次交火"
+		game.question_label.text = "靠近敌营开战 · 或右键开镜狙词"
 		if is_instance_valid(game.cloze_label):
 			game.cloze_label.text = ""
-		game.unit_label.text = "%s已攻克 %d/%d 营（需≥2） · 统领密钥 %d/1" % [
-			rest_hint, game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size(), 1 if game.rules.boss_defeated else 0
+		game.unit_label.text = "%s⚑ 营地 %d/%d（需≥%d） · 🔑 %d/1" % [
+			rest_hint, game.rules.outposts_cleared, game.active_layout.COMBAT_ZONES.size(), game.Rules.REQUIRED_OUTPOSTS, 1 if game.rules.boss_defeated else 0
 		]
 		return
 
@@ -1673,9 +1735,11 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				prompt_timer_left = prompt_timer_max
 				if game.is_ahsarah_map():
 					_spawn_boss_support_drones(soldier, 2)
-					game._notice("🎷 二轮戒严！雷斯召唤卫队护驾 + 3 面高速公转金盾——10 秒内按 1→3 破盾，超时触发【零号大坝重炮洗地】！", Color("ffd15c"))
+					game.play_cn_voice("reis_06", 8.0, true)
+					game._notice("🎷 二轮戒严！雷斯召唤卫队 + 3 面高速公转金盾（10 秒内破盾）！", Color("ffd15c"))
 				else:
-					game._notice("🔥 第二轮觉醒！玄铁词尊召唤 3 面高速公转金盾——10 秒内按 1→3 顺序破盾斩杀，超时降下【天地万象】！", Color("ffd15c"))
+					game.play_cn_voice("over_04", 8.0, true)
+					game._notice("🔥 第二轮觉醒！玄铁词尊 3 面公转金盾（10 秒内破盾）！", Color("ffd15c"))
 				show_question()
 				if game.has_method("flash_word_switch_banner"):
 					game.flash_word_switch_banner()
@@ -1859,7 +1923,7 @@ func _apply_melee_knockback(soldier, speed: float = 3.2):
 func melee_strike(camera: Camera3D) -> bool:
 	if not in_field():
 		return false
-	var cam_pos := camera.global_position
+	var cam_pos: Vector3 = game.player.get_eye_world_position() if (is_instance_valid(game.player) and game.player.has_method("get_eye_world_position")) else camera.global_position
 	var cam_fwd := (-camera.global_transform.basis.z).normalized()
 	var best_soldier = null
 	var best_dist := 3.45
@@ -2017,12 +2081,14 @@ func on_boss_phase_shift(boss, next_phase: int):
 		boss.vanguard_move_cd = 2.4
 		if game.is_ahsarah_map():
 			deploy_boss_sand_smoke(boss.position)
-			game._notice("🔥 赤枭·赛伊德引爆【荒漠烟幕转点】进入二阶！『你掉进陷阱里了！』双肩词盾展开 + 卫队增援！", Color("ff9e58"))
+			game.play_cn_voice("saeed_03", 10.0, true)
+			game._notice("🔥 赤枭·赛伊德进入二阶！双肩词盾 + 卫队增援！", Color("ff9e58"))
 			if is_instance_valid(game.player):
 				spawn_incendiary_bolt(boss.position + Vector3.UP * 1.8, game.player.position, 8)
 				game.play_sfx("saeed_fire_bolt", -8)
 		else:
-			game._notice("★ 铁面词卫进入二阶【双盾择词】！左右双肩词盾展开 + 侦察蜂增援，识词击破并防备冲锋震地！", Color("5ce0d8"))
+			game.play_cn_voice("iron_02", 10.0, true)
+			game._notice("★ 铁面词卫进入二阶【双盾择词】 + 侦察蜂增援！", Color("5ce0d8"))
 			if is_instance_valid(game.player):
 				spawn_danger_ring(game.player.position, 3.4, 22)
 	elif next_phase == 1:
@@ -2032,7 +2098,8 @@ func on_boss_phase_shift(boss, next_phase: int):
 		boss.vanguard_move_cd = 1.9
 		if game.is_ahsarah_map():
 			deploy_boss_sand_smoke(boss.position)
-			game._notice("🦅 赤枭·赛伊德进入终阶【赤枭三盾狂袭】！『这片大坝属于阿萨拉！』三联燃烧弩齐射！", Color("ff6842"))
+			game.play_cn_voice("saeed_08", 10.0, true)
+			game._notice("🦅 赤枭·赛伊德终阶【三盾狂袭】！三联燃烧弩齐射！", Color("ff6842"))
 			if is_instance_valid(game.player):
 				var base_dir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z)
 				var b_len := clampf(base_dir.length(), 4.0, 24.0)
@@ -2042,7 +2109,8 @@ func on_boss_phase_shift(boss, next_phase: int):
 					spawn_incendiary_bolt(boss.position + Vector3.UP * 1.8, tgt, 8)
 				game.play_sfx("saeed_fire_bolt", -7)
 		else:
-			game._notice("🔥 铁面词卫进入终阶【三盾困阵】！三面全息词盾展开并释放【震荡冲击波】，横向闪避！", Color("ff9f43"))
+			game.play_cn_voice("iron_03", 10.0, true)
+			game._notice("🔥 铁面词卫终阶【三盾困阵】+ 震荡冲击波！", Color("ff9f43"))
 			if is_instance_valid(game.player):
 				var wdir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z).normalized()
 				spawn_sword_wave(boss.position, wdir, 18)

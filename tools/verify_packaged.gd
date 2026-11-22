@@ -205,6 +205,35 @@ func run():
 			)
 			pi92.free()
 	verify(v92_pickups_ok, "standalone PCK v092_tactical_pickups.glb contains all 8 sculpted Blender 4.5 pickups, desert stashes & boss ordnance")
+	# v0.9.3 Offline Chinese Faction & Boss Voice Pack + Articulated Full-Body Hero Shaoyu GLB
+	var cn_raw := FileAccess.get_file_as_string("res://data/audio/cn_voice_manifest.json")
+	var cn_parsed = JSON.parse_string(cn_raw)
+	var cn_entries: Dictionary = cn_parsed.entries if (cn_parsed is Dictionary and cn_parsed.get("entries") is Dictionary) else {}
+	var cn_decoded := 0
+	for cid in cn_entries.keys():
+		var cf := str(cn_entries[cid].get("file", ""))
+		var cp := "res://assets/voice_cn/" + cf
+		if cf != "" and ResourceLoader.exists(cp):
+			var cst = load(cp)
+			if cst is AudioStream and cst.get_length() > 0.35:
+				cn_decoded += 1
+	verify(cn_entries.size() >= 60 and cn_decoded == cn_entries.size(), "standalone PCK decodes ALL offline Chinese faction/boss OGG voice clips cleanly (%d/%d decoded)" % [cn_decoded, cn_entries.size()])
+	var hero_ok := false
+	if ResourceLoader.exists("res://scripts/player_body.gd") and ResourceLoader.exists("res://scripts/hud_widgets.gd") and ResourceLoader.exists("res://assets/slice/player_shaoyu.glb"):
+		var hp_p = load("res://assets/slice/player_shaoyu.glb")
+		if hp_p is PackedScene:
+			var hi: Node = hp_p.instantiate()
+			hero_ok = (
+				hi.find_child("hips_pivot", true, false) != null
+				and hi.find_child("torso_pivot", true, false) != null
+				and hi.find_child("head_pivot", true, false) != null
+				and hi.find_child("leg_l_pivot", true, false) != null
+				and hi.find_child("leg_r_pivot", true, false) != null
+				and hi.find_child("weapon_hand_mount", true, false) != null
+				and hi.find_child("weapon_back_mount", true, false) != null
+			)
+			hi.free()
+	verify(hero_ok, "standalone PCK includes v0.9.3 player_body.gd, hud_widgets.gd & articulated player_shaoyu.glb full-body hero")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

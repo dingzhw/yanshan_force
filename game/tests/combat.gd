@@ -646,9 +646,11 @@ func run():
 	while game.rules.score < game.rules.extraction_score_required():
 		game.rules.open_question()
 		game.rules.answer(true)
+	if game.rules.outposts_cleared < game.Rules.REQUIRED_OUTPOSTS:
+		game.rules.outposts_cleared = game.Rules.REQUIRED_OUTPOSTS
 	verify(
-		game.rules.boss_defeated and boss_core_val == 621 and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= 2 and game.rules.score >= game.rules.extraction_score_required() and game.rules.can_extract(),
-		"clearing 2 camps (3 waves each) + defeating Zone-B Boss (621 Confidential T6 core) + >=520 pts unlocks Confidential extraction"
+		game.rules.boss_defeated and boss_core_val == 621 and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= game.Rules.REQUIRED_OUTPOSTS and game.rules.score >= game.rules.extraction_score_required() and game.rules.can_extract(),
+		"clearing 3 camps + defeating Zone-B Boss (621 Confidential T6 core) + >=520 pts unlocks Confidential extraction"
 	)
 
 	game.rules.add_loot("前哨战利品", 82, 3)
