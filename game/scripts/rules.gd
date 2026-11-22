@@ -351,7 +351,7 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.9.0",
+	"saved_by_version": "0.9.1",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
@@ -878,12 +878,17 @@ func roll_calibrated_rarity(mode_confidential: bool, context: String = "standard
 		if mode_confidential:
 			return _roll_from_weights([0.095, 0.245, 0.320, 0.240, 0.100, 0.000, 0.000])
 		return _roll_from_weights([0.004, 0.036, 0.140, 0.360, 0.320, 0.140, 0.000])
+	if context == "mandel_decode":
+		# v0.9.1 MandelBrick Decryption Station calibrated pyramid (strict scarcity, high tactical payoff!)
+		if mode_confidential:
+			return _roll_from_weights([0.045, 0.095, 0.145, 0.215, 0.220, 0.170, 0.110])
+		return _roll_from_weights([0.008, 0.028, 0.074, 0.175, 0.255, 0.250, 0.210])
 	# Default / standard supply blind-box
 	if mode_confidential:
 		return _roll_from_weights([0.016, 0.042, 0.074, 0.138, 0.215, 0.250, 0.265] if perfect else [0.008, 0.026, 0.060, 0.126, 0.225, 0.265, 0.290])
 	return _roll_from_weights([0.000, 0.004, 0.022, 0.094, 0.215, 0.295, 0.370] if perfect else [0.000, 0.002, 0.014, 0.074, 0.205, 0.310, 0.395])
 
-func roll_item_by_rarity(rarity: int) -> Dictionary:
+func roll_item_by_rarity(rarity: int, ahsarah_bias: float = 0.58) -> Dictionary:
 	var clamped := clampi(rarity, 1, MAX_RARITY)
 	var list: Array = LOOT_TABLE[clamped]
 	var chosen_pool: Array = list
@@ -896,7 +901,7 @@ func roll_item_by_rarity(rarity: int) -> Dictionary:
 			else:
 				ys_pool.append(entry)
 		if active_map == "ahsarah":
-			if not ah_pool.is_empty() and loot_rng.randf() < 0.58:
+			if not ah_pool.is_empty() and loot_rng.randf() < ahsarah_bias:
 				chosen_pool = ah_pool
 		elif not ys_pool.is_empty():
 			chosen_pool = ys_pool
@@ -909,6 +914,13 @@ func roll_item_by_rarity(rarity: int) -> Dictionary:
 	item["value"] = maxi(1, val)
 	item["cond"] = str(cond["name"])
 	return _enrich_loot_dict(item)
+
+func roll_mandel_reward_items() -> Array:
+	var out: Array = []
+	for _i in 3:
+		var r := roll_calibrated_rarity(is_confidential(), "mandel_decode", true)
+		out.append(roll_item_by_rarity(r, 0.78))
+	return out
 
 func roll_field_pickup(perfect_spell: bool = true, overcharged: bool = false) -> Dictionary:
 	# v0.8.0 Blind-Box Supply Case: no visual spoiler; secret lucky caches gently bump odds without guaranteeing red

@@ -18,9 +18,10 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.0"
+const VERSION = "0.9.1"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const AhsarahWorld = preload("res://scripts/ahsarah_world.gd")
+const MandelEvent = preload("res://scripts/mandel_event.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
 const Wildlife = preload("res://scripts/wildlife.gd")
@@ -173,6 +174,7 @@ var cipher_terminal
 var achievements
 var rangers
 var cave_warden
+var mandel_event
 var prologue
 var loot_ui
 var loot_container_ui
@@ -223,6 +225,9 @@ func _ready():
 	cave_warden = CaveWarden.new()
 	add_child(cave_warden)
 	cave_warden.setup(self)
+	mandel_event = MandelEvent.new()
+	add_child(mandel_event)
+	mandel_event.setup(self)
 	startup_ms["exploration_wildlife"] = Time.get_ticks_msec() - step_begin
 	step_begin = Time.get_ticks_msec()
 	world_loot = WorldLoot.new()
@@ -603,10 +608,15 @@ func switch_map(map_id: String, force_rebuild: bool = false) -> bool:
 		exploration.rebuild_for_map()
 	if is_instance_valid(world_loot) and world_loot.has_method("rebuild_for_map"):
 		world_loot.rebuild_for_map()
-	if is_instance_valid(wildlife) and wildlife.has_method("set_map_enabled"):
-		wildlife.set_map_enabled(target_id == "yanshan")
+	if is_instance_valid(wildlife):
+		if wildlife.has_method("set_active_map"):
+			wildlife.set_active_map(target_id)
+		elif wildlife.has_method("set_map_enabled"):
+			wildlife.set_map_enabled(target_id == "yanshan")
 	if is_instance_valid(cave_warden) and cave_warden.has_method("set_map_enabled"):
 		cave_warden.set_map_enabled(target_id == "yanshan")
+	if is_instance_valid(mandel_event):
+		mandel_event.reset_for_run()
 	if is_instance_valid(rangers) and rangers.has_method("reposition_camp_npc"):
 		rangers.reposition_camp_npc()
 	if is_instance_valid(camp_display_stand):
@@ -1776,6 +1786,10 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 			wildlife.reset()
 		if is_instance_valid(cave_warden):
 			cave_warden.reset()
+		if is_instance_valid(mandel_event):
+			mandel_event.reset_for_run()
+		if eff_combat and is_ahsarah_map() and is_instance_valid(achievements):
+			achievements.record_stat("ahsarah_entered", 1)
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
 		if is_instance_valid(loot_container_ui):
@@ -2022,7 +2036,7 @@ func _interaction_position(node: Node3D) -> Vector3:
 	return node.global_position + (Vector3(2, 0, 2) if node.has_meta("station_id") else Vector3.ZERO)
 
 func _can_interact(node: Node3D) -> bool:
-	if node.has_meta("world_loot_kind"):
+	if node.has_meta("world_loot_kind") or node.has_meta("mandel_role"):
 		return true
 	var endpoint = _interaction_position(node) + Vector3(0, 0.6, 0)
 	var query = PhysicsRayQueryParameters3D.create(player.camera.global_position, endpoint, 3, [player.get_rid()])
@@ -2270,6 +2284,8 @@ func _process(delta):
 		wildlife.update(delta)
 	if is_instance_valid(world_loot):
 		world_loot.update(delta)
+	if is_instance_valid(mandel_event):
+		mandel_event.update(delta)
 	combat.update(delta)
 	if active_station >= 0 and player.position.distance_to(stations[active_station].position) > 15:
 		_leave_station()
@@ -2357,7 +2373,7 @@ func _process(delta):
 		var z_total: int = active_layout.COMBAT_ZONES.size()
 		var outpost_part = "营地 %d/%d(需2) · 密钥 %d/1" % [rules.outposts_cleared, z_total, 1 if rules.boss_defeated else 0]
 		var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
-		var eco_part = "零号大坝 × 巴克什" if is_ahsarah_map() else (wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/12 · 奇植 0/12")
+		var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else ("荒漠生灵 0/4 · 零号大坝 × 巴克什" if is_ahsarah_map() else "生灵 0/12 · 奇植 0/12")
 		mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
 			outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 		]
@@ -2366,7 +2382,7 @@ func _process(delta):
 		stat_label.text = "已答 %d 题  |  正确率 %d%%  |  积分 %d%s" % [
 			rules.answered, roundi(rules.accuracy() * 100), rules.score, streak_str
 		]
-		var eco_part_p = "零号大坝 × 巴克什" if is_ahsarah_map() else (wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/12 · 奇植 0/12")
+		var eco_part_p = wildlife.status_badge() if is_instance_valid(wildlife) else ("荒漠生灵 0/4 · 零号大坝 × 巴克什" if is_ahsarah_map() else "生灵 0/12 · 奇植 0/12")
 		mission_label.text = "自由靶场 · 纯识词练枪（无物资 / 无首领 / 无战绩成就）\n%s · %s" % [
 			exploration.status_text(), eco_part_p
 		]
@@ -2486,9 +2502,13 @@ func _update_guide():
 	elif combat.in_field() and combat.zone >= 0:
 		guide_label.text = "正确词兵：爆头1枪秒 / 词盾2枪灭 · [V]天生神力震倒周围词兵"
 	elif combat.in_field():
+		var m_line: String = mandel_event.status_hud_line() if is_instance_valid(mandel_event) else ""
 		var b_str: String = rangers.bounty_hud_line() if is_instance_valid(rangers) else ""
 		var n_zones: int = active_layout.COMBAT_ZONES.size()
-		guide_label.text = ("%s · [V]天生神力震地 · 靠近%d处敌营开战" % [b_str, n_zones]) if b_str != "" else ("靠近%d处敌营触发波次仇恨 · [V]天生神力震地 · 护盾靠[H/T]恢复" % n_zones)
+		if m_line != "":
+			guide_label.text = "%s · [V]天生神力震地 · 靠近%d处敌营开战" % [m_line, n_zones]
+		else:
+			guide_label.text = ("%s · [V]天生神力震地 · 靠近%d处敌营开战" % [b_str, n_zones]) if b_str != "" else ("靠近%d处敌营触发波次仇恨 · [V]天生神力震地 · 护盾靠[H/T]恢复" % n_zones)
 	elif not tutorial_moved and active_station < 0:
 		guide_label.text = "按 [F] 开启身旁营地终端，或沿山路探索"
 	else:
@@ -2539,8 +2559,9 @@ func _update_interaction():
 	if cached_interactables.is_empty():
 		var eco_nodes: Array = wildlife.flora_nodes if is_instance_valid(wildlife) else []
 		var wl_nodes: Array = world_loot.interactable_nodes() if is_instance_valid(world_loot) else []
+		var m_nodes: Array = mandel_event.interactable_nodes() if is_instance_valid(mandel_event) else []
 		var npc_nodes: Array = [rangers.camp_npc_node] if (is_instance_valid(rangers) and is_instance_valid(rangers.camp_npc_node)) else []
-		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes + wl_nodes + npc_nodes
+		cached_interactables = pickup_nodes + crate_nodes + stations + exploration.nodes + eco_nodes + wl_nodes + m_nodes + npc_nodes
 	for node in cached_interactables:
 		if not is_instance_valid(node):
 			continue
@@ -2579,6 +2600,8 @@ func _update_interaction():
 				interaction_label.text = "[F] 拾取 %s（+1）" % title
 		elif closest_interaction.has_meta("world_loot_kind") and is_instance_valid(world_loot):
 			interaction_label.text = world_loot.prompt_for(closest_interaction)
+		elif closest_interaction.has_meta("mandel_role") and is_instance_valid(mandel_event):
+			interaction_label.text = mandel_event.prompt_for(closest_interaction)
 		elif closest_interaction.has_meta("camp_bounty_npc"):
 			interaction_label.text = "[F] 找陈向导查看游侠档案与烟山名望委托"
 		elif closest_interaction.has_meta("flora_id"):
@@ -2672,6 +2695,10 @@ func interact():
 		if is_instance_valid(world_loot):
 			world_loot.interact(closest_interaction)
 		return
+	if closest_interaction.has_meta("mandel_role"):
+		if is_instance_valid(mandel_event):
+			mandel_event.interact(closest_interaction)
+		return
 	if closest_interaction.has_meta("flora_id"):
 		if is_instance_valid(wildlife):
 			wildlife.interact_flora(closest_interaction)
@@ -2711,8 +2738,11 @@ func _end_run(success: bool, title = ""):
 		"due_remaining": due_now
 	}
 	var saved := _save()
-	if is_instance_valid(achievements) and int(rules.profile.get("red_extracted", 0)) > 0:
-		achievements.record_stat("red_extracted", int(rules.profile.get("red_extracted", 0)), true)
+	if is_instance_valid(achievements):
+		if int(rules.profile.get("red_extracted", 0)) > 0:
+			achievements.record_stat("red_extracted", int(rules.profile.get("red_extracted", 0)), true)
+		if success and is_ahsarah_map() and rules.combat_mode:
+			achievements.record_stat("ahsarah_extracted", 1)
 	var banked_count = rules.profile.warehouse.size() - pre_wh
 	var safe_saved_count: int = rules.last_saved_safe_box_count
 	if is_instance_valid(prologue) and prologue.active:
@@ -2720,6 +2750,8 @@ func _end_run(success: bool, title = ""):
 	rules.prologue_mode = false
 	refresh_camp_display_stand()
 	combat.stop()
+	if is_instance_valid(mandel_event):
+		mandel_event.close_modal()
 	if is_instance_valid(cipher_terminal) and cipher_terminal.busy:
 		cipher_terminal.reset()
 	if is_instance_valid(loot_container_ui) and loot_container_ui.busy:
@@ -2788,6 +2820,10 @@ func _input(event):
 			return
 		if is_instance_valid(cipher_terminal) and cipher_terminal.busy and is_esc:
 			cipher_terminal.close()
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(mandel_event) and mandel_event.busy and is_esc:
+			mandel_event.close_modal()
 			get_viewport().set_input_as_handled()
 			return
 		if is_instance_valid(rangers) and rangers.busy and is_esc:

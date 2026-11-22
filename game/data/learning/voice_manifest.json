@@ -5,8 +5,8 @@
   "rate": "-5%",
   "audio_format": "ogg_vorbis_mono_24khz",
   "usage_notice": "仅供个人与家庭离线英语学习使用；若对外公开分发，请通过 tools/build_voice_pack.py 替换为已获公开分发许可的开源离线语音或自录音频。",
-  "count": 337,
-  "total_bytes": 4428118,
+  "count": 341,
+  "total_bytes": 4478168,
   "entries": {
     "a golden airdrop is inside the stone cave beside the tall hill west of the pass.": {
       "file": "v_bcb9503ed043.ogg",
@@ -254,6 +254,12 @@
       "bytes": 13274,
       "sha256": "ea760169e3197ccd68f1e4489eab7642354361ee6f3b4b4e4bbee3f0ab2b0cb9"
     },
+    "camel": {
+      "file": "v_45b724982f78.ogg",
+      "text": "camel",
+      "bytes": 11340,
+      "sha256": "c4961e014f548049c24bf58f3849cfcbb17365df77c55fbf259b3de3f8fd1aac"
+    },
     "card": {
       "file": "v_2ab0591dbcf5.ogg",
       "text": "card",
@@ -428,6 +434,12 @@
       "bytes": 11941,
       "sha256": "5c117d25689e8cd5e689381be8cc3fa3db8a33f2173665a105c5ac6c5ff1a4c6"
     },
+    "desert falcon": {
+      "file": "v_8309af22eb44.ogg",
+      "text": "desert falcon",
+      "bytes": 12825,
+      "sha256": "cc85a305823baad39d51eaae6aac13fd94492887320f440f201ea814d6c5643c"
+    },
     "do exercise": {
       "file": "v_ac0721d10890.ogg",
       "text": "do exercise",
@@ -535,6 +547,12 @@
       "text": "feel good",
       "bytes": 11905,
       "sha256": "b830282df0b99415f306e727d1a892b0962ba8d25f8b7b8c4d049e2e2b527e5c"
+    },
+    "fennec fox": {
+      "file": "v_eeff1b1f1e58.ogg",
+      "text": "fennec fox",
+      "bytes": 12887,
+      "sha256": "265441ad4764e124547635ede5b241f2fff220f4f08b21d29a02fb726685fd37"
     },
     "festival": {
       "file": "v_f114308994e5.ogg",
@@ -667,6 +685,12 @@
       "text": "golden pheasant",
       "bytes": 13153,
       "sha256": "3eade4232f8345a79e03f1c54f06bff60041f323c7e023c84a198ea92e2c8998"
+    },
+    "golden scarab": {
+      "file": "v_63754c4be737.ogg",
+      "text": "golden scarab",
+      "bytes": 12998,
+      "sha256": "4ff4ef0e9595ff5f6206df690fcd79e9ff8bf0bc087965646b468b9f212ee774"
     },
     "grandparent": {
       "file": "v_410bce0c5898.ogg",

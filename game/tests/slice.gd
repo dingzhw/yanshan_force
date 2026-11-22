@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.0" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.0 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0

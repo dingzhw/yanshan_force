@@ -39,8 +39,10 @@ const RAGE_HUNT_DURATION = 12.0
 const RAGE_NORMAL_DAMAGE_MULT = 2.0
 const RAGE_CONFIDENTIAL_DAMAGE_MULT = 4.0
 const RAGE_PURSUIT_RADIUS = 145.0
+const MANDEL_ZONE_ID = 99
 
 var game
+var mandel_ambush_info: Dictionary = {}
 var stage = Stage.OFF
 var field_hits: int = 0
 var field_answers: int = 0
@@ -183,6 +185,7 @@ func stop():
 	zone_engaged.clear()
 	zone_respawn_grace.clear()
 	zone_reinforce_left.clear()
+	mandel_ambush_info.clear()
 	if is_instance_valid(arena):
 		arena.hide()
 		for body in arena.find_children("*", "CollisionObject3D", true, false):
@@ -221,6 +224,10 @@ func heal(hp_gain: int, shield_gain: int):
 	shield = minf(float(game.rules.max_shield()), shield + float(shield_gain))
 
 func zone_info(z_idx: int) -> Dictionary:
+	if z_idx == MANDEL_ZONE_ID:
+		if not mandel_ambush_info.is_empty():
+			return mandel_ambush_info
+		return {"id": "mandel_ambush", "title": "曼德尔破译拦截队", "at": Vector3.ZERO, "waves": 1, "squad": 3, "aggro": 26.0, "pursuit": 78.0, "boss": false, "faction": "ahsarah"}
 	return game.active_layout.COMBAT_ZONES[z_idx]
 
 func zone_center(z_idx: int) -> Vector3:
@@ -289,6 +296,13 @@ func _mark_zone_cleared(z_idx: int):
 	if zone == z_idx:
 		zone = -1
 	wave_wrong_stacks = 0
+	if z_idx == MANDEL_ZONE_ID:
+		game.rules.score += 20
+		game.player.add_reserve_ammo(4)
+		game.play_sfx("loot_epic", -11)
+		game._sync_question()
+		game._notice("★ 已击退曼德尔砖拦截小队！+20 积分 · 备弹 +4 · 返回破译站按 [F] 继续破译！", game.MINT)
+		return
 	game.rules.outposts_cleared += 1
 	game.rules.score += game.Rules.OUTPOST_CLEAR_SCORE
 	game.player.medkits += 1
@@ -1896,6 +1910,10 @@ func _on_boss_defeated(boss):
 				break
 	var bp_msg := (" + 研发图纸【%s】" % bp_unlocked) if bp_unlocked != "" else ""
 	game.play_sfx("loot_epic", -7)
+	if is_instance_valid(game.achievements):
+		if is_ah_boss:
+			game.achievements.record_stat("reis_defeated" if is_ov else "saeed_defeated", 1)
+			game.achievements.record_stat("ahsarah_boss_defeated", 1)
 	if is_instance_valid(game.rangers):
 		if is_ah_boss:
 			game.rangers.unlock_card("reis_warlord" if is_ov else "saeed_fiery_owl", false)
@@ -1904,6 +1922,65 @@ func _on_boss_defeated(boss):
 		game.rangers.record_bounty_progress("boss_defeated", 1)
 	var boss_name := ("阿萨拉军阀·雷斯" if is_ov else "赤枭·赛伊德") if is_ah_boss else ("雾隐机关王·玄铁词尊" if is_ov else "雾隐先锋·铁面词卫")
 	game._notice("🏆 击败【%s】！夺得停机坪/撤离密钥 + %s(%d)%s%s！" % [boss_name, str(core_item.title), int(core_item.value), extra_red_msg, bp_msg], Color("ffd15c"))
+
+func spawn_mandel_interceptors(at: Vector3, wave_idx: int = 1) -> Array:
+	if not in_field() or not is_instance_valid(arena):
+		return []
+	if troops.has(MANDEL_ZONE_ID):
+		for old_s in troops[MANDEL_ZONE_ID]:
+			if is_instance_valid(old_s):
+				old_s.collision_layer = 0
+				old_s.queue_free()
+	var sq_count: int = 4 if game.rules.is_confidential() else 3
+	var faction_tag := "haavk" if wave_idx >= 2 else "ahsarah"
+	var wave_title := "哈夫克特勤拦截队" if faction_tag == "haavk" else "阿萨拉卫队拦截小队"
+	mandel_ambush_info = {
+		"id": "mandel_ambush",
+		"title": "%s · 第%d波" % [wave_title, wave_idx],
+		"at": at,
+		"waves": 1,
+		"squad": sq_count,
+		"aggro": 28.0,
+		"pursuit": 78.0,
+		"boss": false,
+		"faction": faction_tag
+	}
+	waves_done[MANDEL_ZONE_ID] = 0
+	waves_target[MANDEL_ZONE_ID] = 1
+	zone_cleared[MANDEL_ZONE_ID] = false
+	zone_engaged[MANDEL_ZONE_ID] = false
+	zone_respawn_grace[MANDEL_ZONE_ID] = 0.0
+	zone_reinforce_left[MANDEL_ZONE_ID] = 0.0
+	var covers: Array = []
+	var ring_offsets := [
+		Vector2(-15.5, -10.0), Vector2(15.5, -10.0), Vector2(-13.0, 12.5), Vector2(13.0, 12.5)
+	]
+	for off2 in ring_offsets:
+		var bx := clampf(at.x + off2.x, float(game.active_layout.FENCE_MIN_X) + 4.0, float(game.active_layout.FENCE_MAX_X) - 4.0)
+		var bz := clampf(at.z + off2.y, float(game.active_layout.FENCE_MIN_Z) + 4.0, float(game.active_layout.FENCE_MAX_Z) - 4.0)
+		covers.append(game.active_layout.on_ground(Vector3(bx, 0.0, bz)))
+	camp_covers[MANDEL_ZONE_ID] = covers
+	camp_outer_anchors[MANDEL_ZONE_ID] = []
+	var archetypes := [Soldier.Archetype.ASSAULT_BOT, Soldier.Archetype.SCOUT_DRONE, Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.ASSAULT_BOT]
+	var words_n := _build_wave_words(sq_count)
+	wave_words[MANDEL_ZONE_ID] = words_n
+	wave_squad_size[MANDEL_ZONE_ID] = sq_count
+	var spawned: Array = []
+	for i in sq_count:
+		var soldier := Soldier.new()
+		arena.add_child(soldier)
+		soldier.setup(self, MANDEL_ZONE_ID, i, covers[i % covers.size()], archetypes[i % archetypes.size()], false)
+		soldier.claimed_cover_idx = i % covers.size()
+		soldier.assigned_word = words_n[i]
+		soldier.set_nemesis_bounty(game.rules.learning.is_nemesis(str(words_n[i].get("id", ""))))
+		soldier.show_word(str(words_n[i].get("english", "")), false)
+		soldier.begin_tactical_engagement(true)
+		spawned.append(soldier)
+	troops[MANDEL_ZONE_ID] = spawned
+	zone_engaged[MANDEL_ZONE_ID] = true
+	zone = MANDEL_ZONE_ID
+	_select_next_wave_prompt(MANDEL_ZONE_ID)
+	return spawned
 
 func deploy_smoke_emp(center: Vector3):
 	if not is_instance_valid(arena):

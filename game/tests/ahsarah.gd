@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.0" and game.active_map_id == "yanshan", "v0.9.0 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.1" and game.active_map_id == "yanshan", "v0.9.1 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -82,8 +82,8 @@ func run():
 	verify(game.switch_map("ahsarah"), "switch_map('ahsarah') succeeds after unlock")
 	await frames(4)
 	verify(game.is_ahsarah_map() and game.active_layout == game.AhsarahLayout, "Active map & layout switched cleanly to AhsarahLayout")
-	verify(game.crate_nodes.size() == 8 and game.pickup_nodes.size() == 15, "Ahsarah mounts 8 Cipher Crates and 15 tactical/supply pickups")
-	verify(game.exploration.nodes.size() == 6 and not game.wildlife.map_enabled and not game.cave_warden.map_enabled, "Ahsarah mounts 6 lore terminals and cleanly disables Yanshan wildlife & Cave Warden")
+	verify(game.crate_nodes.size() == 10 and game.pickup_nodes.size() == 17, "v0.9.1 Ahsarah mounts 10 Cipher Crates (incl. 2F Balcony & Dam Spillway Alcove) and 17 pickups (incl. Catwalk & 2F)")
+	verify(game.exploration.nodes.size() == 6 and game.wildlife.active_map_id == "ahsarah" and not game.wildlife.yanshan_root.visible and game.wildlife.ahsarah_root.visible and not game.cave_warden.map_enabled, "v0.9.1 Ahsarah mounts 6 lore terminals, switches Wildlife cleanly to Ahsarah desert ecology & disables Cave Warden")
 	var dam_found := is_instance_valid(game.landscape.find_child("AhsarahHeroLandmarks", true, false))
 	var pano_found := is_instance_valid(game.landscape.find_child("DesertHorizonPanorama", true, false))
 	var mesa_found := is_instance_valid(game.landscape.find_child("DesertMesaRing3D", true, false))
@@ -190,15 +190,111 @@ func run():
 		if (y_max - y_min) > 0.20:
 			pav_flat_ok = false
 	verify(pav_flat_ok, "All Brakkesh sandstone pavilion pads are smoothly graded level (delta <= 0.20m across steps & porch)")
-	# Verify Practice Range HUD banner in Ahsarah uses Ahsarah route text (not Yanshan!)
+	# Verify Practice Range HUD banner in Ahsarah uses Ahsarah route text (not Yanshan!) and hides MandelBrick event
 	game.start_action(false)
 	await frames(2)
 	verify("绿洲前哨" in game.unit_label.text and not ("山脚营地" in game.unit_label.text), "Ahsarah Practice Range banner displays Ahsarah route instead of Yanshan (%s)" % game.unit_label.text)
+	verify(is_instance_valid(game.mandel_event) and game.mandel_event.state == "inactive", "MandelBrick dynamic event stays inactive during Practice Range")
+
+	# 8c. v0.9.1 Multi-Story Walkable Architecture, Spillway Shortcut Tunnel & Elevated Catwalk Physics
+	var wing_w: Node = game.landscape.find_child("FortressInteriorWing_W", true, false)
+	var wing_e: Node = game.landscape.find_child("FortressInteriorWing_E", true, false)
+	var spillway: Node = game.landscape.find_child("ZeroDamSpillwayTunnel", true, false)
+	var bathhouse: Node = game.landscape.find_child("BrakkeshGrandBathhouse", true, false)
+	var catwalk: Node = game.landscape.find_child("CementElevatedCatwalk", true, false)
+	verify(wing_w != null and wing_e != null and spillway != null and bathhouse != null and catwalk != null, "v0.9.1 mounts all 5 hero multi-story structures (Twin Fortress 2F Wings, 68m Dam Spillway Tunnel, Brakkesh Grand Bathhouse & Cement Catwalk)")
+	await physics_frame
+	# Verify walkable 2nd-floor balcony deck on East Wing (+22.5, 5.40+3.70=9.10, -124.0)
+	var f2_ray := PhysicsRayQueryParameters3D.create(Vector3(21.2, 11.2, -124.0), Vector3(21.2, 7.2, -124.0))
+	var f2_hit: Dictionary = space.intersect_ray(f2_ray)
+	verify(not f2_hit.is_empty() and absf(f2_hit.position.y - (game.active_layout.CLOUD_ARENA_Y + 3.70)) <= 0.15, "2-Story Fortress East Wing 2F sniper balcony has rock-solid walkable floor at y=%.2f" % (f2_hit.position.y if not f2_hit.is_empty() else -1.0))
+	# Verify 68m Zero Dam Spillway Shortcut Tunnel is 100% open & unobstructed portal-to-portal (x=-33 -> +33 at z=-141.5, y=6.8)!
+	var tun_clear_ray := PhysicsRayQueryParameters3D.create(Vector3(-33.0, game.active_layout.CLOUD_ARENA_Y + 1.5, -141.5), Vector3(33.0, game.active_layout.CLOUD_ARENA_Y + 1.5, -141.5))
+	var tun_block: Dictionary = space.intersect_ray(tun_clear_ray)
+	var tun_roof_ray := PhysicsRayQueryParameters3D.create(Vector3(0.0, game.active_layout.CLOUD_ARENA_Y + 1.5, -141.5), Vector3(0.0, game.active_layout.CLOUD_ARENA_Y + 6.5, -141.5))
+	var tun_roof: Dictionary = space.intersect_ray(tun_roof_ray)
+	verify(tun_block.is_empty() and not tun_roof.is_empty(), "68m Zero Dam Spillway Shortcut Tunnel is 100% clear portal-to-portal with solid concrete roof overhead")
+	# Verify Cement Plant Elevated Steel Catwalk (+4.29m deck) is solid & walkable
+	var cat_base_y: float = game.active_layout.min_ground_height(-42.0, -54.0, 4.5)
+	var cat_ray := PhysicsRayQueryParameters3D.create(Vector3(-42.0, cat_base_y + 6.5, -56.0), Vector3(-42.0, cat_base_y + 2.5, -56.0))
+	var cat_hit: Dictionary = space.intersect_ray(cat_ray)
+	verify(not cat_hit.is_empty() and absf(cat_hit.position.y - (cat_base_y + 4.29)) <= 0.18, "Cement Plant elevated steel catwalk has solid walkable deck at y=%.2f" % (cat_hit.position.y if not cat_hit.is_empty() else -1.0))
+
+	# 8d. v0.9.1 MandelBrick Capture -> Escort -> 2 Ambush Waves -> 3-Round English Cipher -> Reward Crate & Pyramid Odds
+	game.start_action(true, "normal")
+	await frames(4)
+	verify(game.mandel_event.state == "available" and is_instance_valid(game.mandel_event.pickup_node) and is_instance_valid(game.mandel_event.decode_node), "MandelBrick event spawns vault pedestal & active G.T.I. decode station in Ahsarah combat")
+	verify(game.mandel_event.pickup_brick() and game.mandel_event.state == "carrying", "Capturing MandelBrick transitions event to 'carrying' state")
+	verify(game.mandel_event.insert_brick() and game.mandel_event.state == "decoding" and game.mandel_event.wave_1_spawned, "Inserting MandelBrick begins 3-round decryption and dispatches Wave 1 word-shield interceptors")
+	verify(game.combat.living_soldiers(game.combat.MANDEL_ZONE_ID).size() >= 3, "Wave 1 MandelBrick ambush deploys >=3 active word-shield interceptors")
+	verify(game.mandel_event.open_cipher_modal() and game.mandel_event.busy and game.paused, "Opening MandelBrick decryption modal pauses combat safely")
+	var w1: String = game.mandel_event.expected_cipher_word()
+	verify(w1 != "" and not game.mandel_event.submit_cipher("wrongspellingxyz") and game.mandel_event.wrong_attempts_round == 1, "Wrong cipher spelling reveals extra hint letter without soft-locking")
+	var pre_mandel_score: int = game.rules.score
+	verify(game.mandel_event.submit_cipher(w1) and game.mandel_event.decode_round == 2 and game.mandel_event.wave_2_spawned, "Solving Round 1 advances to Round 2 and dispatches Wave 2 Haavk interceptors")
+	var w2: String = game.mandel_event.expected_cipher_word()
+	verify(w2 != "" and game.mandel_event.submit_cipher(w2) and game.mandel_event.decode_round == 3, "Solving Round 2 advances to Round 3")
+	var w3: String = game.mandel_event.expected_cipher_word()
+	verify(w3 != "" and game.mandel_event.submit_cipher(w3) and game.mandel_event.state == "completed", "Solving Round 3 completes MandelBrick decryption cleanly")
+	verify(game.rules.score >= pre_mandel_score + 135 and is_instance_valid(game.mandel_event.reward_crate_node) and game.loot_container_ui.busy and game.loot_container_ui.pending_items.size() == 3, "Completed MandelBrick awards +90 bonus (+45 cipher) score, spawns physical Reward Crate & opens 3-item confirmation panel")
+	game.loot_container_ui.close()
+	# Verify mandel_decode strict pyramid odds (T7 < T6 < T5 < T4)
+	var m_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
+	for _mi in 400:
+		var mr: int = game.rules.roll_calibrated_rarity(true, "mandel_decode", true)
+		m_counts[mr] = int(m_counts[mr]) + 1
+	verify(int(m_counts[7]) < int(m_counts[6]) and int(m_counts[6]) < int(m_counts[5]) and int(m_counts[5]) < int(m_counts[4]), "MandelBrick reward table strictly obeys calibrated pyramid scarcity (T7=%d < T6=%d < T5=%d < T4=%d /400)" % [m_counts[7], m_counts[6], m_counts[5], m_counts[4]])
+
+	# 8e. v0.9.1 Rigged Desert Wildlife Ecology (4 Species, 28 Critters, Skeleton3D + AnimationPlayer, 341 Voices, Zero Cross-Map Leakage)
+	verify(game.wildlife.desert_animals.size() == 22 and game.wildlife.desert_falcons.size() == 6, "Ahsarah desert wildlife spawns 22 ground critters (8 fennec, 4 camel, 10 scarab) + 6 soaring Desert Falcons = 28")
+	var desert_rigs_ok := true
+	var seen_dkinds := {}
+	for da in game.wildlife.desert_animals:
+		seen_dkinds[str(da.kind)] = true
+		if da.anim == null or da.visual.find_child("Skeleton3D", true, false) == null:
+			desert_rigs_ok = false
+	for df in game.wildlife.desert_falcons:
+		seen_dkinds["falcon"] = true
+		if df.anim == null or df.vis.find_child("Skeleton3D", true, false) == null:
+			desert_rigs_ok = false
+	var desert_tts_ok: bool = (
+		game.voice_manifest.size() == 341
+		and bool(game.has_english_voice("fennec fox"))
+		and bool(game.has_english_voice("camel"))
+		and bool(game.has_english_voice("desert falcon"))
+		and bool(game.has_english_voice("golden scarab"))
+	)
+	var ys_collision_zero := true
+	for ya in game.wildlife.animals:
+		if int(ya.area.collision_layer) != 0:
+			ys_collision_zero = false
+			break
+	verify(desert_rigs_ok and seen_dkinds.size() == 4 and desert_tts_ok and ys_collision_zero, "All 4 desert species have Skeleton3D+AnimationPlayer, all 341 offline voice clips load, and Yanshan critters have 0 hitbox leakage")
+
+	# 8f. v0.9.1 30 Achievements & 16 Weapon Charms (Equipping all 3 new Ahsarah 3D weapon charms on rifle!)
+	game.wildlife._record_desert_species_discovery("fennec", "Fennec Fox", "荒漠耳廓狐", "fennec fox", false)
+	game.wildlife._record_desert_species_discovery("camel", "Camel", "北非单峰驼", "camel", false)
+	game.wildlife._record_desert_species_discovery("scarab", "Golden Scarab", "金色沙丘圣甲虫", "golden scarab", false)
+	game.wildlife._record_desert_species_discovery("falcon", "Desert Falcon", "荒漠猎隼", "desert falcon", false)
+	verify(game.achievements.CATALOG.size() == 30 and game.achievements.CHARMS.size() == 16, "Achievements catalog expanded to 30 milestones and 16 equippable 3D weapon charms")
+	verify(game.achievements.is_unlocked("ahsarah_entry") and game.achievements.is_unlocked("ahsarah_saeed") and game.achievements.is_unlocked("ahsarah_reis") and game.achievements.is_unlocked("ahsarah_mandel") and game.achievements.is_unlocked("ahsarah_eco"), "All Ahsarah milestones (entry, Saeed, Reis, MandelBrick, 4 Desert Wildlife) unlock cleanly")
+	var charms_3d_ok := true
+	for cid in ["charm_mini_mandel", "charm_fiery_owl", "charm_heart_africa"]:
+		if not game.achievements.is_charm_unlocked(cid) or not game.achievements.equip_charm(cid):
+			charms_3d_ok = false
+		elif not game.player.weapon_view.charm_anchor.visible or game.player.weapon_view.charm_visual_root.get_child_count() < 2:
+			charms_3d_ok = false
+	verify(charms_3d_ok, "All 3 Ahsarah 3D weapon charms (Mini MandelBrick, Fiery Owl, Heart of Africa) equip & mount sculpted 3D meshes on rifle")
 
 	# 9. Clean Round-Trip back to Yanshan Base
 	verify(game.switch_map("yanshan"), "Round-trip switch_map('yanshan') restores Yanshan Base cleanly")
 	await frames(4)
-	verify(not game.is_ahsarah_map() and game.crate_nodes.size() == 6 and game.wildlife.map_enabled and game.cave_warden.map_enabled, "Yanshan Base restores all 6 crates, 12 wildlife species & Cave Warden after round-trip")
+	var ah_collision_zero := true
+	for da2 in game.wildlife.desert_animals:
+		if int(da2.area.collision_layer) != 0:
+			ah_collision_zero = false
+			break
+	verify(not game.is_ahsarah_map() and game.crate_nodes.size() == 6 and game.wildlife.active_map_id == "yanshan" and game.wildlife.yanshan_root.visible and not game.wildlife.ahsarah_root.visible and ah_collision_zero and game.cave_warden.map_enabled, "Yanshan Base restores all 6 crates, 12 Jiangnan wildlife species, Cave Warden & isolates desert wildlife cleanly")
 
 	if FileAccess.file_exists(tmp_profile):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_profile))

@@ -7,6 +7,7 @@ const AhsarahLayout = preload("res://scripts/ahsarah_layout.gd")
 const TacticalProps = preload("res://scripts/tactical_props.gd")
 
 const ARCH_GLB := "res://assets/slice/v090_ahsarah_architecture.glb"
+const FORTRESS_GLB := "res://assets/slice/v091_ahsarah_fortress.glb"
 const HORIZON_TEX := "res://assets/slice/horizon_ahsarah.png"
 const SAND_TEX := "res://assets/slice/ahsarah_sand_albedo.jpg"
 const SANDSTONE_TEX := "res://assets/slice/ahsarah_sandstone_albedo.jpg"
@@ -67,7 +68,13 @@ func _extract_mesh(path: String, node_name: String) -> Mesh:
 	return out_mesh
 
 func _place_arch(parent: Node3D, node_name: String, pos: Vector3, yaw_deg: float = 0.0, sc: float = 1.0, shadow: bool = true) -> MeshInstance3D:
-	var m: Mesh = _extract_mesh(ARCH_GLB, node_name)
+	return _place_from_glb(parent, ARCH_GLB, node_name, pos, yaw_deg, sc, shadow)
+
+func _place_fortress(parent: Node3D, node_name: String, pos: Vector3, yaw_deg: float = 0.0, sc: float = 1.0, shadow: bool = true) -> MeshInstance3D:
+	return _place_from_glb(parent, FORTRESS_GLB, node_name, pos, yaw_deg, sc, shadow)
+
+func _place_from_glb(parent: Node3D, glb_path: String, node_name: String, pos: Vector3, yaw_deg: float = 0.0, sc: float = 1.0, shadow: bool = true) -> MeshInstance3D:
+	var m: Mesh = _extract_mesh(glb_path, node_name)
 	if m == null:
 		return null
 	var mi := MeshInstance3D.new()
@@ -478,13 +485,24 @@ func _hero_landmarks():
 	cp_lbl.pixel_size = 0.009
 	cp_lbl.visibility_range_end = 95.0
 
-	# 5) EAST BRAKKESH SANDSTONE ARCHED BAZAAR PAVILIONS & WEST BARRACKS PAVILION
+	# 5) v0.9.1 ICONIC WALKABLE MULTI-STORY ARCHITECTURE:
+	# 5a) TWIN 2-STORY WALKABLE ADMINISTRATIVE FORTRESS WINGS (East & West flanking Boss Courtyard!)
+	_build_fortress_interior_wing(root, Vector3(AhsarahLayout.FORTRESS_WEST_WING.x, AhsarahLayout.CLOUD_ARENA_Y, AhsarahLayout.FORTRESS_WEST_WING.z), 90.0, "西翼二层狙击廊")
+	_build_fortress_interior_wing(root, Vector3(AhsarahLayout.FORTRESS_EAST_WING.x, AhsarahLayout.CLOUD_ARENA_Y, AhsarahLayout.FORTRESS_EAST_WING.z), -90.0, "东翼二层指挥廊")
+
+	# 5b) ZERO DAM 68m UNDERGROUND FLOODWAY / SPILLWAY SHORTCUT TUNNEL (links West Bastion -> East Helipad!)
+	_build_dam_spillway_tunnel(root, Vector3(AhsarahLayout.SPILLWAY_TUNNEL_CENTER.x, AhsarahLayout.CLOUD_ARENA_Y, AhsarahLayout.SPILLWAY_TUNNEL_CENTER.z))
+
+	# 5c) BRAKKESH GRAND DOME BATHHOUSE centerpiece at East Bazaar (44, -28)
+	_build_brakkesh_grand_bathhouse(root, AhsarahLayout.GRAND_BATHHOUSE, -20.0)
+
+	# 5d) CEMENT PLANT CLIMBABLE +4.2m ELEVATED STEEL SNIPER CATWALK (-42, -54)
+	_build_cement_elevated_catwalk(root, AhsarahLayout.CEMENT_CATWALK, 90.0)
+
+	# 5e) SOUTH BAZAAR & WEST BARRACKS SANDSTONE ARCHED PAVILIONS
 	var pav_specs := [
-		[Vector3(44.0, 0.0, -28.0), -20.0, 1.0, "巴克什拱门集市"],
 		[Vector3(36.0, 0.0, -46.0), 75.0, 0.94, ""],
 		[Vector3(-52.0, 0.0, -104.0), 32.0, 1.0, "西翼大坝营房"],
-		[Vector3(-19.5, 0.0, -124.0), 90.0, 0.92, ""],  # Admin courtyard West sandstone wing
-		[Vector3(19.5, 0.0, -124.0), -90.0, 0.92, ""],  # Admin courtyard East sandstone wing
 	]
 	for ps in pav_specs:
 		var p_in: Vector3 = ps[0]
@@ -528,6 +546,157 @@ func _hero_landmarks():
 		_place_arch(root, "tactical_desert_jeep", jpos, float(jp[1]), 1.0, true)
 		_add_solid_box(root, jpos + Vector3(0.0, 0.95, 0.0), Vector3(2.1, 1.9, 4.2), float(jp[1]))
 
+func _add_local_box(parent: Node3D, origin: Vector3, rot_b: Basis, yaw_deg: float, local_center: Vector3, dims: Vector3) -> StaticBody3D:
+	return _add_solid_box(parent, origin + rot_b * local_center, dims, yaw_deg)
+
+func _build_fortress_interior_wing(parent: Node3D, pos: Vector3, yaw_deg: float, label_text: String):
+	var mi := _place_fortress(parent, "fortress_interior_wing", pos, yaw_deg, 1.0, true)
+	if mi != null:
+		mi.name = "FortressInteriorWing_%s" % ("W" if pos.x < 0.0 else "E")
+	var rot_b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
+	# Ground-floor foundation floor flush at y=0
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(0.0, -0.45, 0.0), Vector3(17.4, 0.90, 7.8))
+	# Ground-floor front colonnade pillars (leaving 3 wide 3.4m walkable arches open at x=-5, 0, +5!)
+	for px in [-7.65, -2.5, 2.5, 7.65]:
+		_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(px, 1.75, 3.15), Vector3(1.50, 3.50, 0.85))
+	# Rear fortified wall segments (leaving central 2.8m rear tactical doorway open!)
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-5.05, 1.85, -3.15), Vector3(6.9, 3.70, 0.78))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(5.05, 1.85, -3.15), Vector3(6.9, 3.70, 0.78))
+	# Side doorway jambs (leaving central 3.4m side archway open!)
+	for sx in [-8.15, 8.15]:
+		_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(sx, 1.75, -2.40), Vector3(0.82, 3.50, 1.45))
+		_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(sx, 1.75, 2.40), Vector3(0.82, 3.50, 1.45))
+	# Solid interior smooth sloped staircase ramp rising from x=-6.2 (y=0.0) -> x=+0.4 (y=3.70) at z=-1.85!
+	var stair_angle := atan2(3.70, 6.6)
+	var stair_body := _add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-2.9, 1.69, -1.85), Vector3(7.65, 0.28, 1.96))
+	stair_body.rotate_object_local(Vector3(0.0, 0.0, 1.0), stair_angle)
+	# Stair inner railing curb to prevent falling sideways off stairs
+	var rail_body := _add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-2.9, 2.50, -0.88), Vector3(7.4, 0.90, 0.14))
+	rail_body.rotate_object_local(Vector3(0.0, 0.0, 1.0), stair_angle)
+	# 2nd-floor walkable deck slabs (top y = +3.70m) with exact stairwell cutout at x∈[-6.4..+0.4], z∈[-2.85..-0.85]!
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(0.0, 3.55, 1.35), Vector3(17.2, 0.30, 4.40))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(4.45, 3.55, -2.12), Vector3(8.2, 0.30, 2.55))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(-7.4, 3.55, -2.12), Vector3(2.2, 0.30, 2.55))
+	# 2nd-floor front sniper chest-high parapet (top y=4.71m -> clear line of fire over rail into Boss Courtyard!)
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(0.0, 4.18, 3.32), Vector3(16.8, 1.06, 0.44))
+	for px in [-8.1, -3.1, 3.1, 8.1]:
+		_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(px, 5.10, 3.28), Vector3(1.05, 2.85, 0.56))
+	# 2nd-floor rear & side safety parapets + overhead shade roof
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(0.0, 4.30, -3.25), Vector3(16.8, 1.24, 0.48))
+	for sx in [-8.25, 8.25]:
+		_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(sx, 4.30, 0.0), Vector3(0.48, 1.24, 6.7))
+	_add_local_box(parent, pos, rot_b, yaw_deg, Vector3(0.0, 6.45, 1.65), Vector3(17.0, 0.28, 3.8))
+	# Warm interior corridor amber lantern glow
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color("ffbe66")
+	lamp.light_energy = 1.8
+	lamp.omni_range = 12.0
+	lamp.position = pos + rot_b * Vector3(0.0, 3.0, 0.8)
+	parent.add_child(lamp)
+	var lbl: Label3D = game._label3d(parent, label_text + " · 可登二层", pos + rot_b * Vector3(0.0, 7.6, 3.2), 30, Color("ffd884"))
+	lbl.pixel_size = 0.008
+	lbl.visibility_range_end = 75.0
+
+func _build_dam_spillway_tunnel(parent: Node3D, pos: Vector3):
+	var mi := _place_fortress(parent, "dam_spillway_tunnel", pos, 0.0, 1.0, true)
+	if mi != null:
+		mi.name = "ZeroDamSpillwayTunnel"
+	# Solid concrete floor (top y=pos.y+0.02)
+	_add_solid_box(parent, pos + Vector3(0.0, -0.44, 0.0), Vector3(70.0, 0.92, 6.4))
+	_add_solid_box(parent, pos + Vector3(0.0, -0.44, -4.1), Vector3(6.8, 0.92, 3.0))
+	# Solid south tunnel wall
+	_add_solid_box(parent, pos + Vector3(0.0, 2.0, 2.75), Vector3(68.0, 4.0, 0.90))
+	# Split north tunnel wall leaving central 6m maintenance vault alcove open (x∈[-3..+3])
+	_add_solid_box(parent, pos + Vector3(-18.5, 2.0, -2.75), Vector3(31.0, 4.0, 0.90))
+	_add_solid_box(parent, pos + Vector3(18.5, 2.0, -2.75), Vector3(31.0, 4.0, 0.90))
+	# Central north maintenance vault alcove back & side walls + roof
+	_add_solid_box(parent, pos + Vector3(0.0, 2.0, -5.45), Vector3(6.8, 4.0, 0.80))
+	_add_solid_box(parent, pos + Vector3(-3.1, 2.0, -4.1), Vector3(0.70, 4.0, 2.6))
+	_add_solid_box(parent, pos + Vector3(3.1, 2.0, -4.1), Vector3(0.70, 4.0, 2.6))
+	_add_solid_box(parent, pos + Vector3(0.0, 4.05, -4.1), Vector3(6.8, 0.65, 3.0))
+	# Main reinforced concrete tunnel roof (walkable overhead + blocks rain/falling)
+	_add_solid_box(parent, pos + Vector3(0.0, 4.18, 0.0), Vector3(69.0, 0.85, 6.6))
+	# Portal headwall side buttresses (leaving 4.6m clear portal entry open!)
+	for sgn in [-1.0, 1.0]:
+		var px: float = float(sgn) * 34.0
+		_add_solid_box(parent, pos + Vector3(px, 4.75, 0.0), Vector3(1.6, 1.6, 7.6))
+		for wz in [-3.25, 3.25]:
+			_add_solid_box(parent, pos + Vector3(px, 2.4, wz), Vector3(1.8, 5.2, 1.25))
+	# Atmospheric amber industrial work lights along the 68m floodway + cyan vault alcove glow!
+	for lx in [-26.0, -13.0, 0.0, 13.0, 26.0]:
+		var tl := OmniLight3D.new()
+		tl.light_color = Color("ffbe62")
+		tl.light_energy = 2.4
+		tl.omni_range = 16.0
+		tl.position = pos + Vector3(lx, 3.15, 0.0)
+		parent.add_child(tl)
+	var vault_light := OmniLight3D.new()
+	vault_light.light_color = Color("4ae8ff")
+	vault_light.light_energy = 2.6
+	vault_light.omni_range = 11.0
+	vault_light.position = pos + Vector3(0.0, 3.1, -4.3)
+	parent.add_child(vault_light)
+	var wl: Label3D = game._label3d(parent, "零号大坝泄洪暗道 · 西入口", pos + Vector3(-35.2, 5.9, 0.0), 34, Color("ffd166"))
+	wl.pixel_size = 0.0085
+	wl.visibility_range_end = 90.0
+	var el: Label3D = game._label3d(parent, "零号大坝泄洪暗道 → 停机坪撤离点", pos + Vector3(35.2, 5.9, 0.0), 34, Color("8ef5c8"))
+	el.pixel_size = 0.0085
+	el.visibility_range_end = 90.0
+
+func _build_brakkesh_grand_bathhouse(parent: Node3D, at_xz: Vector3, yaw_deg: float):
+	var py := AhsarahLayout.min_ground_height(at_xz.x, at_xz.z, 5.5)
+	var pp := Vector3(at_xz.x, py, at_xz.z)
+	var mi := _place_fortress(parent, "brakkesh_grand_bathhouse", pp, yaw_deg, 1.0, true)
+	if mi != null:
+		mi.name = "BrakkeshGrandBathhouse"
+	var rot_b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
+	# Walkable raised stone floor terrace (top at y=+0.55m) + smooth front stair ramp
+	_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 0.275, 0.0), Vector3(13.4, 0.55, 10.8))
+	var f_ramp := _add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 0.20, 5.95), Vector3(5.4, 0.24, 1.85))
+	f_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(17.5))
+	var b_ramp := _add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 0.20, -5.95), Vector3(4.6, 0.24, 1.85))
+	b_ramp.rotate_object_local(Vector3.RIGHT, deg_to_rad(-17.5))
+	# Outer corner & colonnade wall piers keeping central front/rear/side archways open & walkable!
+	for cz in [-4.75, 4.75]:
+		for px in [-6.1, -2.55, 2.55, 6.1]:
+			_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(px, 2.70, cz), Vector3(1.15, 4.30, 0.85))
+	for cx in [-6.05, 6.05]:
+		_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(cx, 2.70, 0.0), Vector3(0.85, 4.30, 1.40))
+	# Roof deck & dome silhouette blocker
+	_add_local_box(parent, pp, rot_b, yaw_deg, Vector3(0.0, 5.05, 0.0), Vector3(13.2, 0.45, 10.6))
+	# Central octagonal fountain solid cylinder collider
+	_add_solid_cylinder(parent, pp + Vector3(0.0, 1.25, 0.0), 1.75, 2.2)
+	var bl: Label3D = game._label3d(parent, "巴克什穹顶浴场 · GRAND BATHHOUSE", pp + Vector3(0.0, 10.4, 0.0), 38, Color("ffe2a8"))
+	bl.pixel_size = 0.009
+	bl.visibility_range_end = 105.0
+
+func _build_cement_elevated_catwalk(parent: Node3D, at_xz: Vector3, yaw_deg: float):
+	var cy := AhsarahLayout.min_ground_height(at_xz.x, at_xz.z, 4.5)
+	var cp := Vector3(at_xz.x, cy, at_xz.z)
+	var mi := _place_fortress(parent, "cement_elevated_catwalk", cp, yaw_deg, 1.0, true)
+	if mi != null:
+		mi.name = "CementElevatedCatwalk"
+	var rot_b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
+	# Support column piers (keeps open tactical lanes underneath!)
+	for px in [-5.6, -1.8, 1.8, 5.6]:
+		for pz in [-1.35, 1.35]:
+			_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(px, 2.10, pz), Vector3(0.42, 4.20, 0.42))
+	# Walkable elevated steel walkway deck (top y = +4.29m)
+	_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(0.0, 4.18, 0.0), Vector3(12.4, 0.22, 3.2))
+	# Waist-high industrial guardrails around top deck (leaving stair entry open at x∈[-1.8..+0.4], z=+1.52!)
+	_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(0.0, 4.78, -1.52), Vector3(12.2, 1.05, 0.16))
+	_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(-3.9, 4.78, 1.52), Vector3(4.2, 1.05, 0.16))
+	_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(3.2, 4.78, 1.52), Vector3(5.8, 1.05, 0.16))
+	for sx in [-6.05, 6.05]:
+		_add_local_box(parent, cp, rot_b, yaw_deg, Vector3(sx, 4.78, 0.0), Vector3(0.16, 1.05, 3.1))
+	# Climbable sloped steel stair flight rising smoothly from z=+8.8 (y=0.0) -> z=+1.55 (y=4.20) at x=-0.7!
+	var stair_ang := atan2(4.20, 7.25)
+	var stair_ramp := _add_local_box(parent, cp, rot_b, yaw_deg, Vector3(-0.7, 1.94, 5.175), Vector3(2.08, 0.28, 8.48))
+	stair_ramp.rotate_object_local(Vector3.RIGHT, stair_ang)
+	var cl: Label3D = game._label3d(parent, "水泥厂高架钢桥 · 可登高狙击", cp + Vector3(0.0, 6.1, 0.0), 30, Color("ffd884"))
+	cl.pixel_size = 0.008
+	cl.visibility_range_end = 85.0
+
 func _sandstone_perimeter_and_covers():
 	var cov := Node3D.new()
 	cov.name = "AhsarahCoversAndWalls"
@@ -544,11 +713,12 @@ func _sandstone_perimeter_and_covers():
 	conc_mat.roughness = 0.86
 
 	# Sandstone fortress courtyard perimeter walls framing the Admin Fortress Boss Arena cleanly
+	# (Leaves East/West Spillway Tunnel portals at z=-141.5 and central north archway 100% unobstructed!)
 	var wall_specs := [
 		[Vector3(-18.0, 0.0, -104.0), Vector3(13.0, 3.6, 1.4), 0.0, sand_mat],
 		[Vector3(18.0, 0.0, -104.0), Vector3(13.0, 3.6, 1.4), 0.0, sand_mat],
-		[Vector3(-24.0, 0.0, -138.0), Vector3(1.4, 3.8, 18.0), 0.0, conc_mat],
-		[Vector3(24.0, 0.0, -138.0), Vector3(1.4, 3.8, 12.0), 0.0, conc_mat],
+		[Vector3(-14.0, 0.0, -135.5), Vector3(11.0, 3.6, 1.4), 0.0, conc_mat],
+		[Vector3(14.0, 0.0, -135.5), Vector3(11.0, 3.6, 1.4), 0.0, conc_mat],
 	]
 	for ws in wall_specs:
 		var w_in: Vector3 = ws[0]
@@ -567,7 +737,7 @@ func _sandstone_perimeter_and_covers():
 	# 12 Curved Sandbag Firing Emplacements & 10 Military Ammo Stacks across key sightlines
 	var sandbag_spots := [
 		[Vector3(-4.5, 0.0, 6.0), 18.0], [Vector3(5.5, 0.0, 5.5), -20.0],
-		[Vector3(-28.0, 0.0, -34.0), 32.0], [Vector3(-36.0, 0.0, -56.0), -18.0],
+		[Vector3(-28.0, 0.0, -34.0), 32.0], [Vector3(-31.0, 0.0, -62.0), -18.0],
 		[Vector3(28.0, 0.0, -28.0), -35.0], [Vector3(34.0, 0.0, -56.0), 15.0],
 		[Vector3(36.0, 0.0, -82.0), -40.0], [Vector3(-34.0, 0.0, -102.0), 42.0],
 		[Vector3(-10.5, 0.0, -118.0), 25.0], [Vector3(10.5, 0.0, -118.0), -25.0],
@@ -581,7 +751,7 @@ func _sandstone_perimeter_and_covers():
 
 	var ammo_spots := [
 		[Vector3(-5.8, 0.0, 14.2), 14.0], [Vector3(6.2, 0.0, 12.0), -22.0],
-		[Vector3(-41.0, 0.0, -41.0), 8.0], [Vector3(-42.0, 0.0, -58.0), 42.0],
+		[Vector3(-41.0, 0.0, -41.0), 8.0], [Vector3(-46.0, 0.0, -52.0), 42.0],
 		[Vector3(31.0, 0.0, -35.0), -15.0], [Vector3(40.0, 0.0, -94.0), 26.0],
 		[Vector3(-38.0, 0.0, -112.0), -30.0], [Vector3(-13.5, 0.0, -126.0), 12.0],
 		[Vector3(13.5, 0.0, -126.0), -18.0], [Vector3(56.0, 0.0, -132.0), 34.0],
@@ -699,7 +869,7 @@ func _desert_flora_and_boulders():
 		Vector3(-62.0, 0.0, -24.0), Vector3(14.0, 0.0, -46.0), Vector3(-22.0, 0.0, -64.0),
 		Vector3(62.0, 0.0, -56.0), Vector3(-64.0, 0.0, -82.0), Vector3(22.0, 0.0, -94.0),
 		Vector3(-18.0, 0.0, -96.0), Vector3(64.0, 0.0, -116.0), Vector3(-62.0, 0.0, -130.0),
-		Vector3(32.0, 0.0, -118.0), Vector3(-28.0, 0.0, -142.0),
+		Vector3(32.0, 0.0, -118.0), Vector3(-42.0, 0.0, -134.0),
 	]
 	for idx in acacia_spots.size():
 		var a_in: Vector3 = acacia_spots[idx]
@@ -739,49 +909,54 @@ func _stations_and_targets():
 		game.stations.append(station)
 
 func _tactical_crates_and_pickups():
-	# 8 High-value Cipher Crates strategically placed across Zero Dam x Brakkesh landmarks!
+	# 10 High-value Cipher Crates across Zero Dam x Brakkesh landmarks (including 2F Fortress Balcony & Dam Spillway Alcove!)
+	var bath_y := AhsarahLayout.min_ground_height(AhsarahLayout.GRAND_BATHHOUSE.x, AhsarahLayout.GRAND_BATHHOUSE.z, 5.5) + 0.55
+	var bath_rot := Basis(Vector3.UP, deg_to_rad(-20.0))
+	var bath_crate_pos := Vector3(AhsarahLayout.GRAND_BATHHOUSE.x, bath_y, AhsarahLayout.GRAND_BATHHOUSE.z) + bath_rot * Vector3(3.15, 0.0, 0.0)
 	var crate_specs := [
-		["绿洲前哨补给箱", 1, Vector3(-2.5, 0.0, 7.2)],
-		["水泥厂工棚加密箱", 2, Vector3(-43.5, 0.0, -44.0)],
-		["巴克什拱廊珍宝箱", 2, Vector3(44.0, 0.0, -28.0)],
-		["哈夫克变电站机密箱", 3, Vector3(48.0, 0.0, -90.0)],
-		["西翼哨所军火箱", 2, Vector3(-48.5, 0.0, -104.0)],
-		["阿萨拉行政堡垒 · 西翼金库箱", 3, Vector3(-16.5, 0.0, -124.0)],
-		["阿萨拉行政堡垒 · 核心曼德尔金库", 3, Vector3(0.0, 0.0, -133.5)],
-		["零号大坝高台特勤秘箱", 3, Vector3(36.0, 0.0, -138.0)],
+		["绿洲前哨补给箱", 1, Vector3(-2.5, 0.0, 7.2), false],
+		["水泥厂工棚加密箱", 2, Vector3(-43.5, 0.0, -44.0), false],
+		["巴克什浴场珍宝箱", 2, bath_crate_pos, true],
+		["哈夫克变电站机密箱", 3, Vector3(48.0, 0.0, -90.0), false],
+		["西翼哨所军火箱", 2, Vector3(-48.5, 0.0, -104.0), false],
+		["阿萨拉行政堡垒 · 西翼金库箱", 3, Vector3(-16.5, 0.0, -124.0), false],
+		["阿萨拉行政堡垒 · 核心曼德尔金库", 3, Vector3(0.0, 0.0, -133.5), false],
+		["零号大坝高台特勤秘箱", 3, Vector3(36.0, 0.0, -138.0), false],
+		["零号大坝泄洪道秘库", 3, Vector3(0.0, AhsarahLayout.CLOUD_ARENA_Y + 0.04, -145.45), true],
+		["行政堡垒 · 东翼二层指挥箱", 3, Vector3(21.2, AhsarahLayout.CLOUD_ARENA_Y + 3.70, -124.0), true],
 	]
 	for cs in crate_specs:
 		var cpos_in: Vector3 = cs[2]
-		var gp := AhsarahLayout.on_ground(cpos_in)
-		# Lift crate inside Brakkesh main pavilion cleanly onto the raised sandstone terrace floor (+0.60m)
-		if str(cs[0]) == "巴克什拱廊珍宝箱":
-			gp.y = AhsarahLayout.min_ground_height(44.0, -28.0, 4.2) + 0.60
+		var gp := cpos_in if bool(cs[3]) else AhsarahLayout.on_ground(cpos_in)
 		var cr: Node3D = game._make_crate(str(cs[0]), int(cs[1]), gp)
 		TacticalProps.build_tiered_vault_crate(game, cr, int(cs[1]))
 
-	# Tactical pickups (ammo crates, medkits, smoke EMP, energy stims) + field supply boxes
+	# Tactical pickups (ammo crates, medkits, smoke EMP, energy stims) + field supply boxes (including elevated 2F & Catwalk loot!)
+	var cat_y := AhsarahLayout.min_ground_height(AhsarahLayout.CEMENT_CATWALK.x, AhsarahLayout.CEMENT_CATWALK.z, 4.5) + 4.29
 	var pickup_specs := [
-		["ammo_crate", "军用弹药补给箱", Vector3(4.0, 0.0, 8.5)],
-		["ammo_crate", "水泥厂弹药补给箱", Vector3(-37.0, 0.0, -49.0)],
-		["ammo_crate", "巴克什弹药补给箱", Vector3(34.0, 0.0, -42.0)],
-		["ammo_crate", "变电站弹药补给箱", Vector3(42.0, 0.0, -82.0)],
-		["ammo_crate", "西翼弹药补给箱", Vector3(-36.0, 0.0, -108.0)],
-		["ammo_crate", "行政堡垒弹药补给箱", Vector3(-9.0, 0.0, -112.0)],
-		["medkit", "沙漠急救医疗包", Vector3(-14.0, 0.0, -34.0)],
-		["medkit", "行政堡垒急救包", Vector3(9.5, 0.0, -112.0)],
-		["smoke_emp", "战术烟雾 EMP 罐", Vector3(26.0, 0.0, -64.0)],
-		["stim", "沙漠能量饮", Vector3(-24.0, 0.0, -86.0)],
-		["supply", "荒漠游击补给包", Vector3(-26.0, 0.0, -28.0)],
-		["supply", "集市商队遗留箱", Vector3(28.0, 0.0, -22.0)],
-		["supply", "哈夫克工程工具箱", Vector3(41.0, 0.0, -72.0)],
-		["supply", "大坝巡逻补给箱", Vector3(-28.0, 0.0, -124.0)],
-		["supply", "停机坪应急物资箱", Vector3(44.0, 0.0, -126.0)],
+		["ammo_crate", "军用弹药补给箱", Vector3(4.0, 0.0, 8.5), false],
+		["ammo_crate", "水泥厂弹药补给箱", Vector3(-37.0, 0.0, -49.0), false],
+		["ammo_crate", "巴克什弹药补给箱", Vector3(34.0, 0.0, -42.0), false],
+		["ammo_crate", "变电站弹药补给箱", Vector3(42.0, 0.0, -82.0), false],
+		["ammo_crate", "西翼弹药补给箱", Vector3(-36.0, 0.0, -108.0), false],
+		["ammo_crate", "行政堡垒弹药补给箱", Vector3(-9.0, 0.0, -112.0), false],
+		["ammo_crate", "堡垒二层狙击弹药箱", Vector3(-21.2, AhsarahLayout.CLOUD_ARENA_Y + 3.70, -126.0), true],
+		["medkit", "沙漠急救医疗包", Vector3(-14.0, 0.0, -34.0), false],
+		["medkit", "行政堡垒急救包", Vector3(9.5, 0.0, -112.0), false],
+		["smoke_emp", "战术烟雾 EMP 罐", Vector3(26.0, 0.0, -64.0), false],
+		["stim", "沙漠能量饮", Vector3(-24.0, 0.0, -86.0), false],
+		["supply", "荒漠游击补给包", Vector3(-26.0, 0.0, -28.0), false],
+		["supply", "集市商队遗留箱", Vector3(28.0, 0.0, -22.0), false],
+		["supply", "哈夫克工程工具箱", Vector3(41.0, 0.0, -72.0), false],
+		["supply", "大坝巡逻补给箱", Vector3(-28.0, 0.0, -124.0), false],
+		["supply", "停机坪应急物资箱", Vector3(44.0, 0.0, -126.0), false],
+		["supply", "水泥厂高架狙击补给", Vector3(-42.0, cat_y, -57.2), true],
 	]
 	for idx_p in pickup_specs.size():
 		var ps = pickup_specs[idx_p]
 		var kind := str(ps[0])
 		var title := str(ps[1])
-		var gp := AhsarahLayout.on_ground(ps[2])
+		var gp: Vector3 = ps[2] if bool(ps[3]) else AhsarahLayout.on_ground(ps[2])
 		var pnode := Node3D.new()
 		pnode.position = gp
 		pnode.set_meta("title", title)

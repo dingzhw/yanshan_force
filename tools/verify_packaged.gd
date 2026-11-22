@@ -29,9 +29,9 @@ func run():
 	verify(pro_scene is PackedScene, "standalone PCK loads prologue_chapter.tscn as valid PackedScene")
 	verify(bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)), "exported project enables audio/general/text_to_speech for OS TTS fallback")
 
-	# Full 337/337 offline voice OGG existence AND real AudioStream decode verification!
+	# Full 341/341 offline voice OGG existence AND real AudioStream decode verification!
 	var voice_manifest = JSON.parse_string(FileAccess.get_file_as_string("res://data/learning/voice_manifest.json"))
-	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 337)
+	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 341)
 	var missing_ogg: int = 0
 	var decode_failed_ogg: int = 0
 	var decoded_ogg_count: int = 0
@@ -168,6 +168,26 @@ func run():
 			)
 			aai.free()
 	verify(ah_arch_ok, "standalone PCK v090_ahsarah_architecture.glb contains Zero Dam, Babel Tower, Ahsarah Gatehouse, Brakkesh Pavilion & Dimensional Rift Wall")
+	var v91_fort_ok := false
+	if ResourceLoader.exists("res://scripts/mandel_event.gd") and ResourceLoader.exists("res://assets/slice/v091_ahsarah_fortress.glb"):
+		var f91_p = load("res://assets/slice/v091_ahsarah_fortress.glb")
+		if f91_p is PackedScene:
+			var fi91: Node = f91_p.instantiate()
+			v91_fort_ok = (
+				fi91.find_child("fortress_interior_wing", true, false) != null
+				and fi91.find_child("dam_spillway_tunnel", true, false) != null
+				and fi91.find_child("brakkesh_grand_bathhouse", true, false) != null
+				and fi91.find_child("cement_elevated_catwalk", true, false) != null
+				and fi91.find_child("mandel_decode_station", true, false) != null
+				and fi91.find_child("mandel_brick_pedestal", true, false) != null
+			)
+			fi91.free()
+	verify(v91_fort_ok, "standalone PCK includes v0.9.1 mandel_event.gd & all 6 multi-story fortress/MandelBrick models in v091_ahsarah_fortress.glb")
+	var wild_v91_ok := true
+	for w91 in ["animal_fennec", "animal_camel", "animal_falcon", "animal_scarab"]:
+		if not ResourceLoader.exists("res://assets/slice/wildlife/" + w91 + ".glb"):
+			wild_v91_ok = false
+	verify(wild_v91_ok, "standalone PCK includes all 4 v0.9.1 rigged desert wildlife GLBs (fennec/camel/falcon/scarab)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

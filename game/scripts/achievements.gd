@@ -17,6 +17,9 @@ const CHARMS := {
 	"charm_sonar": {"name": "幽蓝声纹晶核", "color": Color("58e8ff"), "accent": Color("194866"), "shape": "sonar", "desc": "古洞循音石卫成就奖励：脉动幽蓝声波矿晶。"},
 	"charm_iron_crown": {"name": "玄铁龙纹战徽", "color": Color("ffae3b"), "accent": Color("2a262c"), "shape": "iron_crown", "desc": "机密天降玄铁词尊成就奖励：暗金玄铁霸主徽章。"},
 	"charm_mythic_star": {"name": "赤金大红星章", "color": Color("ff3b4e"), "accent": Color("ffd966"), "shape": "star", "desc": "旷世大红带出成就奖励：赤金五芒星荣耀坠。"},
+	"charm_mini_mandel": {"name": "迷你曼德尔砖", "color": Color("42ecff"), "accent": Color("ffd86b"), "shape": "mini_mandel", "desc": "阿萨拉曼德尔破译成就奖励：全息青蓝量子魔方微缩坠。"},
+	"charm_fiery_owl": {"name": "赤枭铜鹰坠", "color": Color("d96b38"), "accent": Color("ffd05c"), "shape": "fiery_owl", "desc": "阿萨拉赤枭首领成就奖励：展翼青铜赤枭红宝双目吊坠。"},
+	"charm_heart_africa": {"name": "非洲之心微钻", "color": Color("ff2e4c"), "accent": Color("ffdf7a"), "shape": "heart_africa", "desc": "阿萨拉终极撤离/军阀成就奖励：黄金爪镶璀璨赤红巨钻挂件。"},
 }
 
 const CATALOG := [
@@ -51,6 +54,13 @@ const CATALOG := [
 	{"id": "warden_1", "cat": "首领与摸金", "stat": "cave_warden_defeated", "target": 1, "title": "静步破音", "desc": "在烟霞古洞击败「古洞循音石卫」", "charm": "charm_sonar", "icon": "🌀"},
 	{"id": "overlord_1", "cat": "首领与摸金", "stat": "skyfall_boss_defeated", "target": 1, "title": "玄铁克星", "desc": "机密行动按序击败天降「雾隐机关王·玄铁词尊」", "charm": "charm_iron_crown", "icon": "⚡"},
 	{"id": "red_1", "cat": "首领与摸金", "stat": "red_extracted", "target": 1, "title": "红运当头", "desc": "成功带出 1 件【旷世·大红】珍品", "charm": "charm_mythic_star", "icon": "✦"},
+	# v0.9.1 Ahsarah Fortress Desert Theater milestones (6)
+	{"id": "ahsarah_entry", "cat": "阿萨拉战区", "stat": "ahsarah_entered", "target": 1, "title": "踏足零号大坝", "desc": "首次在「阿萨拉堡垒」战区出击行动", "charm": "charm_fiery_owl", "icon": "🏜"},
+	{"id": "ahsarah_saeed", "cat": "阿萨拉战区", "stat": "saeed_defeated", "target": 1, "title": "赤枭折翼", "desc": "在阿萨拉行政堡垒击败普通首领「赤枭·赛伊德」", "charm": "charm_fiery_owl", "icon": "🦅"},
+	{"id": "ahsarah_reis", "cat": "阿萨拉战区", "stat": "reis_defeated", "target": 1, "title": "交响终章", "desc": "在阿萨拉机密行动击败军阀「雷斯」", "charm": "charm_heart_africa", "icon": "🎺"},
+	{"id": "ahsarah_mandel", "cat": "阿萨拉战区", "stat": "mandel_decoded", "target": 1, "title": "曼德尔破译者", "desc": "夺取并完成 3 轮英文破译 1 块曼德尔加密砖", "charm": "charm_mini_mandel", "icon": "🔷"},
+	{"id": "ahsarah_eco", "cat": "阿萨拉战区", "stat": "desert_species_found", "target": 4, "title": "荒漠博物学家", "desc": "在阿萨拉发现全部 4 种荒漠生灵（耳廓狐/单峰驼/猎隼/圣甲虫）", "charm": "charm_mini_mandel", "icon": "🐪"},
+	{"id": "ahsarah_extract", "cat": "阿萨拉战区", "stat": "ahsarah_extracted", "target": 1, "title": "巴克什突围", "desc": "在阿萨拉堡垒达成全部条件并从停机坪成功撤离", "charm": "charm_heart_africa", "icon": "🚁"},
 ]
 
 var game

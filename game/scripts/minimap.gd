@@ -53,6 +53,12 @@ func _draw():
 		draw_circle(point(al.OASIS_POOL), 5.2, Color("38a8a0"))
 		# North monumental Zero Dam concrete wall bar
 		draw_line(point(Vector3(-56.0, 0, -158.0)), point(Vector3(56.0, 0, -158.0)), Color("b8bec4"), 4.2, true)
+		# v0.9.1 Zero Dam Underground Floodway / Spillway Shortcut Tunnel dashed corridor
+		var tw_p := point(al.SPILLWAY_WEST_PORTAL)
+		var te_p := point(al.SPILLWAY_EAST_PORTAL)
+		draw_dashed_line(tw_p, te_p, Color("5ef2ff", 0.85), 2.4, 4.0)
+		draw_circle(tw_p, 2.2, Color("ffd166"))
+		draw_circle(te_p, 2.2, Color("8ef5c8"))
 		# Desert road network
 		for i in al.ROUTE.size() - 1:
 			draw_line(point(al.ROUTE[i]), point(al.ROUTE[i + 1]), Color("c8a46e"), 2.2, true)
@@ -123,6 +129,13 @@ func _draw():
 						draw_circle(point(soldier.position), r, dot_col)
 						if soldier.archetype == 3:
 							draw_arc(point(soldier.position), 5.2, 0, TAU, 16, Color("ff5c5c"), 1.2)
+		# v0.9.1 MandelBrick ambush interceptor dots (zone 99)
+		if game.combat.troops.has(99):
+			for m_sol in game.combat.troops[99]:
+				if is_instance_valid(m_sol) and not m_sol.defeated:
+					var mp := point(m_sol.position)
+					draw_circle(mp, 2.4, Color("ff5c77"))
+					draw_arc(mp, 4.0, 0, TAU, 12, Color("46e8ff", 0.78), 1.0)
 	else:
 		for station in al.STATIONS:
 			draw_circle(point(station.at), 3.4, Color("86c5eb"))
@@ -181,11 +194,23 @@ func _draw():
 	draw_circle(exit_point, 4.6, Color("76e5bc") if ready else Color("d8b26e"), false, 1.8)
 
 	if is_ah:
+		# v0.9.1 MandelBrick pulsing cyan diamond marker
+		if is_instance_valid(game.mandel_event) and game.mandel_event.state in ["available", "carrying", "decoding"]:
+			var mb_world: Vector3 = game.mandel_event.active_target_pos()
+			if mb_world != Vector3.ZERO:
+				var mb_p := point(mb_world)
+				draw_colored_polygon(PackedVector2Array([
+					mb_p + Vector2(0, -4.6), mb_p + Vector2(4.6, 0),
+					mb_p + Vector2(0, 4.6), mb_p + Vector2(-4.6, 0)
+				]), Color("46f0ff"))
+				draw_arc(mb_p, 7.0, 0, TAU, 16, Color("ffd86b", 0.88), 1.4, true)
+				_draw_tag(mb_p + Vector2(5.0, -5.0), "砖", Color("5ef2ff"))
 		_draw_tag(point(al.SPAWN) + Vector2(0.0, 9.0), "洲", Color("92f0d4"))
 		_draw_tag(point(al.CEMENT_PLANT) + Vector2(-4.0, 0.0), "厂", Color("f2d298"))
 		_draw_tag(point(al.BAZAAR_ARCH) + Vector2(3.0, 0.0), "市", Color("ffd48a"))
 		_draw_tag(point(al.SUBSTATION) + Vector2(3.0, 0.0), "电", Color("66e8ff"))
 		_draw_tag(point(al.ADMIN_FORTRESS) + Vector2(0.0, -7.0), "堡", Color("ff9e58"))
+		_draw_tag(point(Vector3(-19.0, 0.0, al.SPILLWAY_TUNNEL_CENTER.z)) + Vector2(-4.0, -2.0), "道", Color("5ef2ff"))
 		_draw_tag(point(al.ZERO_DAM_CENTER) + Vector2(0.0, -4.0), "坝", Color("e4ecf2"))
 		_draw_tag(exit_point + Vector2(6.0, 2.0), "撤", Color("76e5bc") if ready else Color("f0cf86"))
 	else:

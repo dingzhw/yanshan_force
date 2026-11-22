@@ -29,15 +29,29 @@ const SPAWN = Vector3(0.0, 0.0, 14.0)
 const OASIS_POOL = Vector3(-16.0, 0.0, 12.0)
 
 const CEMENT_PLANT = Vector3(-46.0, 0.0, -48.0)
+const CEMENT_CATWALK = Vector3(-42.0, 0.0, -54.0)
 const BAZAAR_ARCH = Vector3(38.0, 0.0, -36.0)
+const GRAND_BATHHOUSE = Vector3(44.0, 0.0, -28.0)
 const SUBSTATION = Vector3(46.0, 0.0, -88.0)
 const WEST_BARRACKS = Vector3(-44.0, 0.0, -108.0)
 const ADMIN_FORTRESS = Vector3(0.0, 0.0, -124.0)
+const FORTRESS_WEST_WING = Vector3(-22.5, 0.0, -124.0)
+const FORTRESS_EAST_WING = Vector3(22.5, 0.0, -124.0)
 const FORTRESS_GATE = Vector3(0.0, 0.0, -102.0)
+const SPILLWAY_TUNNEL_CENTER = Vector3(0.0, 0.0, -141.5)
+const SPILLWAY_WEST_PORTAL = Vector3(-34.0, 0.0, -141.5)
+const SPILLWAY_EAST_PORTAL = Vector3(34.0, 0.0, -141.5)
 const ZERO_DAM_CENTER = Vector3(0.0, 0.0, -158.0)
 const RADAR_TOWER_WEST = Vector3(-34.0, 0.0, -148.0)
 const RADAR_TOWER_EAST = Vector3(34.0, 0.0, -148.0)
 const EXIT = Vector3(52.0, 0.0, -138.0)
+
+# v0.9.1 MandelBrick Capture & Decryption Dynamic Event Anchors
+const MANDEL_PICKUP_POS = Vector3(0.0, 0.0, -130.5)
+const MANDEL_DECODE_SITES = [
+	{"id": "bazaar_decode", "title": "巴克什集市破译站", "at": Vector3(24.0, 0.0, -34.0), "yaw": -32.0},
+	{"id": "cement_decode", "title": "水泥厂广场破译站", "at": Vector3(-28.0, 0.0, -56.0), "yaw": 28.0}
+]
 
 # Arena alias matching Layout's boss arena constants
 const CLOUD_ARENA_CENTER = ADMIN_FORTRESS
@@ -65,7 +79,7 @@ const INTEL_CEMENT = Vector3(-34.5, 0.0, -40.0)
 const INTEL_BAZAAR = Vector3(31.5, 0.0, -26.5)
 const INTEL_SUBSTATION = Vector3(37.5, 0.0, -82.0)
 const INTEL_FORTRESS = Vector3(-13.0, 0.0, -112.0)
-const INTEL_DAM_VIEW = Vector3(22.0, 0.0, -138.0)
+const INTEL_DAM_VIEW = Vector3(24.0, 0.0, -135.5)
 
 # Compatibility landmark stubs so shared scripts never error if accessed
 const POEM = INTEL_CEMENT
@@ -105,17 +119,20 @@ const BRANCHES = [
 ]
 
 # Explicit flat architectural grading pads [pos, inner_flat_radius, outer_blend_radius]
-# Ensures EVERY pavilion, silo, substation bay, barracks, radar tower & camp outpost sits dead-level with zero floating edges!
+# Ensures EVERY pavilion, bathhouse, catwalk, decode station, silo, substation bay, barracks & radar tower sits dead-level!
 const BUILDING_PADS = [
-	[Vector3(44.0, 0.0, -28.0), 8.2, 14.5],    # Brakkesh main arched bazaar pavilion
+	[GRAND_BATHHOUSE, 10.2, 16.5],             # v0.9.1 Brakkesh Grand Dome Bathhouse
 	[Vector3(36.0, 0.0, -46.0), 8.0, 14.0],    # Brakkesh south bazaar pavilion
 	[Vector3(-52.0, 0.0, -104.0), 8.2, 14.5],  # West barracks pavilion
 	[Vector3(-54.0, 0.0, -44.0), 9.5, 16.0],   # Cement plant silo #1
 	[Vector3(-52.0, 0.0, -64.0), 9.0, 15.5],   # Cement plant silo #2
+	[Vector3(-40.0, 0.0, -54.0), 8.5, 14.5],   # v0.9.1 Cement plant elevated steel catwalk & stair pad
 	[Vector3(52.0, 0.0, -84.0), 7.2, 13.0],    # Haavk substation bay #1
 	[Vector3(52.0, 0.0, -96.0), 7.2, 13.0],    # Haavk substation bay #2
 	[RADAR_TOWER_WEST, 7.5, 13.5],             # West Babel radar tower
 	[RADAR_TOWER_EAST, 7.5, 13.5],             # East Babel radar tower
+	[Vector3(24.0, 0.0, -34.0), 4.2, 8.5],     # v0.9.1 MandelBrick decode station (Bazaar)
+	[Vector3(-28.0, 0.0, -56.0), 4.2, 8.5],    # v0.9.1 MandelBrick decode station (Cement)
 ]
 
 const LAND_ANCHORS = [
@@ -219,15 +236,22 @@ static func height(x: float, z: float) -> float:
 		if bd < r_out:
 			var bw := 1.0 - smoothstep(r_in, r_out, bd)
 			result = lerpf(result, base_height(bpos.x, bpos.z), bw)
-	# Flat Administrative Fortress Courtyard & Gatehouse Terrace (radius 24m at y=5.40m)
+	# Flat Administrative Fortress Courtyard, Twin 2-Story Wings & Gatehouse Terrace (y=5.40m)
 	var fort_d := Vector2(x - ADMIN_FORTRESS.x, z - ADMIN_FORTRESS.z).length()
-	if fort_d < 30.0:
-		var fw := 1.0 - smoothstep(21.5, 30.0, fort_d)
+	if fort_d < 35.5:
+		var fw := 1.0 - smoothstep(27.5, 35.5, fort_d)
 		result = lerpf(result, CLOUD_ARENA_Y, fw)
 	var gate_d := Vector2(x - FORTRESS_GATE.x, z - FORTRESS_GATE.z).length()
 	if gate_d < 17.0:
 		var gw := 1.0 - smoothstep(11.0, 17.0, gate_d)
 		result = lerpf(result, CLOUD_ARENA_Y, gw)
+	# Flat Zero Dam Underground Floodway / Spillway Shortcut Tunnel bed (x∈[-36..+36], z∈[-147..-137] at y=5.40m)
+	var tun_dx := maxf(0.0, absf(x) - 36.5)
+	var tun_dz := maxf(0.0, absf(z - SPILLWAY_TUNNEL_CENTER.z) - 5.8)
+	var tun_d := Vector2(tun_dx, tun_dz).length()
+	if tun_d < 6.5:
+		var tw := 1.0 - smoothstep(0.0, 6.5, tun_d)
+		result = lerpf(result, CLOUD_ARENA_Y, tw)
 	# Flat Helipad Extraction Plateau (y=7.0m)
 	var ex_d := Vector2(x - EXIT.x, z - EXIT.z).length()
 	if ex_d < 14.5:
@@ -315,6 +339,16 @@ static func clear_for_route(x: float, z: float, padding = 0.0) -> bool:
 		return true
 	if Vector2(x - EXIT.x, z - EXIT.z).length() < 10.5 + pad:
 		return true
+	if absf(x) < 39.0 + pad and absf(z - SPILLWAY_TUNNEL_CENTER.z) < 7.5 + pad:
+		return true
+	if Vector2(x - CEMENT_CATWALK.x, z - CEMENT_CATWALK.z).length() < 11.5 + pad:
+		return true
+	if Vector2(x - GRAND_BATHHOUSE.x, z - GRAND_BATHHOUSE.z).length() < 11.5 + pad:
+		return true
+	for ds in MANDEL_DECODE_SITES:
+		var da: Vector3 = ds.at
+		if Vector2(x - da.x, z - da.z).length() < 6.5 + pad:
+			return true
 	for camp in COMBAT_ZONES:
 		var ca: Vector3 = camp.at
 		if Vector2(x - ca.x, z - ca.z).length() < 12.0 + pad:

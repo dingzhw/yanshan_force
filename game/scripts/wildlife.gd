@@ -3,11 +3,19 @@ extends Node3D
 ## tree-climbing squirrels, counter-charging wild boars (15 HP damage), flapping/gliding egrets & songbirds,
 ## brook koi, creek crabs, freshwater shrimp, and 8 interactive [F] English botanical specimens.
 
+const AhsarahLayout = preload("res://scripts/ahsarah_layout.gd")
+
 var game
+var yanshan_root: Node3D
+var ahsarah_root: Node3D
+var active_map_id: String = "yanshan"
 var animals: Array = []
 var sky_egrets: Array = []
 var flora_nodes: Array = []
+var desert_animals: Array = []
+var desert_falcons: Array = []
 var discovered_species: Dictionary = {}
+var discovered_desert_species: Dictionary = {}
 var collected_flora: Dictionary = {}
 var hit_fx: Array = []
 var flee_sfx_cooldown := 0.0
@@ -15,18 +23,80 @@ var frozen_for_capture := false
 var map_enabled := true
 var rng := RandomNumberGenerator.new()
 
-func set_map_enabled(on: bool):
-	map_enabled = on
-	visible = on
+func set_active_map(map_id: String):
+	active_map_id = "ahsarah" if map_id == "ahsarah" else "yanshan"
+	map_enabled = true
+	visible = true
+	var is_ys := (active_map_id == "yanshan")
+	if is_instance_valid(yanshan_root):
+		yanshan_root.visible = is_ys
+	if is_instance_valid(ahsarah_root):
+		ahsarah_root.visible = not is_ys
+	for a in animals:
+		if is_instance_valid(a.area):
+			a.area.collision_layer = HIT_LAYER if (is_ys and not (a.state in ["downed", "hidden"])) else 0
+	for eg in sky_egrets:
+		if is_instance_valid(eg.area):
+			eg.area.collision_layer = HIT_LAYER if (is_ys and not (str(eg.get("state", "fly")) in ["downed", "hidden"])) else 0
 	for f in flora_nodes:
 		if is_instance_valid(f):
-			f.visible = on and not bool(collected_flora.get(str(f.get_meta("flora_id", "")), false))
+			f.visible = is_ys and not bool(collected_flora.get(str(f.get_meta("flora_id", "")), false))
+	for da in desert_animals:
+		if is_instance_valid(da.area):
+			da.area.collision_layer = HIT_LAYER if ((not is_ys) and not (da.state in ["downed", "hidden"])) else 0
+	for df in desert_falcons:
+		if is_instance_valid(df.area):
+			df.area.collision_layer = HIT_LAYER if ((not is_ys) and not (str(df.get("state", "fly")) in ["downed", "hidden"])) else 0
+
+func set_map_enabled(on: bool):
+	set_active_map("yanshan" if on else "ahsarah")
 var critter_mat_cache: Dictionary = {}
 
 const HIT_LAYER := 16  # Dedicated bit 4 (isolated from player mask 1|4 and enemy mask 7)
 const TOTAL_SPECIES := 12
+const TOTAL_DESERT_SPECIES := 4
 const BOAR_CHARGE_DAMAGE := 15
 const BOAR_CHARGE_CHANCE := 0.48
+
+# v0.9.1 Ahsarah Desert Wildlife Ecology (22 ground critters + 6 soaring Desert Falcons = 28 rigged critters across 4 species!)
+const DESERT_ANIMALS := [
+	# 1. Fennec Foxes (8 — big-eared agile Saharan desert foxes near oasis, dunes & ruins)
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(12.0, 0, 8.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(-28.0, 0, 6.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(-18.0, 0, -24.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(22.0, 0, -16.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(-20.0, 0, -68.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(26.0, 0, -66.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(-30.0, 0, -96.0)},
+	{"kind": "fennec", "en": "Fennec Fox", "zh": "荒漠耳廓狐", "tts": "fennec fox", "home": Vector3(32.0, 0, -112.0)},
+
+	# 2. North African Dromedary Camels (4 — tranquil caravan camels by oasis palms & bazaar square)
+	{"kind": "camel", "en": "Camel", "zh": "北非单峰驼", "tts": "camel", "home": Vector3(-13.5, 0, 21.5)},
+	{"kind": "camel", "en": "Camel", "zh": "北非单峰驼", "tts": "camel", "home": Vector3(18.5, 0, 12.0)},
+	{"kind": "camel", "en": "Camel", "zh": "北非单峰驼", "tts": "camel", "home": Vector3(26.0, 0, -48.0)},
+	{"kind": "camel", "en": "Camel", "zh": "北非单峰驼", "tts": "camel", "home": Vector3(-30.0, 0, -22.0)},
+
+	# 3. Golden Dune Scarabs (10 — iridescent golden-turquoise Saharan scarabs scuttling across dunes)
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(6.0, 0, 2.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(-8.0, 0, -12.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(15.0, 0, -32.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(-22.0, 0, -42.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(42.0, 0, -60.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(-38.0, 0, -78.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(20.0, 0, -98.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(-18.0, 0, -110.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(34.0, 0, -126.0)},
+	{"kind": "scarab", "en": "Golden Scarab", "zh": "金色沙丘圣甲虫", "tts": "golden scarab", "home": Vector3(-38.0, 0, -128.0)},
+]
+
+const DESERT_FALCON_SPECS := [
+	{"tts": "desert falcon", "center": Vector3(-8.0, 15.5, 8.0), "rx": 20.0, "rz": 16.0, "spd": 0.36, "phase": 0.2},
+	{"tts": "desert falcon", "center": Vector3(34.0, 17.5, -34.0), "rx": 22.0, "rz": 18.0, "spd": 0.34, "phase": 1.4},
+	{"tts": "desert falcon", "center": Vector3(-38.0, 19.0, -54.0), "rx": 22.0, "rz": 18.0, "spd": 0.32, "phase": 2.5},
+	{"tts": "desert falcon", "center": Vector3(4.0, 18.5, -80.0), "rx": 26.0, "rz": 20.0, "spd": 0.31, "phase": 3.7},
+	{"tts": "desert falcon", "center": Vector3(0.0, 22.5, -122.0), "rx": 26.0, "rz": 18.0, "spd": 0.35, "phase": 4.8},
+	{"tts": "desert falcon", "center": Vector3(30.0, 24.5, -142.0), "rx": 24.0, "rz": 18.0, "spd": 0.33, "phase": 5.6},
+]
 
 const FLORA_SPOTS := [
 	{"id": "flora_camp_orchid", "pos": Vector3(17.0, 0, 13.5), "kind": "orchid", "en": "Wild Orchid", "zh": "溪畔幽兰", "tts": "wild orchid", "sentence": "Wild orchids grow beside the clear mountain stream.", "heal": 8},
@@ -168,10 +238,19 @@ const HABITAT_ANIMALS := [
 func setup(g):
 	game = g
 	rng.seed = 20261115
+	yanshan_root = Node3D.new()
+	yanshan_root.name = "YanshanWildlifeRoot"
+	add_child(yanshan_root)
+	ahsarah_root = Node3D.new()
+	ahsarah_root.name = "AhsarahWildlifeRoot"
+	add_child(ahsarah_root)
 	_spawn_wildlife()
 	_spawn_sky_egrets()
 	_spawn_flora_spots()
+	_spawn_desert_wildlife()
+	_spawn_desert_falcons()
 	reset()
+	set_active_map(game.active_map_id if is_instance_valid(game) else "yanshan")
 
 func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 	if node == null:
@@ -297,6 +376,10 @@ func _species_scale(kind: String, mesh_name: String) -> float:
 		"pheasant": return 1.06
 		"turtle": return 1.02
 		"butterfly": return 1.18
+		"fennec": return 1.12
+		"camel": return 1.05
+		"scarab": return 1.28
+		"falcon": return 1.38
 	return 1.0
 
 func _spawn_wildlife():
@@ -306,7 +389,7 @@ func _spawn_wildlife():
 		var mesh_name := str(spec.get("mesh", "animal_" + kind))
 		var root := Node3D.new()
 		root.name = "Critter_%s_%d" % [kind, idx]
-		add_child(root)
+		yanshan_root.add_child(root)
 
 		var visual := _instantiate_animal_mesh(mesh_name)
 		if visual == null:
@@ -398,7 +481,7 @@ func _spawn_sky_egrets():
 		var sp: Dictionary = orbit_specs[i]
 		var holder := Node3D.new()
 		holder.name = "SkyEgret_%d" % i
-		add_child(holder)
+		yanshan_root.add_child(holder)
 		var vis := _instantiate_animal_mesh("animal_egret")
 		var anim: AnimationPlayer = null
 		if vis != null:
@@ -487,7 +570,7 @@ func _spawn_flora_spots():
 		root.set_meta("tts", spot.tts)
 		root.set_meta("sentence", spot.sentence)
 		root.set_meta("heal", int(spot.heal))
-		add_child(root)
+		yanshan_root.add_child(root)
 
 		var visual := _place_flora_visual(root, str(spot.kind))
 		root.set_meta("visual_node", visual)
@@ -557,8 +640,139 @@ func _place_flora_visual(parent: Node3D, kind: String) -> Node3D:
 	var box: Node3D = game._mesh_box(parent, Vector3(0, 0.25, 0), Vector3(0.35, 0.5, 0.35), Color("7de08b"), false)
 	return box
 
+func _desert_initial_pos(spec: Dictionary) -> Vector3:
+	var h: Vector3 = spec.home
+	return Vector3(h.x, float(AhsarahLayout.height(h.x, h.z)), h.z)
+
+func _spawn_desert_wildlife():
+	for idx in DESERT_ANIMALS.size():
+		var spec: Dictionary = DESERT_ANIMALS[idx]
+		var kind := str(spec.kind)
+		var mesh_name := "animal_" + kind
+		var root := Node3D.new()
+		root.name = "DesertCritter_%s_%d" % [kind, idx]
+		ahsarah_root.add_child(root)
+
+		var visual := _instantiate_animal_mesh(mesh_name)
+		if visual == null:
+			visual = MeshInstance3D.new()
+			var cap := BoxMesh.new()
+			cap.size = Vector3(0.40, 0.32, 0.48)
+			visual.mesh = cap
+		var sc := _species_scale(kind, mesh_name)
+		visual.scale = Vector3.ONE * sc
+		root.add_child(visual)
+		var anim := visual.find_child("AnimationPlayer", true, false) as AnimationPlayer
+
+		var area := Area3D.new()
+		area.collision_layer = HIT_LAYER
+		area.collision_mask = 0
+		area.monitoring = false
+		area.monitorable = true
+		area.set_meta("desert_critter_index", idx)
+		var shp := CollisionShape3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = 1.15 if kind == "camel" else (0.58 if kind == "fennec" else 0.42)
+		shp.shape = sph
+		shp.position.y = 1.15 if kind == "camel" else (0.34 if kind == "fennec" else 0.14)
+		area.add_child(shp)
+		root.add_child(area)
+
+		var tag_y := 2.45 if kind == "camel" else (0.85 if kind == "fennec" else 0.52)
+		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 22, Color("ffe8a6"))
+		lbl.visibility_range_end = 16.0
+		lbl.visible = false
+
+		var home := _desert_initial_pos(spec)
+		var phase0 := rng.randf_range(0.0, TAU)
+		var entry := {
+			"idx": idx,
+			"kind": kind,
+			"mesh_name": mesh_name,
+			"en": str(spec.en),
+			"zh": str(spec.zh),
+			"tts": str(spec.tts),
+			"root": root,
+			"visual": visual,
+			"anim": anim,
+			"area": area,
+			"label": lbl,
+			"base_label": "%s · %s" % [spec.en, spec.zh],
+			"tag_left": 0.0,
+			"tag_shown_once": false,
+			"home": home,
+			"pos": home,
+			"dir": Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0)).normalized(),
+			"state": "idle",
+			"timer": 0.0,
+			"phase": phase0,
+			"wander_cd": rng.randf_range(1.2, 3.8),
+			"visual_scale": sc
+		}
+		_play_critter_anim(anim, ["Idle", "Walk"], 1.0, phase0 / TAU)
+		desert_animals.append(entry)
+
+func _spawn_desert_falcons():
+	for i in DESERT_FALCON_SPECS.size():
+		var sp: Dictionary = DESERT_FALCON_SPECS[i]
+		var holder := Node3D.new()
+		holder.name = "DesertFalcon_%d" % i
+		ahsarah_root.add_child(holder)
+		var vis := _instantiate_animal_mesh("animal_falcon")
+		var anim: AnimationPlayer = null
+		if vis != null:
+			vis.scale = Vector3.ONE * 1.48
+			if vis is MeshInstance3D:
+				(vis as MeshInstance3D).visibility_range_end = 165.0
+			for ch in vis.find_children("*", "MeshInstance3D", true, false):
+				(ch as MeshInstance3D).visibility_range_end = 165.0
+			anim = vis.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			_play_critter_anim(anim, ["Fly"], 1.38, float(i) * 0.17)
+			holder.add_child(vis)
+
+		var area := Area3D.new()
+		area.collision_layer = HIT_LAYER
+		area.collision_mask = 0
+		area.monitoring = false
+		area.monitorable = true
+		area.set_meta("desert_falcon_index", i)
+		var shp := CollisionShape3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = 1.45
+		shp.shape = sph
+		shp.position.y = 0.15
+		area.add_child(shp)
+		holder.add_child(area)
+
+		var lbl: Label3D = game._label3d(holder, "Desert Falcon · 荒漠猎隼", Vector3(0, 1.05, 0), 26, Color("ffd984"))
+		lbl.visibility_range_end = 78.0
+		lbl.visible = false
+
+		var init_ang := float(sp.phase)
+		var c0: Vector3 = sp.center
+		holder.position = Vector3(c0.x + cos(init_ang) * float(sp.rx), c0.y + sin(init_ang * 2.0) * 1.25, c0.z + sin(init_ang) * float(sp.rz))
+		desert_falcons.append({
+			"idx": i,
+			"node": holder,
+			"vis": vis,
+			"anim": anim,
+			"area": area,
+			"label": lbl,
+			"base_scale": 1.48,
+			"state": "fly",
+			"timer": 0.0,
+			"center": sp.center,
+			"rx": float(sp.rx),
+			"rz": float(sp.rz),
+			"spd": float(sp.spd),
+			"angle": init_ang,
+			"cycle_t": float(i) * 0.85,
+			"gliding": false
+		})
+
 func reset():
 	discovered_species.clear()
+	discovered_desert_species.clear()
 	collected_flora.clear()
 	flee_sfx_cooldown = 0.0
 	for fx in hit_fx:
@@ -607,6 +821,33 @@ func reset():
 		f.set_meta("tag_shown_once", false)
 		var ring: MeshInstance3D = f.get_meta("ring_node")
 		ring.visible = true
+	for da in desert_animals:
+		da.state = "idle"
+		da.timer = 0.0
+		da.pos = _desert_initial_pos(DESERT_ANIMALS[da.idx])
+		da.dir = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0)).normalized()
+		da.root.visible = true
+		da.root.position = da.pos
+		da.root.rotation = Vector3(0.0, atan2(-da.dir.x, -da.dir.z), 0.0)
+		da.visual.rotation = Vector3.ZERO
+		da.visual.position = Vector3.ZERO
+		da.visual.scale = Vector3.ONE * float(da.visual_scale)
+		da.label.text = da.base_label
+		da.label.modulate = Color("ffe8a6")
+		da.label.visible = false
+		da.tag_left = 0.0
+		da.tag_shown_once = false
+		_play_critter_anim(da.anim, ["Idle", "Walk"], 1.0, float(da.idx) * 0.17)
+	for df in desert_falcons:
+		df.state = "fly"
+		df.timer = 0.0
+		df.node.visible = true
+		df.label.visible = false
+		if df.vis != null:
+			(df.vis as Node3D).scale = Vector3.ONE * float(df.base_scale)
+			(df.vis as Node3D).rotation = Vector3(0.0, 0.0, 0.22)
+		_play_critter_anim(df.anim, ["Fly"], 1.38)
+	set_active_map(active_map_id)
 
 func _flash_animal_tag(a: Dictionary, duration: float = 2.2, force_show: bool = false):
 	if not force_show and bool(a.get("tag_shown_once", false)):
@@ -620,6 +861,9 @@ func update(delta: float):
 		return
 	flee_sfx_cooldown = maxf(0.0, flee_sfx_cooldown - delta)
 	_update_fx(delta)
+	if active_map_id == "ahsarah":
+		_update_desert_wildlife(delta)
+		return
 	_update_sky_egrets(delta)
 	if not is_instance_valid(game.player):
 		return
@@ -1281,8 +1525,210 @@ func _move_butterfly(a: Dictionary, delta: float, ppos: Vector3):
 	a.visual.rotation = Vector3(0.12, 0.0, sin(t * 1.8) * 0.22)
 	_play_critter_anim(a.anim, ["Fly", "Idle"], 1.85 if a.state == "flee" else 1.35)
 
+func _record_desert_species_discovery(kind: String, en_name: String, zh_name: String, tts_key: String, announce: bool):
+	var first_time := not discovered_desert_species.has(kind)
+	discovered_desert_species[kind] = true
+	if first_time:
+		game.speak_english(tts_key)
+		if is_instance_valid(game.achievements):
+			game.achievements.record_stat("desert_species_found", discovered_desert_species.size(), true)
+		if announce:
+			var can_toast: bool = (not game.rules.prologue_mode) and (game.closest_interaction == null) and not (is_instance_valid(game.threat_banner) and game.threat_banner.visible)
+			if can_toast:
+				game._notice("🏜 发现阿萨拉荒漠生灵：%s（%s）· 生态图鉴 %d/%d" % [en_name, zh_name, discovered_desert_species.size(), TOTAL_DESERT_SPECIES], Color("ffd984"))
+
+func _update_desert_wildlife(delta: float):
+	# 1) Update 6 soaring Desert Falcons
+	for df in desert_falcons:
+		var st := str(df.get("state", "fly"))
+		if st == "hidden":
+			df.timer = float(df.timer) - delta
+			if float(df.timer) <= 0.0:
+				df.state = "fly"
+				df.node.visible = true
+				df.area.collision_layer = HIT_LAYER
+				df.label.visible = false
+				if df.vis != null:
+					(df.vis as Node3D).scale = Vector3.ONE * float(df.base_scale)
+					(df.vis as Node3D).rotation = Vector3(0.0, 0.0, 0.22)
+				_play_critter_anim(df.anim, ["Fly"], 1.38)
+			continue
+		if st == "downed":
+			df.timer = float(df.timer) - delta
+			var nd: Node3D = df.node
+			nd.position.y -= 3.8 * delta
+			if df.vis != null:
+				var fade := clampf(float(df.timer) / 1.15, 0.04, 1.0)
+				(df.vis as Node3D).scale = Vector3.ONE * float(df.base_scale) * fade
+				(df.vis as Node3D).rotation.z += 5.2 * delta
+			if float(df.timer) <= 0.0:
+				df.state = "hidden"
+				df.timer = 16.0
+				nd.visible = false
+				df.area.collision_layer = 0
+			continue
+		df.angle += float(df.spd) * delta
+		df.cycle_t = fmod(float(df.cycle_t) + delta, 5.2)
+		var ang: float = df.angle
+		var c: Vector3 = df.center
+		var nx := c.x + cos(ang) * float(df.rx)
+		var nz := c.z + sin(ang) * float(df.rz)
+		var ny := c.y + sin(ang * 2.0) * 1.25
+		var tx := -sin(ang) * float(df.rx)
+		var tz := cos(ang) * float(df.rz)
+		var n: Node3D = df.node
+		n.position = Vector3(nx, ny, nz)
+		n.rotation.y = atan2(-tx, -tz)
+		if df.vis != null:
+			(df.vis as Node3D).rotation.z = 0.22 + sin(ang) * 0.10
+			(df.vis as Node3D).position.y = sin(float(df.cycle_t) * 10.0) * 0.05
+		if is_instance_valid(game.player) and not discovered_desert_species.has("falcon"):
+			if Vector2(nx - game.player.position.x, nz - game.player.position.z).length() < 18.0:
+				_record_desert_species_discovery("falcon", "Desert Falcon", "荒漠猎隼", "desert falcon", true)
+
+	if not is_instance_valid(game.player):
+		return
+	var ppos: Vector3 = game.player.position
+	for da in desert_animals:
+		if float(da.get("tag_left", 0.0)) > 0.0:
+			da.tag_left = maxf(0.0, float(da.tag_left) - delta)
+			if float(da.tag_left) <= 0.0 and da.state != "downed":
+				da.label.visible = false
+		match da.state:
+			"hidden":
+				da.timer -= delta
+				if da.timer <= 0.0:
+					da.state = "idle"
+					da.pos = _desert_initial_pos(DESERT_ANIMALS[da.idx])
+					da.root.position = da.pos
+					da.visual.rotation = Vector3.ZERO
+					da.visual.scale = Vector3.ONE * float(da.visual_scale)
+					da.label.visible = false
+					da.area.collision_layer = HIT_LAYER
+					da.root.visible = true
+					_play_critter_anim(da.anim, ["Idle", "Walk"], 1.0)
+			"downed":
+				da.timer -= delta
+				var fade := clampf(float(da.timer) / 0.65, 0.02, 1.0)
+				da.visual.scale = Vector3.ONE * float(da.visual_scale) * fade
+				da.visual.rotation.z = lerpf(da.visual.rotation.z, PI * 0.48, minf(delta * 14.0, 1.0))
+				if da.timer <= 0.0:
+					da.state = "hidden"
+					da.timer = 22.0
+					da.root.visible = false
+					da.area.collision_layer = 0
+			_:
+				_step_desert_critter(da, delta, ppos)
+
+func _step_desert_critter(da: Dictionary, delta: float, ppos: Vector3):
+	var kind: String = da.kind
+	var pos: Vector3 = da.pos
+	var dist := Vector2(pos.x - ppos.x, pos.z - ppos.z).length()
+	if dist > 48.0 and da.state == "idle":
+		if da.anim != null:
+			(da.anim as AnimationPlayer).speed_scale = 0.0
+		return
+	var discover_r := 11.5 if kind == "camel" else (9.5 if kind == "fennec" else 6.0)
+	if dist < discover_r:
+		_flash_animal_tag(da, 2.4)
+		_record_desert_species_discovery(kind, da.en, da.zh, da.tts, true)
+	var flee_r := 8.2 if kind == "fennec" else (4.2 if kind == "scarab" else 5.0)
+	if dist < flee_r and da.state == "idle" and kind != "camel":
+		da.state = "flee"
+		da.timer = 4.2 if kind == "fennec" else 2.8
+		var away := Vector3(pos.x - ppos.x, 0.0, pos.z - ppos.z)
+		da.dir = away.normalized() if away.length() > 0.1 else Vector3(1.0, 0.0, 0.0)
+		if flee_sfx_cooldown <= 0.0:
+			flee_sfx_cooldown = 1.4
+			game.play_sfx("animal_flee", -13)
+	if da.state == "flee":
+		da.timer -= delta
+		if da.timer <= 0.0 and dist > 13.0:
+			da.state = "idle"
+			da.wander_cd = rng.randf_range(1.2, 3.0)
+	var spd := 1.4
+	if da.state == "flee":
+		spd = 8.4 if kind == "fennec" else (4.8 if kind == "camel" else 4.2)
+	else:
+		spd = 1.75 if kind == "fennec" else (1.05 if kind == "camel" else 1.25)
+	if da.state == "idle":
+		da.wander_cd -= delta
+		if da.wander_cd <= 0.0:
+			da.wander_cd = rng.randf_range(1.8, 4.4)
+			var to_h: Vector3 = da.home - pos
+			to_h.y = 0.0
+			da.dir = to_h.normalized() if to_h.length() > 7.5 else Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0)).normalized()
+	else:
+		var away2 := Vector3(pos.x - ppos.x, 0.0, pos.z - ppos.z)
+		if away2.length() > 0.2:
+			da.dir = da.dir.lerp(away2.normalized(), minf(delta * 4.0, 1.0)).normalized()
+	var nxt: Vector3 = pos + da.dir * spd * delta
+	nxt.x = clampf(nxt.x, float(AhsarahLayout.FENCE_MIN_X) + 3.0, float(AhsarahLayout.FENCE_MAX_X) - 3.0)
+	nxt.z = clampf(nxt.z, float(AhsarahLayout.FENCE_MIN_Z) + 4.0, float(AhsarahLayout.FENCE_MAX_Z) - 3.0)
+	# Keep desert animals cleanly outside the recessed oasis water pool (-16, 12)
+	var pool_v := Vector2(nxt.x - AhsarahLayout.OASIS_POOL.x, nxt.z - AhsarahLayout.OASIS_POOL.z)
+	if pool_v.length() < 8.4:
+		var push_d := pool_v.normalized() if pool_v.length() > 0.1 else Vector2(1.0, 0.0)
+		nxt.x = AhsarahLayout.OASIS_POOL.x + push_d.x * 8.6
+		nxt.z = AhsarahLayout.OASIS_POOL.z + push_d.y * 8.6
+		da.dir = Vector3(push_d.x, 0.0, push_d.y)
+	nxt.y = float(AhsarahLayout.fast_height(nxt.x, nxt.z))
+	var ahead_y := float(AhsarahLayout.fast_height(nxt.x + da.dir.x * 0.5, nxt.z + da.dir.z * 0.5))
+	var slope_pitch := clampf(atan2(ahead_y - nxt.y, 0.5), -0.35, 0.35)
+	da.pos = nxt
+	da.root.position = nxt
+	da.root.rotation.y = atan2(-da.dir.x, -da.dir.z)
+	da.visual.position = Vector3.ZERO
+	da.visual.rotation = Vector3(slope_pitch, 0.0, 0.0)
+	if da.state == "flee":
+		_play_critter_anim(da.anim, ["Run", "Walk"], 1.75)
+	else:
+		_play_critter_anim(da.anim, ["Walk", "Idle"], 1.10)
+
+func _down_desert_falcon(df: Dictionary):
+	if str(df.get("state", "fly")) in ["downed", "hidden"]:
+		return
+	df.state = "downed"
+	df.timer = 1.35
+	df.area.collision_layer = 0
+	df.label.visible = true
+	_record_desert_species_discovery("falcon", "Desert Falcon", "荒漠猎隼", "desert falcon", false)
+	game.speak_english("desert falcon")
+	game.show_hitmarker(true)
+	game.play_sfx("animal_hit", -8)
+	game.play_sfx("bird_flap", -10)
+	_spawn_vanish_motes((df.node as Node3D).global_position)
+	game._notice("✦ 精准击中高空【荒漠猎隼 · Desert Falcon】！金羽化光消散…", Color("ffd984"))
+	if is_instance_valid(game.achievements) and game.rules.combat_mode:
+		game.achievements.record_wildlife_kill("bird")
+
+func _down_desert_animal(da: Dictionary):
+	if da.state in ["downed", "hidden"]:
+		return
+	da.state = "downed"
+	da.timer = 1.65
+	da.area.collision_layer = 0
+	da.label.text = da.base_label
+	da.label.modulate = Color("ffd984")
+	da.label.visible = true
+	_record_desert_species_discovery(str(da.kind), str(da.en), str(da.zh), str(da.tts), false)
+	game.speak_english(str(da.tts))
+	game.show_hitmarker(false)
+	game.play_sfx("animal_hit", -10)
+	_spawn_vanish_motes(da.pos + Vector3(0, 0.32, 0))
+	game._notice("✦ 击中荒漠生灵【%s · %s】！正化作沙海微光消失…" % [da.en, da.zh], Color("ffd984"))
+
 func shockwave_knockdown_near(origin: Vector3, radius: float):
 	if not map_enabled:
+		return
+	if active_map_id == "ahsarah":
+		for da in desert_animals:
+			if da.state in ["downed", "hidden"]:
+				continue
+			if da.pos.distance_to(origin) <= radius:
+				da.state = "flee"
+				da.timer = 4.0
+				da.dir = Vector3(da.pos.x - origin.x, 0.0, da.pos.z - origin.z).normalized()
 		return
 	## v0.8.6 Skyfall Overlord landing shockwave startles & bowls over nearby ground wildlife!
 	for a in animals:
@@ -1296,12 +1742,32 @@ func on_gunshot_near(origin: Vector3, suppressed: bool):
 	if not map_enabled:
 		return
 	var alert_r := 7.0 if suppressed else 19.0
+	if active_map_id == "ahsarah":
+		for da in desert_animals:
+			if da.state == "idle" and da.pos.distance_to(origin) <= alert_r:
+				da.state = "flee"
+				da.timer = 3.8
+				var away := Vector3(da.pos.x - origin.x, 0.0, da.pos.z - origin.z)
+				da.dir = away.normalized() if away.length() > 0.1 else Vector3(1.0, 0.0, 0.0)
+		return
 	for a in animals:
 		if a.state in ["idle", "ambush"] and a.pos.distance_to(origin) <= alert_r:
 			_start_flee(a, origin)
 
 func hit_bullet(collider) -> bool:
 	if not map_enabled or not (collider is Object):
+		return false
+	if active_map_id == "ahsarah":
+		if collider.has_meta("desert_falcon_index"):
+			var f_idx := int(collider.get_meta("desert_falcon_index"))
+			if f_idx >= 0 and f_idx < desert_falcons.size():
+				_down_desert_falcon(desert_falcons[f_idx])
+				return true
+		if collider.has_meta("desert_critter_index"):
+			var d_idx := int(collider.get_meta("desert_critter_index"))
+			if d_idx >= 0 and d_idx < desert_animals.size():
+				_down_desert_animal(desert_animals[d_idx])
+				return true
 		return false
 	if collider.has_meta("sky_egret_index"):
 		var s_idx := int(collider.get_meta("sky_egret_index"))
@@ -1354,6 +1820,23 @@ func melee_strike(camera: Camera3D) -> bool:
 		return false
 	var cam_pos := camera.global_position
 	var cam_fwd := (-camera.global_transform.basis.z).normalized()
+	if active_map_id == "ahsarah":
+		var best_d = null
+		var best_dd := 3.6
+		for da in desert_animals:
+			if da.state in ["downed", "hidden"]:
+				continue
+			var center_d: Vector3 = da.pos + Vector3(0, 0.45 if da.kind == "camel" else 0.24, 0)
+			var delta_d := center_d - cam_pos
+			var dd := delta_d.length()
+			if dd <= best_dd and cam_fwd.dot(delta_d.normalized()) >= 0.45:
+				best_dd = dd
+				best_d = da
+		if best_d == null:
+			return false
+		game.play_sfx("knife_hit", -10)
+		_down_desert_animal(best_d)
+		return true
 	var best = null
 	var best_dist := 3.4
 	for a in animals:
@@ -1450,6 +1933,10 @@ func eco_discoveries_total() -> int:
 	return discovered_species.size() + collected_flora.size()
 
 func status_badge() -> String:
+	if active_map_id == "ahsarah":
+		return "荒漠生灵 %d/%d · 零号大坝 × 巴克什" % [
+			mini(TOTAL_DESERT_SPECIES, discovered_desert_species.size()), TOTAL_DESERT_SPECIES
+		]
 	return "生灵 %d/%d · 奇植 %d/%d" % [
 		mini(TOTAL_SPECIES, discovered_species.size()), TOTAL_SPECIES,
 		mini(FLORA_SPOTS.size(), collected_flora.size()), FLORA_SPOTS.size()

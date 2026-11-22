@@ -326,7 +326,7 @@ func _rebuild_charm_mesh(charm_id: String):
 			charm_anchor.hide()
 		return
 	var spec: Dictionary = Achievements.CHARMS[charm_id]
-	var is_glowing: bool = str(spec.shape) in ["sonar", "star", "crosshair"]
+	var is_glowing: bool = str(spec.shape) in ["sonar", "star", "crosshair", "mini_mandel", "heart_africa"]
 	var main_mat := StandardMaterial3D.new()
 	main_mat.albedo_color = spec.color
 	main_mat.metallic = 0.80
@@ -454,6 +454,92 @@ func _rebuild_charm_mesh(charm_id: String):
 			core_m.material_override = acc_mat
 			core_m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			body.add_child(core_m)
+		"mini_mandel":
+			# Miniature holographic cyan-gold quantum MandelBrick cube with armored chamfered frame!
+			var m_core := MeshInstance3D.new()
+			var mc_box := BoxMesh.new()
+			mc_box.size = Vector3(0.017, 0.017, 0.017)
+			m_core.mesh = mc_box
+			m_core.rotation = Vector3(0.42, 0.55, 0.35)
+			m_core.material_override = main_mat
+			m_core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(m_core)
+			var m_ring := MeshInstance3D.new()
+			var mr_tor := TorusMesh.new()
+			mr_tor.inner_radius = 0.011
+			mr_tor.outer_radius = 0.0145
+			m_ring.mesh = mr_tor
+			m_ring.rotation = Vector3(0.65, 0.25, 0.55)
+			m_ring.material_override = acc_mat
+			m_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(m_ring)
+		"fiery_owl":
+			# Spread-wing bronze Fiery Owl medallion crest with twin glowing crimson eyes!
+			var owl_body := MeshInstance3D.new()
+			var ob_sph := SphereMesh.new()
+			ob_sph.radius = 0.0085
+			ob_sph.height = 0.022
+			owl_body.mesh = ob_sph
+			owl_body.material_override = main_mat
+			owl_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(owl_body)
+			for sgn in [-1.0, 1.0]:
+				var wing := MeshInstance3D.new()
+				var wb := BoxMesh.new()
+				wb.size = Vector3(0.004, 0.014, 0.016)
+				wing.mesh = wb
+				wing.position = Vector3(0.0, 0.003, sgn * 0.012)
+				wing.rotation.x = sgn * -0.45
+				wing.material_override = acc_mat
+				wing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				body.add_child(wing)
+				var eye := MeshInstance3D.new()
+				var es := SphereMesh.new()
+				es.radius = 0.0024
+				es.height = 0.0048
+				eye.mesh = es
+				eye.position = Vector3(-0.0065, 0.005, sgn * 0.0034)
+				var emat := StandardMaterial3D.new()
+				emat.albedo_color = Color("ff3636")
+				emat.emission_enabled = true
+				emat.emission = Color("ff2a2a")
+				emat.emission_energy_multiplier = 2.2
+				eye.material_override = emat
+				eye.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				body.add_child(eye)
+		"heart_africa":
+			# Brilliant multi-faceted crimson diamond cradled inside a delicate golden prong ring!
+			var gem_top := MeshInstance3D.new()
+			var gt := CylinderMesh.new()
+			gt.top_radius = 0.0065
+			gt.bottom_radius = 0.0125
+			gt.height = 0.008
+			gt.radial_segments = 8
+			gem_top.mesh = gt
+			gem_top.position = Vector3(0.0, 0.004, 0.0)
+			gem_top.material_override = main_mat
+			gem_top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(gem_top)
+			var gem_bot := MeshInstance3D.new()
+			var gb2 := CylinderMesh.new()
+			gb2.top_radius = 0.0125
+			gb2.bottom_radius = 0.0012
+			gb2.height = 0.015
+			gb2.radial_segments = 8
+			gem_bot.mesh = gb2
+			gem_bot.position = Vector3(0.0, -0.0075, 0.0)
+			gem_bot.material_override = main_mat
+			gem_bot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(gem_bot)
+			var cradle := MeshInstance3D.new()
+			var cr_t := TorusMesh.new()
+			cr_t.inner_radius = 0.0112
+			cr_t.outer_radius = 0.0140
+			cradle.mesh = cr_t
+			cradle.position = Vector3(0.0, 0.0005, 0.0)
+			cradle.material_override = acc_mat
+			cradle.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			body.add_child(cradle)
 		_:
 			# Tactical dogtag / iron crown / mythic star
 			var plate := MeshInstance3D.new()
