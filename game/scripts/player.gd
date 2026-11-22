@@ -138,6 +138,7 @@ func _ready():
 	camera.position.y = 1.58
 	camera.fov = 75
 	camera.near = 0.06
+	camera.far = 950.0
 	add_child(camera)
 	camera.current = true
 	weapon_root = Node3D.new()

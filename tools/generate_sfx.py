@@ -709,6 +709,57 @@ def gen_warden_shield_deflect() -> None:
     _write_wav("warden_shield_deflect.wav", out, 0.64)
 
 
+def gen_boss_slash() -> None:
+    """Heavy obsidian-iron greatblade whirlwind cleave & earth-splitting sword-wave whoosh."""
+    dur = 0.56
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 88601)
+    whoosh = _one_pole_hp(_one_pole_lp(raw, 2600.0), 320.0)
+    sub_n = _one_pole_lp(raw, 280.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env_w = _envelope(t, 0.06, dur - 0.04, 1.55)
+        f_blade = 620.0 + 480.0 * math.sin(min(1.0, t / 0.28) * math.pi)
+        ring = (math.sin(2.0 * math.pi * f_blade * t) + 0.45 * math.sin(2.0 * math.pi * f_blade * 1.62 * t)) * math.exp(-t * 6.5) * 0.65
+        air = whoosh[i] * env_w * 1.45
+        boom = (math.sin(2.0 * math.pi * (88.0 - 34.0 * min(1.0, t / 0.3)) * t) + 0.6 * sub_n[i]) * math.exp(-t * 8.5) * 0.90
+        out[i] = math.tanh((ring + air + boom) * 1.30)
+    _write_wav("boss_slash.wav", out, 0.72)
+
+
+def gen_boss_ultimate() -> None:
+    """Earth-shattering heavenly gong + descending mountain thunder rumble for「天地万象」."""
+    dur = 2.20
+    n = int(SAMPLE_RATE * dur)
+    raw = _make_noise(n, 88602)
+    rumble = _one_pole_lp(raw, 220.0)
+    thunder = _one_pole_hp(_one_pole_lp(raw, 1800.0), 180.0)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        # 1) Opening temple bronze bell-gong strike (t = 0.0..1.8s)
+        g_env = math.exp(-t * 1.65) * min(1.0, t / 0.015)
+        gong = (
+            math.sin(2.0 * math.pi * 118.0 * t)
+            + 0.70 * math.sin(2.0 * math.pi * 177.0 * t)
+            + 0.45 * math.sin(2.0 * math.pi * 265.0 * t)
+            + 0.28 * math.sin(2.0 * math.pi * 412.0 * t)
+        ) * g_env * 0.72
+        # 2) Descending sky-mountain pressure roar swelling to slam at t = 1.15s
+        swell = _envelope(t, 0.75, 1.85, 1.3)
+        sub_drop = rumble[i] * swell * 1.35
+        # 3) Seismic impact crunch at t >= 1.05s
+        impact = 0.0
+        if t >= 1.05:
+            ti = t - 1.05
+            ie = math.exp(-ti * 4.2) * min(1.0, ti / 0.008)
+            f_sub = 42.0 + 95.0 * math.exp(-ti * 9.0)
+            impact = (math.sin(2.0 * math.pi * f_sub * ti) * 1.35 + thunder[i] * 1.10) * ie
+        out[i] = math.tanh((gong + sub_drop + impact) * 1.28)
+    _write_wav("boss_ultimate.wav", out, 0.78)
+
+
 def main() -> None:
     gen_hit_correct()
     gen_hit_wrong()
@@ -746,7 +797,9 @@ def main() -> None:
     gen_loot_mythic_red()
     gen_skill_slam()
     gen_warden_shield_deflect()
-    print("Generated 36 procedural SFX files in", OUT_DIR)
+    gen_boss_slash()
+    gen_boss_ultimate()
+    print("Generated 38 procedural SFX files in", OUT_DIR)
 
 
 if __name__ == "__main__":

@@ -66,7 +66,8 @@ var right_index_bones: Array[int] = []
 var pose_cache := {}
 
 func _ready():
-	var has_skin = "forest_skin" in game.rules.profile.owned
+	var has_gilded = "gilded_skin" in game.rules.profile.owned
+	var has_skin = has_gilded or ("forest_skin" in game.rules.profile.owned)
 
 	# v0.8.2 V81-9: Unified rigid gun_pivot (scale 1,1,1) so rifle, optics, attachments, muzzle flash, bolt & charm
 	# ALL rotate as ONE solid firearm during reload, recoil & ADS — zero optic detachment!
@@ -98,16 +99,24 @@ func _ready():
 						dup.vertex_color_use_as_albedo = true
 					var mname := String(base_m.resource_name)
 					if "HandguardStock" in mname or "Magazine" in mname or "Grip" in mname:
-						dup.metallic = 0.08
-						dup.roughness = 0.72
-						dup.metallic_specular = 0.22
-						if has_skin and ("HandguardStock" in mname or "Magazine" in mname):
+						dup.metallic = 0.24 if has_gilded else 0.08
+						dup.roughness = 0.42 if has_gilded else 0.72
+						dup.metallic_specular = 0.40 if has_gilded else 0.22
+						if has_gilded and ("HandguardStock" in mname or "Magazine" in mname):
+							dup.albedo_color = Color("1f6f58")
+						elif has_skin and ("HandguardStock" in mname or "Magazine" in mname):
 							dup.albedo_color = Color("376c55")
 					else:
-						# Machined anodized gunmetal steel receiver, barrel & Picatinny rail
-						dup.metallic = 0.74
-						dup.roughness = 0.30
-						dup.metallic_specular = 0.55
+						# Machined anodized gunmetal steel receiver, barrel & Picatinny rail (or gilded bronze-gold with gilded_skin!)
+						if has_gilded:
+							dup.albedo_color = Color("d8aa4c")
+							dup.metallic = 0.90
+							dup.roughness = 0.22
+							dup.metallic_specular = 0.72
+						else:
+							dup.metallic = 0.74
+							dup.roughness = 0.30
+							dup.metallic_specular = 0.55
 					mi.set_surface_override_material(s_idx, dup)
 		rifle_meshes.append(mi)
 
@@ -120,9 +129,9 @@ func _ready():
 	mlok_box.size = Vector3(0.030, 0.006, 0.095)
 	mlok_panel.mesh = mlok_box
 	var mlok_mat := StandardMaterial3D.new()
-	mlok_mat.albedo_color = Color("376c55") if has_skin else Color("2b3538")
-	mlok_mat.roughness = 0.72
-	mlok_mat.metallic = 0.08
+	mlok_mat.albedo_color = Color("c9993c") if has_gilded else (Color("376c55") if has_skin else Color("2b3538"))
+	mlok_mat.roughness = 0.36 if has_gilded else 0.72
+	mlok_mat.metallic = 0.75 if has_gilded else 0.08
 	mlok_mat.metallic_specular = 0.18
 	mlok_panel.material_override = mlok_mat
 	mlok_panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

@@ -478,6 +478,12 @@ func can_use_skill() -> bool:
 		return false
 	return skill_cooldown_left <= 0.001
 
+func effective_skill_cooldown() -> float:
+	var base_cd := float(active_ranger().skill_cooldown)
+	if is_instance_valid(game) and game.rules != null and ("ranger_mastery" in game.rules.profile.owned):
+		return maxf(16.0, base_cd - 8.0)
+	return base_cd
+
 func activate_skill() -> bool:
 	if not is_instance_valid(game) or not is_instance_valid(game.player):
 		return false
@@ -489,7 +495,8 @@ func activate_skill() -> bool:
 		game._notice("⏳ %s【%s】冷却中（剩余 %.1f 秒）" % [str(r.name), str(r.skill_name), skill_cooldown_left], Color("ffd27d"))
 		return false
 
-	skill_cooldown_left = float(r.skill_cooldown)
+	var cd_now: float = effective_skill_cooldown()
+	skill_cooldown_left = cd_now
 	slam_uses_run += 1
 	if is_instance_valid(game.player.weapon_view) and game.player.weapon_view.has_method("trigger_ground_slam"):
 		game.player.weapon_view.trigger_ground_slam()
@@ -557,9 +564,9 @@ func activate_skill() -> bool:
 			parts.append("震倒 %d 名词兵（%.1f秒）" % [knocked, dur])
 		if staggered_bosses > 0:
 			parts.append("震慑强敌 %d 名" % staggered_bosses)
-		game._notice("⚡ 少羽发动【%s】！%s · 冷却 %.0f 秒" % [str(r.skill_name), "、".join(parts), float(r.skill_cooldown)], Color("ffd86b"))
+		game._notice("⚡ 少羽发动【%s】！%s · 冷却 %.0f 秒" % [str(r.skill_name), "、".join(parts), cd_now], Color("ffd86b"))
 	else:
-		game._notice("⚡ 少羽发动【%s】重拳震地！（周围 %.0fm 暂无敌人 · 冷却 %.0f 秒）" % [str(r.skill_name), rad, float(r.skill_cooldown)], Color("ffd86b"))
+		game._notice("⚡ 少羽发动【%s】重拳震地！（周围 %.0fm 暂无敌人 · 冷却 %.0f 秒）" % [str(r.skill_name), rad, cd_now], Color("ffd86b"))
 	return true
 
 func _spawn_ground_slam_vfx(center: Vector3, max_radius: float):

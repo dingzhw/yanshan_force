@@ -1,24 +1,26 @@
 extends Node3D
-## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.8.5 No-Stun Stealth-Guard Redesign).
+## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.8.6 Tactical Acoustic Predator).
 ## Blind karst guardian strictly leashed to Yanxia Ancient Cave in the isolated west bamboo ravine:
 ## - Articulated Blender 4.5 hierarchy: warden_body, head_crest, arm_left_pivot, arm_right_pivot (thick青石臂盾)
 ## - Compact 0.30m chest energy core hitbox (0.18m glowing cyan crystal)
-## - ZERO stun on core hit or damage accumulation!
-## - Core hit -> IMMEDIATELY snaps both stone arm-shields crossed across chest core (guard_arms=true) AND
-##   immediately unleashes a sonic wave retaliation attack toward the player!
-## - 1.5s Stealth Disengage Loop: if the player enters stealth silence ([C] crouch / [Z] prone / still without firing)
-##   for 1.5 seconds, Cave Warden abandons search (state="patrol") and lowers/opens both arms again, creating
-##   the next core-shot window!
-## - [G] Smoke helps break sound tracking quickly (NO stun); Shaoyu [V] Slam briefly jolts arms open for 1.0s (NO stun).
+## - ZERO stun on core hit! Core hit snaps X-brace dual-arm guard + locks firing point via Ballistic Triangulation!
+## - Anti-Crouch-Snipe Mandatory Reposition: after shooting, camping within relocate_dist (2.8m Normal / 4.0m Conf;
+##   2.2m suppressed) freezes the 1.5s stealth timer AND triggers a 22m Focused Sonic Lance straight down the firing line!
+## - 4 Acoustic Moves: 360° Sonic Pulse, 22m Focused Sonic Lance, Cavern Quake Stalactite Rings, and
+##   Confidential-Exclusive Active Echolocation Sweep (evaded ONLY by [Z] prone / [G] smoke / rock cover!) + Enraged Resonance (<45% HP).
 
 const HIT_LAYER := 32  # Dedicated bit 5 for Cave Warden hitboxes (isolated from player/world masks)
 const HEAR_RADIUS := 15.0
-const TERRITORY_RADIUS := 13.5
+const BALLISTIC_RANGE := 22.0
+const TERRITORY_RADIUS := 15.0
 const MAX_HP_NORMAL := 280
-const MAX_HP_CONFIDENTIAL := 440
+const MAX_HP_CONFIDENTIAL := 360
 const CORE_HIT_RADIUS := 0.30
 const CORE_VISUAL_RADIUS := 0.18
 const STEALTH_DISENGAGE_SECONDS := 1.5
+const RELOCATE_DIST_NORMAL := 2.8
+const RELOCATE_DIST_CONFIDENTIAL := 4.0
+const RELOCATE_DIST_SUPPRESSED := 2.2
 
 const PATROL_OFFSETS := [
 	Vector3(0.0, 0.0, 7.60),
@@ -44,6 +46,8 @@ var body_area: Area3D
 var core_area: Area3D
 var guard_area: Area3D
 var status_label: Label3D
+var lance_beam_node: MeshInstance3D
+var lance_beam_mat: StandardMaterial3D
 var sonar_rings: Array = []
 
 var state := "patrol"  # "patrol" | "investigate" | "hunt" | "defeated" (ZERO stunned state!)
@@ -56,6 +60,24 @@ var guard_left := 0.0
 var arms_forced_open_left := 0.0
 var stealth_quiet_timer := 0.0
 var sonic_retaliation_count := 0
+var sonic_lance_count := 0
+var quake_slam_count := 0
+var echo_sweep_count := 0
+var echo_detected_count := 0
+var echo_evaded_count := 0
+var enraged_resonance := false
+var last_shot_pos := Vector3.ZERO
+var shot_origin_active := false
+var last_shot_suppressed := false
+var lance_state := "idle"  # "idle" | "charging" | "flash"
+var lance_timer := 0.0
+var lance_cd := 0.0
+var lance_origin := Vector3.ZERO
+var lance_dir := Vector3.FORWARD
+var quake_cd := 6.0
+var echo_sweep_cd := 5.5
+var echo_charging := false
+var echo_charge_left := 0.0
 var noise_meter := 0.0
 var investigate_pos := Vector3.ZERO
 var sonar_cd := 0.0
@@ -199,6 +221,23 @@ func _build_warden():
 	status_label.pixel_size = 0.0052
 	status_label.visibility_range_end = 26.0
 
+	# 3D Focused Anti-Sniper Sonic Lance Telegraph & Fire Beam
+	lance_beam_node = MeshInstance3D.new()
+	var lb_mesh := BoxMesh.new()
+	lb_mesh.size = Vector3(0.24, 0.24, 1.0)
+	lance_beam_node.mesh = lb_mesh
+	lance_beam_mat = StandardMaterial3D.new()
+	lance_beam_mat.albedo_color = Color(0.28, 0.92, 1.0, 0.72)
+	lance_beam_mat.emission_enabled = true
+	lance_beam_mat.emission = Color("54f0ff")
+	lance_beam_mat.emission_energy_multiplier = 2.6
+	lance_beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lance_beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lance_beam_node.material_override = lance_beam_mat
+	lance_beam_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	lance_beam_node.hide()
+	add_child(lance_beam_node)
+
 func _ground_pos(xz: Vector3) -> Vector3:
 	var c := _cave_center()
 	if xz.z <= c.z + 5.8 and xz.x >= cave_min_x() and xz.x <= cave_max_x():
@@ -242,6 +281,22 @@ func reset():
 	arms_forced_open_left = 0.0
 	stealth_quiet_timer = 0.0
 	sonic_retaliation_count = 0
+	sonic_lance_count = 0
+	quake_slam_count = 0
+	echo_sweep_count = 0
+	echo_detected_count = 0
+	echo_evaded_count = 0
+	enraged_resonance = false
+	last_shot_pos = Vector3.ZERO
+	shot_origin_active = false
+	last_shot_suppressed = false
+	lance_state = "idle"
+	lance_timer = 0.0
+	lance_cd = 0.0
+	quake_cd = 5.8
+	echo_sweep_cd = 5.5
+	echo_charging = false
+	echo_charge_left = 0.0
 	noise_meter = 0.0
 	sonar_cd = 1.5
 	attack_cd = 0.0
@@ -253,6 +308,8 @@ func reset():
 		root_node.position = _ground_pos(_patrol_pt(0))
 		root_node.rotation = Vector3.ZERO
 		root_node.visible = on
+	if is_instance_valid(lance_beam_node):
+		lance_beam_node.hide()
 	if is_instance_valid(model_node):
 		model_node.position = Vector3.ZERO
 		model_node.rotation = Vector3.ZERO
@@ -273,6 +330,21 @@ func reset():
 			r.node.queue_free()
 	sonar_rings.clear()
 	_sync_label()
+
+func required_relocate_distance() -> float:
+	if last_shot_suppressed:
+		return RELOCATE_DIST_SUPPRESSED
+	if is_instance_valid(game) and game.rules.is_confidential():
+		return RELOCATE_DIST_CONFIDENTIAL
+	return RELOCATE_DIST_NORMAL
+
+func is_camping_shot_origin(player_pos: Vector3) -> bool:
+	if not shot_origin_active:
+		return false
+	if is_instance_valid(game.combat) and game.combat.player_in_smoke():
+		return false
+	var d_shot := Vector2(player_pos.x - last_shot_pos.x, player_pos.z - last_shot_pos.z).length()
+	return d_shot < required_relocate_distance()
 
 func is_alive() -> bool:
 	return is_mode_active() and state != "defeated"
@@ -302,24 +374,36 @@ func _sync_label():
 		return
 	status_label.visible = true
 	var pct := clampi(roundi(noise_meter), 0, 100)
+	var camping_now := is_instance_valid(game.player) and is_camping_shot_origin(game.player.position)
+	var rage_tag := "【狂鸣】" if enraged_resonance else ""
 	if arms_forced_open_left > 0.0:
-		status_label.text = "⚡ 古洞循音石卫 · 双臂震开 %.1fs（速射蓝核！） HP %d/%d" % [arms_forced_open_left, hp, max_hp]
+		status_label.text = "⚡ 古洞循音石卫%s · 双臂震开 %.1fs（速射蓝核！） HP %d/%d" % [rage_tag, arms_forced_open_left, hp, max_hp]
 		status_label.modulate = Color("ffd86b")
+	elif echo_charging:
+		status_label.text = "📡 古洞循音石卫%s · 主动声呐扫描 %.1fs！速 [Z] 匍匐/进烟！ HP %d/%d" % [rage_tag, echo_charge_left, hp, max_hp]
+		status_label.modulate = Color("ff8a4c")
+	elif lance_state == "charging":
+		status_label.text = "☄ 古洞循音石卫%s · 锁定开火点蓄力【穿石声波束】！横向闪避！ HP %d/%d" % [rage_tag, hp, max_hp]
+		status_label.modulate = Color("ff5c5c")
 	elif guard_arms:
-		var remain_quiet := maxf(0.0, STEALTH_DISENGAGE_SECONDS - stealth_quiet_timer)
-		if stealth_quiet_timer > 0.08:
-			status_label.text = "🛡 古洞循音石卫 · 护核搜寻中（静默 %.1fs 后放手） HP %d/%d" % [remain_quiet, hp, max_hp]
+		if camping_now:
+			status_label.text = "🎯 石卫已锁定开火点！潜行转移 >%.1fm 或投 [G] 烟雾脱搜！ HP %d/%d" % [required_relocate_distance(), hp, max_hp]
+			status_label.modulate = Color("ff7a52")
+		elif stealth_quiet_timer > 0.08:
+			var remain_quiet := maxf(0.0, STEALTH_DISENGAGE_SECONDS - stealth_quiet_timer)
+			status_label.text = "🛡 古洞循音石卫%s · 护核搜寻中（静默 %.1fs 后放手） HP %d/%d" % [rage_tag, remain_quiet, hp, max_hp]
+			status_label.modulate = Color("ffd166")
 		else:
-			status_label.text = "🛡 古洞循音石卫 · 双臂护核！按 [C]/[Z] 潜行静默 1.5s 脱搜  HP %d/%d" % [hp, max_hp]
-		status_label.modulate = Color("ffd166")
+			status_label.text = "🛡 古洞循音石卫%s · 双臂护核！潜行移位并静默 1.5s 脱搜 HP %d/%d" % [rage_tag, hp, max_hp]
+			status_label.modulate = Color("ffd166")
 	elif state == "hunt":
-		status_label.text = "⚠ 古洞循音石卫 · 追击露核！（打胸口蓝核！） HP %d/%d" % [hp, max_hp]
+		status_label.text = "⚠ 古洞循音石卫%s · 追击露核！（打胸口蓝核！） HP %d/%d" % [rage_tag, hp, max_hp]
 		status_label.modulate = Color("ff5c5c")
 	elif state == "investigate":
-		status_label.text = "🌀 古洞循音石卫 · 声波搜寻 (%d%%)  HP %d/%d" % [pct, hp, max_hp]
+		status_label.text = "🌀 古洞循音石卫%s · 声波搜寻 (%d%%) HP %d/%d" % [rage_tag, pct, hp, max_hp]
 		status_label.modulate = Color("ffd15c")
 	else:
-		status_label.text = "古洞循音石卫 · 听声巡逻（蓝核已暴露） HP %d/%d" % [hp, max_hp]
+		status_label.text = "古洞循音石卫%s · 听声巡逻（蓝核已暴露） HP %d/%d" % [rage_tag, hp, max_hp]
 		status_label.modulate = Color("6cf2ff")
 
 func spawn_sonar_ring(origin: Vector3, col: Color = Color("54f0ff"), max_r: float = 10.5):
@@ -399,17 +483,146 @@ func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool 
 func on_gunshot(origin: Vector3, suppressed: bool):
 	if not is_alive():
 		return
+	var dist := root_node.position.distance_to(origin)
+	if dist <= BALLISTIC_RANGE:
+		last_shot_pos = origin
+		shot_origin_active = true
+		last_shot_suppressed = suppressed
+		investigate_pos = _ground_pos(_clamp_to_cave(origin))
 	register_noise(origin, 28.0 if suppressed else 68.0, true)
 
 func on_smoke_emp(origin: Vector3):
-	## v0.8.5: Smoke provides acoustic masking & accelerates silent disengage (NO long stun!).
+	## v0.8.6: Smoke breaks ballistic tracking + acoustic lock cleanly (NO long stun!).
 	if not is_alive():
 		return
-	if root_node.position.distance_to(origin) <= 13.5:
+	if root_node.position.distance_to(origin) <= 16.0:
 		noise_meter = 0.0
+		shot_origin_active = false
+		echo_charging = false
+		echo_charge_left = 0.0
+		if lance_state == "charging":
+			lance_state = "idle"
+			if is_instance_valid(lance_beam_node):
+				lance_beam_node.hide()
 		stealth_quiet_timer = maxf(stealth_quiet_timer, STEALTH_DISENGAGE_SECONDS - 0.25)
-		game._notice("✦ 烟雾屏蔽声源！保持潜行静默片刻，石卫便会放弃搜索并放开双臂！", Color("7ceeff"))
+		game._notice("✦ 烟雾屏蔽声源与弹道锁定！保持潜行静默片刻，石卫便会放弃搜索并放开双臂！", Color("7ceeff"))
 		_sync_label()
+
+func _place_lance_beam(origin_pt: Vector3, dir_v: Vector3, length_m: float, col: Color, width_m: float):
+	if not is_instance_valid(lance_beam_node):
+		return
+	var d := dir_v.normalized()
+	if d.length_squared() < 0.001:
+		d = Vector3.FORWARD
+	lance_beam_node.show()
+	lance_beam_node.global_position = origin_pt + d * (length_m * 0.5)
+	lance_beam_node.scale = Vector3(width_m / 0.24, width_m / 0.24, length_m)
+	var up_ax := Vector3.RIGHT if absf(d.y) > 0.96 else Vector3.UP
+	lance_beam_node.look_at(origin_pt + d * length_m, up_ax)
+	if is_instance_valid(lance_beam_mat):
+		lance_beam_mat.albedo_color = col
+		lance_beam_mat.emission = Color(col.r, col.g, col.b)
+
+func start_sonic_lance(target_pos: Vector3):
+	## Move 2 · 22m Focused Anti-Sniper Sonic Lance ("穿石声波束"): telegraphed beam punishing stationary crouch-sniping!
+	if not is_alive() or lance_state != "idle":
+		return
+	var is_conf: bool = game.rules.is_confidential()
+	lance_origin = root_node.global_position + Vector3(0.0, 1.62, 0.0)
+	var aim_pt := target_pos + Vector3(0.0, 0.95, 0.0)
+	var delta_v := aim_pt - lance_origin
+	if delta_v.length_squared() < 0.04:
+		delta_v = Vector3.BACK
+	lance_dir = delta_v.normalized()
+	lance_state = "charging"
+	lance_timer = 0.66 if is_conf else 0.92
+	lance_cd = (3.4 if enraged_resonance else 4.2) if is_conf else 4.8
+	_place_lance_beam(lance_origin, lance_dir, BALLISTIC_RANGE, Color(0.32, 0.92, 1.0, 0.62), 0.16)
+	game.play_sfx("warning_lock", -9)
+	game._notice("☄ 石卫循枪声锁定开火点，蓄力【穿石声波束】！快横向潜行移位躲开光束！", Color("ff8066"))
+	_sync_label()
+
+func _fire_sonic_lance():
+	if not is_alive():
+		return
+	var is_conf: bool = game.rules.is_confidential()
+	sonic_lance_count += 1
+	lance_state = "flash"
+	lance_timer = 0.24
+	_place_lance_beam(lance_origin, lance_dir, BALLISTIC_RANGE, Color(1.0, 0.36, 0.22, 0.92), 0.52)
+	game.play_sfx("warden_sonar", -5)
+	spawn_sonar_ring(root_node.position, Color("ff5c42"), 12.0)
+	if is_instance_valid(game.player) and game.rules.combat_mode:
+		var in_smk: bool = is_instance_valid(game.combat) and game.combat.player_in_smoke()
+		var p_center: Vector3 = game.player.position + Vector3(0.0, 0.95, 0.0)
+		var rel: Vector3 = p_center - lance_origin
+		var along: float = rel.dot(lance_dir)
+		if not in_smk and along >= 0.0 and along <= BALLISTIC_RANGE:
+			var perp := (rel - lance_dir * along).length()
+			if perp <= 1.40:
+				var dmg := 28 if is_conf else 20
+				game.player.add_screen_shake(0.45)
+				game.player.apply_knockback(Vector3(lance_dir.x, 0.0, lance_dir.z).normalized() * 5.6 + Vector3(0.0, 1.3, 0.0))
+				if is_instance_valid(game.combat):
+					game.combat.apply_player_damage(dmg)
+				game._notice("💥 留在原位被【穿石声波束】贯穿（-%d 伤害）！开枪后务必潜行横向换位！" % dmg, Color("ff5c5c"))
+			else:
+				game._notice("✦ 成功横向移位闪避【穿石声波束】！", game.MINT)
+
+func _trigger_cavern_quake(center_hint: Vector3):
+	## Move 3 · Cavern Quake Stalactite Rings (2 rings Normal / 3 rings Confidential)!
+	if not is_alive() or not is_instance_valid(game.combat) or not game.rules.combat_mode:
+		return
+	var is_conf: bool = game.rules.is_confidential()
+	quake_slam_count += 1
+	quake_cd = (5.6 if not enraged_resonance else 4.6) if is_conf else 7.4
+	var ring_cnt := 3 if is_conf else 2
+	var dmg := 24 if is_conf else 18
+	game.play_sfx("boss_phase", -9)
+	spawn_sonar_ring(root_node.position, Color("ff8c42"), 11.5)
+	if is_instance_valid(game.player):
+		game.player.add_screen_shake(0.32)
+	var base_pt := _ground_pos(_clamp_to_cave(center_hint))
+	for i in ring_cnt:
+		var ang := float(i) * (TAU / float(ring_cnt)) + rng.randf_range(-0.35, 0.35)
+		var r_off := 0.0 if i == 0 else 3.15
+		var pt := _ground_pos(_clamp_to_cave(base_pt + Vector3(cos(ang) * r_off, 0.0, sin(ang) * r_off)))
+		game.combat.spawn_danger_ring(pt, 2.85, dmg)
+	game._notice("🪨 古洞循音石卫重锤震洞，洞顶碎岩坠落（%d 道红圈）！迅速走位闪避！" % ring_cnt, Color("ff9f54"))
+
+func _resolve_echo_sweep():
+	## Move 4 (Confidential-Only!) · Active Echolocation Sweep: detects standing/crouched open player; [Z] Prone / [G] Smoke / Rock Cover evades 100%!
+	echo_charging = false
+	echo_charge_left = 0.0
+	echo_sweep_count += 1
+	echo_sweep_cd = 5.4 if enraged_resonance else 6.4
+	spawn_sonar_ring(root_node.position, Color("ffd15c"), 18.0)
+	game.play_sfx("warden_sonar", -6)
+	if not is_instance_valid(game.player):
+		return
+	var ppos: Vector3 = game.player.position
+	var d_p := root_node.position.distance_to(ppos)
+	var in_smk: bool = is_instance_valid(game.combat) and game.combat.player_in_smoke()
+	var is_prone: bool = (game.player.stance == game.player.STANCE_PRONE)
+	var rock_occluded := false
+	if is_instance_valid(game.combat):
+		var eye_h := 0.45 if is_prone else (0.98 if game.player.stance == game.player.STANCE_CROUCH else 1.48)
+		rock_occluded = game.combat.blocked(root_node.global_position + Vector3(0.0, 1.85, 0.0), ppos + Vector3(0.0, eye_h, 0.0))
+	if d_p <= BALLISTIC_RANGE and not in_smk and not is_prone and not rock_occluded:
+		echo_detected_count += 1
+		last_shot_pos = ppos
+		shot_origin_active = true
+		investigate_pos = _ground_pos(_clamp_to_cave(ppos))
+		stealth_quiet_timer = 0.0
+		noise_meter = 100.0
+		state = "hunt"
+		game._notice("📡 机密【主动声呐扫描】捕获你的轮廓！未按 [Z] 匍匐贴地——石卫立即锁定并蓄力声波束！", Color("ff5c5c"))
+		if lance_state == "idle":
+			start_sonic_lance(ppos)
+	else:
+		echo_evaded_count += 1
+		game._notice("✦ 成功以 [Z] 匍匐/烟雾/石柱遮挡规避石卫主动声呐扫描！", Color("7ceeff"))
+	_sync_label()
 
 func _deliver_sonic_retaliation(is_close_slam: bool = false, keep_guard: bool = true):
 	if not is_alive() or not is_instance_valid(game.player):
@@ -428,11 +641,11 @@ func _deliver_sonic_retaliation(is_close_slam: bool = false, keep_guard: bool = 
 	push_dir.y = 0.0
 	if push_dir.length() > 0.05:
 		game.player.apply_knockback(push_dir.normalized() * (6.2 if is_close_slam else 4.2) + Vector3(0, 1.5, 0))
-	var dmg: int = (32 if is_conf else 22) if is_close_slam else (22 if is_conf else 16)
+	var dmg: int = (30 if is_conf else 22) if is_close_slam else (22 if is_conf else 16)
 	if is_instance_valid(game.combat) and game.rules.combat_mode:
 		game.combat.apply_player_damage(dmg)
-	game._notice("💥 古洞循音石卫释放%s（-%d 伤害）！快按 [C]/[Z] 潜行静默 1.5 秒等其放弃搜索放开双臂！" % [
-		"重锤震地" if is_close_slam else "声波反击", dmg
+	game._notice("💥 古洞循音石卫释放%s（-%d 伤害）！快潜行移位 >%.1fm 并静默 1.5s 脱搜！" % [
+		"重锤震地" if is_close_slam else "声波反击", dmg, required_relocate_distance()
 	], Color("ff7a6b"))
 
 func hit_bullet(collider) -> bool:
@@ -467,33 +680,54 @@ func hit_bullet(collider) -> bool:
 		game.show_hitmarker(false)
 		game.play_sfx("knife_hit", -9)
 
-	# v0.8.5 Core-Hit Behavior: NEVER stuns!
-	# Immediately raises X-brace dual-arm guard to shield chest core AND fires immediate sonic wave retaliation!
+	# v0.8.6 Anti-Crouch-Snipe Core-Hit Behavior: NEVER stuns!
+	# Immediately locks firing spot (Ballistic Triangulation), snaps X-brace dual-arm guard,
+	# and fires close Sonic Pulse (<=5.5m) OR 22m Focused Anti-Sniper Sonic Lance (>5.5m)!
 	if hp > 0:
 		stealth_quiet_timer = 0.0
 		state = "hunt"
 		noise_meter = 100.0
+		last_shot_suppressed = (game.rules.active_muzzle() == "suppressor")
+		if is_conf and not enraged_resonance and hp <= int(max_hp * 0.45):
+			enraged_resonance = true
+			spawn_sonar_ring(root_node.position, Color("ff3b30"), 15.0)
+			game.play_sfx("boss_phase", -7)
+			game._notice("🔥 机密古洞石卫进入【狂鸣共振】！移速提升，核心受击将同时震落洞石并锁定声波束！", Color("ff5252"))
+		var d_shooter := 999.0
 		if is_instance_valid(game.player):
+			last_shot_pos = game.player.position
+			shot_origin_active = true
 			investigate_pos = _ground_pos(_clamp_to_cave(game.player.position))
+			d_shooter = root_node.position.distance_to(game.player.position)
 		if is_crit:
 			arms_forced_open_left = 0.0
 			set_guard_arms(true, 4.6)
-			if is_instance_valid(game.player) and root_node.position.distance_to(game.player.position) <= HEAR_RADIUS:
-				_deliver_sonic_retaliation(false, true)
+			if is_instance_valid(game.player):
+				if d_shooter <= 5.5:
+					_deliver_sonic_retaliation(false, true)
+				elif d_shooter <= BALLISTIC_RANGE:
+					if lance_state == "idle":
+						start_sonic_lance(game.player.position)
+					else:
+						_deliver_sonic_retaliation(false, true)
+				if enraged_resonance and is_instance_valid(game.combat) and game.rules.combat_mode:
+					game.combat.spawn_danger_ring(_ground_pos(_clamp_to_cave(game.player.position)), 3.0, 24)
 		elif not blocked_by_guard:
 			if arms_forced_open_left <= 0.0:
 				set_guard_arms(true, 3.6)
+			if is_instance_valid(game.player) and d_shooter > 5.5 and d_shooter <= BALLISTIC_RANGE and lance_state == "idle" and lance_cd <= 0.0:
+				start_sonic_lance(game.player.position)
 
 	if hp <= 0:
 		_on_defeated()
 	else:
 		_sync_label()
 		if blocked_by_guard:
-			game._notice("🛡 石卫双臂护核！子弹被青石臂盾弹开（-%d 擦伤 · 剩 %d/%d HP），请按 [C]/[Z] 潜行静默 1.5s 等其放手！" % [dmg, hp, max_hp], Color("ffd166"))
+			game._notice("🛡 石卫双臂护核！子弹被青石臂盾弹开（-%d · 剩 %d/%d HP），潜行转移 >%.1fm 并静默 1.5s 等其放手！" % [dmg, hp, max_hp, required_relocate_distance()], Color("ffd166"))
 		elif is_crit:
-			game._notice("✦ 暴击蓝核 -%d HP（剩 %d/%d HP）！石卫立刻护核并声波反击——潜行静默 1.5s 后将再度放开双臂！" % [dmg, hp, max_hp], Color("7ceeff"))
+			game._notice("✦ 暴击蓝核 -%d HP（剩 %d/%d HP）！石卫立刻护核并锁定开火点——速潜行移位 >%.1fm 并静默 1.5s！" % [dmg, hp, max_hp, required_relocate_distance()], Color("7ceeff"))
 		else:
-			game._notice("💥 命中石卫岩甲 -%d HP（剩 %d/%d HP）· 石卫合臂护核，潜行静默 1.5s 待其放手再狙蓝核！" % [dmg, hp, max_hp], Color("ffe08c"))
+			game._notice("💥 命中石卫岩甲 -%d HP（剩 %d/%d HP）· 石卫合臂护核并锁定声源，速潜行换位！" % [dmg, hp, max_hp], Color("ffe08c"))
 	return true
 
 func _on_defeated():
@@ -503,6 +737,11 @@ func _on_defeated():
 	guard_left = 0.0
 	arms_forced_open_left = 0.0
 	stealth_quiet_timer = 0.0
+	shot_origin_active = false
+	echo_charging = false
+	lance_state = "idle"
+	if is_instance_valid(lance_beam_node):
+		lance_beam_node.hide()
 	body_area.collision_layer = 0
 	core_area.collision_layer = 0
 	guard_area.collision_layer = 0
@@ -516,11 +755,12 @@ func _on_defeated():
 	game.rules.score += 80
 	var loot_msg := ""
 	if game.rules.can_loot():
-		var is_conf: bool = game.rules.operation_tier == "confidential"
-		var rarity := (7 if randf() < 0.28 else 6) if is_conf else (6 if randf() < 0.25 else 5)
+		var is_conf: bool = game.rules.is_confidential()
+		var rarity: int = game.rules.roll_calibrated_rarity(is_conf, "warden_drop", true)
 		var items: Array = [game.rules.roll_item_by_rarity(rarity)]
 		if is_conf:
-			items.append(game.rules.roll_item_by_rarity(4 if randf() < 0.65 else 5))
+			var r2: int = game.rules.roll_calibrated_rarity(true, "hidden_nook", true)
+			items.append(game.rules.roll_item_by_rarity(r2))
 		if is_instance_valid(game.world_loot) and game.world_loot.has_method("spawn_custom_drop"):
 			game.world_loot.spawn_custom_drop(drop_pos, "古洞循音石卫 · 秘宝掉落包", items, true)
 			loot_msg = " · 已掉落实体【石卫秘宝包（%d件）】，靠近按 [F] 选择拾取！" % items.size()
@@ -584,6 +824,9 @@ func update(delta: float):
 	elapsed += delta
 	sonar_cd = maxf(0.0, sonar_cd - delta)
 	attack_cd = maxf(0.0, attack_cd - delta)
+	lance_cd = maxf(0.0, lance_cd - delta)
+	quake_cd = maxf(0.0, quake_cd - delta)
+	echo_sweep_cd = maxf(0.0, echo_sweep_cd - delta)
 	hud_ping_cd = maxf(0.0, hud_ping_cd - delta)
 	if hit_flash_left > 0.0:
 		hit_flash_left = maxf(0.0, hit_flash_left - delta)
@@ -591,6 +834,29 @@ func update(delta: float):
 		deflect_flash_left = maxf(0.0, deflect_flash_left - delta)
 	if arms_forced_open_left > 0.0:
 		arms_forced_open_left = maxf(0.0, arms_forced_open_left - delta)
+
+	# Focused Anti-Sniper Sonic Lance state machine
+	if lance_state == "charging":
+		lance_timer -= delta
+		var pulse_w := 0.14 + absf(sin(elapsed * 24.0)) * 0.12
+		_place_lance_beam(lance_origin, lance_dir, BALLISTIC_RANGE, Color(1.0, 0.56, 0.24, 0.78) if lance_timer < 0.28 else Color(0.32, 0.92, 1.0, 0.62), pulse_w)
+		if lance_timer <= 0.0:
+			_fire_sonic_lance()
+	elif lance_state == "flash":
+		lance_timer -= delta
+		if lance_timer <= 0.0:
+			lance_state = "idle"
+			if is_instance_valid(lance_beam_node):
+				lance_beam_node.hide()
+			_sync_label()
+
+	# Confidential-Exclusive Active Echolocation Sweep countdown
+	if echo_charging:
+		echo_charge_left -= delta
+		if echo_charge_left <= 0.0:
+			_resolve_echo_sweep()
+		else:
+			_sync_label()
 
 	# Compact 0.30m cyan chest crystal visual feedback
 	if is_instance_valid(core_crystal_mat):
@@ -602,6 +868,10 @@ func update(delta: float):
 			core_crystal_mat.albedo_color = Color("ffd86b")
 			core_crystal_mat.emission = Color("ffae34")
 			core_crystal_mat.emission_energy_multiplier = 3.2 + sin(elapsed * 14.0) * 0.8
+		elif enraged_resonance:
+			core_crystal_mat.albedo_color = Color("ff6248")
+			core_crystal_mat.emission = Color("ff3b28")
+			core_crystal_mat.emission_energy_multiplier = 2.8 + sin(elapsed * 10.0) * 0.7
 		elif guard_arms:
 			core_crystal_mat.albedo_color = Color("36b8cc")
 			core_crystal_mat.emission = Color("2894b0")
@@ -620,18 +890,25 @@ func update(delta: float):
 	var ppos: Vector3 = game.player.position
 	var dist_p := root_node.position.distance_to(ppos)
 	var player_in_cave := _player_inside_cave_territory(ppos)
+	var is_conf_m: bool = game.rules.is_confidential()
 
-	# Strictly enforce Yanxia Cave territory leash: exiting the cave IMMEDIATELY breaks hunt & drops guard!
-	if (state in ["hunt", "investigate"] or guard_arms) and not player_in_cave:
+	# Strictly enforce Yanxia Cave territory leash: exiting far beyond cave breaks hunt & drops guard!
+	if (state in ["hunt", "investigate"] or guard_arms or shot_origin_active) and not player_in_cave and (dist_p > BALLISTIC_RANGE or not shot_origin_active):
 		if state == "hunt":
 			game._notice("✦ 已离开烟霞古洞范围，古洞循音石卫退回洞内巡逻。", game.MINT)
 		state = "patrol"
 		noise_meter = 0.0
 		stealth_quiet_timer = 0.0
+		shot_origin_active = false
+		echo_charging = false
+		echo_charge_left = 0.0
+		lance_state = "idle"
+		if is_instance_valid(lance_beam_node):
+			lance_beam_node.hide()
 		set_guard_arms(false, 0.0)
 		_sync_label()
 
-	# Acoustic sensing vs 1.5s Stealth Silence Disengage!
+	# Acoustic sensing vs Anti-Crouch-Snipe Mandatory Reposition + 1.5s Stealth Silence Disengage!
 	var hspeed := Vector2(game.player.velocity.x, game.player.velocity.z).length()
 	var stance: int = game.player.stance
 	var in_smoke: bool = is_instance_valid(game.combat) and game.combat.player_in_smoke()
@@ -643,12 +920,26 @@ func update(delta: float):
 		and hspeed > 0.35
 	)
 
+	var camping_shot := is_camping_shot_origin(ppos)
+	if shot_origin_active and not camping_shot:
+		shot_origin_active = false
+		if state in ["hunt", "investigate"] or guard_arms:
+			game._notice("✦ 已潜行转移脱离弹道锁定点！保持静默 1.5 秒，石卫便会放弃搜索并放开双臂！", Color("7ceeff"))
+			_sync_label()
+
 	if player_is_noisy:
 		stealth_quiet_timer = 0.0
 		var rate := 36.0 if hspeed > 5.0 else 18.0
 		register_noise(ppos, rate * delta, false)
+	elif camping_shot:
+		# Anti-crouch-snipe lock: crouching in place at the exact firing spot NEVER ticks down stealth disengage!
+		stealth_quiet_timer = 0.0
+		investigate_pos = _ground_pos(_clamp_to_cave(last_shot_pos))
+		if dist_p <= BALLISTIC_RANGE and lance_state == "idle" and lance_cd <= 0.0:
+			start_sonic_lance(last_shot_pos)
+		_sync_label()
 	else:
-		# Player is crouched ([C]), prone ([Z]), standing still, or masked in smoke -> SILENT!
+		# Player relocated out of firing nest (or in smoke) AND stays silent -> 1.5s disengage cleanly lowers arms!
 		noise_meter = maxf(0.0, noise_meter - 24.0 * delta)
 		if state in ["hunt", "investigate"] or guard_arms:
 			stealth_quiet_timer += delta
@@ -656,8 +947,11 @@ func update(delta: float):
 				state = "patrol"
 				noise_meter = 0.0
 				stealth_quiet_timer = 0.0
+				shot_origin_active = false
+				echo_charging = false
+				echo_charge_left = 0.0
 				set_guard_arms(false, 0.0)
-				game._notice("✦ 潜行静默 1.5 秒生效！古洞循音石卫放弃搜索并放开双臂，趁机瞄准胸口蓝核！", Color("7ceeff"))
+				game._notice("✦ 潜行移位并静默 1.5 秒生效！古洞循音石卫放弃搜索并放开双臂，趁机瞄准胸口蓝核！", Color("7ceeff"))
 				_sync_label()
 			else:
 				_sync_label()
@@ -672,23 +966,34 @@ func update(delta: float):
 			game.play_sfx("warden_sonar", -9)
 			_sync_label()
 
-	# Movement & sonic wave attack rhythm (strictly confined inside Yanxia Cave!)
+	# Movement & 4-move acoustic combat rhythm (strictly confined inside Yanxia Cave!)
 	var move_target := root_node.position
 	var move_speed := 1.65
+	var rage_spd_mult := 1.22 if enraged_resonance else 1.0
 	if state == "hunt":
-		move_target = _ground_pos(_clamp_to_cave(investigate_pos if not player_is_noisy else ppos))
-		var is_conf_m: bool = game.rules.is_confidential()
-		move_speed = (1.30 if is_conf_m else 1.10) if guard_arms else (4.20 if is_conf_m else 3.60)
+		move_target = _ground_pos(_clamp_to_cave(ppos if player_is_noisy else investigate_pos))
+		move_speed = ((1.40 if is_conf_m else 1.15) if guard_arms else (4.15 if is_conf_m else 3.55)) * rage_spd_mult
 		if sonar_cd <= 0.0:
 			sonar_cd = 2.4
 			game.play_sfx("warden_sonar", -9)
 			spawn_sonar_ring(root_node.position, Color("ffd166") if guard_arms else Color("ff5c5c"), 11.0)
-		var blast_range := 11.0 if is_conf_m else 9.5
+		var blast_range := 10.8 if is_conf_m else 9.5
 		if player_in_cave and player_is_noisy and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode:
 			_deliver_sonic_retaliation(dist_p < 3.8, guard_arms)
+		# Move 3: Cavern Quake Stalactite Rings during hunt
+		if (player_in_cave or dist_p <= BALLISTIC_RANGE) and not in_smoke and quake_cd <= 0.0 and lance_state == "idle" and game.rules.combat_mode:
+			_trigger_cavern_quake(ppos if (player_is_noisy or camping_shot) else investigate_pos)
+		# Move 4: Confidential-Only Active Echolocation Sweep!
+		if is_conf_m and (player_in_cave or dist_p <= BALLISTIC_RANGE) and not echo_charging and echo_sweep_cd <= 0.0 and lance_state == "idle":
+			echo_charging = true
+			echo_charge_left = 1.15
+			spawn_sonar_ring(root_node.position, Color("ffd15c"), 15.0)
+			game.play_sfx("warning_lock", -8)
+			game._notice("📡 机密预警：古洞石卫蓄力【主动声呐扫描】（1.15s）！立即按 [Z] 匍匐贴地或躲入 [G] 烟雾！", Color("ffd15c"))
+			_sync_label()
 	elif state == "investigate":
 		move_target = _ground_pos(_clamp_to_cave(investigate_pos))
-		move_speed = 1.20 if guard_arms else 2.55
+		move_speed = (1.25 if guard_arms else 2.55) * rage_spd_mult
 		if sonar_cd <= 0.0:
 			sonar_cd = 2.5
 			game.play_sfx("warden_sonar", -12)
@@ -703,12 +1008,12 @@ func update(delta: float):
 
 	var flat_delta := Vector2(move_target.x - root_node.position.x, move_target.z - root_node.position.z)
 	var stop_dist := 2.4 if state == "hunt" else 0.45
-	if flat_delta.length() > stop_dist:
+	if flat_delta.length() > stop_dist and lance_state != "charging":
 		var step := flat_delta.normalized() * minf(move_speed * delta, flat_delta.length() - stop_dist)
 		var next_xz := _clamp_to_cave(Vector3(root_node.position.x + step.x, 0.0, root_node.position.z + step.y))
 		root_node.position = _ground_pos(next_xz)
-	if state == "hunt" or guard_arms:
-		var face_target := ppos if player_is_noisy else investigate_pos
+	if state == "hunt" or guard_arms or lance_state == "charging":
+		var face_target := last_shot_pos if (camping_shot or lance_state == "charging") else (ppos if player_is_noisy else investigate_pos)
 		var face_p := Vector2(face_target.x - root_node.position.x, face_target.z - root_node.position.z)
 		if face_p.length() > 0.25:
 			root_node.rotation.y = lerp_angle(root_node.rotation.y, atan2(face_p.x, face_p.y), minf(delta * 7.2, 1.0))

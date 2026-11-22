@@ -286,7 +286,7 @@ func _refresh_left_container():
 		return
 
 	var bag_full: bool = game.rules.bag.size() >= game.rules.capacity()
-	var safe_full: bool = game.rules.safe_box.size() >= game.Rules.SAFE_BOX_SLOTS
+	var safe_full: bool = game.rules.safe_box.size() >= game.rules.safe_box_slots()
 
 	for idx in pending_items.size():
 		var item: Dictionary = pending_items[idx]
@@ -402,23 +402,25 @@ func _refresh_right_inventory():
 		ch.queue_free()
 
 	var cap: int = game.rules.capacity()
+	var s_slots: int = game.rules.safe_box_slots()
 	var bag_val: int = game.rules.bag_value()
 	var safe_val: int = game.rules.safe_box_value()
 	var bag_full: bool = game.rules.bag.size() >= cap
-	var safe_full: bool = game.rules.safe_box.size() >= game.Rules.SAFE_BOX_SLOTS
+	var safe_full: bool = game.rules.safe_box.size() >= s_slots
 
 	safe_header.text = "🔒 加密安全箱（%d / %d 格 · 保底 %d 币 · 阵亡不掉落）" % [
-		game.rules.safe_box.size(), game.Rules.SAFE_BOX_SLOTS, safe_val
+		game.rules.safe_box.size(), s_slots, safe_val
 	]
 	bag_header.text = "🎒 我的战术背包（%d / %d 格 · 估值 %d 币%s）" % [
 		game.rules.bag.size(), cap, bag_val,
 		" · 机密×1.35" if game.rules.is_confidential() else ""
 	]
 
-	# Render 2 Encrypted Safe Box slots
-	for s_idx in game.Rules.SAFE_BOX_SLOTS:
+	# Render Encrypted Safe Box slots (2 base, or 3 with safebox_upgrade)
+	var scard_w: float = 172.0 if s_slots >= 3 else 262.0
+	for s_idx in s_slots:
 		var scard := Panel.new()
-		scard.custom_minimum_size = Vector2(262, 86)
+		scard.custom_minimum_size = Vector2(scard_w, 86)
 		var sst := StyleBoxFlat.new()
 		sst.set_corner_radius_all(7)
 		if s_idx < game.rules.safe_box.size():
@@ -430,17 +432,22 @@ func _refresh_right_inventory():
 			sst.set_border_width_all(2)
 			scard.add_theme_stylebox_override("panel", sst)
 
-			var sic := LootUI.create_icon(sit, sr_col, Vector2(52, 52))
-			sic.position = Vector2(8, 17)
+			var ic_sz: float = 40.0 if s_slots >= 3 else 52.0
+			var sic := LootUI.create_icon(sit, sr_col, Vector2(ic_sz, ic_sz))
+			sic.position = Vector2(6 if s_slots >= 3 else 8, 8 if s_slots >= 3 else 17)
 			scard.add_child(sic)
 
-			var st_lbl: Label = game._text(scard, str(sit.get("title", "珍宝")), Vector2(66, 10), Vector2(124, 22), 13, sr_col)
+			var tx: float = 52.0 if s_slots >= 3 else 66.0
+			var tw: float = 114.0 if s_slots >= 3 else 124.0
+			var st_lbl: Label = game._text(scard, str(sit.get("title", "珍宝")), Vector2(tx, 8), Vector2(tw, 20), 12 if s_slots >= 3 else 13, sr_col)
 			st_lbl.clip_text = true
-			var sv_lbl: Label = game._text(scard, "%s · %d币" % [game.Rules.RARITY_NAMES[sr], int(sit.get("value", 0))], Vector2(66, 34), Vector2(124, 20), 11, game.GOLD)
+			var sv_lbl: Label = game._text(scard, "%d币" % int(sit.get("value", 0)) if s_slots >= 3 else "%s · %d币" % [game.Rules.RARITY_NAMES[sr], int(sit.get("value", 0))], Vector2(tx, 30), Vector2(tw, 18), 11, game.GOLD)
 			sv_lbl.clip_text = true
-			game._text(scard, "🔒 阵亡保底", Vector2(66, 56), Vector2(120, 18), 11, Color("9ee2c2"))
+			if s_slots < 3:
+				game._text(scard, "🔒 阵亡保底", Vector2(66, 56), Vector2(120, 18), 11, Color("9ee2c2"))
 
-			var b_out: Button = game._button(scard, "移回\n背包", Rect2(196, 14, 58, 58), func(): move_safe_to_bag(s_idx))
+			var b_rect: Rect2 = Rect2(6, 54, scard_w - 12.0, 26) if s_slots >= 3 else Rect2(196, 14, 58, 58)
+			var b_out: Button = game._button(scard, "移回背包" if s_slots >= 3 else "移回\n背包", b_rect, func(): move_safe_to_bag(s_idx))
 			b_out.add_theme_font_size_override("font_size", 11)
 			b_out.disabled = bag_full
 		else:
@@ -448,7 +455,7 @@ func _refresh_right_inventory():
 			sst.border_color = Color(0.95, 0.78, 0.35, 0.36)
 			sst.set_border_width_all(1)
 			scard.add_theme_stylebox_override("panel", sst)
-			var semp: Label = game._text(scard, "🔒 安全格 #%d（空闲）\n左侧点「存安全箱」直存" % (s_idx + 1), Vector2(10, 22), Vector2(242, 42), 12, Color("cbbd88"))
+			var semp: Label = game._text(scard, "🔒 安全格 #%d\n空闲" % (s_idx + 1) if s_slots >= 3 else "🔒 安全格 #%d（空闲）\n左侧点「存安全箱」直存" % (s_idx + 1), Vector2(6, 22), Vector2(scard_w - 12.0, 42), 11 if s_slots >= 3 else 12, Color("cbbd88"))
 			semp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		safe_row.add_child(scard)
 
@@ -595,7 +602,7 @@ func take_item_to_safe_box(idx: int) -> bool:
 	var item: Dictionary = pending_items[idx]
 	if not game.rules.add_item_to_safe_box(item):
 		game.play_sfx("hit_wrong", -13)
-		status_label.text = "加密安全箱已满（%d/%d）！请先在右侧安全箱点【移回背包】腾位。" % [game.rules.safe_box.size(), game.Rules.SAFE_BOX_SLOTS]
+		status_label.text = "加密安全箱已满（%d/%d）！请先在右侧安全箱点【移回背包】腾位。" % [game.rules.safe_box.size(), game.rules.safe_box_slots()]
 		status_label.add_theme_color_override("font_color", Color("ffd166"))
 		return false
 	pending_items.remove_at(idx)
@@ -756,6 +763,7 @@ func _sync_world_container_state():
 			"exploration":
 				if active_explore_id == "english":
 					game.exploration.states["english"] = true
+					game.exploration.states["english_claimed"] = true
 					game.Props.set_enabled(active_node, false)
 				elif active_explore_id != "":
 					game.exploration.states[active_explore_id + "_claimed"] = true

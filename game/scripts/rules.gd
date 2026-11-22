@@ -3,7 +3,8 @@ extends RefCounted
 const LearningStore = preload("res://scripts/learning_store.gd")
 const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 
-const EXTRACTION_SCORE = 260
+const EXTRACTION_SCORE = 420
+const CONFIDENTIAL_EXTRACTION_SCORE = 520
 const EXTRACTION_SECONDS = 5.0
 const BASE_ANSWER_SCORE = 15
 const STREAK_BONUS_SCORE = 5
@@ -64,6 +65,38 @@ const CULTURAL_NOTES = {
 	"烟山先民竹简": {
 		"fiction": "藏于烟霞古洞寒潭茶灶旁石室的古旧墨书简册，记述「烟山」得名由来。",
 		"fact": "竹简是纸张普及前中国主要的书写载体，以韦编或丝绳编联成册，湖南里耶、湖北睡虎地等地出土简牍为研究古代基层生活提供了珍贵一手文献。"
+	},
+	"龙泉梅瓶": {
+		"fiction": "烟山东岭古茶寮传世的宋代风韵梅瓶，瓶身青釉映竹影而得名。",
+		"fact": "龙泉窑兴盛于南宋至明初，位于浙江龙泉一带，以粉青、梅子青厚釉闻名，梅瓶小口丰肩束腹，最初用于盛酒，后成宋明雅室陈设器。"
+	},
+	"良渚神徽玉琮": {
+		"fiction": "西岭竹石阵溪谷深处偶现的礼玉遗珍，外壁分节纹饰宛如远古图腾。",
+		"fact": "玉琮「外方内圆」，象征古代「天圆地方」宇宙观，良渚文化（距今约 5300–4300 年）神人兽面纹玉琮是江南史前治玉工艺的巅峰代表。"
+	},
+	"曾侯乙式编钟": {
+		"fiction": "按先民乐舞图录微缩复刻的五音编钟，悬于诚庄古堂用以晨钟习韵。",
+		"fact": "编钟为中国古代打击礼乐器，合瓦形钟体可实现「一钟双音」，1978 年湖北随州出土的战国曾侯乙编钟由 65 件青铜钟构成，音域跨五个半八度。"
+	},
+	"浑天仪模型": {
+		"fiction": "诚庄观星台遗存的铜制天象教学模型，用于推演江南四时农候。",
+		"fact": "浑天仪是中国古代测量天体坐标的仪器，东汉张衡创制水运浑天仪，以嵌套铜环模拟天球赤道、黄道与子午圈。"
+	},
+	"金瓯永固杯": {
+		"fiction": "传为旧年江南巧匠摹刻的祝愿太平金盏，深藏云顶古坛密匣之内。",
+		"fact": "故宫博物院藏清乾隆金瓯永固杯以纯金铸成，象首三足、夔龙双耳，镶嵌珍珠与红蓝宝石，寄寓「疆土稳固、国泰民安」之意。"
+	},
+	"翠玉白菜": {
+		"fiction": "烟山匠人依天然白绿玉料俏色琢成的清白小品，叶脉间伏有金蝈蝈。",
+		"fact": "玉雕巧色技艺顺应玉石天然白绿过渡，以白菜谐音「百财」并喻清白自守，叶上螽斯寓意生生不息，是传统写实玉雕经典题材。"
+	},
+	"蕉叶式七弦古琴": {
+		"fiction": "望稻亭旧日雅集抚琴所用的微缩焦尾琴案玩，音韵清越。",
+		"fact": "古琴已有三千余年历史，七弦十三徽对应泛音节点，2003 年入选联合国教科文组织人类非物质文化遗产代表作名录。"
+	},
+	"青铜三足小鼎": {
+		"fiction": "烟山古道遗留的袖珍饕餮纹仿古铜鼎，绿锈斑驳却稳重端庄。",
+		"fact": "鼎原为古代炊器，商周时期演变为礼制重器，「一言九鼎」「问鼎中原」等成语均源于青铜鼎文化。"
 	}
 }
 
@@ -109,7 +142,15 @@ const LOOT_TABLE = {
 		{"title": "干桂花香包", "en": "Osmanthus Sachet", "value": 31, "rarity": 1, "grid": "1×1", "icon": "osmanthus_pack", "lore": "装满金秋干桂花的明黄束口小香囊，幽香扑鼻。"},
 		{"title": "旧黄铜钥匙串", "en": "Brass Key Ring", "value": 33, "rarity": 1, "grid": "1×1", "icon": "key_ring", "lore": "系在铜环上的三把老仓库黄铜钥匙，敲击清脆。"},
 		{"title": "军绿旧水壶", "en": "Field Canteen", "value": 35, "rarity": 1, "grid": "1×2", "icon": "canteen", "lore": "装满清甜山泉水的帆布背带铝制野外水壶。"},
-		{"title": "尼龙登山绳", "en": "Climbing Rope", "value": 37, "rarity": 1, "grid": "1×2", "icon": "rope_coil", "lore": "配有金属快挂扣的橙色高强度山崖攀登绳索。"}
+		{"title": "尼龙登山绳", "en": "Climbing Rope", "value": 37, "rarity": 1, "grid": "1×2", "icon": "rope_coil", "lore": "配有金属快挂扣的橙色高强度山崖攀登绳索。"},
+		{"title": "竹编采茶篓", "en": "Bamboo Tea Basket", "value": 23, "rarity": 1, "grid": "1×2", "icon": "bamboo_basket", "lore": "诚庄采茶人背在腰间的双耳篾编竹茶篓，盛满清香嫩芽。"},
+		{"title": "江南油纸伞", "en": "Oil-Paper Umbrella", "value": 25, "rarity": 1, "grid": "1×2", "icon": "oil_paper_umbrella", "lore": "涂桐油防雨、绘有朱红山纹的手工竹骨油纸伞。"},
+		{"title": "烟山竹笠", "en": "Bamboo Straw Hat", "value": 26, "rarity": 1, "grid": "2×2", "icon": "straw_hat", "lore": "细竹篾夹箬叶编成的江南防雨遮阳宽檐斗笠。"},
+		{"title": "黄杨木梳", "en": "Boxwood Comb", "value": 28, "rarity": 1, "grid": "1×1", "icon": "wooden_comb", "lore": "木质细密温润、雕有云纹与红穗的手工黄杨木梳。"},
+		{"title": "粗陶山泉壶", "en": "Clay Water Pot", "value": 31, "rarity": 1, "grid": "1×2", "icon": "clay_teapot", "lore": "配竹提梁与木塞的粗陶烧水壶，专煮清溪山泉。"},
+		{"title": "千年红松果", "en": "Mountain Pine Cone", "value": 24, "rarity": 1, "grid": "1×1", "icon": "pine_cone", "lore": "烟山古松林拾得的饱满松塔，自带清冽松脂幽香。"},
+		{"title": "防潮火柴盒", "en": "Waterproof Matches", "value": 29, "rarity": 1, "grid": "1×1", "icon": "matchbox", "lore": "山林巡护员随身携带的红头防潮野外引火柴。"},
+		{"title": "小竹蒸笼", "en": "Bamboo Steamer", "value": 33, "rarity": 1, "grid": "1×2", "icon": "bamboo_steamer", "lore": "江南早茶坊常见的双层手工竹编小蒸笼，犹带米香。"}
 	],
 	2: [
 		{"title": "林间指北针", "en": "Forest Compass", "value": 48, "rarity": 2, "grid": "1×1", "icon": "compass", "lore": "夜光表盘金属指北针，在竹石迷阵中辨位极准。"},
@@ -123,7 +164,15 @@ const LOOT_TABLE = {
 		{"title": "信号发烟罐", "en": "Signal Smoke Can", "value": 59, "rarity": 2, "grid": "1×1", "icon": "smoke_can", "lore": "用于标定撤离信标与掩护转移的战术拉环烟雾罐。"},
 		{"title": "湖笔书写套组", "en": "Calligraphy Brush", "value": 63, "rarity": 2, "grid": "1×2", "icon": "brush_set", "lore": "青瓷五峰笔山配兼毫湖笔，书房案头清雅文具。"},
 		{"title": "铜制电报发报键", "en": "Telegraph Key", "value": 68, "rarity": 2, "grid": "1×2", "icon": "morse_key", "lore": "底座厚重的经典黄铜摩斯电码发报手键，回弹清脆。"},
-		{"title": "烟山草药标本匣", "en": "Herb Specimen Box", "value": 72, "rarity": 2, "grid": "1×2", "icon": "herb_case", "lore": "封存珍稀烟山蕨类压花与英文拉丁注记的木框标本。"}
+		{"title": "烟山草药标本匣", "en": "Herb Specimen Box", "value": 72, "rarity": 2, "grid": "1×2", "icon": "herb_case", "lore": "封存珍稀烟山蕨类压花与英文拉丁注记的木框标本。"},
+		{"title": "迷你青石磨", "en": "Mini Stone Mill", "value": 47, "rarity": 2, "grid": "2×2", "icon": "stone_mill", "lore": "诚庄匠人以青麻石精琢的案头微缩手摇小石磨。"},
+		{"title": "宫廷红灯笼", "en": "Silk Palace Lantern", "value": 51, "rarity": 2, "grid": "1×2", "icon": "paper_lantern", "lore": "六角雕木描金框蒙红纱的江南古亭宫灯。"},
+		{"title": "紫竹长笛", "en": "Purple Bamboo Flute", "value": 53, "rarity": 2, "grid": "1×2", "icon": "wooden_flute", "lore": "取江南老紫竹制成、镶骨箍缀碧玉穗的清越长笛。"},
+		{"title": "古寺铜风铃", "en": "Bronze Wind Bell", "value": 56, "rarity": 2, "grid": "1×1", "icon": "brass_bell", "lore": "悬于望稻亭飞檐角、山风拂过便清鸣的古铜风铎。"},
+		{"title": "锡制茶叶罐", "en": "Pewter Tea Caddy", "value": 60, "rarity": 2, "grid": "1×1", "icon": "tea_caddy", "lore": "八棱锤纹防潮双盖老锡罐，密封珍藏明前龙井。"},
+		{"title": "户外机械表", "en": "Field Diver Watch", "value": 64, "rarity": 2, "grid": "1×1", "icon": "tactical_watch", "lore": "带夜光刻度旋转表圈与织布表带的山地防水机械表。"},
+		{"title": "团扇仕女图", "en": "Round Silk Fan", "value": 67, "rarity": 2, "grid": "2×2", "icon": "silk_fan", "lore": "红木圈框素绢面、手绘烟山远黛与红日的江南纨扇。"},
+		{"title": "老式杆秤", "en": "Brass Balance Scale", "value": 70, "rarity": 2, "grid": "1×2", "icon": "brass_scale", "lore": "乌木镶金星秤杆配黄铜秤盘的传统茶行小戥秤。"}
 	],
 	3: [
 		{"title": "加密无线电台", "en": "Encrypted Radio", "value": 82, "rarity": 3, "grid": "1×2", "icon": "radio", "lore": "双频抗干扰战术步话机，可截获词兵调动信号。"},
@@ -136,7 +185,14 @@ const LOOT_TABLE = {
 		{"title": "松烟鎏金古墨锭", "en": "Pine Soot Inkstick", "value": 102, "rarity": 3, "grid": "1×1", "icon": "inkstick", "lore": "描金松烟八角徽墨，置于花梨小座上，历久弥香。"},
 		{"title": "江南苏绣锦囊", "en": "Suzhou Silk Pouch", "value": 108, "rarity": 3, "grid": "1×1", "icon": "silk_pouch", "lore": "以金线翠缎精绣云水菱纹并缀翡翠珠的江南锦囊。"},
 		{"title": "便携气象测风仪", "en": "Wind Meter", "value": 114, "rarity": 3, "grid": "1×2", "icon": "anemometer", "lore": "带三杯风速转子的山地侦察气象测风终端。"},
-		{"title": "机械铜壳怀表", "en": "Brass Pocket Watch", "value": 122, "rarity": 3, "grid": "1×1", "icon": "pocket_watch", "lore": "翻盖罗马字面机械铜怀表，齿轮滴答走时精准。"}
+		{"title": "机械铜壳怀表", "en": "Brass Pocket Watch", "value": 122, "rarity": 3, "grid": "1×1", "icon": "pocket_watch", "lore": "翻盖罗马字面机械铜怀表，齿轮滴答走时精准。"},
+		{"title": "龙泉梅瓶", "en": "Longquan Plum Vase", "value": 84, "rarity": 3, "grid": "1×2", "icon": "longquan_vase", "lore": "小口丰肩、梅子青釉莹润如玉的宋韵龙泉瓷梅瓶。"},
+		{"title": "苏绣双面屏", "en": "Suzhou Silk Screen", "value": 88, "rarity": 3, "grid": "2×2", "icon": "suzhou_embroidery", "lore": "红木精雕圆框、双面精绣仙鹤松日图的小台屏。"},
+		{"title": "紫铜炭炉壶", "en": "Copper Kettle", "value": 92, "rarity": 3, "grid": "2×2", "icon": "copper_kettle", "lore": "手工锻打细流鹅颈嘴紫铜壶，茶亭煮水尤显清甘。"},
+		{"title": "嘉定竹雕笔筒", "en": "Carved Brush Pot", "value": 98, "rarity": 3, "grid": "1×2", "icon": "bamboo_carving", "lore": "包浆温润、高浮雕松石高士图的江南文房竹笔筒。"},
+		{"title": "白玉兰花簪", "en": "White Jade Hairpin", "value": 104, "rarity": 3, "grid": "1×2", "icon": "jade_hairpin", "lore": "羊脂白玉圆雕玉兰含苞、镶银缀翠珠的江南古簪。"},
+		{"title": "太阳能信标器", "en": "Solar Rescue Beacon", "value": 110, "rarity": 3, "grid": "1×2", "icon": "solar_beacon", "lore": "可折叠双翼光伏板与琥珀频闪灯构成的野外救援信标。"},
+		{"title": "日晷罗盘仪", "en": "Brass Sundial Compass", "value": 118, "rarity": 3, "grid": "1×1", "icon": "compass_sundial", "lore": "翻盖赤道式黄铜便携日晷罗盘，观日辨时兼定方位。"}
 	],
 	4: [
 		{"title": "无人机核心芯片", "en": "Drone AI Chip", "value": 145, "rarity": 4, "grid": "1×1", "icon": "chip", "lore": "迅捷侦察机搭载的高算力飞控与词库阵列芯片。"},
@@ -148,7 +204,13 @@ const LOOT_TABLE = {
 		{"title": "鎏金点翠银簪", "en": "Gilded Hairpin", "value": 150, "rarity": 4, "grid": "1×2", "icon": "hairpin", "lore": "点翠云凤镶珠鎏金老银簪，工艺清雅绝伦。"},
 		{"title": "青瓷蟾蜍水注", "en": "Celadon Water Dropper", "value": 162, "rarity": 4, "grid": "1×2", "icon": "water_dropper", "lore": "越窑系青绿冰裂釉造型水注，文人研墨清供雅玩。"},
 		{"title": "微光瞄具光学核", "en": "Thermal Optic Core", "value": 180, "rarity": 4, "grid": "1×2", "icon": "optic_core", "lore": "锗晶体琥珀镀膜热成像光学棱镜核心组件。"},
-		{"title": "端溪雕云古砚", "en": "Duanxi Inkstone", "value": 192, "rarity": 4, "grid": "2×2", "icon": "inkstone", "lore": "紫润细腻、带红木嵌盒的端溪老坑雕云文房名砚。"}
+		{"title": "端溪雕云古砚", "en": "Duanxi Inkstone", "value": 192, "rarity": 4, "grid": "2×2", "icon": "inkstone", "lore": "紫润细腻、带红木嵌盒的端溪老坑雕云文房名砚。"},
+		{"title": "景泰蓝赏瓶", "en": "Cloisonne Enamel Vase", "value": 148, "rarity": 4, "grid": "2×2", "icon": "cloisonne_vase", "lore": "掐丝鎏金、宝石蓝与松石绿釉相映的景泰蓝花瓶。"},
+		{"title": "蕉叶式七弦古琴", "en": "Mini Guqin Zither", "value": 158, "rarity": 4, "grid": "1×3", "icon": "guqin_mini", "lore": "镶螺钿十三徽与白玉轸的蕉叶式七弦微缩古琴。"},
+		{"title": "青铜三足小鼎", "en": "Bronze Tripod Ding", "value": 168, "rarity": 4, "grid": "2×2", "icon": "bronze_ding", "lore": "双耳高耸、绿锈饕餮纹清晰的先秦遗韵青铜小鼎。"},
+		{"title": "剔红雕漆圆盒", "en": "Cinnabar Lacquer Box", "value": 178, "rarity": 4, "grid": "2×2", "icon": "cinnabar_box", "lore": "层层朱漆高浮雕牡丹缠枝纹的江南剔红珍盒。"},
+		{"title": "青花将军罐", "en": "Blue White Ginger Jar", "value": 186, "rarity": 4, "grid": "2×2", "icon": "blue_white_jar", "lore": "宝珠顶盖、青花釉色沉稳明艳的明清式将军罐。"},
+		{"title": "侦察四旋翼机", "en": "Recon Micro Drone", "value": 196, "rarity": 4, "grid": "2×2", "icon": "tactical_drone", "lore": "碳纤维涵道护翼、带三轴云台的高隐蔽微型侦察机。"}
 	],
 	5: [
 		{"title": "海兽葡萄错银铜镜", "en": "Silver Inlaid Mirror", "value": 215, "rarity": 5, "grid": "2×2", "icon": "bronze_mirror", "lore": "【珍品·小金】唐代瑞兽葡萄纹错银青铜古镜，红木托架保存完好。"},
@@ -156,7 +218,13 @@ const LOOT_TABLE = {
 		{"title": "宜兴朱泥水平壶", "en": "Zisha Clay Teapot", "value": 245, "rarity": 5, "grid": "2×2", "icon": "zisha_teapot", "lore": "【珍品·小金】名家手抟原矿朱泥水平紫砂壶，包浆温润如玉。"},
 		{"title": "翡翠节节高玉佩", "en": "Jade Bamboo Pendant", "value": 255, "rarity": 5, "grid": "1×2", "icon": "jade_pendant", "lore": "【珍品·小金】冰种阳绿雕刻竹节平安玉佩，寓意学业步步高升。"},
 		{"title": "复古黄铜旁轴相机", "en": "Vintage Film Camera", "value": 270, "rarity": 5, "grid": "2×2", "icon": "vintage_camera", "lore": "【珍品·小金】精工露铜经典机械旁轴胶片机，记录昔日烟山风貌。"},
-		{"title": "御窑青花缠枝盏", "en": "Imperial Blue Bowl", "value": 285, "rarity": 5, "grid": "2×2", "icon": "imperial_bowl", "lore": "【珍品·小金】描金口沿高足御窑青花缠枝莲纹盏，发色浓艳明丽。"}
+		{"title": "御窑青花缠枝盏", "en": "Imperial Blue Bowl", "value": 285, "rarity": 5, "grid": "2×2", "icon": "imperial_bowl", "lore": "【珍品·小金】描金口沿高足御窑青花缠枝莲纹盏，发色浓艳明丽。"},
+		{"title": "碧玉如意", "en": "Emerald Jade Ruyi", "value": 222, "rarity": 5, "grid": "2×2", "icon": "jade_ruyi", "lore": "【珍品·小金】菠菜绿老坑碧玉雕云芝首、坠明黄丝穗的清雅如意。"},
+		{"title": "花丝镶嵌金盒", "en": "Gold Filigree Box", "value": 238, "rarity": 5, "grid": "1×2", "icon": "gold_filigree_box", "lore": "【珍品·小金】八角累丝鎏金镶绿松石与红宝盖钮的宫廷珍宝匣。"},
+		{"title": "越王式青铜短剑", "en": "Ancient Bronze Sword", "value": 252, "rarity": 5, "grid": "1×3", "icon": "bronze_sword", "lore": "【珍品·小金】起脊寒光菱格纹、剑格镶绿松石的江南古越青铜剑。"},
+		{"title": "越窑青瓷执壶", "en": "Celadon Wine Ewer", "value": 264, "rarity": 5, "grid": "2×2", "icon": "celadon_ewer", "lore": "【珍品·小金】瓜棱腹曲流执把、青釉明澈如春水的宋代越窑执壶。"},
+		{"title": "紫檀象棋匣", "en": "Rosewood Chess Set", "value": 278, "rarity": 5, "grid": "2×2", "icon": "ivory_chess", "lore": "【珍品·小金】小叶紫檀折叠棋盘，内藏牙白与翠玉精雕楚汉棋子。"},
+		{"title": "军用战术平板", "en": "Tactical Field Tablet", "value": 292, "rarity": 5, "grid": "2×2", "icon": "encrypted_tablet", "lore": "【珍品·小金】全天候防震装甲平板，实时解算烟山三维地形等高线。"}
 	],
 	6: [
 		{"title": "烟山古铜虎符", "en": "Bronze Tiger Tally", "value": 340, "rarity": 6, "grid": "1×2", "icon": "tally", "lore": "【传说·大金】错金铭文古铜兵符，印证烟山古道昔日戍守历史。"},
@@ -164,14 +232,23 @@ const LOOT_TABLE = {
 		{"title": "量子词典原型机", "en": "Quantum Dictionary", "value": 395, "rarity": 6, "grid": "2×2", "icon": "quantum", "lore": "【传说·大金】搭载全息声纹解码核心的实验级双语终端原型机。"},
 		{"title": "烟山先民竹简", "en": "Ancient Bamboo Slips", "value": 420, "rarity": 6, "grid": "2×2", "icon": "slips", "lore": "【传说·大金】烟霞古洞石案遗留的千年墨书竹简，记载诚庄耕读往事。"},
 		{"title": "烟山统领黄金核心", "en": "Warden Golden Core", "value": 460, "rarity": 6, "grid": "2×2", "icon": "core", "lore": "【传说·大金】雾隐帮统领（玄铁词尊 / 铁面词卫）胸腔卸载的高纯度聚变黄金能源核心。"},
-		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 495, "rarity": 6, "grid": "2×2", "icon": "censer", "lore": "【传说·大金】镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"}
+		{"title": "望稻亭鎏金香炉", "en": "Gilded Incense Burner", "value": 495, "rarity": 6, "grid": "2×2", "icon": "censer", "lore": "【传说·大金】镂空博山云纹鎏金铜炉，昔年文人登亭望稻时焚香雅器。"},
+		{"title": "鎏金凤冠", "en": "Gilded Phoenix Crown", "value": 355, "rarity": 6, "grid": "2×2", "icon": "gold_phoenix_crown", "lore": "【传说·大金】累丝点翠镶珍珠红宝的明清江南仪礼凤冠孤品。"},
+		{"title": "良渚神徽玉琮", "en": "Liangzhu Jade Cong", "value": 385, "rarity": 6, "grid": "2×2", "icon": "jade_cong", "lore": "【传说·大金】外方内圆、四节分槽的江南史前太湖礼玉重器。"},
+		{"title": "曾侯乙式编钟", "en": "Bronze Chime Bells", "value": 415, "rarity": 6, "grid": "2×3", "icon": "bronze_chime", "lore": "【传说·大金】朱漆金架悬五枚合瓦青铜编钟，叩之金声玉振。"},
+		{"title": "青绿山水手卷", "en": "Qinglu Landscape Scroll", "value": 448, "rarity": 6, "grid": "2×2", "icon": "landscape_scroll", "lore": "【传说·大金】玉轴锦裱、绘尽烟山云海叠嶂的青绿设色山水长卷。"},
+		{"title": "浑天仪模型", "en": "Bronze Armillary Sphere", "value": 480, "rarity": 6, "grid": "2×2", "icon": "armillary_sphere", "lore": "【传说·大金】四龙柱托起赤黄道交错金环的精工古代天文仪。"}
 	],
 	7: [
 		{"title": "越窑秘色青瓷盏", "en": "Secret Celadon Bowl", "value": 680, "rarity": 7, "grid": "2×2", "icon": "celadon", "lore": "【旷世·大红】如冰似玉、千峰翠色的唐宋越窑秘色贡瓷孤品！"},
 		{"title": "烟山千年紫芝王", "en": "Millennium Ganoderma", "value": 760, "rarity": 7, "grid": "2×2", "icon": "ganoderma", "lore": "【旷世·大红】生于烟山绝壁云雾深处、紫气莹润的千年灵芝王！"},
 		{"title": "诚庄先民双龙玉璧", "en": "Twin-Dragon Jade Disc", "value": 840, "rarity": 7, "grid": "2×2", "icon": "jade_bi", "lore": "【旷世·大红】精雕江南水云双龙纹的羊脂白玉礼璧，价值连城！"},
 		{"title": "相控阵超算雷达心", "en": "Quantum Radar Core", "value": 920, "rarity": 7, "grid": "2×3", "icon": "radar_heart", "lore": "【旷世·大红】统御全山防空与电讯阵列最高权限的超算红核！"},
-		{"title": "烟山之心·赤金龙印", "en": "Heart of Yanshan", "value": 1050, "rarity": 7, "grid": "2×2", "icon": "seal", "lore": "【旷世·大红】赤金镶嵌红宝的镇山宝印——摸金行动最高荣耀象征！"}
+		{"title": "烟山之心·赤金龙印", "en": "Heart of Yanshan", "value": 1050, "rarity": 7, "grid": "2×2", "icon": "seal", "lore": "【旷世·大红】赤金镶嵌红宝的镇山宝印——摸金行动最高荣耀象征！"},
+		{"title": "金瓯永固杯", "en": "Imperial Gold Chalice", "value": 720, "rarity": 7, "grid": "2×2", "icon": "gold_dragon_cup", "lore": "【旷世·大红】象首三足、夔龙双耳满镶珍珠红宝的纯金祝愿御杯！"},
+		{"title": "翠玉白菜", "en": "Jadeite Cabbage", "value": 810, "rarity": 7, "grid": "2×2", "icon": "jade_cabbage", "lore": "【旷世·大红】冰种白翠天然俏色雕成、叶伏金蝈蝈的传世玉雕奇珍！"},
+		{"title": "传国和氏璧玉玺", "en": "Imperial Jade Seal", "value": 960, "rarity": 7, "grid": "2×2", "icon": "imperial_jade_seal", "lore": "【旷世·大红】羊脂白玉双龙盘钮系朱红金穗的镇国传世宝玺！"},
+		{"title": "烟山天穹全息棱镜", "en": "Yanshan Sky Prism", "value": 1120, "rarity": 7, "grid": "2×2", "icon": "quantum_prism", "lore": "【旷世·大红】三道鎏金陀螺环悬托红晶八面体的云顶天穹终极圣核！"}
 	]
 }
 
@@ -190,8 +267,15 @@ const ITEMS = {
 	"tactical_belt": {"cost": 165, "slot": "belt", "title": "特战腰带 · 开局+1烟雾EMP +1能量饮"},
 	"forest_skin": {"cost": 120, "slot": "skin", "title": "竹影迷彩涂装 · 翡翠定制枪身"},
 	"scout": {"cost": 240, "slot": "boots", "title": "山林侦察靴 · 移速+12%"},
-	"reward_point": {"cost": 350, "slot": "reward", "title": "奖励积分券 · 家长线下兑现"}
+	"reward_point": {"cost": 350, "slot": "reward", "title": "奖励积分券 · 家长线下兑现"},
+	"display_expand": {"cost": 1200, "slot": "camp", "title": "双层博古展台 · 营地3D展台4→8槽"},
+	"safebox_upgrade": {"cost": 1800, "slot": "safebox", "title": "玄铁安全箱扩容 · 加密安全箱2→3格"},
+	"gilded_skin": {"cost": 2400, "slot": "skin", "title": "赤金青绿尊享枪 · 鎏金翡翠大师枪身"},
+	"ranger_mastery": {"cost": 3200, "slot": "ranger", "title": "游侠宗师秘录 · 少羽[V]冷却30s→22s"},
+	"honor_trophy": {"cost": 5000, "slot": "trophy", "title": "烟山荣誉金杯 · 资深探险家收藏(可复购)"}
 }
+
+const REPEATABLE_ITEMS = ["reward_point", "honor_trophy"]
 
 const GUNSMITH_ORDER = [
 	"red_dot", "scope_2x",
@@ -201,7 +285,9 @@ const GUNSMITH_ORDER = [
 	"magazine2", "shield_core",
 	"backpack", "medkit_pack",
 	"forest_skin", "scout",
-	"reward_point"
+	"reward_point", "display_expand",
+	"safebox_upgrade", "gilded_skin",
+	"ranger_mastery", "honor_trophy"
 ]
 
 const BOSS_BLUEPRINTS = ["scope_2x", "suppressor", "compensator", "angled_grip", "tactical_rig", "tactical_belt"]
@@ -230,10 +316,11 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.8.5",
+	"saved_by_version": "0.8.6",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
+	"trophies": 0,
 	"reputation": 0,
 	"active_ranger": "shaoyu",
 	"unlocked_rangers": ["shaoyu"],
@@ -274,6 +361,15 @@ func accuracy() -> float:
 
 func capacity() -> int:
 	return 14 if "backpack" in profile.owned else 8
+
+func safe_box_slots() -> int:
+	return 3 if "safebox_upgrade" in profile.owned else SAFE_BOX_SLOTS
+
+func max_display_stand() -> int:
+	return 8 if "display_expand" in profile.owned else MAX_DISPLAY_STAND
+
+func extraction_score_required() -> int:
+	return CONFIDENTIAL_EXTRACTION_SCORE if is_confidential() else EXTRACTION_SCORE
 
 func magazine() -> int:
 	if "magazine2" in profile.owned:
@@ -357,7 +453,7 @@ func equip_attachment(slot: String, id: String) -> bool:
 	return true
 
 func unlock_blueprint(id: String) -> bool:
-	if not ITEMS.has(id) or id == "reward_point" or id in profile.owned:
+	if not ITEMS.has(id) or (id in REPEATABLE_ITEMS) or id in profile.owned:
 		return false
 	profile.owned.append(id)
 	var slot = str(ITEMS[id].get("slot", ""))
@@ -454,18 +550,19 @@ func migrate_legacy_items():
 					item["rarity"] = clampi(int(item.get("rarity", meta.get("rarity", 1))), 1, MAX_RARITY)
 				if not item.has("locked"):
 					item["locked"] = int(item.get("rarity", 1)) >= 6
-	for int_key in ["red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value", "prologue_best_seconds"]:
+	for int_key in ["red_extracted", "gold_extracted", "small_gold_extracted", "best_haul", "best_item_value", "prologue_best_seconds", "trophies"]:
 		profile[int_key] = maxi(0, int(profile.get(int_key, 0)))
 	profile["prologue_completed"] = bool(profile.get("prologue_completed", false))
 	profile["best_item_title"] = str(profile.get("best_item_title", ""))
 	if not profile.has("display_stand") or not (profile.display_stand is Array):
 		profile["display_stand"] = []
 	var cleaned_stand: Array = []
+	var stand_limit: int = max_display_stand()
 	for t in profile.display_stand:
 		var ts := str(t)
 		if ts != "" and not (ts in cleaned_stand) and not catalog_meta(ts).is_empty():
 			cleaned_stand.append(ts)
-			if cleaned_stand.size() >= MAX_DISPLAY_STAND:
+			if cleaned_stand.size() >= stand_limit:
 				break
 	profile["display_stand"] = cleaned_stand
 	if not profile.has("learning_stats") or not (profile["learning_stats"] is Dictionary):
@@ -613,7 +710,7 @@ func add_loot_item(item: Dictionary) -> bool:
 	return true
 
 func add_item_to_safe_box(item: Dictionary) -> bool:
-	if phase not in ["active", "extracting"] or not can_loot() or safe_box.size() >= SAFE_BOX_SLOTS:
+	if phase not in ["active", "extracting"] or not can_loot() or safe_box.size() >= safe_box_slots():
 		return false
 	safe_box.append(_enrich_loot_dict(item))
 	return true
@@ -628,7 +725,7 @@ func discard_bag_item(index: int) -> Dictionary:
 func move_bag_to_safe_box(bag_index: int) -> bool:
 	if phase not in ["active", "extracting"]:
 		return false
-	if bag_index < 0 or bag_index >= bag.size() or safe_box.size() >= SAFE_BOX_SLOTS:
+	if bag_index < 0 or bag_index >= bag.size() or safe_box.size() >= safe_box_slots():
 		return false
 	var item: Dictionary = bag[bag_index]
 	bag.remove_at(bag_index)
@@ -673,38 +770,53 @@ func _roll_from_weights(weights_7_to_1: Array) -> int:
 	return 1
 
 func roll_calibrated_rarity(mode_confidential: bool, context: String = "standard", perfect: bool = true) -> int:
-	## v0.8.0 strictly calibrated 7-tier drop curves [T7 Red, T6 Big Gold, T5 Small Gold, T4 Purple, T3 Blue, T2 Green, T1 White]:
-	## - Confidential standard: 2.0% Red / 5.0% Big Gold / 8.0% Small Gold / 14% Purple / 21% Blue / 24% Green / 26% White
-	## - Normal standard: clearly lower Big Gold/Red so Confidential Risk-Reward truly shines
-	## - Open-road loose spawns: strictly capped at T1-T4 (Confidential) / T1-T3 (Normal) — ZERO open-road Big Gold/Red!
+	## v0.8.6 tightened 7-tier drop pyramid [T7 Red, T6 Big Gold, T5 Small Gold, T4 Purple, T3 Blue, T2 Green, T1 White]:
+	## - Sharper Normal apex so rare/gold/red finds feel truly exhilarating and distinct
+	## - Slightly refined Confidential apex maintaining strong high-risk/high-reward advantage
+	## - Open-road loose spawns strictly capped at T1-T4 (Confidential) / T1-T3 (Normal) — ZERO open-road Big Gold/Red!
 	if context == "loose_open":
 		if mode_confidential:
-			return _roll_from_weights([0.000, 0.000, 0.000, 0.140, 0.260, 0.300, 0.300])
-		return _roll_from_weights([0.000, 0.000, 0.000, 0.000, 0.220, 0.360, 0.420])
+			return _roll_from_weights([0.000, 0.000, 0.000, 0.110, 0.250, 0.310, 0.330])
+		return _roll_from_weights([0.000, 0.000, 0.000, 0.000, 0.160, 0.340, 0.500])
 	if context == "hidden_nook":
 		if mode_confidential:
-			return _roll_from_weights([0.025, 0.055, 0.090, 0.150, 0.210, 0.230, 0.240])
-		return _roll_from_weights([0.004, 0.014, 0.045, 0.127, 0.220, 0.270, 0.320])
+			return _roll_from_weights([0.018, 0.045, 0.082, 0.145, 0.210, 0.240, 0.260])
+		return _roll_from_weights([0.002, 0.008, 0.030, 0.100, 0.210, 0.290, 0.360])
 	if context == "crate_t1":
 		if mode_confidential:
-			return _roll_from_weights([0.015, 0.045, 0.080, 0.150, 0.220, 0.240, 0.250] if perfect else [0.008, 0.028, 0.064, 0.140, 0.230, 0.260, 0.270])
-		return _roll_from_weights([0.000, 0.008, 0.040, 0.132, 0.230, 0.280, 0.310] if perfect else [0.000, 0.004, 0.026, 0.100, 0.220, 0.300, 0.350])
+			return _roll_from_weights([0.012, 0.038, 0.075, 0.145, 0.220, 0.250, 0.260] if perfect else [0.006, 0.022, 0.056, 0.136, 0.230, 0.265, 0.285])
+		return _roll_from_weights([0.000, 0.004, 0.024, 0.102, 0.220, 0.290, 0.360] if perfect else [0.000, 0.002, 0.015, 0.083, 0.210, 0.300, 0.390])
 	if context == "crate_t2":
 		if mode_confidential:
-			return _roll_from_weights([0.025, 0.060, 0.100, 0.175, 0.220, 0.220, 0.200] if perfect else [0.012, 0.036, 0.072, 0.150, 0.230, 0.250, 0.250])
-		return _roll_from_weights([0.003, 0.016, 0.055, 0.156, 0.240, 0.260, 0.270] if perfect else [0.000, 0.008, 0.034, 0.118, 0.230, 0.290, 0.320])
+			return _roll_from_weights([0.020, 0.050, 0.090, 0.170, 0.220, 0.230, 0.220] if perfect else [0.010, 0.030, 0.065, 0.145, 0.230, 0.255, 0.265])
+		return _roll_from_weights([0.001, 0.009, 0.036, 0.124, 0.230, 0.280, 0.320] if perfect else [0.000, 0.004, 0.022, 0.094, 0.220, 0.300, 0.360])
 	if context == "crate_t3":
 		if mode_confidential:
-			return _roll_from_weights([0.040, 0.085, 0.125, 0.200, 0.230, 0.190, 0.130] if perfect else [0.020, 0.050, 0.090, 0.170, 0.230, 0.230, 0.210])
-		return _roll_from_weights([0.008, 0.028, 0.075, 0.189, 0.240, 0.240, 0.220] if perfect else [0.002, 0.012, 0.046, 0.140, 0.240, 0.270, 0.290])
+			return _roll_from_weights([0.032, 0.072, 0.116, 0.195, 0.230, 0.205, 0.150] if perfect else [0.016, 0.042, 0.082, 0.165, 0.230, 0.240, 0.225])
+		return _roll_from_weights([0.004, 0.016, 0.050, 0.150, 0.240, 0.260, 0.280] if perfect else [0.001, 0.007, 0.030, 0.112, 0.230, 0.290, 0.330])
 	if context == "squad_drop":
 		if mode_confidential:
-			return _roll_from_weights([0.022, 0.053, 0.085, 0.150, 0.210, 0.235, 0.245] if perfect else [0.014, 0.040, 0.076, 0.140, 0.220, 0.250, 0.260])
-		return _roll_from_weights([0.002, 0.012, 0.045, 0.131, 0.230, 0.270, 0.310] if perfect else [0.000, 0.006, 0.030, 0.114, 0.220, 0.290, 0.340])
+			return _roll_from_weights([0.018, 0.044, 0.078, 0.145, 0.215, 0.245, 0.255] if perfect else [0.010, 0.032, 0.068, 0.135, 0.225, 0.255, 0.275])
+		return _roll_from_weights([0.001, 0.006, 0.028, 0.105, 0.220, 0.290, 0.350] if perfect else [0.000, 0.003, 0.018, 0.089, 0.215, 0.305, 0.370])
+	if context == "exploration_standard":
+		# v0.8.6 calibrated exploration drops (roadside english/math/poem/radio/cliff): probabilistic pyramid, NO guaranteed Purple/Gold!
+		if mode_confidential:
+			return _roll_from_weights([0.008, 0.030, 0.072, 0.160, 0.250, 0.260, 0.220])
+		return _roll_from_weights([0.000, 0.002, 0.013, 0.075, 0.230, 0.340, 0.340])
+	if context == "exploration_deep":
+		# v0.8.6 deep landmark drops (Yanxia Cave hearth/mural & North Ridge airdrop): higher ceiling, still genuinely probabilistic!
+		if mode_confidential:
+			return _roll_from_weights([0.024, 0.064, 0.122, 0.210, 0.230, 0.200, 0.150])
+		return _roll_from_weights([0.001, 0.009, 0.035, 0.135, 0.280, 0.300, 0.240])
+	if context == "warden_drop":
+		# v0.8.6 Cave Warden calibrated boss loot: probabilistic reward curve aligned to global pyramid!
+		if mode_confidential:
+			return _roll_from_weights([0.095, 0.245, 0.320, 0.240, 0.100, 0.000, 0.000])
+		return _roll_from_weights([0.004, 0.036, 0.140, 0.360, 0.320, 0.140, 0.000])
 	# Default / standard supply blind-box
 	if mode_confidential:
-		return _roll_from_weights([0.020, 0.050, 0.080, 0.140, 0.210, 0.240, 0.260] if perfect else [0.010, 0.032, 0.068, 0.130, 0.220, 0.260, 0.280])
-	return _roll_from_weights([0.000, 0.008, 0.035, 0.117, 0.220, 0.280, 0.340] if perfect else [0.000, 0.003, 0.022, 0.095, 0.210, 0.300, 0.370])
+		return _roll_from_weights([0.016, 0.042, 0.074, 0.138, 0.215, 0.250, 0.265] if perfect else [0.008, 0.026, 0.060, 0.126, 0.225, 0.265, 0.290])
+	return _roll_from_weights([0.000, 0.004, 0.022, 0.094, 0.215, 0.295, 0.370] if perfect else [0.000, 0.002, 0.014, 0.074, 0.205, 0.310, 0.395])
 
 func roll_item_by_rarity(rarity: int) -> Dictionary:
 	var clamped := clampi(rarity, 1, MAX_RARITY)
@@ -814,7 +926,7 @@ func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false)
 	return {"items": all_items, "overflow": overflow}
 
 func can_extract() -> bool:
-	if phase != "active" or score < EXTRACTION_SCORE:
+	if phase != "active" or score < extraction_score_required():
 		return false
 	if combat_mode and (outposts_cleared < 2 or not boss_defeated or not accuracy_gate_met()):
 		return false
@@ -858,10 +970,10 @@ func finish_extraction() -> bool:
 		var bonus_r := 4
 		if is_confidential():
 			var p_c := loot_rng.randf()
-			bonus_r = 7 if (boss_defeated and p_c < 0.06) else (6 if p_c < 0.38 else 5)
+			bonus_r = 7 if (boss_defeated and p_c < 0.04) else (6 if p_c < 0.28 else 5)
 		else:
 			var p_n := loot_rng.randf()
-			bonus_r = 6 if (boss_defeated and p_n < 0.06) else (5 if p_n < 0.40 else 4)
+			bonus_r = 6 if (boss_defeated and p_n < 0.03) else (5 if p_n < 0.26 else 4)
 		var bonus_item := roll_item_by_rarity(bonus_r)
 		bag.append(bonus_item)
 	var run_haul := total_carried_value()
@@ -905,7 +1017,7 @@ func toggle_display_stand(title: String) -> Dictionary:
 	if title in stand:
 		stand.erase(title)
 		return {"ok": true, "pinned": false}
-	if stand.size() >= MAX_DISPLAY_STAND:
+	if stand.size() >= max_display_stand():
 		return {"ok": false, "reason": "full"}
 	stand.append(title)
 	# Auto-lock at least one matching copy in warehouse so displayed treasure is safe!
@@ -1002,13 +1114,16 @@ func purchase(id: String) -> bool:
 		return false
 	if id == "magazine2" and not ("magazine" in profile.owned):
 		return false
-	if id != "reward_point" and id in profile.owned:
+	var is_repeat: bool = id in REPEATABLE_ITEMS
+	if not is_repeat and id in profile.owned:
 		return false
 	if profile.coins < ITEMS[id].cost:
 		return false
 	profile.coins -= ITEMS[id].cost
 	if id == "reward_point":
 		profile.points += 1
+	elif id == "honor_trophy":
+		profile["trophies"] = int(profile.get("trophies", 0)) + 1
 	else:
 		profile.owned.append(id)
 		var slot = str(ITEMS[id].get("slot", ""))

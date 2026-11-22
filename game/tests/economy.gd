@@ -78,19 +78,19 @@ func run():
 	game.rules.add_loot("filler_back", 10, 1) # restore 8/8 for subsequent banking check
 	game.rules.bag[0] = {"title": "量子词典原型机", "value": 395, "rarity": 6}
 
-	# v0.8.1 #5: Accuracy gate enforcement (Normal >= 60%, Confidential >= 80%)
-	# 16 wrong + 15 right => accuracy 48% (< 60%), score = 290 >= 260, camps & boss cleared -> STILL BLOCKED!
-	for i in 31:
+	# v0.8.1 #5 + v0.8.6: Accuracy gate & 420-pt Normal threshold enforcement (Normal >= 60%, Confidential >= 80%)
+	# 24 wrong + 22 right => accuracy 47.8% (< 60%), score = 430 >= 420, camps & boss cleared -> STILL BLOCKED!
+	for i in 46:
 		game.rules.open_question()
-		game.rules.answer(i >= 16)
+		game.rules.answer(i >= 24)
 	game.rules.outposts_cleared = 2
 	game.rules.boss_defeated = true
-	verify(game.rules.score >= game.Rules.EXTRACTION_SCORE and not game.rules.crate_ready(1) and not game.rules.can_extract(), "v0.8.1 #5: 48%% accuracy blocks Normal extraction (< 60%% threshold) even with 260+ pts & boss cleared")
-	# Raise accuracy past 60% (add 10 right => 25/41 = 61.0%) -> Normal extraction unlocks!
-	for _ok in 10:
+	verify(game.rules.score >= game.Rules.EXTRACTION_SCORE and not game.rules.crate_ready(1) and not game.rules.can_extract(), "v0.8.6: 47.8%% accuracy blocks Normal extraction (< 60%% threshold) even with 420+ pts & boss cleared")
+	# Raise accuracy past 60% (add 15 right => 37/61 = 60.7%) -> Normal extraction unlocks!
+	for _ok in 15:
 		game.rules.open_question()
 		game.rules.answer(true)
-	verify(game.rules.accuracy() >= 0.60 and game.rules.can_extract(), "v0.8.1 #5: reaching >=60%% accuracy unlocks Normal Operation extraction")
+	verify(game.rules.accuracy() >= 0.60 and game.rules.can_extract(), "v0.8.6: reaching >=60%% accuracy + 420 pts unlocks Normal Operation extraction")
 	game.player.position = game.exit_position
 	game.interact()
 	game.extraction_left = 0.01
@@ -159,8 +159,8 @@ func run():
 	verify(wv.att_nodes["att_scope_2x"].visible and wv.att_nodes["att_suppressor"].visible and wv.att_nodes["att_angled_grip"].visible and not wv.att_nodes["att_compensator"].visible, "equipped Gunsmith 2.0 attachments render visibly on YS-04 carbine")
 	game._end_run(false)
 
-	# v0.8.0 7-Tier Rarity ('珍品·小金' T5, '传说·大金' T6, '旷世·大红' T7), 64 Collectibles, Calibration, Safe Box, Lock & Camp 3D Display Stand
-	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 5 and game.Rules.LOOT_TABLE[5].size() == 6 and game.Rules.total_collectible_count() == 27 and game.Rules.total_catalog_count() == 64, "v0.8.0 defines 7-tier rarity with Small Gold (6), Big Gold (6), Mythic Red (5), 27 high collectibles and 64 total museum items")
+	# v0.8.6 7-Tier Rarity ('珍品·小金' T5, '传说·大金' T6, '旷世·大红' T7), 108 Collectibles, Calibration, Safe Box, Lock & Camp 3D Display Stand
+	verify(game.Rules.RARITY_NAMES.has(7) and game.Rules.LOOT_TABLE[7].size() == 9 and game.Rules.LOOT_TABLE[6].size() == 11 and game.Rules.LOOT_TABLE[5].size() == 12 and game.Rules.total_collectible_count() == 48 and game.Rules.total_catalog_count() == 108, "v0.8.6 defines 7-tier rarity with Small Gold (12), Big Gold (11), Mythic Red (9), 48 high collectibles and 108 total museum items")
 	game.start_action(true, "normal")
 	var seen_values := {}
 	var mythic_sample: Dictionary = {}
@@ -245,20 +245,23 @@ func run():
 	mig_rules.migrate_legacy_items()
 	verify(int(mig_rules.profile.warehouse[0].rarity) == 6 and int(mig_rules.profile.warehouse[1].rarity) == 7 and bool(mig_rules.profile.warehouse[1].locked), "v0.8.0 migrates legacy schema v1 warehouse items from T5/T6 cleanly to T6/T7 with auto-lock")
 
-	# Confidential Operation 80% accuracy gate check (#5)
+	# Confidential Operation 80% accuracy + 520-pt threshold gate check (v0.8.6)
 	var conf_gate = game.Rules.new()
 	conf_gate.start_run(true, "confidential")
 	for gi in 10:
 		conf_gate.open_question()
 		conf_gate.answer(gi >= 3) # 7/10 = 70%
-	conf_gate.score = 270
+	conf_gate.score = 520
 	conf_gate.outposts_cleared = 2
 	conf_gate.boss_defeated = true
-	verify(not conf_gate.can_extract(), "v0.8.1 #5: 70%% accuracy blocks Confidential extraction (< 80%% threshold)")
+	verify(not conf_gate.can_extract(), "v0.8.6: 70%% accuracy blocks Confidential extraction (< 80%% threshold)")
 	for _ok2 in 5:
 		conf_gate.open_question()
 		conf_gate.answer(true) # 12/15 = 80%
-	verify(conf_gate.can_extract(), "v0.8.1 #5: reaching >=80%% accuracy unlocks Confidential extraction")
+	conf_gate.score = 450
+	verify(not conf_gate.can_extract(), "v0.8.6: 450 pts still blocks Confidential extraction (< 520 threshold) even at >=80%% accuracy")
+	conf_gate.score = 520
+	verify(conf_gate.can_extract(), "v0.8.6: reaching >=80%% accuracy and >=520 pts unlocks Confidential extraction")
 
 	# 2-Slot Encrypted Safe Box survives failed run while regular bag clears
 	game.start_action(true, "confidential")
@@ -266,13 +269,13 @@ func run():
 	game.rules.add_loot_item(game.rules.roll_item_by_rarity(7))
 	game.rules.add_loot_item(game.rules.roll_item_by_rarity(5))
 	game.rules.add_loot_item(game.rules.roll_item_by_rarity(1))
-	verify(game.rules.move_bag_to_safe_box(0) and game.rules.move_bag_to_safe_box(0) and not game.rules.move_bag_to_safe_box(0), "Encrypted Safe Box accepts up to 2 items and rejects a 3rd")
+	verify(game.rules.move_bag_to_safe_box(0) and game.rules.move_bag_to_safe_box(0) and not game.rules.move_bag_to_safe_box(0), "Encrypted Safe Box accepts up to 2 items and rejects a 3rd before safebox_upgrade")
 	game._end_run(false, "QA SafeBox Failure Check")
 	verify(game.rules.bag.is_empty() and game.rules.safe_box.is_empty() and game.rules.profile.warehouse.size() == sb_wh_before + 2 and game.rules.last_saved_safe_box_count == 2, "failed run clears regular bag while permanently banking both Encrypted Safe Box items")
 
-	# Monte Carlo 2000-roll drop calibration check (#6 Normal vs Confidential, #9 7-tier ascending curve, #10 zero open-road Big Gold/Red)
+	# Monte Carlo 2000-roll drop calibration check (v0.8.6 tightened 7-tier drop pyramid)
 	var mc_rules = game.Rules.new()
-	mc_rules.loot_rng.seed = 20261120
+	mc_rules.loot_rng.seed = 20261122
 	var c_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
 	var n_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
 	for _mc in 2000:
@@ -283,9 +286,9 @@ func run():
 	var c_sg_pct: float = float(c_counts[5]) / 2000.0
 	var n_red_pct: float = float(n_counts[7]) / 2000.0
 	var n_bg_pct: float = float(n_counts[6]) / 2000.0
-	verify(c_red_pct >= 0.010 and c_red_pct <= 0.034 and c_bg_pct >= 0.032 and c_bg_pct <= 0.072 and c_sg_pct >= 0.058 and c_sg_pct <= 0.108, "Confidential standard Monte Carlo matches ~2%% Red / ~5%% Big Gold / ~8%% Small Gold (got %.1f%%/%.1f%%/%.1f%%)" % [c_red_pct * 100.0, c_bg_pct * 100.0, c_sg_pct * 100.0])
+	verify(c_red_pct >= 0.008 and c_red_pct <= 0.028 and c_bg_pct >= 0.026 and c_bg_pct <= 0.062 and c_sg_pct >= 0.052 and c_sg_pct <= 0.098, "v0.8.6 Confidential standard Monte Carlo matches tightened ~1.6%% Red / ~4.2%% Big Gold / ~7.4%% Small Gold (got %.1f%%/%.1f%%/%.1f%%)" % [c_red_pct * 100.0, c_bg_pct * 100.0, c_sg_pct * 100.0])
 	verify(c_counts[7] < c_counts[6] and c_counts[6] < c_counts[5] and c_counts[5] < c_counts[4] and c_counts[4] < c_counts[3] and c_counts[3] < c_counts[2], "Confidential rarity counts strictly ascend from Red -> Big Gold -> Small Gold -> Purple -> Blue -> Green")
-	verify(n_red_pct < 0.005 and n_bg_pct < c_bg_pct * 0.45, "Normal mode Big Gold & Red odds are clearly lower than Confidential (Normal %.2f%%/%.2f%%)" % [n_red_pct * 100.0, n_bg_pct * 100.0])
+	verify(n_red_pct < 0.004 and n_bg_pct < c_bg_pct * 0.35, "v0.8.6 Normal mode apex is tightly compressed below Confidential (Normal %.2f%%/%.2f%%)" % [n_red_pct * 100.0, n_bg_pct * 100.0])
 	var open_high_violations := 0
 	for _ol in 300:
 		if mc_rules.roll_calibrated_rarity(true, "loose_open", true) >= 5:
@@ -294,7 +297,7 @@ func run():
 			open_high_violations += 1
 	verify(open_high_violations == 0, "open-road loose spawns roll ZERO Gold/Red across 600 Normal+Confidential samples")
 
-	# v0.8.0 64 Unique Sculpted PBR Collectibles & Studio Icons Verification
+	# v0.8.6 108 Unique Sculpted PBR Collectibles & Studio Icons Verification
 	var seen_art_ids := {}
 	var missing_meshes := 0
 	var missing_icons := 0
@@ -306,7 +309,7 @@ func run():
 				missing_meshes += 1
 			if game.LootUI.load_collectible_icon(entry) == null:
 				missing_icons += 1
-	verify(seen_art_ids.size() == 64 and missing_meshes == 0 and missing_icons == 0, "v0.8.0 maps all 64 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
+	verify(seen_art_ids.size() == 108 and missing_meshes == 0 and missing_icons == 0, "v0.8.6 maps all 108 collectibles to unique sculpted 3D meshes and 2D studio icons (%d unique, %d missing mesh, %d missing icon)" % [seen_art_ids.size(), missing_meshes, missing_icons])
 	var alias_ok: bool = (
 		game.LootUI.resolve_art_id({"title": "光学测距模块", "icon": "lens"}) == "rangefinder"
 		and game.LootUI.resolve_art_id({"title": "军规夜视镜片", "icon": "lens"}) == "nvg_lens"
@@ -314,8 +317,31 @@ func run():
 		and game.LootUI.resolve_art_id({"title": "诚庄先民双龙玉璧", "icon": "jade"}) == "jade_bi"
 		and game.LootUI.resolve_art_id({"title": "古樟祈福银锁", "icon": "badge"}) == "silver_lock"
 		and game.LootUI.resolve_art_id({"title": "望稻亭鎏金香炉", "icon": "kettle"}) == "censer"
+		and game.LootUI.resolve_art_id({"title": "翠玉白菜", "icon": "jade_cabbage"}) == "jade_cabbage"
+		and game.LootUI.resolve_art_id({"title": "烟山天穹全息棱镜", "icon": "quantum_prism"}) == "quantum_prism"
 	)
-	verify(alias_ok, "v0.8.0 resolves legacy saved item titles cleanly to their distinct sculpted art IDs")
+	verify(alias_ok, "v0.8.6 resolves legacy and new museum item titles cleanly to their distinct sculpted art IDs")
+
+	# v0.8.6 Veteran Coin Sinks: display_expand (4->8), safebox_upgrade (2->3), gilded_skin, ranger_mastery (30s->22s), repeatable honor_trophy
+	game.rules.profile.coins = 20000
+	for vet_id in ["display_expand", "safebox_upgrade", "gilded_skin", "ranger_mastery", "honor_trophy", "honor_trophy"]:
+		game._buy(vet_id)
+	verify(game.rules.max_display_stand() == 8 and game.rules.safe_box_slots() == 3 and is_equal_approx(game.rangers.effective_skill_cooldown(), 22.0) and int(game.rules.profile.get("trophies", 0)) == 2, "v0.8.6 veteran sinks expand display stand to 8, safe box to 3, cut [V] CD to 22s, and stack repeatable honor_trophy")
+	game.refresh_camp_display_stand()
+	verify(game.camp_display_slots.size() == 8 and game.camp_display_slots[4].root.visible, "v0.8.6 display_expand visibly activates upper tier slots 5-8 on Camp 3D Display Stand")
+	game.start_action(true, "confidential")
+	var gilded_found := false
+	for rm in game.player.weapon_view.rifle_meshes:
+		for si in rm.mesh.get_surface_count():
+			var sm: Material = rm.get_surface_override_material(si)
+			if sm is BaseMaterial3D and (sm as BaseMaterial3D).albedo_color == Color("d8aa4c"):
+				gilded_found = true
+	verify(gilded_found, "v0.8.6 gilded_skin applies gilded bronze-gold finish to YS-04 carbine receiver")
+	for _sb3 in 4:
+		game.rules.add_loot_item(game.rules.roll_item_by_rarity(5))
+	verify(game.rules.move_bag_to_safe_box(0) and game.rules.move_bag_to_safe_box(0) and game.rules.move_bag_to_safe_box(0) and not game.rules.move_bag_to_safe_box(0), "v0.8.6 safebox_upgrade allows 3 items in Encrypted Safe Box and rejects a 4th")
+	game._end_run(false)
+
 	game.loot_ui.open_inspect_item(game.Rules.LOOT_TABLE[7][2])
 	var insp_has_glb: bool = false
 	for ch in game.loot_ui.inspect_turntable.find_children("*", "MeshInstance3D", true, false):

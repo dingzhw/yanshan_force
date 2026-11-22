@@ -21,7 +21,7 @@ const LOOSE_SPOTS = [
 ]
 
 const NEST_SPOTS = [
-	# 14 ultra-hidden bush, azalea, bridge-corner, reed, maze & shadow stashes across Great Yanshan (180x240m)
+	# 20 ultra-hidden bush, azalea, bridge-corner, reed, pavilion, arena & shadow stashes across Great Yanshan (180x240m)
 	{"id": "nest_south_willow", "title": "溪畔垂柳树丫鸟窝", "at": Vector3(13.5, 0.0, 12.8), "kind": "nest"},
 	{"id": "nest_camphor", "title": "百年古樟背根秘洞", "at": Vector3(17.8, 0.0, -16.8), "kind": "nest"},
 	{"id": "nest_azalea", "title": "西岭映山红花丛藏点", "at": Vector3(-31.0, 0.0, -28.0), "kind": "nest"},
@@ -35,7 +35,13 @@ const NEST_SPOTS = [
 	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(24.0, 0.0, -76.5), "kind": "crevice"},
 	{"id": "nest_maze_deadend", "title": "竹石迷阵西壁石隙", "at": Vector3(-78.8, 0.0, -86.6), "kind": "crevice"},
 	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-74.0, 0.0, -97.8), "kind": "crevice"},
-	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(38.2, 0.0, -161.5), "kind": "nest"}
+	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(38.2, 0.0, -161.5), "kind": "nest"},
+	{"id": "nest_tea_pavilion_rock", "title": "观茶亭北侧苔石暗缝", "at": Vector3(62.4, 0.0, -46.8), "kind": "crevice"},
+	{"id": "nest_cloud_arena_pillar", "title": "云顶演武坛西侧石柱角", "at": Vector3(-68.5, 0.0, -155.0), "kind": "crevice"},
+	{"id": "nest_west_ravine_bamboo", "title": "西涧竹壑幽谷鸟巢", "at": Vector3(-56.0, 0.0, -118.5), "kind": "nest"},
+	{"id": "nest_nw_tower_boulder", "title": "西北望楼脚下青岩缝", "at": Vector3(-28.0, 0.0, -158.0), "kind": "crevice"},
+	{"id": "nest_east_tea_terrace", "title": "东岭茶垄深处金枝窝", "at": Vector3(68.0, 0.0, -12.0), "kind": "nest"},
+	{"id": "nest_north_creek_willow", "title": "北岭源头老柳根暗匣", "at": Vector3(12.0, 0.0, -182.0), "kind": "nest"}
 ]
 
 var game

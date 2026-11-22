@@ -16,7 +16,7 @@ var rng := RandomNumberGenerator.new()
 var critter_mat_cache: Dictionary = {}
 
 const HIT_LAYER := 16  # Dedicated bit 4 (isolated from player mask 1|4 and enemy mask 7)
-const TOTAL_SPECIES := 8
+const TOTAL_SPECIES := 12
 const BOAR_CHARGE_DAMAGE := 15
 const BOAR_CHARGE_CHANCE := 0.48
 
@@ -28,11 +28,15 @@ const FLORA_SPOTS := [
 	{"id": "flora_overlook_berry", "pos": Vector3(44.0, 0, -32.0), "kind": "berry_fern", "en": "Mountain Berry", "zh": "朱果奇草", "tts": "mountain berry", "sentence": "Curious fern berries shine orange on the east ridge.", "heal": 10},
 	{"id": "flora_cave_orchid", "pos": Vector3(-31.0, 0, -120.0), "kind": "orchid", "en": "Cave Orchid", "zh": "石窟夜光兰", "tts": "cave orchid", "sentence": "A glowing purple orchid blooms in front of the rock cave.", "heal": 10},
 	{"id": "flora_radio_goldflower", "pos": Vector3(48.0, 0, -98.0), "kind": "yellow_flower", "en": "Golden Marigold", "zh": "金盏野花", "tts": "yellow flower", "sentence": "Yellow flowers wave near the East Recon Radio.", "heal": 7},
-	{"id": "flora_bamboo_fern", "pos": Vector3(38.0, 0, -142.0), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 10}
+	{"id": "flora_bamboo_fern", "pos": Vector3(38.0, 0, -142.0), "kind": "berry_fern", "en": "Bamboo Herb", "zh": "竹海灵草", "tts": "green herb", "sentence": "Fresh green herbs hide beside the cool east stream.", "heal": 10},
+	{"id": "flora_wangdao_tea", "pos": Vector3(47.5, 0, 14.0), "kind": "berry_fern", "en": "Spring Tea Leaf", "zh": "明前茶芽", "tts": "green tea leaf", "sentence": "Tender green tea leaves glisten in the morning mist.", "heal": 8},
+	{"id": "flora_tea_pav_iris", "pos": Vector3(61.0, 0, -40.0), "kind": "purple_flower", "en": "Blue Mountain Iris", "zh": "东岭鸢尾", "tts": "blue iris", "sentence": "Blue iris flowers sway gently beside the tea pavilion.", "heal": 7},
+	{"id": "flora_west_ravine_shroom", "pos": Vector3(-58.0, 0, -76.0), "kind": "mushroom", "en": "Forest Mushroom", "zh": "幽谷松菇", "tts": "forest mushroom", "sentence": "Sweet forest mushrooms grow in the cool bamboo ravine.", "heal": 8},
+	{"id": "flora_cloud_lotus", "pos": Vector3(14.0, 0, -162.0), "kind": "orchid", "en": "Cloud Orchid", "zh": "云顶幽兰", "tts": "cloud orchid", "sentence": "A rare cloud orchid blooms near the high mountain ridge.", "heal": 10}
 ]
 
 const HABITAT_ANIMALS := [
-	# 1. Little Rabbits (8 — meadows, creek lawns & East/West/South fence slopes)
+	# 1. Little Rabbits (11 — meadows, creek lawns & East/West/South fence slopes)
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(11.0, 0, 24.0)},
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-16.0, 0, -4.0)},
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-34.0, 0, -38.0)},
@@ -41,8 +45,11 @@ const HABITAT_ANIMALS := [
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-30.0, 0, -152.0)},
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-68.0, 0, 24.0)},
 	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(72.0, 0, -18.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(44.0, 0, 6.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(-52.0, 0, -104.0)},
+	{"kind": "rabbit", "en": "Little Rabbit", "zh": "小野兔", "tts": "little rabbit", "home": Vector3(54.0, 0, -158.0)},
 
-	# 2. Red Squirrels (7 — foraging near camphor & maple tree trunks; climb straight up trees when startled!)
+	# 2. Red Squirrels (9 — foraging near camphor & maple tree trunks; climb straight up trees when startled!)
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-23.0, 0, 2.5)},
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(17.5, 0, -15.0)},
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-43.0, 0, -28.0)},
@@ -50,33 +57,39 @@ const HABITAT_ANIMALS := [
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(45.0, 0, -112.0)},
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-34.0, 0, -130.0)},
 	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(75.0, 0, 15.0)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(-46.5, 0, -103.5)},
+	{"kind": "squirrel", "en": "Red Squirrel", "zh": "小松鼠", "tts": "squirrel", "home": Vector3(74.5, 0, -95.5)},
 
-	# 3. Bush-Ambush Wild Boars (5 — hidden in azalea thickets; sprint on 4 legs & may counter-charge when chased!)
+	# 3. Bush-Ambush Wild Boars (6 — hidden in azalea thickets; sprint on 4 legs & may counter-charge when chased!)
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-56.0, 0, 18.0)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(62.0, 0, 4.0)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-76.0, 0, -44.0)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(68.0, 0, -110.0)},
 	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(-62.0, 0, -142.0)},
+	{"kind": "boar", "en": "Wild Boar", "zh": "小野猪", "tts": "wild boar", "home": Vector3(56.0, 0, -64.0)},
 
-	# 4. Agile Red Foxes (5 — patrolling fence-side grassy slopes & bamboo edges)
+	# 4. Agile Red Foxes (6 — patrolling fence-side grassy slopes & bamboo edges)
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-32.0, 0, 30.0)},
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(72.0, 0, -42.0)},
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-74.0, 0, -34.0)},
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(74.0, 0, -146.0)},
 	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-28.0, 0, -188.0)},
+	{"kind": "fox", "en": "Red Fox", "zh": "小赤狐", "tts": "red fox", "home": Vector3(-48.0, 0, -124.0)},
 
-	# 5. Tree-Perching Songbirds & Creek Egrets (9 — perched on fence posts, tree branches & wading by creek)
+	# 5. Tree-Perching Songbirds & Creek Egrets (11 — perched on fence posts, tree branches & wading by creek)
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-3.5, 0, 39.8), "perch_h": 1.28},
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(34.0, 0, 39.8), "perch_h": 1.28},
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-24.0, 0, 2.0), "perch_h": 3.25},
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(16.5, 0, -15.5), "perch_h": 3.45},
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(78.0, 0, -16.0), "perch_h": 2.85},
 	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(-44.0, 0, -28.0), "perch_h": 3.15},
+	{"kind": "bird", "mesh": "animal_bird", "en": "Mountain Bird", "zh": "山林飞鸟", "tts": "little bird", "home": Vector3(54.0, 0, -40.0), "perch_h": 2.65},
 	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(27.5, 0, 24.0), "perch_h": 0.04},
 	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(22.2, 0, -14.0), "perch_h": 0.04},
 	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(30.2, 0, -104.0), "perch_h": 0.04},
+	{"kind": "bird", "mesh": "animal_egret", "en": "White Egret", "zh": "溪畔白鹭", "tts": "white bird", "home": Vector3(25.5, 0, -166.0), "perch_h": 0.04},
 
-	# 6. Brook Koi / Carp (7 — swimming in clear recessed pebble creek pools)
+	# 6. Brook Koi / Carp (8 — swimming in clear recessed pebble creek pools)
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 31.0, "lane": -0.35},
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": 8.0, "lane": 0.40},
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -16.0, "lane": -0.38},
@@ -84,21 +97,64 @@ const HABITAT_ANIMALS := [
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -92.0, "lane": -0.40},
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -138.0, "lane": 0.35},
 	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -178.0, "lane": -0.35},
+	{"kind": "fish", "en": "Brook Fish", "zh": "溪流锦鲤", "tts": "small fish", "stream_z": -68.0, "lane": -0.30},
 
-	# 7. Creek Rock Crabs (5 — scuttling sideways with 8 jointed legs along wet pebble shorelines)
+	# 7. Creek Rock Crabs (6 — scuttling sideways with 8 jointed legs along wet pebble shorelines)
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 28.0, "bank_side": -1.48},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": 4.0, "bank_side": 1.50},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -40.0, "bank_side": 1.52},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -88.0, "bank_side": -1.48},
 	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -146.0, "bank_side": 1.50},
+	{"kind": "crab", "en": "River Crab", "zh": "溪石山蟹", "tts": "river crab", "stream_z": -176.0, "bank_side": -1.46},
 
-	# 8. Freshwater Jade River Shrimp (6 — hovering & tail-flipping backward when startled!)
+	# 8. Freshwater Jade River Shrimp (7 — hovering & tail-flipping backward when startled!)
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 33.0, "lane": 0.45},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": 11.0, "lane": -0.48},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -12.0, "lane": 0.42},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -58.0, "lane": -0.44},
 	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -108.0, "lane": 0.46},
-	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -172.0, "lane": -0.42}
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -172.0, "lane": -0.42},
+	{"kind": "shrimp", "en": "River Shrimp", "zh": "清溪河虾", "tts": "river shrimp", "stream_z": -32.0, "lane": -0.40},
+
+	# 9. v0.8.6 Graceful Jiangnan Sika Deer (8 — spotted mountain deer grazing in bamboo glades & tea hills)
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(-22.0, 0, 18.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(48.0, 0, -14.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(-54.0, 0, -16.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(60.0, 0, -56.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(-42.0, 0, -96.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(52.0, 0, -128.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(-34.0, 0, -172.0)},
+	{"kind": "deer", "en": "Sika Deer", "zh": "梅花鹿", "tts": "sika deer", "home": Vector3(32.0, 0, -184.0)},
+
+	# 10. v0.8.6 Golden Mountain Pheasants (8 — dazzling Jiangnan pheasants strutting & bursting into flight!)
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(36.0, 0, 14.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(-28.0, 0, -12.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(54.0, 0, -28.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(-48.0, 0, -52.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(42.0, 0, -78.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(-26.0, 0, -116.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(64.0, 0, -138.0)},
+	{"kind": "pheasant", "en": "Golden Pheasant", "zh": "山雉锦鸡", "tts": "golden pheasant", "home": Vector3(-18.0, 0, -180.0)},
+
+	# 11. v0.8.6 Clear-Brook Pond Turtles (6 — sunning on creek pebbles & swimming into the clear stream!)
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": 20.0, "bank_side": -1.35},
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": -6.0, "bank_side": 1.38},
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": -34.0, "bank_side": -1.40},
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": -72.0, "bank_side": 1.36},
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": -122.0, "bank_side": -1.38},
+	{"kind": "turtle", "en": "Pond Turtle", "zh": "清溪山龟", "tts": "pond turtle", "stream_z": -162.0, "bank_side": 1.38},
+
+	# 12. v0.8.6 Swallowtail Butterflies (10 — iridescent golden-jade butterflies fluttering above blossoms & ridges!)
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(6.0, 0, 16.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(24.0, 0, 12.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(44.0, 0, 22.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(-26.0, 0, -24.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(54.0, 0, -36.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(-38.0, 0, -48.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(32.0, 0, -76.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(-48.0, 0, -108.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(46.0, 0, -134.0)},
+	{"kind": "butterfly", "en": "Butterfly", "zh": "山涧彩蝶", "tts": "butterfly", "home": Vector3(-12.0, 0, -162.0)}
 ]
 
 func setup(g):
@@ -229,6 +285,10 @@ func _species_scale(kind: String, mesh_name: String) -> float:
 		"fish": return 1.05
 		"crab": return 0.94
 		"shrimp": return 0.80
+		"deer": return 1.10
+		"pheasant": return 1.06
+		"turtle": return 1.02
+		"butterfly": return 1.18
 	return 1.0
 
 func _spawn_wildlife():
@@ -259,13 +319,13 @@ func _spawn_wildlife():
 		area.set_meta("critter_index", idx)
 		var shp := CollisionShape3D.new()
 		var sph := SphereShape3D.new()
-		sph.radius = 0.78 if kind == "bird" else (0.62 if kind in ["boar", "fox"] else 0.48)
+		sph.radius = 0.85 if kind == "deer" else (0.78 if kind in ["bird", "pheasant"] else (0.62 if kind in ["boar", "fox"] else 0.48))
 		shp.shape = sph
-		shp.position.y = 0.0 if kind in ["fish", "shrimp"] else 0.28
+		shp.position.y = 0.0 if kind in ["fish", "shrimp", "butterfly"] else (0.68 if kind == "deer" else 0.28)
 		area.add_child(shp)
 		root.add_child(area)
 
-		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab"] else (0.94 if kind == "boar" else 0.76)
+		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab", "turtle", "butterfly"] else (1.58 if kind == "deer" else (0.94 if kind == "boar" else 0.76))
 		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 20, Color("f2f7d4"))
 		lbl.visibility_range_end = 11.5
 		lbl.visible = false
@@ -313,14 +373,18 @@ func _spawn_wildlife():
 		animals.append(entry)
 
 func _spawn_sky_egrets():
-	# Ambient flock of 6 snowy Jiangnan egrets flapping & gliding gracefully over the creek & rice valley
+	# Ambient flock of 10 snowy Jiangnan egrets flapping & gliding gracefully over the creek, ridges & rice valley
 	var orbit_specs := [
 		{"center": Vector3(24.0, 12.8, 22.0), "rx": 22.0, "rz": 18.0, "spd": 0.34, "phase": 0.0},
 		{"center": Vector3(32.0, 14.4, 34.0), "rx": 26.0, "rz": 20.0, "spd": 0.32, "phase": 0.62},
 		{"center": Vector3(26.0, 16.2, 56.0), "rx": 32.0, "rz": 24.0, "spd": 0.28, "phase": 1.85},
 		{"center": Vector3(-18.0, 17.5, -36.0), "rx": 28.0, "rz": 22.0, "spd": 0.30, "phase": 3.10},
 		{"center": Vector3(26.0, 19.5, -88.0), "rx": 28.0, "rz": 22.0, "spd": 0.31, "phase": 4.15},
-		{"center": Vector3(16.0, 23.5, -158.0), "rx": 30.0, "rz": 24.0, "spd": 0.29, "phase": 5.20}
+		{"center": Vector3(16.0, 23.5, -158.0), "rx": 30.0, "rz": 24.0, "spd": 0.29, "phase": 5.20},
+		{"center": Vector3(56.0, 16.5, -12.0), "rx": 24.0, "rz": 19.0, "spd": 0.33, "phase": 1.15},
+		{"center": Vector3(-52.0, 18.0, -76.0), "rx": 25.0, "rz": 20.0, "spd": 0.29, "phase": 2.45},
+		{"center": Vector3(58.0, 20.5, -118.0), "rx": 24.0, "rz": 20.0, "spd": 0.31, "phase": 3.70},
+		{"center": Vector3(-24.0, 24.5, -144.0), "rx": 28.0, "rz": 22.0, "spd": 0.27, "phase": 4.85}
 	]
 	for i in orbit_specs.size():
 		var sp: Dictionary = orbit_specs[i]
@@ -389,7 +453,7 @@ func _initial_pos(spec: Dictionary) -> Vector3:
 		var z := float(spec.stream_z)
 		var cx := float(game.Layout.stream_center_x(z)) + float(spec.lane)
 		return Vector3(cx, float(game.Layout.stream_water_y(z)) - 0.26, z)
-	if kind == "crab":
+	if kind == "crab" or kind == "turtle":
 		var z := float(spec.stream_z)
 		var cx := float(game.Layout.stream_center_x(z)) + float(spec.bank_side)
 		return Vector3(cx, float(game.terrain_height(cx, z)) + 0.03, z)
@@ -397,6 +461,8 @@ func _initial_pos(spec: Dictionary) -> Vector3:
 	var base_y := float(game.terrain_height(h.x, h.z))
 	if kind == "bird":
 		return Vector3(h.x, base_y + float(spec.get("perch_h", 0.0)), h.z)
+	if kind == "butterfly":
+		return Vector3(h.x, base_y + 1.05, h.z)
 	return Vector3(h.x, base_y, h.z)
 
 func _spawn_flora_spots():
@@ -513,7 +579,7 @@ func reset():
 		a.tag_shown_once = false
 		a.area.collision_layer = HIT_LAYER
 		a.area.scale = Vector3.ONE
-		_play_critter_anim(a.anim, ["Swim"] if a.kind in ["fish", "shrimp"] else ["Idle"], 1.0, float(a.idx) * 0.13)
+		_play_critter_anim(a.anim, ["Fly"] if a.kind == "butterfly" else (["Swim"] if a.kind in ["fish", "shrimp"] else ["Idle"]), 1.0, float(a.idx) * 0.13)
 	for eg in sky_egrets:
 		eg.state = "fly"
 		eg.timer = 0.0
@@ -677,7 +743,7 @@ func _step_creature(a: Dictionary, delta: float, ppos: Vector3):
 		_move_charging_boar(a, delta, ppos, dist)
 		return
 
-	var flee_r := 8.6 if kind in ["rabbit", "squirrel", "fox", "bird"] else (7.2 if kind == "boar" else 4.8)
+	var flee_r := 10.5 if kind == "deer" else (8.6 if kind in ["rabbit", "squirrel", "fox", "bird", "pheasant"] else (7.2 if kind == "boar" else (4.2 if kind == "butterfly" else 4.8)))
 	if dist < flee_r and a.state == "idle":
 		_start_flee(a, ppos, true)
 		if a.state in ["climb_approach", "charge"]:
@@ -711,8 +777,14 @@ func _step_creature(a: Dictionary, delta: float, ppos: Vector3):
 			_move_shrimp(a, delta, ppos)
 		"crab":
 			_move_crab(a, delta, ppos)
+		"turtle":
+			_move_turtle(a, delta, ppos)
+		"butterfly":
+			_move_butterfly(a, delta, ppos)
 		"bird":
 			_move_bird(a, delta, ppos)
+		"pheasant":
+			_move_pheasant(a, delta, ppos)
 		_:
 			_move_land_critter(a, delta, ppos)
 
@@ -925,20 +997,20 @@ func _start_flee(a: Dictionary, away_from: Vector3, by_proximity: bool = false):
 		return
 	if flee_sfx_cooldown <= 0.0:
 		flee_sfx_cooldown = 1.35
-		game.play_sfx("bird_flap" if a.kind == "bird" else ("boar_charge" if a.kind == "boar" else "animal_flee"), -12)
-	if by_proximity and a.pos.distance_to(game.player.position) < 9.5:
+		game.play_sfx("bird_flap" if a.kind in ["bird", "pheasant"] else ("boar_charge" if a.kind == "boar" else "animal_flee"), -12)
+	if by_proximity and a.pos.distance_to(game.player.position) < 11.2:
 		_flash_animal_tag(a, 2.2)
 		if not discovered_species.has(a.kind):
 			discovered_species[a.kind] = true
 			game.speak_english(a.tts)
-			var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else "靠近惊动会敏捷逃逸！"
+			var hint_msg := "惊动后窜上树干躲避！" if a.kind == "squirrel" else ("惊起后振翅低飞跃林！" if a.kind == "pheasant" else ("受惊潜入清溪游水！" if a.kind == "turtle" else ("翩然起舞掠过花丛！" if a.kind == "butterfly" else "靠近惊动会敏捷逃逸！")))
 			var can_toast: bool = (not game.rules.prologue_mode) and (game.closest_interaction == null) and not (is_instance_valid(game.threat_banner) and game.threat_banner.visible)
 			if can_toast:
 				game._notice("🌿 发现山野生灵：%s（%s）· %s" % [a.en, a.zh, hint_msg], Color("9ef5b8"))
 	if a.kind == "squirrel" and start_squirrel_tree_climb(a):
 		return
-	a.state = "fly" if a.kind == "bird" else "flee"
-	a.timer = 5.4 if a.kind == "bird" else (4.5 if a.kind in ["rabbit", "squirrel", "fox", "boar"] else 2.8)
+	a.state = "fly" if a.kind in ["bird", "pheasant"] else "flee"
+	a.timer = 5.4 if a.kind == "bird" else (3.8 if a.kind == "pheasant" else (4.5 if a.kind in ["rabbit", "squirrel", "fox", "boar", "deer"] else 3.0))
 	var delta_xz := Vector3(a.pos.x - away_from.x, 0.0, a.pos.z - away_from.z)
 	if delta_xz.length_squared() < 0.01:
 		delta_xz = Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1))
@@ -949,12 +1021,14 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 	var speed := 1.45
 	if a.state == "flee":
 		match kind:
+			"deer": speed = 9.4
 			"boar": speed = 9.0
 			"fox": speed = 8.6
 			"rabbit": speed = 7.4
 			_: speed = 6.8
 	else:
 		match kind:
+			"deer": speed = 1.90
 			"boar": speed = 1.75
 			"fox": speed = 2.05
 			"rabbit": speed = 1.35
@@ -1118,6 +1192,95 @@ func _move_crab(a: Dictionary, delta: float, ppos: Vector3):
 	a.root.rotation.y = (PI * 0.5 if float(a.bank_side) > 0.0 else -PI * 0.5) + sin(a.phase) * 0.12
 	a.visual.position = Vector3.ZERO
 	_play_critter_anim(a.anim, ["Walk Sideways", "Run", "Walk"], 1.95 if a.state == "flee" else 1.15)
+
+func _move_pheasant(a: Dictionary, delta: float, ppos: Vector3):
+	if a.state == "fly":
+		# Startled pheasant bursts into low skimming glide-flight (2.4m altitude) before settling down!
+		var away := Vector3(a.pos.x - ppos.x, 0.0, a.pos.z - ppos.z)
+		if away.length() > 0.3 and a.timer > 1.5:
+			a.dir = a.dir.lerp(away.normalized(), minf(delta * 3.0, 1.0)).normalized()
+		var spd := 8.8
+		var nxt_x := clampf(a.pos.x + a.dir.x * spd * delta, float(game.Layout.FENCE_MIN_X) + 2.2, float(game.Layout.FENCE_MAX_X) - 2.2)
+		var nxt_z := clampf(a.pos.z + a.dir.z * spd * delta, float(game.Layout.FENCE_MIN_Z) + 2.2, float(game.Layout.FENCE_MAX_Z) - 2.2)
+		var target_alt := 2.4 if a.timer > 1.1 else 0.0
+		a.fly_alt = lerpf(float(a.fly_alt), target_alt, minf(delta * 3.4, 1.0))
+		var gy := float(game.Layout.fast_height(nxt_x, nxt_z))
+		a.pos = Vector3(nxt_x, gy + float(a.fly_alt), nxt_z)
+		a.root.position = a.pos
+		a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
+		a.visual.position.y = sin(a.phase * 1.8) * 0.05
+		a.visual.rotation = Vector3(0.06, 0.0, sin(a.phase * 0.9) * 0.14)
+		_play_critter_anim(a.anim, ["Fly", "Run"], 1.65)
+		return
+	_move_land_critter(a, delta, ppos)
+
+func _move_turtle(a: Dictionary, delta: float, ppos: Vector3):
+	# Tranquil pond turtle basking near stream bank & sliding into clear water ("Swim") when startled!
+	var z_min := float(game.Layout.STREAM_Z_MIN) + 4.0
+	var z_max := float(game.Layout.FENCE_MAX_Z) - 2.0
+	var in_water: bool = (str(a.state) == "flee")
+	var spd := 2.4 if in_water else 0.42
+	var z_step := (1.0 if float(a.stream_z) >= ppos.z else -1.0) if in_water else (1.0 if float(a.dir.z) >= 0.0 else -1.0)
+	if not in_water:
+		a.wander_cd -= delta
+		if a.wander_cd <= 0.0:
+			a.wander_cd = rng.randf_range(2.2, 4.8)
+			a.dir.z = -a.dir.z
+	a.stream_z = clampf(float(a.stream_z) + z_step * spd * delta, z_min, z_max)
+	var cx := float(game.Layout.stream_center_x(a.stream_z))
+	var target_off := (0.28 * signf(float(a.bank_side))) if in_water else float(a.bank_side)
+	var prev_pos: Vector3 = a.pos
+	var cur_off: float = prev_pos.x - cx
+	var nxt_off := lerpf(cur_off, target_off, minf(delta * (3.2 if in_water else 1.4), 1.0))
+	var px := cx + nxt_off
+	var py := (float(game.Layout.stream_water_y(a.stream_z)) - 0.10) if in_water else (float(game.Layout.fast_height(px, a.stream_z)) + 0.02)
+	var nxt := Vector3(px, py, float(a.stream_z))
+	var look: Vector3 = nxt - prev_pos
+	look.y = 0.0
+	a.pos = nxt
+	a.root.position = nxt
+	if look.length() > 0.002:
+		a.root.rotation.y = atan2(-look.x, -look.z)
+	a.visual.position = Vector3.ZERO
+	a.visual.rotation = Vector3.ZERO
+	_play_critter_anim(a.anim, ["Swim", "Walk"] if in_water else ["Walk", "Idle"], 1.55 if in_water else 0.90)
+
+func _move_butterfly(a: Dictionary, delta: float, ppos: Vector3):
+	# Iridescent swallowtail dancing smoothly in figure-8s above blossoms & rising higher when approached
+	var home_p: Vector3 = a.home
+	var prev_p: Vector3 = a.pos
+	var t: float = float(a.phase) * 0.42 + float(a.idx) * 1.17
+	var flutter_r := 3.6 if str(a.state) == "flee" else 2.2
+	var target_x := home_p.x + sin(t) * flutter_r
+	var target_z := home_p.z + sin(t * 2.0) * (flutter_r * 0.65)
+	if str(a.state) == "flee":
+		var away := Vector3(prev_p.x - ppos.x, 0.0, prev_p.z - ppos.z)
+		if away.length() > 0.2:
+			target_x = prev_p.x + away.normalized().x * 3.8 * delta
+			target_z = prev_p.z + away.normalized().z * 3.8 * delta
+	target_x = clampf(target_x, float(game.Layout.FENCE_MIN_X) + 2.0, float(game.Layout.FENCE_MAX_X) - 2.0)
+	target_z = clampf(target_z, float(game.Layout.FENCE_MIN_Z) + 2.0, float(game.Layout.FENCE_MAX_Z) - 2.0)
+	var gy := float(game.Layout.fast_height(target_x, target_z))
+	var alt := (2.25 if str(a.state) == "flee" else 1.05) + sin(t * 2.6) * 0.34
+	var nxt := Vector3(lerpf(prev_p.x, target_x, minf(delta * 3.5, 1.0)), gy + alt, lerpf(prev_p.z, target_z, minf(delta * 3.5, 1.0)))
+	var look: Vector3 = nxt - prev_p
+	look.y = 0.0
+	a.pos = nxt
+	a.root.position = nxt
+	if look.length() > 0.002:
+		a.root.rotation.y = atan2(-look.x, -look.z)
+	a.visual.position.y = sin(a.phase * 2.4) * 0.06
+	a.visual.rotation = Vector3(0.12, 0.0, sin(t * 1.8) * 0.22)
+	_play_critter_anim(a.anim, ["Fly", "Idle"], 1.85 if a.state == "flee" else 1.35)
+
+func shockwave_knockdown_near(origin: Vector3, radius: float):
+	## v0.8.6 Skyfall Overlord landing shockwave startles & bowls over nearby ground wildlife!
+	for a in animals:
+		if a.state in ["downed", "hidden"]:
+			continue
+		if a.pos.distance_to(origin) <= radius:
+			_start_flee(a, origin, false)
+			a.visual.rotation.z = 0.35
 
 func on_gunshot_near(origin: Vector3, suppressed: bool):
 	var alert_r := 7.0 if suppressed else 19.0

@@ -29,9 +29,9 @@ func run():
 	verify(pro_scene is PackedScene, "standalone PCK loads prologue_chapter.tscn as valid PackedScene")
 	verify(bool(ProjectSettings.get_setting("audio/general/text_to_speech", false)), "exported project enables audio/general/text_to_speech for OS TTS fallback")
 
-	# Full 279/279 offline voice OGG existence AND real AudioStream decode verification!
+	# Full 331/331 offline voice OGG existence AND real AudioStream decode verification!
 	var voice_manifest = JSON.parse_string(FileAccess.get_file_as_string("res://data/learning/voice_manifest.json"))
-	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 275)
+	var voice_ok: bool = (voice_manifest is Dictionary and voice_manifest.get("entries") is Dictionary and voice_manifest.entries.size() >= 325)
 	var missing_ogg: int = 0
 	var decode_failed_ogg: int = 0
 	var decoded_ogg_count: int = 0
@@ -51,7 +51,7 @@ func run():
 		decoded_ogg_count, voice_manifest.entries.size() if voice_ok else 0, missing_ogg, decode_failed_ogg
 	])
 
-	# Full 34/34 SFX WAV existence AND AudioStream decode verification! (Godot PCK lists *.wav.import remaps)
+	# Full 38/38 SFX WAV existence AND AudioStream decode verification! (Godot PCK lists *.wav.import remaps)
 	var sfx_dir := DirAccess.open("res://assets/sfx")
 	var sfx_seen := {}
 	var sfx_total := 0
@@ -66,10 +66,10 @@ func run():
 				if st is AudioStream and st.get_length() > 0.01:
 					sfx_decoded += 1
 	var req_sfx_ok := true
-	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "warden_shield_deflect", "boss_skyfall", "skill_slam"]:
+	for sfx_n in ["shot_rifle", "shot_suppressed", "reload_mag_out", "reload_mag_in", "reload_bolt", "shell_clink", "achievement_unlock", "warden_sonar", "warden_shield_deflect", "boss_skyfall", "boss_slash", "boss_ultimate", "skill_slam"]:
 		if not ResourceLoader.exists("res://assets/sfx/" + sfx_n + ".wav"):
 			req_sfx_ok = false
-	verify(req_sfx_ok and sfx_total >= 36 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
+	verify(req_sfx_ok and sfx_total >= 38 and sfx_decoded == sfx_total, "standalone PCK decodes ALL packaged SFX WAV streams cleanly (%d/%d decoded)" % [sfx_decoded, sfx_total])
 
 	var loot_ui_cls = load("res://scripts/loot_ui.gd")
 	var art_ids: PackedStringArray = loot_ui_cls.all_collectible_art_ids()
@@ -80,20 +80,47 @@ func run():
 			missing_col_mesh += 1
 		if loot_ui_cls.load_collectible_icon(aid) == null:
 			missing_col_icon += 1
-	verify(art_ids.size() == 64 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 64 sculpted PBR collectible meshes in v072_collectibles.glb")
-	verify(art_ids.size() == 64 and missing_col_icon == 0, "standalone PCK contains all 64 studio-rendered collectible 2D icons")
+	verify(art_ids.size() == 108 and ResourceLoader.exists("res://assets/slice/v072_collectibles.glb") and ResourceLoader.exists("res://assets/slice/v086_collectibles.glb") and missing_col_mesh == 0, "standalone PCK contains all 108 sculpted PBR collectible meshes across v072+v086_collectibles.glb")
+	verify(art_ids.size() == 108 and missing_col_icon == 0, "standalone PCK contains all 108 studio-rendered collectible 2D icons")
 	for name in ["rifle", "crate", "rock_0", "rock_1", "rock_2", "rock_3", "rock_4", "rock_5"]:
 		verify(ResourceLoader.exists("res://assets/slice/" + name + ".glb"), "packaged model " + name)
 	for name in ["ground_color", "ground_normal", "tree_bark", "tree_needles", "tree_alpha"]:
 		verify(ResourceLoader.exists("res://assets/slice/" + name + ".jpg"), "packaged texture " + name)
-	verify(ResourceLoader.exists("res://assets/slice/v082_bosses.glb") and ResourceLoader.exists("res://scripts/cave_warden.gd") and ResourceLoader.exists("res://scripts/achievements.gd") and ResourceLoader.exists("res://scripts/rangers.gd") and ResourceLoader.exists("res://scripts/loot_container_ui.gd"), "standalone PCK includes v0.8.4 articulated boss GLB, Cave Warden, Achievements, Rangers & LootContainerUI modules")
+	verify(ResourceLoader.exists("res://assets/slice/horizon_mountains.png") and ResourceLoader.exists("res://assets/slice/horizon_cloud_ribbon.png"), "standalone PCK includes v0.8.6 cloud-wreathed distant mountain panorama & mist ribbon textures")
+	verify(ResourceLoader.exists("res://assets/slice/v082_bosses.glb") and ResourceLoader.exists("res://assets/slice/v086_mirror_yanshan.glb") and ResourceLoader.exists("res://assets/slice/v086_architecture.glb") and ResourceLoader.exists("res://scripts/cave_warden.gd") and ResourceLoader.exists("res://scripts/achievements.gd") and ResourceLoader.exists("res://scripts/rangers.gd") and ResourceLoader.exists("res://scripts/loot_container_ui.gd"), "standalone PCK includes v0.8.6 articulated bosses, Mirror Yanshan, architecture GLBs & core scripts")
 	var boss_glb_packed = load("res://assets/slice/v082_bosses.glb")
 	var boss_rig_ok := false
 	if boss_glb_packed is PackedScene:
 		var bi: Node = boss_glb_packed.instantiate()
-		boss_rig_ok = (bi.find_child("warden_body", true, false) != null and bi.find_child("arm_left_pivot", true, false) != null and bi.find_child("arm_right_pivot", true, false) != null and bi.find_child("head_crest", true, false) != null and bi.find_child("skyfall_overlord", true, false) != null)
+		boss_rig_ok = (
+			bi.find_child("warden_body", true, false) != null and bi.find_child("arm_left_pivot", true, false) != null
+			and bi.find_child("arm_right_pivot", true, false) != null and bi.find_child("head_crest", true, false) != null
+			and bi.find_child("skyfall_overlord", true, false) != null and bi.find_child("overlord_arm_l", true, false) != null
+			and bi.find_child("overlord_arm_r", true, false) != null and bi.find_child("overlord_halo_ring", true, false) != null
+		)
 		bi.free()
-	verify(boss_rig_ok, "standalone PCK v082_bosses.glb contains articulated Cave Warden parts (warden_body/arm_left_pivot/arm_right_pivot/head_crest) & skyfall_overlord")
+	verify(boss_rig_ok, "standalone PCK v082_bosses.glb contains articulated Cave Warden (4-part) & articulated Skyfall Overlord (5-part)")
+	var arch_ok := false
+	if ResourceLoader.exists("res://assets/slice/v086_architecture.glb"):
+		var arch_packed = load("res://assets/slice/v086_architecture.glb")
+		if arch_packed is PackedScene:
+			var ai: Node = arch_packed.instantiate()
+			arch_ok = (
+				ai.find_child("watchtower_jiangnan", true, false) != null
+				and ai.find_child("bamboo_shelter_jiangnan", true, false) != null
+				and ai.find_child("tea_pavilion_upgraded", true, false) != null
+				and ai.find_child("wangdao_pavilion_complete", true, false) != null
+				and ai.find_child("mountain_arch_gate", true, false) != null
+				and ai.find_child("jiangnan_signboard_frame", true, false) != null
+				and ai.find_child("distant_peaks_ring", true, false) != null
+			)
+			ai.free()
+	verify(arch_ok, "standalone PCK v086_architecture.glb contains handcrafted Jiangnan architecture & 3D distant peaks ring")
+	var wild_v86_ok := true
+	for wglb in ["animal_deer", "animal_pheasant", "animal_turtle", "animal_butterfly"]:
+		if not ResourceLoader.exists("res://assets/slice/wildlife/" + wglb + ".glb"):
+			wild_v86_ok = false
+	verify(wild_v86_ok, "standalone PCK includes all 4 v0.8.6 skeletal wildlife GLBs (deer/pheasant/turtle/butterfly)")
 	var lm_ok := false
 	if ResourceLoader.exists("res://assets/slice/v085_landmarks.glb"):
 		var lm_packed = load("res://assets/slice/v085_landmarks.glb")

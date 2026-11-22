@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.8.5" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.5 slice uses 175-entry word pack and 6 blind-box vault crates")
+	verify(game.VERSION == "0.8.6" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.8.6 slice uses 175-entry word pack and 6 blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -60,12 +60,16 @@ func run():
 	game.exploration.close()
 
 	await enter("english")
-	verify(game.loot_container_ui.busy and game.loot_container_ui.active_kind == "exploration" and game.rules.bag.size() == 0, "v0.8.4: following next to opens confirmation pickup panel for sealed radio supply")
+	verify(game.exploration.busy and game.exploration.is_spelling_challenge("english") and game.exploration.spell_box.visible and game.rules.bag.size() == 0, "v0.8.6: following next to opens live random English spelling verification for sealed roadside supply")
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("english"))
+	verify(game.exploration.states.english and game.exploration.swap_button.visible and game.rules.bag.size() == 0, "v0.8.6: spelling random roadside word unlocks calibrated probabilistic supply confirmation button")
+	game.exploration.open_reward_container()
 	game.loot_container_ui.take_item_to_bag(0)
-	verify(game.exploration.states.english and game.rules.bag.size() == 1 and not node_for("english").visible, "confirming next to supply collects item and removes its collider")
+	verify(game.exploration.states.english and game.exploration.states.english_claimed and game.rules.bag.size() == 1 and not node_for("english").visible, "confirming next to supply collects item and removes its collider")
 	var bag = game.rules.bag.size()
 	game.exploration.open(node_for("english"))
 	verify(game.rules.bag.size() == bag, "English discovery cannot be claimed twice")
+	game.exploration.close()
 
 	await enter("poem")
 	verify(game.exploration.busy, "stone tablet is reachable from its branch")
@@ -77,16 +81,16 @@ func run():
 	verify(game.exploration.states.poem and game.exploration.states.poem_claimed and game.rules.bag.size() == bag + 1, "confirming poem reward collects item and marks stone compartment claimed")
 	game.exploration.choose(poem_ans)
 	verify(game.rules.bag.size() == bag + 1, "repeated solved-puzzle click cannot duplicate loot")
-	verify(game.question.id == old_id and game.rules.score == 0 and game.rules.answered == 0, "optional learning keeps the pending English question and its accuracy untouched")
+	verify(game.question.id == old_id and game.rules.score == 18 and game.rules.answered == 0, "optional learning keeps the pending combat question untouched while awarding exploration bonus")
 
-	# v0.8.1 FB-5: Wrong answer on Field Intel locks that node out for the rest of the run (no retry brute-force!)
+	# v0.8.6: Wrong spelling on Field Intel locks that node out for the rest of the run (no retry brute-force!)
 	var ic_lock_node: Node3D = node_for("intel_cleft")
 	game.exploration.open(ic_lock_node)
-	var ic_ans: int = game.exploration.answer_button_index("intel_cleft")
-	game.exploration.buttons[(ic_ans + 1) % 3].pressed.emit()
-	verify(game.exploration.is_locked_out("intel_cleft") and game.exploration.buttons[0].disabled and not game.exploration.states.intel_cleft, "v0.8.1 FB-5: wrong answer on field intel immediately locks node for the run and disables retry")
-	game.exploration.choose(ic_ans)
-	verify(not game.exploration.states.intel_cleft, "v0.8.1 FB-5: clicking correct option after lock-out cannot bypass single-attempt rule")
+	verify(game.exploration.is_spelling_challenge("intel_cleft") and game.exploration.spell_box.visible, "v0.8.6: field intel node uses live random English spelling challenge")
+	game.exploration.submit_spelling("__definitely_wrong_spelling__")
+	verify(game.exploration.is_locked_out("intel_cleft") and game.exploration.spell_submit_btn.disabled and not game.exploration.states.intel_cleft, "v0.8.6: wrong spelling on field intel immediately locks node for the run and disables retry")
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("intel_cleft"))
+	verify(not game.exploration.states.intel_cleft, "v0.8.6: typing correct spelling after lock-out cannot bypass single-attempt rule")
 	game.exploration.close()
 
 	while game.rules.bag.size() < game.rules.capacity():
@@ -210,10 +214,10 @@ func run():
 	var pre_score := int(game.rules.score)
 	var ic_node: Node3D = node_for.call("intel_container")
 	game.exploration.open(ic_node)
-	game.exploration.choose(game.exploration.answer_button_index("intel_container"))
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("intel_container"))
 	game.exploration.close()
 	await frames(2)
-	verify(game.exploration.is_secret_revealed("parkour_containers") and game.minimap._is_discovered(game.crate_nodes[4]), "intel_container English clue reveals West Cargo Vault on minimap")
+	verify(game.exploration.is_secret_revealed("parkour_containers") and game.minimap._is_discovered(game.crate_nodes[4]), "intel_container random English spelling reveals West Cargo Vault on minimap")
 	verify(game.rules.score >= pre_score + 20 and not game.minimap._is_discovered(game.crate_nodes[2]), "single intel note only reveals its own secret and awards +20 score")
 
 	game.rules.combat_mode = true
@@ -222,7 +226,7 @@ func run():
 	var pre_bag: int = game.rules.bag.size()
 	var radio_node: Node3D = node_for.call("recon_radio")
 	game.exploration.open(radio_node)
-	game.exploration.choose(game.exploration.answer_button_index("recon_radio"))
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("recon_radio"))
 	game.exploration.open_reward_container()
 	if game.loot_container_ui.busy:
 		game.loot_container_ui.take_all_for_qa()
@@ -233,18 +237,18 @@ func run():
 	var pre_ammo2 := int(game.player.reserve_ammo)
 	var ab_node: Node3D = node_for.call("airdrop_beacon")
 	game.exploration.open(ab_node)
-	game.exploration.choose(game.exploration.answer_button_index("airdrop_beacon"))
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("airdrop_beacon"))
 	game.exploration.open_reward_container()
 	if game.loot_container_ui.busy:
 		game.loot_container_ui.take_all_for_qa()
 	else:
 		game.exploration.close()
 	var ab_loot: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
-	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2 and int(ab_loot.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: North Airdrop Beacon grants calibrated +10 ammo and T4 Epic loot in Normal mode")
+	verify(game.player.reserve_ammo > pre_ammo2 and game.rules.bag.size() >= pre_bag + 2 and int(ab_loot.get("rarity", 0)) >= 1 and int(ab_loot.get("rarity", 0)) <= 7, "v0.8.6: North Airdrop Beacon grants calibrated +10 ammo and probabilistic pyramid loot in Normal mode")
 	for iid in ["intel_cleft", "intel_cave", "intel_roof"]:
 		var inod: Node3D = node_for.call(iid)
 		game.exploration.open(inod)
-		game.exploration.choose(game.exploration.answer_button_index(iid))
+		game.exploration.submit_spelling(game.exploration.expected_spelling_word(iid))
 		game.exploration.close()
 	verify(game.exploration.secrets_completed() == 6 and game.exploration.completed() == 0, "6 intel/radio/beacon secrets track independently from 3 classic explorations")
 	game.rules.combat_mode = false
@@ -384,7 +388,7 @@ func run():
 		sim_key.call(KEY_W, false)
 		verify(walked and game.player.position.y > game.Layout.stream_water_y(float(bz)) - 0.05, "stream bridge at z=" + str(bz) + " is smoothly walkable across water")
 
-	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 48 and game.wildlife.flora_nodes.size() == 8 and game.wildlife.sky_egrets.size() >= 6, "v0.6.1.1 spawns 52 habitat critters across 8 species + 6 flapping sky egrets + 8 interactive flora nodes")
+	verify(is_instance_valid(game.wildlife) and game.wildlife.animals.size() >= 90 and game.wildlife.flora_nodes.size() == 12 and game.wildlife.sky_egrets.size() >= 10, "v0.8.6 spawns 96 habitat critters across 12 species + 10 flapping sky egrets + 12 interactive flora nodes")
 	var kinds := {}
 	var first_by_kind := {}
 	var rigged_ok := true
@@ -400,11 +404,12 @@ func run():
 			print("MISSING_RIG kind=", a.kind)
 	var eg0: Dictionary = game.wildlife.sky_egrets[0]
 	var eg_skels: Array = (eg0.vis as Node).find_children("*", "Skeleton3D", true, false) if eg0.vis != null else []
-	verify(rigged_ok and not eg_skels.is_empty() and eg0.anim != null and (eg0.anim as AnimationPlayer).is_playing(), "all 8 wildlife species + sky egrets use real Skeleton3D + AnimationPlayer rigs")
+	verify(rigged_ok and not eg_skels.is_empty() and eg0.anim != null and (eg0.anim as AnimationPlayer).is_playing(), "all 12 wildlife species + sky egrets use real Skeleton3D + AnimationPlayer rigs")
 	verify(
-		int(kinds.get("rabbit", 0)) >= 8 and int(kinds.get("squirrel", 0)) >= 7 and int(kinds.get("boar", 0)) >= 5 and int(kinds.get("fox", 0)) >= 5
-		and int(kinds.get("bird", 0)) >= 9 and int(kinds.get("fish", 0)) >= 7 and int(kinds.get("crab", 0)) >= 5 and int(kinds.get("shrimp", 0)) >= 6,
-		"all 8 Jiangnan wildlife species (rabbit/squirrel/boar/fox/bird/fish/crab/shrimp) meet target counts"
+		int(kinds.get("rabbit", 0)) >= 11 and int(kinds.get("squirrel", 0)) >= 9 and int(kinds.get("boar", 0)) >= 6 and int(kinds.get("fox", 0)) >= 6
+		and int(kinds.get("bird", 0)) >= 11 and int(kinds.get("fish", 0)) >= 8 and int(kinds.get("crab", 0)) >= 6 and int(kinds.get("shrimp", 0)) >= 7
+		and int(kinds.get("deer", 0)) >= 8 and int(kinds.get("pheasant", 0)) >= 8 and int(kinds.get("turtle", 0)) >= 6 and int(kinds.get("butterfly", 0)) >= 10,
+		"all 12 Jiangnan wildlife species (including deer/pheasant/turtle/butterfly) meet v0.8.6 target counts"
 	)
 
 	game.wildlife.reset()
@@ -662,19 +667,26 @@ func run():
 	verify(not game.minimap._is_discovered(game.crate_nodes[5]), "Yanxia Cavern vault starts masked on minimap before discovering cliff inscription")
 	var moya_ev: Node3D = node_for.call("cliff_inscription")
 	game.exploration.open(moya_ev)
-	game.exploration.choose(game.exploration.answer_button_index("cliff_inscription"))
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("cliff_inscription"))
 	game.exploration.close()
-	verify(game.exploration.is_secret_revealed("yanxia_cave") and game.minimap._is_discovered(game.crate_nodes[5]), "Moya cliff inscription reveals Yanxia Cavern secret on minimap")
+	verify(game.exploration.is_secret_revealed("yanxia_cave") and game.minimap._is_discovered(game.crate_nodes[5]), "Moya cliff inscription random spelling reveals Yanxia Cavern secret on minimap")
 
 	game.start_action(true, "normal")
 	await frames(4)
+	# Verify all 10 exploration spelling nodes draw distinct random 175-pack words per run!
+	var seen_spell_words := {}
+	for sid in game.exploration.SPELL_CHALLENGE_IDS:
+		var ew: String = game.exploration.expected_spelling_word(sid)
+		if ew != "":
+			seen_spell_words[ew.to_lower()] = true
+	verify(seen_spell_words.size() == game.exploration.SPELL_CHALLENGE_IDS.size(), "v0.8.6: all 10 exploration/heritage/intel spelling nodes draw 10 distinct random live words per run")
 	game.combat.health = 60
 	game.combat.shield = 5.0
 	game.rules.bag.clear()
 	for hid in ["cave_mural", "cave_hearth"]:
 		var hev: Node3D = node_for.call(hid)
 		game.exploration.open(hev)
-		game.exploration.choose(game.exploration.answer_button_index(hid))
+		game.exploration.submit_spelling(game.exploration.expected_spelling_word(hid))
 		game.exploration.open_reward_container()
 		if game.loot_container_ui.busy:
 			game.loot_container_ui.take_all_for_qa()
@@ -683,14 +695,11 @@ func run():
 	# Also solve cliff_inscription on this fresh Normal run so heritage_completed() == 3!
 	var moya_ev2: Node3D = node_for.call("cliff_inscription")
 	game.exploration.open(moya_ev2)
-	game.exploration.choose(game.exploration.answer_button_index("cliff_inscription"))
+	game.exploration.submit_spelling(game.exploration.expected_spelling_word("cliff_inscription"))
 	game.exploration.close()
-	verify(game.exploration.heritage_completed() == 3, "all 3 v0.6.2 Yanxia heritage discoveries solve and track in heritage_completed() == 3")
+	verify(game.exploration.heritage_completed() == 3, "all 3 v0.6.2 Yanxia heritage discoveries solve via random English spelling and track in heritage_completed() == 3")
 	verify(game.combat.health == 80 and game.combat.shield >= 19.5, "cave_hearth spring tea restores +20 HP and +15 Shield")
-	var bag_titles: Array[String] = []
-	for b_item in game.rules.bag:
-		bag_titles.append(str(b_item.get("title", "")))
-	verify("先民青铜茶铫" in bag_titles and "烟霞岩画残拓" in bag_titles, "v0.8.2_dev2 D2-4: Yanxia rock petroglyph & hearth award balanced T4 Epic heritage collectibles in Normal mode")
+	verify(game.rules.bag.size() == 2, "v0.8.6: Yanxia rock petroglyph & hearth roll calibrated probabilistic pyramid loot instead of guaranteed fixed T4/T5")
 
 	# 4) v0.8.0 World Looting (14 ultra-hidden nooks, zero open-road Gold/Red, blind-box crates, clean wildlife tags), [B] Backpack+SafeBox, [I] 3D Turntable, Warehouse Vault & Compendium
 	var active_loose := 0
@@ -704,7 +713,7 @@ func run():
 	for pnode in game.pickup_nodes:
 		if pnode.has_meta("overcharged"):
 			overcharged_cnt += 1
-	verify(active_loose == 7 and open_high_loose == 0 and game.world_loot.nest_nodes.size() == 14 and overcharged_cnt == 2 and game.world_loot.overcharged_halos.is_empty(), "v0.8.0 spawns 7 modest open-road relics (0 Gold/Red), 14 ultra-hidden nooks, and 2 spoiler-free blind-box caches")
+	verify(active_loose == 7 and open_high_loose == 0 and game.world_loot.nest_nodes.size() == 20 and overcharged_cnt == 2 and game.world_loot.overcharged_halos.is_empty(), "v0.8.6 spawns 7 modest open-road relics (0 Gold/Red), 20 ultra-hidden nooks, and 2 spoiler-free blind-box caches")
 	var spoiler_crates := 0
 	for cnode in game.crate_nodes:
 		for cl in cnode.find_children("*", "Label3D", true, false):
@@ -808,14 +817,14 @@ func run():
 	verify(has_qinglu_shader and game.world_loot.drop_case_mesh != null, "v0.6.4 binds Qinglu volumetric ShaderMaterial with baked COLOR_0 on trees and sculpted v064_world_props meshes")
 
 	# v0.8.2 Scene Polish, Reload Optic Lock, Cave Perimeter Seal, Achievements & 3D Physical Weapon Charms (V81-1..11)
-	# V81-4: Cave Mural heritage popup has zero overlap between story body and option buttons
+	# V81-4: Cave Mural heritage spelling popup has zero overlap between story body and spelling input bar
 	var mural_nd = node_for("cave_mural")
 	if mural_nd != null:
 		game.exploration.open(mural_nd)
 		await frames(2)
 		var body_bottom: float = game.exploration.body.position.y + game.exploration.body.size.y
-		var btn0_top: float = game.exploration.buttons[0].position.y
-		verify(btn0_top >= body_bottom + 4.0, "v0.8.2 V81-4: Yanxia Cave mural body text clears option button 0 with zero overlap (gap=%.1fpx)" % (btn0_top - body_bottom))
+		var spell_top: float = game.exploration.spell_box.position.y
+		verify(game.exploration.spell_box.visible and spell_top >= body_bottom + 4.0, "v0.8.6: Yanxia Cave mural body text clears spelling input bar with zero overlap (gap=%.1fpx)" % (spell_top - body_bottom))
 		game.exploration.close()
 	# V81-6 / v0.8.5: Exterior Yanxia Cave West/East walls & Maze row-6 corners block raycast penetration cleanly
 	var sp82: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
@@ -869,6 +878,41 @@ func run():
 	var arena_pillars: int = cloud_arena.find_children("ArenaDragonPillar_*", "Node3D", false, false).size() if cloud_arena != null else 0
 	var arena_flat_ok := absf(float(game.terrain_height(game.Layout.CLOUD_ARENA_CENTER.x, game.Layout.CLOUD_ARENA_CENTER.z)) - float(game.Layout.CLOUD_ARENA_Y)) < 0.08
 	verify(cloud_arena != null and arena_pillars == 8 and arena_flat_ok and multi_bridge != null and tea_pav != null and cliff_stele != null, "v0.8.5: spawns 38m flat CloudTopMartialArena (8 dragon pillars), TripleArchStoneBridge, TeaHillPavilion & YanshanCliffStele")
+	# v0.8.6: Multi-layer cloud-wreathed distant mountains, fixed outward Wangdao signboard & handcrafted Jiangnan architecture/scenery
+	var peaks_3d: Node = game.landscape.get_node_or_null("DistantPeaksRing3D")
+	var cloud_outer: Node = game.landscape.get_node_or_null("MistyCloudSeaOuter")
+	var cloud_inner: Node = game.landscape.get_node_or_null("MistyCloudSeaInner")
+	var wangdao_sign: Node3D = game.landscape.find_child("WangdaoSignpost", true, false) as Node3D
+	var sign_fwd: Vector3 = wangdao_sign.global_transform.basis.z if wangdao_sign != null else Vector3.ZERO
+	var tower_nd: Node = game.get_node_or_null("JiangnanWatchtower")
+	var tower_vis: Node = tower_nd.get_node_or_null("WatchtowerVisual") if tower_nd != null else null
+	var arch_forest: Node = game.landscape.get_node_or_null("TrailArchGate_Forest")
+	var arch_cloud: Node = game.landscape.get_node_or_null("TrailArchGate_CloudArena")
+	var count_batch := func(batch_prefix: String) -> int:
+		var total := 0
+		for ch in game.landscape.get_children():
+			if ch.name == batch_prefix or ch.name.begins_with(batch_prefix + "_"):
+				if ch is MultiMeshInstance3D and (ch as MultiMeshInstance3D).multimesh != null:
+					total += (ch as MultiMeshInstance3D).multimesh.instance_count
+		return total
+	var lantern_cnt: int = count_batch.call("JiangnanStoneLanterns")
+	var hedge_cnt: int = count_batch.call("JiangnanTeaHedges")
+	var boulder_cnt: int = count_batch.call("MossyBoulderClusters")
+	var bench_cnt: int = count_batch.call("ScenicStoneBenches")
+	verify(
+		peaks_3d != null and cloud_outer != null and cloud_inner != null,
+		"v0.8.6: spawns 3D DistantPeaksRing3D and dual counter-drifting MistyCloudSea cloud belts"
+	)
+	verify(
+		wangdao_sign != null and sign_fwd.x < -0.45 and sign_fwd.z < -0.45,
+		"v0.8.6: Wangdao Pavilion signboard faces outward NW toward approaching trail (fwd=%s)" % str(sign_fwd)
+	)
+	var wangdao_built: Node = wangdao_pav.find_child("wangdao_pavilion_complete", true, false) if wangdao_pav != null else null
+	verify(
+		tower_vis != null and wangdao_built != null and arch_forest != null and arch_cloud != null
+		and lantern_cnt >= 16 and hedge_cnt >= 20 and boulder_cnt >= 20 and bench_cnt >= 6,
+		"v0.8.6: mounts unified WangdaoPavilion, JiangnanWatchtower, 2 mountain arch gates, stone lanterns(%d), tea hedges(%d), mossy boulders(%d) & scenic benches(%d)" % [lantern_cnt, hedge_cnt, boulder_cnt, bench_cnt]
+	)
 	game._end_run(false)
 	game.loot_ui.open_compendium("achievements")
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.achievements.CATALOG.size(), "v0.8.2 V81-10/11: Compendium exposes Achievements & Weapon Charms Hall with all 24 achievement cards")
@@ -941,20 +985,31 @@ func run():
 				print("BOARD_CLIP ", st_node.station_id, " idx=", bi, " bottom=", b_bottom_y, " terrain=", max_local_y)
 	verify(all_boards_clear, "v0.8.2_dev2 D2-6: all 12 word target boards across all 3 stations sit strictly above hillside terrain with zero clipping")
 
-	# Cave Warden hunt blocks cave_hearth interaction; Normal cave_hearth yields T4 Epic (NOT T6 Big Gold!), Confidential upgrades to T5 Small Gold!
+	# Cave Warden hunt blocks cave_hearth interaction; cave_hearth tests random English spelling & rolls calibrated probabilistic drop!
 	game.start_action(true, "normal")
 	await frames(2)
 	var hearth_nd = node_for("cave_hearth")
 	game.cave_warden.state = "hunt"
 	game.exploration.open(hearth_nd)
-	verify(not game.exploration.busy, "v0.8.2_dev2 D2-4: Cave Warden active hunt blocks casual interaction with cave_hearth")
+	verify(not game.exploration.busy, "v0.8.6: Cave Warden active hunt blocks casual interaction with cave_hearth")
 	game.cave_warden.state = "patrol"
 	game.exploration.open(hearth_nd)
-	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
+	var hearth_w1: String = game.exploration.expected_spelling_word("cave_hearth")
+	game.exploration.submit_spelling(hearth_w1)
 	game.exploration.open_reward_container()
 	game.loot_container_ui.take_all_for_qa()
 	var norm_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
-	verify(str(norm_cave_item.get("title", "")) == "先民青铜茶铫" and int(norm_cave_item.get("rarity", 0)) == 4, "v0.8.2_dev2 D2-4: Normal cave_hearth awards T4 Epic Bronze Tea Kettle (no free Big Gold)")
+	verify(hearth_w1 != "" and int(norm_cave_item.get("rarity", 0)) >= 1 and int(norm_cave_item.get("rarity", 0)) <= 7, "v0.8.6: Normal cave_hearth tests random English word (%s) and rolls probabilistic pyramid drop" % hearth_w1)
+	# Statistical check over 300 Normal exploration_deep rolls: White/Green/Blue must form >=65% majority & Gold+ <=10% (NO guaranteed Purple/Gold!)
+	var low_cnt := 0
+	var high_cnt := 0
+	for _er in 300:
+		var rr: int = game.rules.roll_calibrated_rarity(false, "exploration_deep", true)
+		if rr <= 3:
+			low_cnt += 1
+		elif rr >= 5:
+			high_cnt += 1
+	verify(low_cnt >= 200 and high_cnt <= 30, "v0.8.6: 300 Normal exploration_deep rolls follow calibrated pyramid (White-Blue=%d/300, Gold+=%d/300)" % [low_cnt, high_cnt])
 
 	game._end_run(false)
 	game.start_action(true, "confidential")
@@ -963,13 +1018,14 @@ func run():
 	for p2 in game.pickup_nodes:
 		if str(p2.get_meta("tactical_item", "")) == "ammo_crate" and p2.visible:
 			active_ammo_conf += 1
-	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 440, "v0.8.3 hotfix: Confidential mode limits ground ammo crates to <= 4 and sets Cave Warden to 440 HP")
+	verify(active_ammo_conf <= 4 and game.cave_warden.hp == 360, "v0.8.6: Confidential mode limits ground ammo crates to <= 4 and uses mechanical Cave Warden (360 HP)")
 	game.exploration.open(hearth_nd)
-	game.exploration.choose(game.exploration.answer_button_index("cave_hearth"))
+	var hearth_w2: String = game.exploration.expected_spelling_word("cave_hearth")
+	game.exploration.submit_spelling(hearth_w2)
 	game.exploration.open_reward_container()
 	game.loot_container_ui.take_all_for_qa()
 	var conf_cave_item: Dictionary = game.rules.bag[game.rules.bag.size() - 1]
-	verify(str(conf_cave_item.get("title", "")) == "翡翠节节高玉佩" and int(conf_cave_item.get("rarity", 0)) == 5, "v0.8.2_dev2 D2-4: Confidential cave_hearth upgrades to T5 Small Gold Jade Bamboo Pendant")
+	verify(hearth_w2 != "" and int(conf_cave_item.get("rarity", 0)) >= 1 and int(conf_cave_item.get("rarity", 0)) <= 7, "v0.8.6: Confidential cave_hearth tests live random English word (%s) and rolls calibrated Confidential pyramid drop" % hearth_w2)
 	game._end_run(false)
 
 	# 9) v0.8.3 R1/R3: Ranger '少羽' Profile, Camp Liaison NPC Bounty ('烟山名望') & Character Codex Tab ('人物小记')

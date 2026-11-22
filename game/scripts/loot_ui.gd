@@ -8,10 +8,11 @@ extends Node
 ## - [I] Interactive 360° Mouse-Drag & Zoom 3D Relic Showcase Inspector + 64-Item Bilingual Compendium
 
 const COLLECTIBLE_GLB := "res://assets/slice/v072_collectibles.glb"
+const COLLECTIBLE_GLB_V086 := "res://assets/slice/v086_collectibles.glb"
 const ICON_DIR := "res://assets/icons/loot/"
 
 const TITLE_TO_ART_ID := {
-	# T1 · 常规 (14)
+	# T1 · 常规 (22)
 	"旧巡护电池": "battery",
 	"压缩干粮": "ration",
 	"信号铜线": "wire",
@@ -26,7 +27,15 @@ const TITLE_TO_ART_ID := {
 	"旧黄铜钥匙串": "key_ring",
 	"军绿旧水壶": "canteen",
 	"尼龙登山绳": "rope_coil",
-	# T2 · 精良 (12)
+	"竹编采茶篓": "bamboo_basket",
+	"江南油纸伞": "oil_paper_umbrella",
+	"烟山竹笠": "straw_hat",
+	"黄杨木梳": "wooden_comb",
+	"粗陶山泉壶": "clay_teapot",
+	"千年红松果": "pine_cone",
+	"防潮火柴盒": "matchbox",
+	"小竹蒸笼": "bamboo_steamer",
+	# T2 · 精良 (20)
 	"林间指北针": "compass",
 	"防水战术手电": "torch",
 	"巡护员徽章": "badge",
@@ -39,7 +48,15 @@ const TITLE_TO_ART_ID := {
 	"湖笔书写套组": "brush_set",
 	"铜制电报发报键": "morse_key",
 	"烟山草药标本匣": "herb_case",
-	# T3 · 稀有 (11)
+	"迷你青石磨": "stone_mill",
+	"宫廷红灯笼": "paper_lantern",
+	"紫竹长笛": "wooden_flute",
+	"古寺铜风铃": "brass_bell",
+	"锡制茶叶罐": "tea_caddy",
+	"户外机械表": "tactical_watch",
+	"团扇仕女图": "silk_fan",
+	"老式杆秤": "brass_scale",
+	# T3 · 稀有 (18)
 	"加密无线电台": "radio",
 	"光学测距模块": "rangefinder",
 	"古树琥珀标本": "amber",
@@ -51,7 +68,14 @@ const TITLE_TO_ART_ID := {
 	"江南苏绣锦囊": "silk_pouch",
 	"便携气象测风仪": "anemometer",
 	"机械铜壳怀表": "pocket_watch",
-	# T4 · 史诗 (10)
+	"龙泉梅瓶": "longquan_vase",
+	"苏绣双面屏": "suzhou_embroidery",
+	"紫铜炭炉壶": "copper_kettle",
+	"嘉定竹雕笔筒": "bamboo_carving",
+	"白玉兰花簪": "jade_hairpin",
+	"太阳能信标器": "solar_beacon",
+	"日晷罗盘仪": "compass_sundial",
+	# T4 · 史诗 (16)
 	"无人机核心芯片": "chip",
 	"竹海古玉残片": "jade_piece",
 	"军用黑匣子": "blackbox",
@@ -62,26 +86,47 @@ const TITLE_TO_ART_ID := {
 	"青瓷蟾蜍水注": "water_dropper",
 	"微光瞄具光学核": "optic_core",
 	"端溪雕云古砚": "inkstone",
-	# T5 · 珍品·小金 (6)
+	"景泰蓝赏瓶": "cloisonne_vase",
+	"蕉叶式七弦古琴": "guqin_mini",
+	"青铜三足小鼎": "bronze_ding",
+	"剔红雕漆圆盒": "cinnabar_box",
+	"青花将军罐": "blue_white_jar",
+	"侦察四旋翼机": "tactical_drone",
+	# T5 · 珍品·小金 (12)
 	"海兽葡萄错银铜镜": "bronze_mirror",
 	"战备量子加密硬盘": "crypto_drive",
 	"宜兴朱泥水平壶": "zisha_teapot",
 	"翡翠节节高玉佩": "jade_pendant",
 	"复古黄铜旁轴相机": "vintage_camera",
 	"御窑青花缠枝盏": "imperial_bowl",
-	# T6 · 传说·大金 (6)
+	"碧玉如意": "jade_ruyi",
+	"花丝镶嵌金盒": "gold_filigree_box",
+	"越王式青铜短剑": "bronze_sword",
+	"越窑青瓷执壶": "celadon_ewer",
+	"紫檀象棋匣": "ivory_chess",
+	"军用战术平板": "encrypted_tablet",
+	# T6 · 传说·大金 (11)
 	"烟山古铜虎符": "tally",
 	"特级金质勋章": "medal",
 	"量子词典原型机": "quantum",
 	"烟山先民竹简": "slips",
 	"烟山统领黄金核心": "core",
 	"望稻亭鎏金香炉": "censer",
-	# T7 · 旷世·大红 (5)
+	"鎏金凤冠": "gold_phoenix_crown",
+	"良渚神徽玉琮": "jade_cong",
+	"曾侯乙式编钟": "bronze_chime",
+	"青绿山水手卷": "landscape_scroll",
+	"浑天仪模型": "armillary_sphere",
+	# T7 · 旷世·大红 (9)
 	"越窑秘色青瓷盏": "celadon",
 	"烟山千年紫芝王": "ganoderma",
 	"诚庄先民双龙玉璧": "jade_bi",
 	"相控阵超算雷达心": "radar_heart",
-	"烟山之心·赤金龙印": "seal"
+	"烟山之心·赤金龙印": "seal",
+	"金瓯永固杯": "gold_dragon_cup",
+	"翠玉白菜": "jade_cabbage",
+	"传国和氏璧玉玺": "imperial_jade_seal",
+	"烟山天穹全息棱镜": "quantum_prism"
 }
 
 const LEGACY_ICON_ALIAS := {
@@ -141,13 +186,14 @@ static func _ensure_collectible_meshes():
 	if _glb_loaded:
 		return
 	_glb_loaded = true
-	if not ResourceLoader.exists(COLLECTIBLE_GLB):
-		return
-	var packed = load(COLLECTIBLE_GLB)
-	if packed is PackedScene:
-		var inst: Node = packed.instantiate()
-		_collect_meshes_recursive(inst)
-		inst.free()
+	for glb_path in [COLLECTIBLE_GLB, COLLECTIBLE_GLB_V086]:
+		if not ResourceLoader.exists(glb_path):
+			continue
+		var packed = load(glb_path)
+		if packed is PackedScene:
+			var inst: Node = packed.instantiate()
+			_collect_meshes_recursive(inst)
+			inst.free()
 
 
 static func get_collectible_mesh(item_or_kind) -> Mesh:
@@ -567,21 +613,23 @@ func _refresh_backpack_ui():
 	for ch in bag_grid.get_children():
 		ch.queue_free()
 	var cap: int = game.rules.capacity()
+	var s_slots: int = game.rules.safe_box_slots()
 	var bag_val: int = game.rules.bag_value()
 	var safe_val: int = game.rules.safe_box_value()
 	bag_header_label.text = "随身摸金背包（%d/%d 格 · %d币） + 安全箱（%d/%d · %d币）%s" % [
 		game.rules.bag.size(), cap, bag_val,
-		game.rules.safe_box.size(), game.Rules.SAFE_BOX_SLOTS, safe_val,
+		game.rules.safe_box.size(), s_slots, safe_val,
 		" · 机密×1.35" if game.rules.is_confidential() else ""
 	]
 	safe_box_header_label.text = "🔒 加密安全箱（%d / %d 格 · 保底估值 %d 币 · 即使行动失败也能安全入库！）" % [
-		game.rules.safe_box.size(), game.Rules.SAFE_BOX_SLOTS, safe_val
+		game.rules.safe_box.size(), s_slots, safe_val
 	]
 
-	# Render 2 Encrypted Safe Box slots
-	for s_idx in game.Rules.SAFE_BOX_SLOTS:
+	# Render Encrypted Safe Box slots (2 base, or 3 with safebox_upgrade)
+	var card_w: float = 318.0 if s_slots >= 3 else 484.0
+	for s_idx in s_slots:
 		var scard := Panel.new()
-		scard.custom_minimum_size = Vector2(484, 80)
+		scard.custom_minimum_size = Vector2(card_w, 80)
 		var sst := StyleBoxFlat.new()
 		sst.set_corner_radius_all(8)
 		if s_idx < game.rules.safe_box.size():
@@ -593,35 +641,38 @@ func _refresh_backpack_ui():
 			sst.set_border_width_all(2)
 			scard.add_theme_stylebox_override("panel", sst)
 
-			var sic := create_icon(s_item, sr_col, Vector2(58, 58))
-			sic.position = Vector2(10, 11)
+			var sic := create_icon(s_item, sr_col, Vector2(54, 54))
+			sic.position = Vector2(8, 13)
 			scard.add_child(sic)
 
-			var sb_lbl: Label = game._text(scard, "🔒【%s】 %s" % [game.Rules.RARITY_NAMES[sr], str(s_item.get("title", "宝物"))], Vector2(76, 8), Vector2(248, 22), 14, sr_col)
+			var text_w: float = 136.0 if s_slots >= 3 else 248.0
+			var sb_lbl: Label = game._text(scard, "🔒【%s】%s" % [game.Rules.RARITY_NAMES[sr], str(s_item.get("title", "宝物"))], Vector2(68, 8), Vector2(text_w, 22), 13, sr_col)
 			sb_lbl.clip_text = true
-			var se_lbl: Label = game._text(scard, "%s · 保底估值 %d 币" % [str(s_item.get("en", "")), int(s_item.get("value", 0))], Vector2(76, 32), Vector2(248, 20), 12, game.GOLD)
+			var se_lbl: Label = game._text(scard, "%s · %d币" % [str(s_item.get("en", "")), int(s_item.get("value", 0))], Vector2(68, 32), Vector2(text_w, 20), 11, game.GOLD)
 			se_lbl.clip_text = true
-			game._text(scard, "已加密锁定 · 行动失败也不掉落", Vector2(76, 54), Vector2(248, 18), 11, Color("9ee2c2"))
+			game._text(scard, "加密锁定 · 不掉落", Vector2(68, 54), Vector2(text_w, 18), 11, Color("9ee2c2"))
 
-			var b_insp_s: Button = game._button(scard, "3D检视", Rect2(332, 12, 68, 56), func():
+			var b1x: float = card_w - 110.0 if s_slots >= 3 else 332.0
+			var bw: float = 50.0 if s_slots >= 3 else 68.0
+			var b_insp_s: Button = game._button(scard, "3D" if s_slots >= 3 else "3D检视", Rect2(b1x, 12, bw, 56), func():
 				inspect_return_to = "backpack"
 				close_backpack()
 				open_inspect_item(s_item)
 			)
-			b_insp_s.add_theme_font_size_override("font_size", 12)
-			var b_take: Button = game._button(scard, "取回\n背包", Rect2(406, 12, 68, 56), _move_safe_to_bag.bind(s_idx))
-			b_take.add_theme_font_size_override("font_size", 12)
+			b_insp_s.add_theme_font_size_override("font_size", 11 if s_slots >= 3 else 12)
+			var b_take: Button = game._button(scard, "取回" if s_slots >= 3 else "取回\n背包", Rect2(b1x + bw + 4.0, 12, bw, 56), _move_safe_to_bag.bind(s_idx))
+			b_take.add_theme_font_size_override("font_size", 11 if s_slots >= 3 else 12)
 			b_take.disabled = game.rules.bag.size() >= cap
 		else:
 			sst.bg_color = Color(0.05, 0.075, 0.06, 0.72)
 			sst.border_color = Color(0.95, 0.78, 0.35, 0.36)
 			sst.set_border_width_all(1)
 			scard.add_theme_stylebox_override("panel", sst)
-			var sempty: Label = game._text(scard, "🔒 安全箱槽位 #%d（空闲）\n在下方背包中点击「存安全箱」即可将珍宝存入此格" % (s_idx + 1), Vector2(18, 18), Vector2(448, 44), 13, Color("cbbd88"))
+			var sempty: Label = game._text(scard, "🔒 安全箱槽位 #%d（空闲）\n点击下方「存安全箱」锁定珍宝" % (s_idx + 1), Vector2(10, 18), Vector2(card_w - 20.0, 44), 12 if s_slots >= 3 else 13, Color("cbbd88"))
 			sempty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		safe_box_row.add_child(scard)
 
-	var safe_full: bool = game.rules.safe_box.size() >= game.Rules.SAFE_BOX_SLOTS
+	var safe_full: bool = game.rules.safe_box.size() >= s_slots
 	for slot_i in cap:
 		var card := Panel.new()
 		card.custom_minimum_size = Vector2(242, 146)
@@ -825,7 +876,7 @@ func _warehouse_toggle_stand(title: String):
 			game.refresh_camp_display_stand()
 		wh_status_label.text = ("★ 已将【%s】摆上营地 3D 奇珍展台（自动锁存）！" if bool(res.get("pinned", false)) else "已将【%s】从营地 3D 展台撤下。") % title
 	elif str(res.get("reason", "")) == "full":
-		wh_status_label.text = "营地 3D 展台已满 4 槽！请先撤下 1 件展品后再上架【%s】。" % title
+		wh_status_label.text = "营地 3D 展台已满 %d 槽！请先撤下 1 件展品（或在商店扩容至 8 槽）后再上架【%s】。" % [game.rules.max_display_stand(), title]
 	_refresh_warehouse_ui()
 	game._refresh_menu()
 
@@ -855,7 +906,7 @@ func _refresh_warehouse_ui():
 	wh_sell_junk_btn.text = "一键售杂物 (%d件·+%d币)" % [junk_n, junk_val]
 	wh_sell_junk_btn.disabled = (junk_n == 0)
 	wh_stats_label.text = "库存总计 %d 件（已锁存 %d 件 · 营地3D展台 %d/%d 槽）  |  未锁可售估值 %d 币  |  当前游戏货币 %d 币" % [
-		wh.size(), game.rules.locked_warehouse_count(), stand_cnt, game.Rules.MAX_DISPLAY_STAND,
+		wh.size(), game.rules.locked_warehouse_count(), stand_cnt, game.rules.max_display_stand(),
 		game.rules.unlocked_warehouse_value(), game.rules.profile.coins
 	]
 

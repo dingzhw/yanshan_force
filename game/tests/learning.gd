@@ -86,6 +86,7 @@ func run():
 	verify(game.rules.profile.mastery[sentence.id].seen == 2, "independent spellings advance seen as well as correct")
 
 	var low_signal_term: Dictionary = game.words[-1]
+	game.rules.profile.mastery.erase(low_signal_term.id)
 	learning.record_recognition(low_signal_term.id, true, 1, false)
 	verify(game.rules.profile.mastery[low_signal_term.id].last_choice_count == 1 and not game.rules.profile.mastery[low_signal_term.id].has("independent_correct"), "single-option hit carries no independent mastery credit")
 
@@ -218,7 +219,7 @@ func run():
 		for item in game.Rules.LOOT_TABLE[r_tier]:
 			if not game.voice_manifest.has(game.normalize_voice_key(str(item.get("en", "")))):
 				missing_loot_voice += 1
-	verify(game.voice_manifest.size() >= 275 and missing_word_voice == 0 and missing_sent_voice == 0 and missing_loot_voice == 0, "offline voice manifest covers 100%% of 175 words, 16 sentences, and all 64 loot names (%d entries)" % game.voice_manifest.size())
+	verify(game.voice_manifest.size() >= 325 and missing_word_voice == 0 and missing_sent_voice == 0 and missing_loot_voice == 0, "v0.8.6 offline voice manifest covers 100%% of 175 words, 16 sentences, and all 108 loot names (%d entries)" % game.voice_manifest.size())
 	var prev_tts := str(game.tts_voice_id)
 	game.tts_voice_id = ""
 	var has_no_os_tts: bool = game.has_english_voice("Dragon Boat Festival") and game.has_english_voice("put ... in order") and game.has_english_voice("Children’s Day")

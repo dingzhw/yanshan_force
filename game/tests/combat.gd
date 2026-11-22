@@ -595,12 +595,23 @@ func run():
 			all_five_intact = false
 	verify(boss.overlord_seq_step == 0 and boss.hp == 500 and all_five_intact, "v0.8.2 #12: shooting out-of-order shield resets Overlord HP to 500/500 and restores/reshuffles all 5 shields")
 
-	# Step 3: Break all 5 shields in strict 1->5 order -> Overlord defeated + overlord_1 achievement unlocked!
+	# Step 3: Break all 5 Round-1 shields in strict 1->5 order -> transitions cleanly to Round 2 (3 fast-orbiting golden shields), then break all 3 Round-2 shields -> Overlord defeated + overlord_1 unlocked!
 	for _os in 5:
 		var req_s: int = boss.expected_overlord_slot()
-		shoot(game.player.camera.global_position, boss.multi_shields[req_s].area.global_position)
+		var sp1: Vector3 = boss.multi_shields[req_s].area.global_position
+		var od1: Vector3 = Vector3(sp1.x - boss.global_position.x, 0.0, sp1.z - boss.global_position.z)
+		od1 = od1.normalized() if od1.length() > 0.1 else Vector3.BACK
+		shoot(sp1 + od1 * 3.2, sp1)
 		await frames(1)
-	verify(boss.defeated and game.rules.boss_defeated and game.achievements.is_unlocked("overlord_1"), "v0.8.2 #12: breaking all 5 shields in strict 1->5 order defeats Skyfall Overlord and unlocks overlord_1 achievement")
+	verify(not boss.defeated and boss.overlord_round == 2 and boss.hp == 300 and boss.overlord_orbit_active, "v0.8.6: clearing Round-1 5 shields advances Skyfall Overlord to Round 2 (300 HP, 3 orbiting shields)")
+	for _os2 in 3:
+		var req_s2: int = boss.expected_overlord_slot()
+		var sp2: Vector3 = boss.multi_shields[req_s2].area.global_position
+		var od2: Vector3 = Vector3(sp2.x - boss.global_position.x, 0.0, sp2.z - boss.global_position.z)
+		od2 = od2.normalized() if od2.length() > 0.1 else Vector3.BACK
+		shoot(sp2 + od2 * 3.2, sp2)
+		await frames(1)
+	verify(boss.defeated and game.rules.boss_defeated and game.achievements.is_unlocked("overlord_1"), "v0.8.6: breaking Round-1 (5 shields) + Round-2 (3 orbiting shields) defeats Skyfall Overlord and unlocks overlord_1 achievement")
 
 	# Finish Wave 1 remaining guards, then verify Wave 2 spawns WITHOUT Boss, then clear Waves 2 & 3!
 	var checked_wave2_no_boss := false
@@ -632,9 +643,12 @@ func run():
 	for b_entry in game.rules.bag:
 		if str(b_entry.get("title", "")).contains("统领黄金核心"):
 			boss_core_val = int(b_entry.get("value", 0))
+	while game.rules.score < game.rules.extraction_score_required():
+		game.rules.open_question()
+		game.rules.answer(true)
 	verify(
-		game.rules.boss_defeated and boss_core_val == 621 and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= 2 and game.rules.score >= game.Rules.EXTRACTION_SCORE and game.rules.can_extract(),
-		"clearing 2 camps (3 waves each) + defeating Zone-B Boss (621 Confidential T6 core) + >=260 pts unlocks extraction"
+		game.rules.boss_defeated and boss_core_val == 621 and game.combat.zone_cleared.get(2, false) and game.rules.outposts_cleared >= 2 and game.rules.score >= game.rules.extraction_score_required() and game.rules.can_extract(),
+		"clearing 2 camps (3 waves each) + defeating Zone-B Boss (621 Confidential T6 core) + >=520 pts unlocks Confidential extraction"
 	)
 
 	game.rules.add_loot("前哨战利品", 82, 3)
@@ -777,9 +791,9 @@ func run():
 	var b_flank_blocked: bool = not game.combat.clear_shot(game.Layout.on_ground(b_flank - Vector3(0, 0, 1.42)))
 	verify(b_non_boss != null and b_non_boss.shield_area.position.y >= 1.33 and b_flank_blocked, "Camp 2 B-Zone shares unified elevated word shields and tall outer flank cover")
 
-	# 11. v0.8.2_dev2 D2-1/D2-2/D2-4/D2-5: Strengthened Normal Boss (720 HP + mortar barrage), 5-hit Normal melee, Auto-Speak on word switch & Cave Warden (620/960 HP + sonic retaliation)
+	# 11. v0.8.6 Normal Mode Boss 3-Phase Multi-Shield Tactical Duel + Anti-Crouch-Snipe Cave Warden (Normal & Confidential)!
 	var norm_boss = game.combat.boss_unit
-	verify(is_instance_valid(norm_boss) and not norm_boss.is_skyfall_overlord and norm_boss.hp == 720, "v0.8.2_dev2 D2-2: Normal Operation Mistbound Vanguard Boss upgraded to 720 HP")
+	verify(is_instance_valid(norm_boss) and not norm_boss.is_skyfall_overlord and norm_boss.hp == 600 and norm_boss.vanguard_shields.size() == 3, "v0.8.6: Normal Mode Boss '雾隐先锋·铁面词卫' spawns with 600 HP and 3-slot Vanguard Word-Shield Matrix")
 	# Engage Zone 2 in Normal mode and verify Boss mortar barrage spawns a red danger ring + D2-5 auto-speak on prompt switch
 	game.combat.engage_camp(2)
 	var switched_en: String = str(game.question.get("english", ""))
@@ -790,25 +804,57 @@ func run():
 	var pre_rings: int = game.combat.danger_rings.size()
 	game.combat.boss_barrage_cd = 0.02
 	game.combat.update(0.05)
-	verify(game.combat.danger_rings.size() > pre_rings, "v0.8.2_dev2 D2-2: Normal Boss fires periodic red danger-ring mortar barrages")
-	# Normal mode melee takes 5 hits on regular soldier & wrong melee triggers immediate counter-bash!
+	verify(game.combat.danger_rings.size() > pre_rings, "v0.8.6: Normal Boss fires periodic red danger-ring mortar barrages")
+	# v0.8.6 Normal Boss Phase 1 -> Capped 1-shot Core Pulse -> Phase 2 Twin Shoulder Shields -> Phase 3 Triple Matrix + Energy Wave!
+	for z2_n in game.combat.troops[2]:
+		z2_n.set_physics_process(false)
+	game.combat.zone_prompt_option[2] = norm_boss.option
+	game.answer_index = norm_boss.option
+	game.question = norm_boss.assigned_word
+	game.combat.prompt_locked_after_wrong = false
+	var pre_p1_hp: int = norm_boss.hp
+	game.combat.hit_bullet(norm_boss.head_area, "", Vector3.ZERO)
+	verify(norm_boss.hp == pre_p1_hp - 150 and norm_boss.boss_core_pulse_shots == 1, "v0.8.6: Phase 1 Normal Boss headshot deals -150 HP and opens strictly 1-shot Bonus Core Pulse")
+	# First core shot deals -45 & closes pulse; second core shot CANNOT spam core!
+	var hp_before_core1: int = norm_boss.hp
+	game.combat.hit_bullet(norm_boss.core_area, "", Vector3.ZERO)
+	verify(norm_boss.hp == hp_before_core1 - 45 and norm_boss.boss_core_pulse_shots == 0, "v0.8.6: single Bonus Core Pulse shot deals -45 HP and immediately closes core")
+	# Force HP across Phase 2 (<=400) -> deploys Twin Shoulder Word Shields + Scout Drones!
+	game.combat.zone_prompt_option[2] = norm_boss.option
+	game.answer_index = norm_boss.option
+	game.question = norm_boss.assigned_word
+	game.combat.hit_bullet(norm_boss.head_area, "", Vector3.ZERO)
+	verify(norm_boss.boss_phase == 2 and norm_boss.vanguard_multi_active() and norm_boss.vanguard_active_count == 2 and norm_boss.vanguard_drones_spawned, "v0.8.6: Normal Boss <=66% HP shifts to Phase 2 Twin Shoulder Word Shields + deploys Scout Drones")
+	# Shooting torso/armor during Phase 2 multi-shield deflects for 0 dmg!
+	var hp_p2_arm: int = norm_boss.hp
+	game.combat.zone_prompt_option[2] = norm_boss.option
+	game.answer_index = norm_boss.option
+	game.question = norm_boss.expected_vanguard_word()
+	game.combat.hit_bullet(norm_boss.head_area, "", Vector3.ZERO)
+	verify(norm_boss.hp == hp_p2_arm, "v0.8.6: Normal Boss Phase 2/3 deflects non-shield shots (0 dmg) forcing true English shield choice")
+	# Shooting WRONG Vanguard decoy shield deals 0 dmg & refreshes word pair!
+	var wrong_v_slot: int = (norm_boss.expected_vanguard_slot() + 1) % 2
+	game.combat.hit_bullet(norm_boss.vanguard_shields[wrong_v_slot].area, "", Vector3.ZERO)
+	verify(norm_boss.hp == hp_p2_arm, "v0.8.6: hitting wrong Vanguard decoy shield deals 0 dmg and refreshes word pair")
+	# Shooting CORRECT Vanguard shield deals damage & pushes into Phase 3 Triple Matrix (<=200 HP) + Energy Wave!
+	var pre_waves: int = game.combat.sword_waves.size()
+	var ok_v_slot: int = norm_boss.expected_vanguard_slot()
+	game.combat.hit_bullet(norm_boss.vanguard_shields[ok_v_slot].area, "", Vector3.ZERO)
+	verify(norm_boss.boss_phase == 1 and norm_boss.vanguard_active_count == 3 and game.combat.sword_waves.size() > pre_waves, "v0.8.6: Normal Boss <=33% HP enters Phase 3 Triple Word-Shield Matrix and launches horizontal Energy Wave")
+	# Restore Normal melee target & verify 5-hit melee + wrong-melee counter-bash cleanly!
+	game.combat.prompt_locked_after_wrong = false
 	var norm_melee_s = null
 	var wrong_melee_s = null
 	for ns in game.combat.troops[2]:
 		if is_instance_valid(ns) and not ns.defeated and ns.archetype != Soldier.Archetype.BOSS_WARDEN:
-			if ns.option == game.answer_index:
+			if norm_melee_s == null:
 				norm_melee_s = ns
 			elif wrong_melee_s == null:
 				wrong_melee_s = ns
-	if norm_melee_s == null:
-		# Pick a distinct non-boss soldier as current prompt for deterministic 5-hit Normal melee verification
-		for ns2 in game.combat.troops[2]:
-			if is_instance_valid(ns2) and not ns2.defeated and ns2.archetype != Soldier.Archetype.BOSS_WARDEN and ns2 != wrong_melee_s:
-				norm_melee_s = ns2
-				game.answer_index = ns2.option
-				game.question = ns2.assigned_word
-				break
 	if norm_melee_s != null:
+		game.combat.zone_prompt_option[2] = norm_melee_s.option
+		game.answer_index = norm_melee_s.option
+		game.question = norm_melee_s.assigned_word
 		norm_melee_s.set_physics_process(false)
 		game.player.reserve_ammo = 10
 		game.combat.health = 100
@@ -832,7 +878,7 @@ func run():
 		game.combat.health = 100
 		game.combat.shield = 30
 		if wrong_melee_s.option == game.answer_index:
-			game.answer_index = (wrong_melee_s.option + 1) % game.combat.troops[2].size()
+			game.answer_index = norm_boss.option
 		game.player.position = wrong_melee_s.position - wrong_melee_s.global_transform.basis.z * 1.35
 		aim.global_position = game.player.position + Vector3(0, 1.58, 0)
 		aim.look_at(wrong_melee_s.global_position + Vector3(0, 1.15, 0))
@@ -844,35 +890,40 @@ func run():
 	cw.reset()
 	var cw_core_shp: SphereShape3D = (cw.core_area.get_child(0) as CollisionShape3D).shape as SphereShape3D
 	var cw_articulated: bool = is_instance_valid(cw.body_mesh) and is_instance_valid(cw.arm_left_pivot) and is_instance_valid(cw.arm_right_pivot) and is_instance_valid(cw.head_crest)
-	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 280 and cw_articulated and is_equal_approx(cw_core_shp.radius, 0.30), "v0.8.5: Cave Warden loads articulated 4-part Blender rig with compact 0.30m chest core & 280 Normal HP")
-	# Outer camp gunfire (> 15m away) MUST NOT alert Cave Warden!
+	verify(is_instance_valid(cw) and cw.is_alive() and cw.state == "patrol" and cw.hp == 280 and cw_articulated and is_equal_approx(cw_core_shp.radius, 0.30), "v0.8.6: Cave Warden loads articulated 4-part Blender rig with compact 0.30m chest core & 280 Normal HP")
+	# Outer camp gunfire (> 22m away) MUST NOT alert Cave Warden!
 	cw.on_gunshot(cw.root_node.position + Vector3(24.0, 0, 18.0), false)
-	verify(cw.state == "patrol" and cw.noise_meter == 0.0, "v0.8.5: outer camp combat beyond 15m never pulls Cave Warden out of isolated Yanxia Cave ravine")
+	verify(cw.state == "patrol" and cw.noise_meter == 0.0 and not cw.shot_origin_active, "v0.8.6: outer camp combat beyond 22m never pulls Cave Warden out of isolated Yanxia Cave ravine")
 	cw.register_noise(cw.root_node.position + Vector3(0, 0, 6.0), 4.0)
-	verify(cw.state == "patrol", "v0.8.5: quiet stealth keeps Cave Warden unalerted")
+	verify(cw.state == "patrol", "v0.8.6: quiet stealth keeps Cave Warden unalerted")
 	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 4.0), false)
 	cw.on_gunshot(cw.root_node.position + Vector3(0, 0, 4.0), false)
-	verify(cw.state == "hunt" and cw.noise_meter >= 75.0, "v0.8.5: loud gunshots inside Yanxia Cave trigger Cave Warden hunt lock")
-	# Leaving Yanxia Cave immediately cancels hunt & Warden never leaves cave corridor!
+	verify(cw.state == "hunt" and cw.noise_meter >= 75.0, "v0.8.6: loud gunshots inside Yanxia Cave trigger Cave Warden hunt lock")
+	# Leaving Yanxia Cave far away immediately cancels hunt & Warden never leaves cave corridor!
 	game.player.position = game.Layout.on_ground(game.Layout.COMBAT_ZONES[0].at) + Vector3(0, 0.2, 0)
 	cw.update(0.1)
-	verify(cw.state == "patrol" and cw.root_node.position.x >= cw.cave_min_x() and cw.root_node.position.x <= cw.cave_max_x() and cw.root_node.position.z >= cw.cave_min_z() and cw.root_node.position.z <= cw.cave_max_z(), "v0.8.5: leaving Yanxia Cave immediately drops hunt and strictly confines Warden inside cave")
-	# v0.8.5 Core-Hit Redesign: hitting core NEVER stuns -> IMMEDIATELY shields core AND unleashes sonic retaliation!
+	verify(cw.state == "patrol" and cw.root_node.position.x >= cw.cave_min_x() and cw.root_node.position.x <= cw.cave_max_x() and cw.root_node.position.z >= cw.cave_min_z() and cw.root_node.position.z <= cw.cave_max_z(), "v0.8.6: leaving Yanxia Cave immediately drops hunt and strictly confines Warden inside cave")
+	# v0.8.6 Anti-Crouch-Snipe Redesign: core hit NEVER stuns, locks firing spot, raises X-guard, AND fires Focused Anti-Sniper Sonic Lance!
 	cw.reset()
 	var c_cen: Vector3 = game.Layout.YANXIA_CAVE_CENTER
 	var c_fy: float = float(game.Layout.CAVE_FLOOR_Y) + 0.03
 	cw.root_node.position = Vector3(c_cen.x, c_fy, c_cen.z + 2.2)
 	cw.root_node.rotation = Vector3.ZERO
-	game.player.position = Vector3(c_cen.x, c_fy, c_cen.z + 6.8)
+	game.player.position = Vector3(c_cen.x, c_fy, c_cen.z + 9.2) # 7.0m crouch-snipe range (>5.5m)
 	game.player.velocity = Vector3.ZERO
 	game.player.stance = game.player.STANCE_CROUCH
+	game.combat.health = 100
+	game.combat.shield = 30
 	await frames(2)
 	var hp_pre_core: int = cw.hp
-	var pre_retal: int = cw.sonic_retaliation_count
 	cw.hit_bullet(cw.core_area)
 	cw.snap_articulation_for_pose()
-	verify(cw.hp == hp_pre_core - 60 and cw.state == "hunt" and cw.state != "stunned" and cw.guard_arms and cw.guard_area.collision_layer == cw.HIT_LAYER and cw.sonic_retaliation_count == pre_retal + 1 and cw.arm_left_pivot.rotation.y > 0.5 and cw.arm_right_pivot.rotation.y < -0.5, "v0.8.5: hitting Cave Warden core NEVER stuns — immediately raises crossed arm-guard AND fires sonic wave retaliation")
-	# Real 3D frontal raycast while guarding MUST hit guard_area FIRST and deal only 10 chip dmg!
+	verify(cw.hp == hp_pre_core - 60 and cw.state == "hunt" and cw.state != "stunned" and cw.guard_arms and cw.shot_origin_active and cw.lance_state == "charging" and cw.arm_left_pivot.rotation.y > 0.5 and cw.arm_right_pivot.rotation.y < -0.5, "v0.8.6: long-range crouch-snipe on Cave Warden core NEVER stuns — raises X-guard, locks firing spot & charges Focused Sonic Lance")
+	# Staying camped in crouch at the exact firing spot FREEZES stealth disengage at 0.0 AND eats the Focused Sonic Lance!
+	for _camp_t in 12:
+		cw.update(0.10)
+	verify(cw.stealth_quiet_timer == 0.0 and cw.guard_arms and cw.sonic_lance_count >= 1 and (game.combat.shield < 30.0 or game.combat.health < 100), "v0.8.6: stationary crouch-sniping at firing spot freezes stealth disengage and gets punished by Focused Sonic Lance")
+	# Real 3D frontal raycast while guarding hits guard_area FIRST for 10 chip dmg!
 	await frames(2)
 	var hp_pre_guard_ray: int = cw.hp
 	var sp_cw: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
@@ -884,29 +935,34 @@ func run():
 	var guard_blocked_ok: bool = (not cw_hit_guard.is_empty()) and (cw_hit_guard.collider == cw.guard_area)
 	if not cw_hit_guard.is_empty():
 		cw.hit_bullet(cw_hit_guard.collider)
-	verify(guard_blocked_ok and cw.hp == hp_pre_guard_ray - 10 and cw.deflect_flash_left > 0.05, "v0.8.5: frontal 3D raycast aimed at chest core while guarding hits arm-shield guard_area for 10 chip dmg")
-	# v0.8.5 1.5s Stealth Silence Disengage: staying crouched & silent for 1.5s makes Warden give up search & open arms!
+	verify(guard_blocked_ok and cw.hp == hp_pre_guard_ray - 10 and cw.deflect_flash_left > 0.05, "v0.8.6: frontal 3D raycast aimed at chest core while guarding hits arm-shield guard_area for 10 chip dmg")
+	# Now stealth-relocate >= 3.2m laterally away from last_shot_pos -> clears shot lock & 1.5s silence cleanly drops hunt & lowers arms!
+	game.player.position = cw.last_shot_pos + Vector3(3.3, 0.0, 0.0)
 	game.player.stance = game.player.STANCE_CROUCH
 	game.player.velocity = Vector3.ZERO
+	cw.lance_state = "idle"
 	cw.update(0.80)
-	verify(cw.guard_arms and cw.state == "hunt", "v0.8.5: before 1.5s of stealth silence completes, Warden still guards & searches")
+	verify(not cw.shot_origin_active and cw.guard_arms and cw.state == "hunt", "v0.8.6: relocating >2.8m clears shot lock; before 1.5s completes Warden still guards")
 	cw.update(0.80)
 	cw.snap_articulation_for_pose()
 	await frames(2)
+	var cw_q2 := PhysicsRayQueryParameters3D.create(cw.root_node.global_position + Vector3(0.0, 1.56, 3.6), cw.root_node.global_position + Vector3(0.0, 1.56, -0.5), cw.HIT_LAYER)
+	cw_q2.collide_with_areas = true
 	var hp_pre_open_ray: int = cw.hp
-	var cw_hit_open := sp_cw.intersect_ray(cw_q)
+	var cw_hit_open := sp_cw.intersect_ray(cw_q2)
 	var open_hit_core: bool = (not cw_hit_open.is_empty()) and (cw_hit_open.collider == cw.core_area)
 	if not cw_hit_open.is_empty():
 		cw.hit_bullet(cw_hit_open.collider)
-	verify(open_hit_core and cw.hp == hp_pre_open_ray - 60 and cw.guard_arms and cw.state != "stunned", "v0.8.5: 1.5s stealth silence makes Warden abandon search and lower arms -> next core raycast hits for 60 dmg and re-triggers guard")
-	# [G] Smoke helps break sound tracking quickly (NO stun!)
+	verify(open_hit_core and cw.hp == hp_pre_open_ray - 60 and cw.guard_arms and cw.state != "stunned", "v0.8.6: relocating >2.8m + 1.5s silence lowers arms -> next core raycast hits for 60 dmg and re-triggers guard")
+	# [G] Smoke breaks shot lock & accelerates silent disengage (NO stun!)
 	cw.state = "hunt"
 	cw.set_guard_arms(true, 4.0)
+	cw.shot_origin_active = true
 	cw.stealth_quiet_timer = 0.0
 	cw.on_smoke_emp(cw.root_node.position + Vector3(0, 0, 2.0))
-	verify(cw.state != "stunned" and cw.stealth_quiet_timer >= 1.2, "v0.8.5: [G] smoke masks sound and accelerates silent disengage without stunning Warden")
+	verify(cw.state != "stunned" and not cw.shot_origin_active and cw.stealth_quiet_timer >= 1.2, "v0.8.6: [G] smoke clears ballistic lock and accelerates silent disengage without stunning Warden")
 	cw.update(0.35)
-	verify(cw.state == "patrol" and not cw.guard_arms, "v0.8.5: brief silence after [G] smoke drops Warden search and opens arms cleanly")
+	verify(cw.state == "patrol" and not cw.guard_arms, "v0.8.6: brief silence after [G] smoke drops Warden search and opens arms cleanly")
 	var pre_cw_score: int = game.rules.score
 	var pre_drops_cnt: int = game.world_loot.drop_nodes.size()
 	for _cwh in 6:
@@ -914,7 +970,37 @@ func run():
 			break
 		cw.set_guard_arms(false, 0.0)
 		cw.hit_bullet(cw.core_area)
-	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar") and game.world_loot.drop_nodes.size() == pre_drops_cnt + 1, "v0.8.5: core-strike stealth loop defeats Cave Warden cleanly, grants +80 pts/warden_1/charm_sonar & spawns physical relic drop pouch")
+	verify(not cw.is_alive() and game.rules.score >= pre_cw_score + 80 and game.achievements.is_unlocked("warden_1") and game.achievements.is_charm_unlocked("charm_sonar") and game.world_loot.drop_nodes.size() == pre_drops_cnt + 1, "v0.8.6: core-strike stealth loop defeats Cave Warden cleanly, grants +80 pts/warden_1/charm_sonar & spawns physical relic drop pouch")
+	# v0.8.6 Confidential Cave Warden Mechanical Differentiation: 360 HP, Active Echolocation Sweep (caught crouched / evaded prone!) & Enraged Resonance (<45% HP)!
+	game._end_run(false)
+	game.start_action(true, "confidential")
+	await frames(3)
+	cw.reset()
+	cw.root_node.position = Vector3(c_cen.x, c_fy, c_cen.z + 2.2)
+	cw.root_node.rotation = Vector3.ZERO
+	game.player.position = Vector3(c_cen.x, c_fy, c_cen.z + 8.5)
+	game.player.velocity = Vector3.ZERO
+	game.player.stance = game.player.STANCE_CROUCH
+	cw.state = "hunt"
+	cw.echo_sweep_cd = 0.0
+	cw.lance_state = "idle"
+	cw.quake_cd = 9.0
+	cw.update(0.05)
+	verify(cw.hp == 360 and cw.echo_charging, "v0.8.6 Confidential Cave Warden uses mechanical Active Echolocation Sweep (360 HP, not HP sponge)")
+	cw.update(1.25)
+	verify(cw.echo_detected_count >= 1 and cw.shot_origin_active and cw.lance_state == "charging", "v0.8.6 Confidential Active Echolocation detects open crouched player & chains Sonic Lance")
+	# Prone [Z] evades Active Echolocation 100%!
+	game.player.stance = game.player.STANCE_PRONE
+	cw.lance_state = "idle"
+	cw.echo_sweep_cd = 0.0
+	cw.update(0.05)
+	cw.update(1.25)
+	verify(cw.echo_evaded_count >= 1, "v0.8.6 Confidential Active Echolocation is cleanly evaded by [Z] Prone posture")
+	# Dropping <=45% HP triggers Confidential-Exclusive Enraged Resonance!
+	cw.hp = 170
+	cw.set_guard_arms(false, 0.0)
+	cw.hit_bullet(cw.core_area)
+	verify(cw.enraged_resonance, "v0.8.6 Confidential Cave Warden enters Enraged Resonance below 45% HP")
 
 	# 12. v0.8.2_dev1 C2 & C4: Camp Warm-Up zero-contamination, Overlord accurate candidate/help count & Practice Range Cave Warden dormancy!
 	game._end_run(false)
@@ -928,30 +1014,101 @@ func run():
 		game.rules.score == 0 and game.rules.answered == 0 and game.rules.correct == 0 and int(cw_stats.get("total", 0)) >= 1,
 		"v0.8.2_dev1 C4: Camp Station 0 warm-up during Combat leaves combat score/answered/accuracy untouched while logging camp_warmup channel"
 	)
-	# Overlord 5-shield accurate candidate count (5->1) and audio help honesty:
+	# v0.8.6 Flagship Confidential Overlord ("雾隐机关王·玄铁词尊"):
+	# Zero ADS early-drop, <=22m Cloud Arena proximity skyfall, 5-part articulated rig, R1 (500 HP, 5 shields -> last 3 orbit),
+	# R2 (300 HP, 3 fast-orbiting golden shields, 10s countdown), Ultimate「天地万象」Mirror Yanshan crush (Shield->0, HP->10, 4.5s breather -> rearm),
+	# plus accurate 1-of-1 candidate logging (one_choice)!
 	game.start_action(true, "confidential")
 	await frames(4)
-	game.combat.engage_camp(2)
 	var ov_boss = game.combat.boss_unit
+	verify(
+		is_instance_valid(ov_boss) and ov_boss.is_skyfall_overlord and ov_boss.skyfall_state == "idle"
+		and not ov_boss.visible and ov_boss.collision_layer == 0
+		and is_instance_valid(ov_boss.ov_arm_l) and is_instance_valid(ov_boss.ov_arm_r)
+		and is_instance_valid(ov_boss.ov_head) and is_instance_valid(ov_boss.ov_halo),
+		"v0.8.6: Confidential Overlord spawns hidden in clouds with 5-part articulated rig (arms/head/dharma halo)"
+	)
+	# Aiming with ADS from ~44m away (clear of other camps) MUST NOT drop or engage Overlord!
+	var arena_c: Vector3 = game.Layout.CLOUD_ARENA_CENTER
+	game.player.position = game.Layout.on_ground(arena_c + Vector3(36.0, 0.0, 26.0)) + Vector3(0.0, 0.14, 0.0)
+	game.player.aiming = true
+	var d_ov_far: Vector3 = (ov_boss.global_position + Vector3(0, 2.0, 0)) - game.player.camera.global_position
+	game.player.yaw = atan2(-d_ov_far.x, -d_ov_far.z)
+	game.player.pitch = atan2(d_ov_far.y, Vector2(d_ov_far.x, d_ov_far.z).length())
+	await frames(6)
+	verify(game.combat._detect_aimed_camp() != 2 and ov_boss.skyfall_state == "idle" and not ov_boss.visible, "v0.8.6: distant ADS aiming NEVER triggers early Overlord skyfall")
+	game.player.aiming = false
+	# Stepping within <=22m of Cloud-Top Arena triggers proximity skyfall!
+	game.player.position = game.Layout.on_ground(arena_c + Vector3(0.0, 0.0, 14.0)) + Vector3(0.0, 0.14, 0.0)
+	await frames(4)
+	verify(ov_boss.skyfall_state in ["dropping", "landed"] and ov_boss.visible, "v0.8.6: entering <=22m Cloud-Top Arena triggers Overlord skyfall arrival")
 	ov_boss.force_land_skyfall()
-	ov_boss.position = game.Layout.on_ground(game.combat.zone_center(2) + Vector3(0, 0, -2.5))
-	game.player.position = game.Layout.on_ground(game.combat.zone_center(2) + Vector3(0, 0, 6.2)) + Vector3(0, 0.12, 0)
+	ov_boss.position = game.Layout.on_ground(arena_c + Vector3(0.0, 0.0, -2.5))
+	game.player.position = game.Layout.on_ground(arena_c + Vector3(0.0, 0.0, 7.2)) + Vector3(0.0, 0.12, 0.0)
 	await frames(2)
+	verify(ov_boss.overlord_round == 1 and ov_boss.hp == 500 and not ov_boss.overlord_orbit_active, "v0.8.6: Overlord lands in Round 1 (500 HP, 5 word shields)")
+	# Break Round 1 shields 1..5 in exact order; after 2 hits remaining 3 orbit; 5th logs one_choice & enters Round 2!
 	var last_shield_word_id := ""
 	var prev_last_ind := 0
+	var r1_orbit_started := false
 	for step_i in 5:
 		var exp_w: Dictionary = ov_boss.expected_overlord_word()
 		var exp_slot: int = ov_boss.expected_overlord_slot()
 		if step_i == 4:
 			last_shield_word_id = str(exp_w.get("id", ""))
 			prev_last_ind = int(game.rules.profile.mastery.get(last_shield_word_id, {}).get("independent_correct", 0))
-		shoot(game.player.camera.global_position, ov_boss.multi_shields[exp_slot].area.global_position)
+		var sp_r1: Vector3 = ov_boss.multi_shields[exp_slot].area.global_position
+		var od_r1: Vector3 = Vector3(sp_r1.x - ov_boss.global_position.x, 0.0, sp_r1.z - ov_boss.global_position.z)
+		od_r1 = od_r1.normalized() if od_r1.length() > 0.1 else Vector3.BACK
+		shoot(sp_r1 + od_r1 * 3.2, sp_r1)
 		await frames(1)
+		if step_i == 1 and ov_boss.overlord_orbit_active:
+			r1_orbit_started = true
 	var last_entry: Dictionary = game.rules.profile.mastery.get(last_shield_word_id, {})
 	verify(
 		int(last_entry.get("last_choice_count", 0)) == 1 and str(last_entry.get("last_outcome", "")) == "one_choice" and int(last_entry.get("independent_correct", 0)) == prev_last_ind,
 		"v0.8.2_dev1 C4: Overlord final 1-of-1 shield logs choice_count=1 (one_choice) without inflating independent_correct"
 	)
+	verify(
+		r1_orbit_started and not ov_boss.defeated and ov_boss.overlord_round == 2 and ov_boss.hp == 300
+		and ov_boss.overlord_orbit_active and ov_boss.overlord_seq_words.size() == 3 and ov_boss.overlord_r2_timer > 8.0,
+		"v0.8.6: breaking R1 shields activates orbiting after 2 hits and transitions cleanly to Round 2 (300 HP, 3 fast-orbiting golden shields, 10s countdown)"
+	)
+	# Let Round 2 countdown expire -> Ultimate「天地万象」Inverted Mirror Yanshan Mountain descends, crushes Shield->0 & HP->10 (non-lethal!), then 4.5s breather & re-arms R2!
+	game.combat.health = 100
+	game.combat.shield = 60.0
+	ov_boss.overlord_r2_timer = 0.05
+	await frames(6)
+	verify(
+		ov_boss.overlord_ultimate_state == "descending" and is_instance_valid(ov_boss.mirror_mountain_node) and ov_boss.overlord_ultimate_count == 1,
+		"v0.8.6: Round 2 timeout triggers Ultimate「天地万象」and spawns descending Inverted Mirror Yanshan Mountain"
+	)
+	# Fast-forward ultimate impact crush -> verify Shield==0 & HP==10 (non-lethal!)
+	ov_boss.overlord_ultimate_timer = 0.02
+	await frames(4)
+	verify(
+		ov_boss.overlord_ultimate_state == "holding" and game.combat.health == 10 and is_equal_approx(game.combat.shield, 0.0) and game.rules.phase == "active",
+		"v0.8.6: Ultimate「天地万象」impact strips Shield->0 and crushes HP->10 without killing player"
+	)
+	# Fast-forward holding -> lifting -> 4.5s healing breather -> re-arm Round 2
+	ov_boss.overlord_ultimate_timer = 0.02
+	await frames(4)
+	ov_boss.overlord_ultimate_timer = 0.02
+	await frames(4)
+	verify(ov_boss.overlord_ultimate_state == "recovery" and ov_boss.overlord_recovery_left > 3.5, "v0.8.6: Ultimate lifts cleanly into 4.5s healing breather window")
+	ov_boss.overlord_ultimate_timer = 0.02
+	await frames(4)
+	verify(ov_boss.overlord_ultimate_state == "none" and ov_boss.overlord_round == 2 and ov_boss.overlord_r2_timer > 8.5, "v0.8.6: after 4.5s breather, Overlord re-arms Round 2 orbiting shields cleanly")
+	# Break all 3 Round-2 orbiting shields in sequence from clear outward sightline to defeat Overlord!
+	game.combat.health = 100
+	for r2_i in 3:
+		var r2_slot: int = ov_boss.expected_overlord_slot()
+		var sh_pos: Vector3 = ov_boss.multi_shields[r2_slot].area.global_position
+		var out_dir: Vector3 = Vector3(sh_pos.x - ov_boss.global_position.x, 0.0, sh_pos.z - ov_boss.global_position.z)
+		out_dir = out_dir.normalized() if out_dir.length() > 0.1 else Vector3.BACK
+		shoot(sh_pos + out_dir * 3.2, sh_pos)
+		await frames(1)
+	verify(ov_boss.defeated and game.rules.boss_defeated, "v0.8.6: breaking all 3 Round-2 orbiting golden shields defeats Overlord cleanly")
 	# Practice Range keeps Cave Warden dormant and non-interactive:
 	game.start_action(false)
 	await frames(2)

@@ -17,7 +17,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.8.5"
+const VERSION = "0.8.6"
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const WeaponView = preload("res://scripts/weapon.gd")
 const Exploration = preload("res://scripts/exploration.gd")
@@ -151,6 +151,8 @@ var practice_button: Button
 var warehouse_button: Button
 var compendium_button: Button
 var camp_display_stand: Node3D
+var camp_display_upper_shelf: Node3D
+var camp_display_header: Label3D
 var camp_display_slots: Array = []
 var camp_display_clock: float = 0.0
 var combat: Node3D
@@ -600,23 +602,53 @@ func _build_world():
 	add_child(landscape)
 	landscape.setup(self)
 
+func _add_box_collider(parent: Node3D, at: Vector3, dimensions: Vector3):
+	var body := StaticBody3D.new()
+	body.position = at
+	parent.add_child(body)
+	var collision := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = dimensions
+	collision.shape = box
+	body.add_child(collision)
+	return body
+
 func _build_tower(at: Vector3) -> Node3D:
 	var tower = Node3D.new()
+	tower.name = "JiangnanWatchtower"
 	tower.position = at
 	add_child(tower)
-	var steel_mat = StandardMaterial3D.new()
-	steel_mat.albedo_color = Color("526058")
-	steel_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
-	steel_mat.metallic = 0.35
-	steel_mat.roughness = 0.62
-	for x in [-0.9, 0.9]:
-		for z in [-0.9, 0.9]:
-			var leg = _mesh_box(tower, Vector3(x, 3.5, z), Vector3(0.16, 7.0, 0.16), Color("636d61"), true)
-			leg.material_override = steel_mat
-	for y in [1.0, 3.44, 5.86]:
-		var deck = _mesh_box(tower, Vector3(0, y, 0), Vector3(2.1, 0.12, 2.1), Color("4a5a4e"), true)
-		deck.material_override = steel_mat
-	# Exterior spiraling parkour jump catwalk up to Deck 1 (1.06), Deck 2 (3.50) & Summit (5.92), all dy <= 0.63m with ample headroom
+
+	var arch_glb := "res://assets/slice/v086_architecture.glb"
+	var tower_mesh: Mesh = landscape._extract_mesh(arch_glb, "watchtower_jiangnan") if is_instance_valid(landscape) else null
+	var timber_mat = StandardMaterial3D.new()
+	timber_mat.albedo_color = Color("6b4931")
+	timber_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
+	timber_mat.metallic = 0.08
+	timber_mat.roughness = 0.72
+
+	if tower_mesh != null:
+		var visual := MeshInstance3D.new()
+		visual.name = "WatchtowerVisual"
+		visual.mesh = tower_mesh
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		tower.add_child(visual)
+		# Keep exact 4-corner leg & 3-deck physics colliders for Route C parkour & physics.gd raycasts!
+		for x in [-0.9, 0.9]:
+			for z in [-0.9, 0.9]:
+				_add_box_collider(tower, Vector3(x, 3.5, z), Vector3(0.16, 7.0, 0.16))
+		for y in [1.0, 3.44, 5.86]:
+			_add_box_collider(tower, Vector3(0, y, 0), Vector3(2.1, 0.12, 2.1))
+	else:
+		for x in [-0.9, 0.9]:
+			for z in [-0.9, 0.9]:
+				var leg = _mesh_box(tower, Vector3(x, 3.5, z), Vector3(0.16, 7.0, 0.16), Color("636d61"), true)
+				leg.material_override = timber_mat
+		for y in [1.0, 3.44, 5.86]:
+			var deck = _mesh_box(tower, Vector3(0, y, 0), Vector3(2.1, 0.12, 2.1), Color("4a5a4e"), true)
+			deck.material_override = timber_mat
+
+	# Exterior spiraling timber-and-jade parkour catwalk up to Deck 1 (1.06), Deck 2 (3.50) & Summit (5.92), all dy <= 0.63m
 	var steps := [
 		[Vector3(0.0, 0.56, 2.05), Vector2(1.60, 1.45)],
 		[Vector3(2.05, 1.62, 0.25), Vector2(1.45, 1.55)],
@@ -626,18 +658,21 @@ func _build_tower(at: Vector3) -> Node3D:
 		[Vector3(-2.05, 4.70, 1.45), Vector2(1.45, 1.45)],
 		[Vector3(-0.35, 5.32, 2.05), Vector2(1.60, 1.45)]
 	]
+	var step_mat = StandardMaterial3D.new()
+	step_mat.albedo_color = Color("8a5e3d")
+	step_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
+	step_mat.roughness = 0.78
+	step_mat.metallic = 0.04
 	for st_info in steps:
 		var top: Vector3 = st_info[0]
 		var sz: Vector2 = st_info[1]
-		var plat = _mesh_box(tower, Vector3(top.x, top.y - 0.07, top.z), Vector3(sz.x, 0.14, sz.y), Color("806c50"), true)
-		plat.material_override = steel_mat
-		var trim = _mesh_box(tower, Vector3(top.x, top.y - 0.04, top.z), Vector3(sz.x * 0.94, 0.03, sz.y * 0.94), Color("8de8c0"))
-		trim.material_override.roughness = 0.55
-		var bracket = _mesh_box(tower, Vector3(top.x * 0.52, top.y - 0.34, top.z * 0.52), Vector3(0.14, 0.56, 0.14), Color("3c4740"))
-		bracket.material_override = steel_mat
-	_mesh_box(tower, Vector3(-0.78, 7.7, -0.78), Vector3(0.13, 2.6, 0.13), Color("d0c6a5"))
-	_mesh_box(tower, Vector3(-0.78, 7.9, -0.78), Vector3(1.4, 0.08, 0.08), Color("d0c6a5"))
-	var tw_lbl = _label3d(tower, "烟山观察哨 · 登顶寻宝", Vector3(0, 7.2, 0), 43, GOLD)
+		var plat = _mesh_box(tower, Vector3(top.x, top.y - 0.07, top.z), Vector3(sz.x, 0.14, sz.y), Color("7c5538"), true)
+		plat.material_override = step_mat
+		var trim = _mesh_box(tower, Vector3(top.x, top.y - 0.16, top.z), Vector3(sz.x * 0.90, 0.08, sz.y * 0.90), Color("4b3120"))
+		trim.material_override = timber_mat
+		var bracket = _mesh_box(tower, Vector3(top.x * 0.56, top.y - 0.36, top.z * 0.56), Vector3(0.14, 0.54, 0.14), Color("4e3322"))
+		bracket.material_override = timber_mat
+	var tw_lbl = _label3d(tower, "烟山飞檐望楼 · 登顶寻宝", Vector3(0, 9.88, 0), 43, GOLD)
 	tw_lbl.visibility_range_end = 44.0
 	return tower
 
@@ -693,21 +728,32 @@ func _build_camp_display_stand():
 	var crown: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.54, -0.34), Vector3(3.18, 0.05, 0.14), Color("c9a252"), false)
 	crown.material_override = brass_mat
 
-	var header_lbl: Label3D = _label3d(camp_display_stand, "🏆 烟山奇珍 3D 展台（最多陈列 4 件）", Vector3(0, 1.80, -0.20), 28, Color("ffd46e"))
-	header_lbl.pixel_size = 0.0052
-	header_lbl.visibility_range_end = 18.0
+	camp_display_header = _label3d(camp_display_stand, "🏆 烟山奇珍 3D 展台（最多陈列 4 件）", Vector3(0, 1.80, -0.20), 28, Color("ffd46e"))
+	camp_display_header.pixel_size = 0.0052
+	camp_display_header.visibility_range_end = 18.0
+
+	# Expandable upper bogu gallery shelf (slots #5-#8 unlocked via 'display_expand' in Armory!)
+	camp_display_upper_shelf = Node3D.new()
+	camp_display_upper_shelf.name = "UpperGalleryShelf"
+	camp_display_stand.add_child(camp_display_upper_shelf)
+	var upper_board: MeshInstance3D = _mesh_box(camp_display_upper_shelf, Vector3(0, 1.56, -0.18), Vector3(3.16, 0.06, 0.48), Color("3a241b"), false)
+	upper_board.material_override = wood_mat
+	var upper_trim: MeshInstance3D = _mesh_box(camp_display_upper_shelf, Vector3(0, 1.595, -0.18), Vector3(3.20, 0.03, 0.52), Color("c9a252"), false)
+	upper_trim.material_override = brass_mat
 
 	camp_display_slots.clear()
 	var x_offsets := [-1.08, -0.36, 0.36, 1.08]
-	for i in Rules.MAX_DISPLAY_STAND:
+	for i in 8:
+		var is_upper: bool = i >= 4
+		var col_i: int = i % 4
 		var slot_root := Node3D.new()
-		slot_root.position = Vector3(x_offsets[i], 0.88, 0.04)
-		camp_display_stand.add_child(slot_root)
+		slot_root.position = Vector3(x_offsets[col_i], 1.61 if is_upper else 0.88, -0.14 if is_upper else 0.04)
+		(camp_display_upper_shelf if is_upper else camp_display_stand).add_child(slot_root)
 
 		var ped := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.25
-		cyl.bottom_radius = 0.28
+		cyl.top_radius = 0.22 if is_upper else 0.25
+		cyl.bottom_radius = 0.25 if is_upper else 0.28
 		cyl.height = 0.06
 		ped.mesh = cyl
 		ped.position.y = 0.03
@@ -716,8 +762,8 @@ func _build_camp_display_stand():
 
 		var ring := MeshInstance3D.new()
 		var tm := TorusMesh.new()
-		tm.inner_radius = 0.23
-		tm.outer_radius = 0.26
+		tm.inner_radius = 0.20 if is_upper else 0.23
+		tm.outer_radius = 0.23 if is_upper else 0.26
 		ring.mesh = tm
 		ring.position.y = 0.062
 		var rmat := StandardMaterial3D.new()
@@ -732,8 +778,8 @@ func _build_camp_display_stand():
 		mount.position.y = 0.075
 		slot_root.add_child(mount)
 
-		var plaque: Label3D = _label3d(slot_root, "空展位 #%d" % (i + 1), Vector3(0, -0.18, 0.39), 18, Color("9ebdb0"))
-		plaque.pixel_size = 0.0036
+		var plaque: Label3D = _label3d(slot_root, "空展位 #%d" % (i + 1), Vector3(0, -0.12 if is_upper else -0.18, 0.27 if is_upper else 0.39), 16 if is_upper else 18, Color("9ebdb0"))
+		plaque.pixel_size = 0.0034 if is_upper else 0.0036
 		plaque.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		plaque.visibility_range_end = 11.0
 		camp_display_slots.append({"root": slot_root, "mount": mount, "ring": ring, "plaque": plaque})
@@ -741,6 +787,12 @@ func _build_camp_display_stand():
 func refresh_camp_display_stand():
 	if camp_display_slots.is_empty():
 		return
+	var limit: int = rules.max_display_stand()
+	if is_instance_valid(camp_display_upper_shelf):
+		camp_display_upper_shelf.visible = limit > 4
+	if is_instance_valid(camp_display_header):
+		camp_display_header.position.y = 2.48 if limit > 4 else 1.80
+		camp_display_header.text = "🏆 烟山奇珍 3D 展台（最多陈列 %d 件）" % limit
 	var stand_titles: Array = rules.profile.get("display_stand", [])
 	for i in camp_display_slots.size():
 		var slot: Dictionary = camp_display_slots[i]
@@ -749,6 +801,8 @@ func refresh_camp_display_stand():
 		var plaque: Label3D = slot.plaque
 		for ch in mount.get_children():
 			ch.queue_free()
+		if i >= limit:
+			continue
 		if i < stand_titles.size():
 			var title_s: String = str(stand_titles[i])
 			var meta: Dictionary = Rules.catalog_meta(title_s)
@@ -1243,13 +1297,22 @@ func _build_ui():
 	_button(armory_panel, "收起", Rect2(1104, 86, 64, 36), func(): armory_panel.hide())
 	sell_button = _button(armory_panel, "出售仓库物资", Rect2(658, 204, 512, 42), _sell, true)
 
+	var shop_scroll := ScrollContainer.new()
+	shop_scroll.position = Vector2(656, 256)
+	shop_scroll.size = Vector2(522, 396)
+	armory_panel.add_child(shop_scroll)
+	var shop_grid := GridContainer.new()
+	shop_grid.columns = 3
+	shop_grid.add_theme_constant_override("h_separation", 8)
+	shop_grid.add_theme_constant_override("v_separation", 8)
+	shop_scroll.add_child(shop_grid)
+
 	for idx in Rules.GUNSMITH_ORDER.size():
 		var id: String = Rules.GUNSMITH_ORDER[idx]
-		var col = idx % 3
-		var row = int(idx / 3)
-		var rect = Rect2(658 + col * 172, 262 + row * 57, 164, 46)
-		shop_buttons[id] = _button(armory_panel, "", rect, _buy.bind(id))
-		shop_buttons[id].add_theme_font_size_override("font_size", 13)
+		var btn: Button = _button(shop_grid, "", Rect2(0, 0, 162, 48), _buy.bind(id))
+		btn.custom_minimum_size = Vector2(162, 48)
+		btn.add_theme_font_size_override("font_size", 12)
+		shop_buttons[id] = btn
 	armory_panel.hide()
 
 	# Review Overlay
@@ -1421,20 +1484,24 @@ func _refresh_menu(result = ""):
 	var eq_muzzle: String = rules.active_muzzle()
 	var eq_grip: String = rules.active_grip()
 	var in_run: bool = rules.phase in ["active", "extracting"]
-	armory_progress.text = "等级 %d · %d/120 XP · 带回大红 %d 件" % [
-		rules.level(), rules.profile.xp % 120, rules.profile.red_extracted
+	armory_progress.text = "等级 %d · %d/120 XP · 大红 %d 件 · 荣誉金杯 %d 座" % [
+		rules.level(), rules.profile.xp % 120, rules.profile.red_extracted, int(rules.profile.get("trophies", 0))
 	]
 
 	for id in shop_buttons:
 		var item = Rules.ITEMS[id]
 		var slot = str(item.get("slot", ""))
 		var is_mod: bool = slot in ["optic", "muzzle", "grip"]
+		var is_rep: bool = id in Rules.REPEATABLE_ITEMS
 		var owned = id in rules.profile.owned
 		var equipped_now: bool = is_mod and ((slot == "optic" and eq_optic == id) or (slot == "muzzle" and eq_muzzle == id) or (slot == "grip" and eq_grip == id))
 		var prereq_missing = (id == "magazine2" and not ("magazine" in rules.profile.owned))
 		var suffix = ""
 		if id == "reward_point":
 			suffix = "%d币兑" % item.cost
+		elif id == "honor_trophy":
+			var tr_n: int = int(rules.profile.get("trophies", 0))
+			suffix = ("已藏%d·%d币" % [tr_n, item.cost]) if tr_n > 0 else ("%d币" % item.cost)
 		elif equipped_now:
 			suffix = "已装配"
 		elif owned and is_mod:
@@ -1448,7 +1515,7 @@ func _refresh_menu(result = ""):
 		shop_buttons[id].text = "%s\n%s" % [item.title.split(" · ")[0], suffix]
 		shop_buttons[id].tooltip_text = item.title
 		var can_click: bool = false
-		if id == "reward_point":
+		if is_rep:
 			can_click = not in_run and rules.profile.coins >= item.cost
 		elif owned and is_mod:
 			can_click = not in_run
@@ -1480,7 +1547,7 @@ func _sell():
 func _buy(id: String):
 	var item = Rules.ITEMS.get(id, {})
 	var slot = str(item.get("slot", ""))
-	if id != "reward_point" and id in rules.profile.owned and slot in ["optic", "muzzle", "grip"]:
+	if not (id in Rules.REPEATABLE_ITEMS) and id in rules.profile.owned and slot in ["optic", "muzzle", "grip"]:
 		if rules.equip_attachment(slot, id):
 			play_sfx("weapon_change", -12)
 			_save()
@@ -1489,12 +1556,16 @@ func _buy(id: String):
 			menu_status.text = ("已装配配件：" if now_eq else "已卸下配件：") + item.title
 		return
 	if rules.purchase(id):
-		play_sfx("loot_epic" if id == "reward_point" else "cipher_unlock", -11)
+		play_sfx("loot_epic" if (id in Rules.REPEATABLE_ITEMS or id == "display_expand" or id == "safebox_upgrade") else "cipher_unlock", -11)
 		_save()
+		if id == "display_expand":
+			refresh_camp_display_stand()
 		_refresh_menu()
 		menu_status.text = "已解锁装备：" + item.title
 		if id == "reward_point":
 			menu_status.text += "（线下奖励可与爸爸妈妈核对兑现！）"
+		elif id == "honor_trophy":
+			menu_status.text = "🏆 荣获【烟山荣誉金杯】！（累计收藏 %d 座，致敬资深烟山探险家！）" % int(rules.profile.get("trophies", 0))
 
 func _build_weighted_queue() -> Array:
 	return SrsScheduler.build_session_queue(rules.profile, pool)
@@ -2110,11 +2181,11 @@ func _process(delta):
 		unit_label.text = prologue.current_subhint_text()
 	elif rules.combat_mode:
 		stat_label.text = "积分 %03d/%d  |  正确率 %d%%  |  %02d:%02d%s" % [
-			rules.score, Rules.EXTRACTION_SCORE, roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
+			rules.score, rules.extraction_score_required(), roundi(rules.accuracy() * 100), int(time_left) / 60, int(time_left) % 60, streak_str
 		]
 		var outpost_part = "营地 %d/6(需2) · 密钥 %d/1" % [rules.outposts_cleared, 1 if rules.boss_defeated else 0]
 		var extract_part = "信标已就绪" if rules.can_extract() else _extraction_blocker_short()
-		var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
+		var eco_part = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/12 · 奇植 0/12"
 		mission_label.text = "%s · 箱 %d/%d · 撤离：%s\n%s · %s" % [
 			outpost_part, rules.crates.size(), crate_nodes.size(), extract_part, exploration.status_text(), eco_part
 		]
@@ -2123,7 +2194,7 @@ func _process(delta):
 		stat_label.text = "已答 %d 题  |  正确率 %d%%  |  积分 %d%s" % [
 			rules.answered, roundi(rules.accuracy() * 100), rules.score, streak_str
 		]
-		var eco_part_p = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/8 · 奇植 0/8"
+		var eco_part_p = wildlife.status_badge() if is_instance_valid(wildlife) else "生灵 0/12 · 奇植 0/12"
 		mission_label.text = "自由靶场 · 纯识词练枪（无物资 / 无首领 / 无战绩成就）\n%s · %s" % [
 			exploration.status_text(), eco_part_p
 		]
@@ -2133,7 +2204,7 @@ func _process(delta):
 	if rules.prologue_mode:
 		bag_label.text = "序章行囊 · 专注路线、识词与望稻亭信标调查 [J]"
 	elif rules.can_loot():
-		bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), Rules.SAFE_BOX_SLOTS, rules.total_carried_value()]
+		bag_label.text = "背包 %d/%d · 🔒安全箱 %d/%d · %d币 [B] [I]" % [rules.bag.size(), rules.capacity(), rules.safe_box.size(), rules.safe_box_slots(), rules.total_carried_value()]
 	else:
 		bag_label.text = "自由靶场 · 纯射击识词训练（不可搜集物资）"
 	_refresh_bag_pills()
@@ -2168,7 +2239,7 @@ func _update_ranger_skill_hud():
 	if not is_instance_valid(skill_panel) or not is_instance_valid(rangers):
 		return
 	var ar: Dictionary = rangers.active_ranger()
-	var cd_max: float = maxf(1.0, float(ar.skill_cooldown))
+	var cd_max: float = maxf(1.0, rangers.effective_skill_cooldown())
 	var cd_left: float = float(rangers.skill_cooldown_left)
 	var ready_now: bool = cd_left <= 0.001
 	var frac: float = 1.0 if ready_now else clampf(1.0 - (cd_left / cd_max), 0.0, 1.0)
@@ -2211,8 +2282,9 @@ func _update_prompt_timer_bar():
 		prompt_timer_fill.color = Color("ff5c66") if left <= 2.8 else (GOLD if left <= 5.0 else MINT)
 
 func _extraction_blocker_short() -> String:
-	if rules.score < Rules.EXTRACTION_SCORE:
-		return "差%d分" % (Rules.EXTRACTION_SCORE - rules.score)
+	var req_sc: int = rules.extraction_score_required()
+	if rules.score < req_sc:
+		return "差%d分" % (req_sc - rules.score)
 	if rules.combat_mode and not rules.boss_defeated:
 		return "需败B区首领"
 	if rules.combat_mode and rules.outposts_cleared < 2:
@@ -2277,8 +2349,9 @@ func _update_combat_hud():
 
 func _extraction_blocker_text() -> String:
 	var missing := []
-	if rules.score < Rules.EXTRACTION_SCORE:
-		missing.append("还差 %d 积分（%d/%d）" % [Rules.EXTRACTION_SCORE - rules.score, rules.score, Rules.EXTRACTION_SCORE])
+	var req_sc: int = rules.extraction_score_required()
+	if rules.score < req_sc:
+		missing.append("还差 %d 积分（%d/%d）" % [req_sc - rules.score, rules.score, req_sc])
 	if rules.combat_mode and rules.outposts_cleared < 2:
 		missing.append("需攻克至少 2 处前哨（%d/2）" % rules.outposts_cleared)
 	if rules.combat_mode and not rules.boss_defeated:

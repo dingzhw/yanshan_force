@@ -88,6 +88,7 @@ var zone_respawn_grace = {}
 var zone_reinforce_left = {}
 var smoke_zones = []
 var danger_rings = []
+var sword_waves = []
 var boss_barrage_cd: float = 4.5
 var active_attacker = null
 var active_attacker_idle: float = 0.0
@@ -134,6 +135,7 @@ func begin():
 	last_attacker_option = -1
 	smoke_zones.clear()
 	danger_rings.clear()
+	sword_waves.clear()
 	boss_barrage_cd = 4.5
 	shot_rng.randomize()
 	_deploy()
@@ -168,6 +170,7 @@ func stop():
 	last_attacker_option = -1
 	smoke_zones.clear()
 	danger_rings.clear()
+	sword_waves.clear()
 	boss_barrage_cd = 4.5
 	camp_covers.clear()
 	camp_outer_anchors.clear()
@@ -500,7 +503,7 @@ func _pick_zone_prompt_option(z_idx: int, avoid_option: int = -1) -> int:
 		zone_prompt_option.erase(z_idx)
 		return -1
 	var candidates := alive
-	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.exposed_left > 0.0 and alive.size() > 1:
+	if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.exposed_left > 0.0 and not boss_unit.vanguard_multi_active() and alive.size() > 1:
 		var non_boss := []
 		for s in alive:
 			if s != boss_unit:
@@ -530,7 +533,7 @@ func _get_zone_prompt_soldier(z_idx: int):
 	var want_opt := int(zone_prompt_option.get(z_idx, -1))
 	for s in alive:
 		if s.option == want_opt:
-			if z_idx == 2 and s == boss_unit and boss_unit.exposed_left > 0.0 and alive.size() > 1:
+			if z_idx == 2 and s == boss_unit and boss_unit.exposed_left > 0.0 and not boss_unit.vanguard_multi_active() and alive.size() > 1:
 				break
 			return s
 	var picked_opt := _pick_zone_prompt_option(z_idx, -1)
@@ -541,6 +544,12 @@ func _get_zone_prompt_soldier(z_idx: int):
 
 func _reroll_soldier_word(z_idx: int, soldier):
 	if not is_instance_valid(soldier) or soldier.defeated:
+		return
+	if soldier.vanguard_multi_active():
+		var slots := 3 if soldier.boss_phase == 1 else 2
+		soldier.configure_vanguard_shields(_build_wave_words(slots), slots)
+		if wave_words.has(z_idx) and soldier.option < wave_words[z_idx].size():
+			wave_words[z_idx][soldier.option] = soldier.expected_vanguard_word()
 		return
 	var old_en := str(soldier.assigned_word.get("english", "")).to_lower()
 	var fresh := _pick_seed_word()
@@ -566,10 +575,15 @@ func _sync_active_prompt_from_zone(z_idx: int, reset_timer: bool = false) -> boo
 	if not is_instance_valid(chosen):
 		return false
 	var alive := living_soldiers(z_idx)
+	if z_idx == 2 and chosen == boss_unit and not chosen.is_skyfall_overlord and alive.size() == 1 and not chosen.vanguard_multi_active():
+		var solo_slots := 3 if chosen.boss_phase == 1 else 2
+		chosen.configure_vanguard_shields(_build_wave_words(solo_slots), solo_slots)
+		if wave_words.has(z_idx) and chosen.option < wave_words[z_idx].size():
+			wave_words[z_idx][chosen.option] = chosen.expected_vanguard_word()
 	game.choices = wave_words.get(z_idx, [])
 	game.answer_index = chosen.option
-	game.question = chosen.assigned_word
-	prompt_choice_count = alive.size()
+	game.question = chosen.expected_vanguard_word() if chosen.vanguard_multi_active() else chosen.assigned_word
+	prompt_choice_count = maxi(alive.size(), chosen.vanguard_active_count if chosen.vanguard_multi_active() else 1)
 	if reset_timer:
 		prompt_timer_max = prompt_timeout_limit()
 		prompt_timer_left = prompt_timer_max
@@ -591,11 +605,17 @@ func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_exist
 		chosen = _get_zone_prompt_soldier(z_idx)
 	if not is_instance_valid(chosen):
 		return false
+	# v0.8.6 Normal Mode Boss: never degenerate into a lone 1-word punching bag!
+	if z_idx == 2 and chosen == boss_unit and not chosen.is_skyfall_overlord and alive.size() == 1 and not chosen.vanguard_multi_active():
+		var solo_slots := 3 if chosen.boss_phase == 1 else 2
+		chosen.configure_vanguard_shields(_build_wave_words(solo_slots), solo_slots)
+		if wave_words.has(z_idx) and chosen.option < wave_words[z_idx].size():
+			wave_words[z_idx][chosen.option] = chosen.expected_vanguard_word()
 	game.choices = wave_words[z_idx]
 	game.answer_index = chosen.option
-	game.question = chosen.assigned_word
+	game.question = chosen.expected_vanguard_word() if chosen.vanguard_multi_active() else chosen.assigned_word
 	wrong_attempts_on_current = 0
-	prompt_choice_count = alive.size()
+	prompt_choice_count = maxi(alive.size(), chosen.vanguard_active_count if chosen.vanguard_multi_active() else 1)
 	first_choice_recorded = false
 	first_choice_independent = false
 	prompt_locked_after_wrong = false
@@ -671,14 +691,20 @@ func _detect_aimed_camp() -> int:
 	if not hit.is_empty():
 		var direct_s = _resolve_soldier_node(hit.collider)
 		if direct_s is Soldier and not direct_s.defeated and not zone_cleared.get(direct_s.zone, false) and float(zone_reinforce_left.get(direct_s.zone, 0.0)) <= 0.0:
-			var max_r: float = zone_sniper_range(direct_s.zone)
-			if from.distance_to(hit.position) <= max_r:
-				return direct_s.zone
+			if direct_s.is_skyfall_overlord and direct_s.skyfall_state == "idle":
+				pass
+			else:
+				var max_r: float = zone_sniper_range(direct_s.zone)
+				if from.distance_to(hit.position) <= max_r:
+					return direct_s.zone
 	# 2) Tight ADS angular cone (~15 deg) with terrain/obstacle LOS check within each camp's 3x-aggro sniper range
 	var best_z := -1
 	var best_dot: float = 0.965
 	for z_idx in game.Layout.COMBAT_ZONES.size():
 		if zone_cleared.get(z_idx, false) or float(zone_reinforce_left.get(z_idx, 0.0)) > 0.0:
+			continue
+		# v0.8.6 Fix: Never ADS-preview or trigger hidden sky Confidential Overlord before physical <=22m arena entry!
+		if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
 			continue
 		var alive := living_soldiers(z_idx)
 		if alive.is_empty():
@@ -783,6 +809,9 @@ func disengage_active_camp(announce: bool = true):
 	for s in troops.get(old_z, []):
 		if is_instance_valid(s) and not s.defeated:
 			s.action = Soldier.Action.PATROL
+			if s.is_skyfall_overlord and s.has_method("_cleanup_ultimate_nodes"):
+				s._cleanup_ultimate_nodes()
+				s.overlord_ultimate_state = "none"
 			s.laser_beam.hide()
 			# v0.8.1 #3: Keep English word shields visible even when returning to standby so distant sniping stays clear!
 			s.show_word(str(s.assigned_word.get("english", "")), false)
@@ -881,28 +910,54 @@ func update(delta: float):
 				dr.node.queue_free()
 			danger_rings.remove_at(i)
 
+	# v0.8.6 Overlord Earth-Splitting Sword Waves ("裂地剑气")
+	for i in range(sword_waves.size() - 1, -1, -1):
+		var sw = sword_waves[i]
+		sw.left -= delta
+		sw.pos += sw.dir * float(sw.speed) * delta
+		sw.pos.y = float(game.Layout.fast_height(sw.pos.x, sw.pos.z)) + 0.55
+		if is_instance_valid(sw.node):
+			sw.node.position = sw.pos
+		if not bool(sw.hit_player) and is_instance_valid(game.player):
+			var d_xz := Vector2(game.player.position.x - sw.pos.x, game.player.position.z - sw.pos.z).length()
+			var d_y := absf(game.player.position.y - (sw.pos.y - 0.55))
+			if d_xz <= 1.75 and d_y <= 1.55:
+				sw.hit_player = true
+				apply_player_damage(int(sw.damage))
+				game._notice("⚔ 被玄铁词尊【裂地剑气】斩中！横向冲刺躲开剑气轨迹！", Color("ff7070"))
+		if sw.left <= 0.0:
+			if is_instance_valid(sw.node):
+				sw.node.queue_free()
+			sword_waves.remove_at(i)
+
 	if is_instance_valid(game.exploration) and game.exploration.safe():
 		if zone >= 0:
 			disengage_active_camp(false)
 		return
 
 	if zone >= 0 and is_zone_engaged(zone):
+		# v0.8.6: Stepping physically onto Cloud-Top Martial Arena (<=22m) ALWAYS hands priority to Confidential Skyfall Overlord!
+		if zone != 2 and not zone_cleared.get(2, false) and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
+			var arena_c_ov: Vector3 = game.Layout.CLOUD_ARENA_CENTER
+			if Vector2(game.player.position.x - arena_c_ov.x, game.player.position.z - arena_c_ov.z).length() <= Soldier.OVERLORD_TRIGGER_RADIUS:
+				engage_camp(2, true)
+				return
 		if living_soldiers(zone).is_empty():
 			_complete_current_wave(zone)
 			return
-		# v0.8.2_dev2 D2-2: Periodic Boss Mortar Barrage (red danger rings) so B-Zone Boss is genuinely threatening!
-		if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and not boss_unit.is_skyfall_overlord and boss_unit.stun_left <= 0.0 and not player_in_smoke():
+		# v0.8.6 Normal Mode Boss Mortar Barrage (balanced with Shield-Charge Slam & Energy Wave!)
+		if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and not boss_unit.is_skyfall_overlord and boss_unit.stun_left <= 0.0 and boss_unit.vanguard_move_state == "idle" and not player_in_smoke():
 			boss_barrage_cd -= delta
 			if boss_barrage_cd <= 0.0:
-				boss_barrage_cd = 4.2 if game.rules.is_confidential() else 5.5
-				var b_dmg := 38 if game.rules.is_confidential() else 28
+				boss_barrage_cd = 4.6 if game.rules.is_confidential() else 6.2
+				var b_dmg := 34 if game.rules.is_confidential() else 22
 				if is_instance_valid(game.player):
 					spawn_danger_ring(game.player.position, 3.4, b_dmg)
 					if boss_unit.boss_phase <= 2:
 						var pvel: Vector3 = game.player.get_real_velocity()
 						var lead := Vector3(pvel.x, 0.0, pvel.z)
 						var offset := lead.normalized() * 3.8 if lead.length() > 0.6 else Vector3(3.6, 0.0, 0.0)
-						spawn_danger_ring(game.player.position + offset, 3.0, maxi(20, b_dmg - 4))
+						spawn_danger_ring(game.player.position + offset, 3.0, maxi(18, b_dmg - 2))
 		# v0.8.1 #4: Unanswered combat question countdown (Normal 10s / Confidential 7s)
 		if prompt_reveal_left <= 0.0 and game.rules.question_open:
 			prompt_timer_left = maxf(0.0, prompt_timer_left - delta)
@@ -941,6 +996,13 @@ func update(delta: float):
 		if float(zone_respawn_grace.get(z_idx, 0.0)) > 0.0:
 			continue
 		if living_soldiers(z_idx).is_empty():
+			continue
+		if z_idx == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
+			var arena_c: Vector3 = game.Layout.CLOUD_ARENA_CENTER
+			var d_arena := Vector2(game.player.position.x - arena_c.x, game.player.position.z - arena_c.z).length()
+			if d_arena <= Soldier.OVERLORD_TRIGGER_RADIUS and d_arena < nearest:
+				nearest = d_arena
+				pull_idx = z_idx
 			continue
 		var d := _camp_pull_distance(z_idx)
 		if d <= zone_aggro(z_idx) and d < nearest:
@@ -1041,24 +1103,38 @@ func show_question():
 
 	var overlord_active: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord)
 	if overlord_active and prompt_reveal_left <= 0.0:
-		var exp_w: Dictionary = boss_unit.expected_overlord_word()
-		if not exp_w.is_empty():
-			game.question = exp_w
-			game.question_label.text = "【第 %d/5 盾】%s" % [boss_unit.overlord_seq_step + 1, str(exp_w.get("chinese", ""))]
+		if boss_unit.overlord_ultimate_state in ["descending", "holding", "lifting"]:
+			game.question_label.text = "☄ 终极技【天地万象】压顶合拢！！"
 			if is_instance_valid(game.cloze_label):
-				var seq_parts: Array = []
-				for si in boss_unit.overlord_seq_words.size():
-					var raw_zh := str(boss_unit.overlord_seq_words[si].get("chinese", ""))
-					var short_zh := raw_zh.split("；")[0].split(";")[0].split("，")[0].split(",")[0].strip_edges()
-					if short_zh.length() > 4:
-						short_zh = short_zh.substr(0, 4)
-					if si < boss_unit.overlord_seq_step:
-						seq_parts.append("✓%s" % short_zh)
-					elif si == boss_unit.overlord_seq_step:
-						seq_parts.append("▶%s" % short_zh)
-					else:
-						seq_parts.append("%d.%s" % [si + 1, short_zh])
-				game.cloze_label.text = "顺序：" + " → ".join(seq_parts)
+				game.cloze_label.text = "倒悬镜像烟山降临演武坛 · 准备迎接重压后迅速治疗！"
+		elif boss_unit.overlord_ultimate_state == "recovery":
+			game.question_label.text = "💊 喘息回血窗 %.1fs · 速按 [H]医疗包 / [T]能量饮！" % boss_unit.overlord_recovery_left
+			if is_instance_valid(game.cloze_label):
+				game.cloze_label.text = "玄铁词尊力竭跪地 · 即将重启第二轮 3 面高速旋转金盾！"
+		else:
+			var exp_w: Dictionary = boss_unit.expected_overlord_word()
+			var tot_sh: int = maxi(1, boss_unit.overlord_seq_words.size())
+			if not exp_w.is_empty():
+				game.question = exp_w
+				if boss_unit.overlord_round >= 2:
+					game.question_label.text = "【二轮 %.1fs · 第 %d/%d 金盾】%s" % [boss_unit.overlord_r2_timer, boss_unit.overlord_seq_step + 1, tot_sh, str(exp_w.get("chinese", ""))]
+				else:
+					var orb_tag := "·公转" if boss_unit.overlord_orbit_active else ""
+					game.question_label.text = "【一轮%s 第 %d/%d 盾】%s" % [orb_tag, boss_unit.overlord_seq_step + 1, tot_sh, str(exp_w.get("chinese", ""))]
+				if is_instance_valid(game.cloze_label):
+					var seq_parts: Array = []
+					for si in boss_unit.overlord_seq_words.size():
+						var raw_zh := str(boss_unit.overlord_seq_words[si].get("chinese", ""))
+						var short_zh := raw_zh.split("；")[0].split(";")[0].split("，")[0].split(",")[0].strip_edges()
+						if short_zh.length() > 4:
+							short_zh = short_zh.substr(0, 4)
+						if si < boss_unit.overlord_seq_step:
+							seq_parts.append("✓%s" % short_zh)
+						elif si == boss_unit.overlord_seq_step:
+							seq_parts.append("▶%s" % short_zh)
+						else:
+							seq_parts.append("%d.%s" % [si + 1, short_zh])
+					game.cloze_label.text = "顺序：" + " → ".join(seq_parts)
 	elif prompt_reveal_left > 0.0:
 		game.question_label.text = "正解：%s — %s" % [str(game.question.get("english", "")), str(game.question.get("chinese", ""))]
 		if is_instance_valid(game.cloze_label):
@@ -1090,10 +1166,20 @@ func show_question():
 		if boss_unit.is_skyfall_overlord:
 			boss_suffix = " | ★词尊 %d/500 (%d/5)" % [boss_unit.hp, boss_unit.overlord_seq_step]
 		else:
-			boss_suffix = " | ★先锋 %d/%d%s" % [boss_unit.hp, boss_unit.max_hp, " (红核!)" if boss_unit.exposed_left > 0 else ""]
+			var v_stage := "三盾困阵" if boss_unit.vanguard_active_count >= 3 else ("双盾择词" if boss_unit.vanguard_active_count == 2 else "先锋")
+			var core_tag := " (红核1枪!)" if (boss_unit.exposed_left > 0.0 and boss_unit.boss_core_pulse_shots > 0) else ""
+			boss_suffix = " | ★铁面%s %d/%d%s" % [v_stage, boss_unit.hp, boss_unit.max_hp, core_tag]
 	var wave_total: int = int(wave_squad_size.get(zone, troops[zone].size()))
 	if overlord_active:
-		game.unit_label.text = "雾隐总坛 · ★玄铁词尊 %d/500 · 顺序盾 %d/5 | [X]读音" % [boss_unit.hp, boss_unit.overlord_seq_step]
+		var tot_s: int = maxi(1, boss_unit.overlord_seq_words.size())
+		if boss_unit.overlord_round >= 2:
+			game.unit_label.text = "云顶总坛 · ★玄铁词尊[二轮 %d/300] · 公转金盾 %d/%d · 倒计时 %.1fs | [X]读音" % [
+				boss_unit.hp, boss_unit.overlord_seq_step, tot_s, boss_unit.overlord_r2_timer
+			]
+		else:
+			game.unit_label.text = "云顶总坛 · ★玄铁词尊[一轮 %d/500] · 顺序盾 %d/%d%s | [X]读音" % [
+				boss_unit.hp, boss_unit.overlord_seq_step, tot_s, " (公转!)" if boss_unit.overlord_orbit_active else ""
+			]
 	elif boss_suffix != "":
 		game.unit_label.text = "%s · 第%d/%d波 · 守%d/%d%s%s | [X]读音" % [
 			z_title.replace("雾隐帮·", ""), w_cur, w_max, alive_count, wave_total, atk_tag, boss_suffix
@@ -1236,6 +1322,17 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 	], Color("ffd15c") if nemesis_tag != "" else game.MINT)
 
 func _rotate_boss_word_and_prompt(boss):
+	if boss.vanguard_multi_active():
+		var slots := 3 if boss.boss_phase == 1 else 2
+		boss.configure_vanguard_shields(_build_wave_words(slots), slots)
+		var v_word: Dictionary = boss.expected_vanguard_word()
+		if wave_words.has(2) and boss.option < wave_words[2].size():
+			wave_words[2][boss.option] = v_word
+		boss.set_nemesis_bounty(game.rules.learning.is_nemesis(str(v_word.get("id", ""))))
+		boss.shield_layers = boss.max_shield_layers
+		zone_prompt_option[2] = boss.option
+		_select_next_wave_prompt(2, -1, true)
+		return
 	var fresh := _pick_seed_word()
 	for _try in 8:
 		var clash := false
@@ -1336,16 +1433,26 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			if other.action == Soldier.Action.PATROL:
 				other.begin_tactical_engagement()
 
-	# v0.8.2 #12: Confidential Operation Skyfall Giant 5-Shield Overlord ("雾隐机关王·玄铁词尊")
-	# Must break all 5 body-mounted English word shields in STRICT 1->5 sequence; ANY wrong shield resets HP to 500/500 & reshuffles!
+	# v0.8.6 Flagship Confidential Skyfall Overlord ("雾隐机关王·玄铁词尊"):
+	# - Zero early drop: completely unreachable while skyfall_state == "idle"
+	# - Round 1 (500 HP, 5 shields): after breaking 2 shields, remaining 3 detach & orbit!
+	# - Round 2 (300 HP, 3 fast-orbiting golden shields, 10s countdown): break all 3 to defeat; timeout unleashes Ultimate「天地万象」!
 	if soldier.is_skyfall_overlord:
-		if soldier.skyfall_state != "landed":
+		if soldier.skyfall_state == "idle":
+			return false
+		if soldier.skyfall_state == "dropping":
 			soldier.force_land_skyfall()
+		if soldier.overlord_ultimate_state != "none":
+			game.show_hitmarker(false)
+			game.play_sfx("dry_fire", -11)
+			game._notice("☄ 玄铁词尊正处于【天地万象】压顶/喘息阶段，暂不可破盾！", Color("ffd15c"))
+			return true
 		var hit_zone_str := str(collider.get_meta("hit_zone", "")) if (collider is Object) else ""
 		if hit_zone_str != "multi_shield":
 			game.show_hitmarker(false)
 			game.play_sfx("dry_fire", -10)
-			game._notice("🛡 雾隐机关王玄铁装甲反弹！请严格按 1→5 顺序射击其全身 5 块英文词盾！", Color("ffd15c"))
+			var tot_sh_h: int = maxi(1, soldier.overlord_seq_words.size())
+			game._notice("🛡 雾隐机关王玄铁装甲反弹！请按 1→%d 顺序击破英文词盾！" % tot_sh_h, Color("ffd15c"))
 			show_question()
 			return true
 		var slot_idx := int(collider.get_meta("shield_slot", -1))
@@ -1369,26 +1476,41 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			game.player.add_reserve_ammo(2)
 			if is_instance_valid(game.achievements):
 				game.achievements.record_stat("best_streak", game.rules.streak, true)
-			var overlord_dead: bool = soldier.break_overlord_shield(slot_idx)
-			if overlord_dead:
+			var br: Dictionary = soldier.break_overlord_shield(slot_idx)
+			if bool(br.get("dead", false)):
 				if is_instance_valid(game.achievements):
 					game.achievements.record_stat("soldiers_defeated", 1)
 					game.achievements.record_stat("skyfall_boss_defeated", 1)
 				_on_boss_defeated(soldier)
 				_advance_wave_after_kill(target_z)
+			elif bool(br.get("entered_round_two", false)):
+				soldier.configure_overlord_round_two(_build_wave_words(3))
+				game.play_sfx("boss_phase", -6)
+				game.screen_flash.color = Color(1.0, 0.72, 0.20, 0.22)
+				var r2_nxt: Dictionary = soldier.expected_overlord_word()
+				prompt_timer_left = prompt_timer_max
+				game._notice("🔥 第二轮觉醒！玄铁词尊召唤 3 面高速公转金盾——10 秒内按 1→3 顺序破盾斩杀，超时降下【天地万象】！", Color("ffd15c"))
+				show_question()
+				if game.has_method("flash_word_switch_banner"):
+					game.flash_word_switch_banner()
+				if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not r2_nxt.is_empty():
+					game.speak_english(str(r2_nxt.get("english", "")))
 			else:
 				var nxt: Dictionary = soldier.expected_overlord_word()
+				var tot_cur: int = maxi(1, soldier.overlord_seq_words.size())
 				prompt_timer_left = prompt_timer_max
-				game._notice("⚡ 顺序破盾 (%d/5) 命中 %s！下一块词盾目标：【%s】" % [
-					soldier.overlord_seq_step, str(exp_word.get("english", "")), str(nxt.get("chinese", ""))
-				], Color("ffd15c"))
+				if bool(br.get("started_orbit", false)):
+					game._notice("🌀 剩余 3 面词盾离体公转！瞄准旋转目标：【%s】" % str(nxt.get("chinese", "")), Color("5ce8ff"))
+				else:
+					game._notice("⚡ 顺序破盾 (%d/%d) 命中 %s！下一块词盾目标：【%s】" % [
+						soldier.overlord_seq_step, tot_cur, str(exp_word.get("english", "")), str(nxt.get("chinese", ""))
+					], Color("ffd15c"))
 				show_question()
 				if game.has_method("flash_word_switch_banner"):
 					game.flash_word_switch_banner()
 				if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not nxt.is_empty():
 					game.speak_english(str(nxt.get("english", "")))
 		else:
-			# Wrong sequence -> Roar + Earthquake shake + FULL HP reset (500/500) + Reshuffle all 5 shields!
 			consecutive_wrong_hits += 1
 			field_answers += 1
 			game.rules.answered += 1
@@ -1403,22 +1525,27 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			game.play_sfx("hit_wrong", -10)
 			if not exp_word.is_empty():
 				game.speak_english(str(exp_word.get("english", "")))
-			soldier.reset_overlord_sequence(_build_wave_words(5))
+			var reshuffle_n := 3 if soldier.overlord_round >= 2 else 5
+			soldier.reset_overlord_sequence(_build_wave_words(reshuffle_n))
 			game.screen_flash.color = Color(1.0, 0.22, 0.14, 0.24)
-			game._notice("⚠ 破防顺序错误（应击 %s）！雾隐机关王怒吼震地——血量已回满 500/500 且 5 块词盾重新洗牌！" % str(exp_word.get("english", "")), Color("ff5c66"))
+			if soldier.overlord_round >= 2:
+				game._notice("⚠ 二轮顺序错误（应击 %s）！3 面公转金盾重洗且倒计时缩短！" % str(exp_word.get("english", "")), Color("ff5c66"))
+			else:
+				game._notice("⚠ 破防顺序错误（应击 %s）！雾隐机关王怒吼震地——一轮血量回满 500/500 且 5 块词盾重新洗牌！" % str(exp_word.get("english", "")), Color("ff5c66"))
 			show_question()
 		return true
 
-	# Bonus weakpoint: Exposed Boss Reactor Core takes 38 crit damage while glowing!
-	if soldier.archetype == Soldier.Archetype.BOSS_WARDEN and collider == soldier.core_area and soldier.exposed_left > 0.0:
+	# Bonus weakpoint: Exposed Boss Reactor Core accepts strictly 1 crisp crit shot (NO infinite 4.5s spray!)
+	if soldier.archetype == Soldier.Archetype.BOSS_WARDEN and collider == soldier.core_area and soldier.exposed_left > 0.0 and soldier.boss_core_pulse_shots > 0:
+		soldier.consume_boss_core_pulse()
 		game.show_hitmarker(true)
 		game.play_sfx("hit_correct", -11)
-		var core_killed: bool = soldier.apply_damage(38, false, true)
+		var core_killed: bool = soldier.apply_damage(45, false, true)
 		if core_killed:
 			_on_boss_defeated(soldier)
 			_advance_wave_after_kill(target_z)
 		else:
-			game._notice("★ 命中首领暴露红核！暴击 -38 HP（剩余 %d/%d HP）" % [soldier.hp, soldier.max_hp], Color("ffd15c"))
+			game._notice("★ 命中首领暴露红核！单发暴击 -45 HP（红核随即闭合 · 剩余 %d/%d HP）" % [soldier.hp, soldier.max_hp], Color("ffd15c"))
 			show_question()
 		return true
 
@@ -1430,6 +1557,49 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 	# Wrong soldier hit -> 0 damage + reveal correct answer + force switch + count toward 3-wrong Rage Hunt!
 	if soldier.option != game.answer_index:
 		_apply_wrong_target_penalty(soldier)
+		return true
+
+	# v0.8.6 Normal Mode Boss Multi-Shield Matrix (Phase 2 Twin Shoulder / Phase 3 Triple Matrix — ALWAYS English-driven!)
+	if soldier.archetype == Soldier.Archetype.BOSS_WARDEN and soldier.vanguard_multi_active():
+		var vz_str := str(collider.get_meta("hit_zone", "")) if (collider is Object) else ""
+		if vz_str != "vanguard_shield":
+			game.show_hitmarker(false)
+			game.play_sfx("dry_fire", -10)
+			var mat_name := "三盾困阵" if soldier.vanguard_active_count >= 3 else "双盾择词"
+			game._notice("🛡 铁面词卫重甲反弹！请辨词射击【%s】对应的 %s 全息词盾！" % [str(game.question.get("chinese", "")), mat_name], Color("ffd15c"))
+			return true
+		var v_slot := int(collider.get_meta("vanguard_slot", -1))
+		var exp_v_slot: int = soldier.expected_vanguard_slot()
+		var exp_v_word: Dictionary = soldier.expected_vanguard_word()
+		if v_slot == exp_v_slot:
+			_record_first_choice(true)
+			var v_dmg := 105 if soldier.boss_phase == 1 else 115
+			var v_dead: bool = soldier.apply_damage(v_dmg, true, true)
+			soldier._spawn_shatter_fx(collider.global_position)
+			var mode_lbl := "三盾困阵" if soldier.vanguard_active_count >= 3 else "双盾择词"
+			_score_wave_correct(soldier, true, "⚡ 精准击破铁面【%s】" % mode_lbl)
+			if v_dead:
+				_on_boss_defeated(soldier)
+				_advance_wave_after_kill(target_z)
+			else:
+				_rotate_boss_word_and_prompt(soldier)
+		else:
+			soldier.flash_vanguard_wrong(v_slot)
+			wave_had_wrong_shot = true
+			wave_wrong_stacks = mini(MAX_WRONG_STACKS, wave_wrong_stacks + 1)
+			field_answers += 1
+			game.rules.answered += 1
+			game.rules.streak = 0
+			_record_first_choice(false)
+			game.show_hitmarker(false)
+			game.play_sfx("hit_wrong", -10)
+			game.speak_english(str(exp_v_word.get("english", "")))
+			game.screen_flash.color = Color(1.0, 0.28, 0.16, 0.16)
+			strike(soldier, true)
+			game._notice("✕ 击中干扰词盾（应击 %s · %s）！铁面词盾阵重洗并反击！" % [
+				str(exp_v_word.get("english", "")), str(exp_v_word.get("chinese", ""))
+			], Color("ff8080"))
+			_rotate_boss_word_and_prompt(soldier)
 		return true
 
 	_record_first_choice(true)
@@ -1449,10 +1619,10 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			prompt_timer_left = prompt_timer_max
 			game.show_hitmarker(false)
 			game.play_sfx("hit_correct", -13)
-			game._notice("⚡ 统领词盾裂开 (1/2)！再补 1 枪击碎护盾暴露红核（打头部可1枪破盾）！", Color("ffe082"))
+			game._notice("⚡ 统领词盾裂开 (1/2)！再补 1 枪击碎护盾开启单发红核窗（打头部可1枪破盾）！", Color("ffe082"))
 			show_question()
 		else:
-			var b_dead2: bool = soldier.apply_damage(125, true, false)
+			var b_dead2: bool = soldier.apply_damage(120, true, false)
 			_score_wave_correct(soldier, false, "✦ 统领重甲词盾击碎")
 			if b_dead2:
 				_on_boss_defeated(soldier)
@@ -1483,7 +1653,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 
 func _apply_boss_guard_shockwave():
 	if zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and not boss_unit.is_skyfall_overlord:
-		var b_killed: bool = boss_unit.apply_damage(35, true, false)
+		var b_killed: bool = boss_unit.apply_damage(30, false, false)
 		if b_killed:
 			_on_boss_defeated(boss_unit)
 
@@ -1534,17 +1704,18 @@ func melee_strike(camera: Camera3D) -> bool:
 		game._notice("🛡 玄铁词尊装甲反弹匕首并震退反击！请用步枪按 1→5 顺序射击全身词盾！", Color("ff8080"))
 		return true
 
-	if best_soldier.archetype == Soldier.Archetype.BOSS_WARDEN and best_soldier.exposed_left > 0.0 and best_soldier.option != game.answer_index:
+	if best_soldier.archetype == Soldier.Archetype.BOSS_WARDEN and best_soldier.exposed_left > 0.0 and best_soldier.boss_core_pulse_shots > 0 and best_soldier.option != game.answer_index:
+		best_soldier.consume_boss_core_pulse()
 		game.play_sfx("knife_hit", -8)
 		game.show_hitmarker(true)
-		var b_kill: bool = best_soldier.apply_damage(35, false, true)
+		var b_kill: bool = best_soldier.apply_damage(40, false, true)
 		_apply_melee_knockback(best_soldier, 3.8)
 		apply_player_damage(20)
 		if b_kill:
 			_on_boss_defeated(best_soldier)
 			_advance_wave_after_kill(zone)
 		else:
-			game._notice("🗡 斩击首领红核 -35 HP（剩余 %d/%d HP）· 遭到铁面重击反噬 -20！" % [best_soldier.hp, best_soldier.max_hp], Color("ffd15c"))
+			game._notice("🗡 斩击首领红核 -40 HP（红核闭合 · 剩余 %d/%d HP）· 遭到铁面重击反噬 -20！" % [best_soldier.hp, best_soldier.max_hp], Color("ffd15c"))
 		return true
 
 	if best_soldier.option != game.answer_index:
@@ -1615,11 +1786,57 @@ func record_field(_correct: bool):
 func hit_feedback(_index: int, _correct: bool):
 	pass
 
-func on_boss_phase_shift(_boss, next_phase: int):
+func _spawn_boss_support_drones(boss, max_new: int = 2):
+	if not is_instance_valid(boss) or boss.defeated or not troops.has(2):
+		return
+	var cur_alive := living_soldiers(2).size()
+	var to_add := mini(max_new, maxi(0, 3 - cur_alive))
+	if to_add <= 0:
+		return
+	var covers: Array = camp_covers.get(2, [])
+	var extra_words := _build_wave_words(to_add)
+	for i in to_add:
+		var slot_opt: int = troops[2].size()
+		var drone := Soldier.new()
+		arena.add_child(drone)
+		var bar: Vector3 = covers[(i * 5) % maxi(1, covers.size())] if not covers.is_empty() else (boss.position + Vector3(-3.0 if i == 0 else 3.0, 0, -2.0))
+		drone.setup(self, 2, slot_opt, bar, Soldier.Archetype.SCOUT_DRONE, false)
+		drone.position = game.Layout.on_ground(boss.position + Vector3(-2.6 if i == 0 else 2.6, 0.0, 1.4)) + Vector3.UP * 0.1
+		var dw: Dictionary = extra_words[i]
+		drone.assigned_word = dw
+		drone.set_nemesis_bounty(game.rules.learning.is_nemesis(str(dw.get("id", ""))))
+		drone.show_word(str(dw.get("english", "")), false)
+		drone.begin_tactical_engagement(true)
+		troops[2].append(drone)
+		if wave_words.has(2):
+			wave_words[2].append(dw)
+
+func on_boss_phase_shift(boss, next_phase: int):
+	if not is_instance_valid(boss) or boss.defeated or boss.is_skyfall_overlord:
+		return
 	game.play_sfx("boss_phase", -9)
-	game._notice("★ 雾隐先锋·铁面词卫 进入第 %d 阶段！胸口红核暴露，小心重炮轰炸红圈！" % (4 - next_phase), Color("ffd15c"))
-	if is_instance_valid(game.player):
-		spawn_danger_ring(game.player.position, 3.4, 24)
+	if next_phase == 2:
+		boss.configure_vanguard_shields(_build_wave_words(2), 2)
+		if wave_words.has(2) and boss.option < wave_words[2].size():
+			wave_words[2][boss.option] = boss.expected_vanguard_word()
+		if not boss.vanguard_drones_spawned:
+			boss.vanguard_drones_spawned = true
+			_spawn_boss_support_drones(boss, 2)
+		boss.vanguard_move_cd = 2.8
+		game._notice("★ 铁面词卫进入二阶【双盾择词】！左右双肩词盾展开 + 侦察蜂增援，识词击破并防备冲锋震地！", Color("5ce0d8"))
+		if is_instance_valid(game.player):
+			spawn_danger_ring(game.player.position, 3.4, 22)
+	elif next_phase == 1:
+		boss.configure_vanguard_shields(_build_wave_words(3), 3)
+		if wave_words.has(2) and boss.option < wave_words[2].size():
+			wave_words[2][boss.option] = boss.expected_vanguard_word()
+		boss.vanguard_move_cd = 2.2
+		game._notice("🔥 铁面词卫进入终阶【三盾困阵】！三面全息词盾展开并释放【震荡冲击波】，横向闪避！", Color("ff9f43"))
+		if is_instance_valid(game.player):
+			var wdir := Vector3(game.player.position.x - boss.position.x, 0.0, game.player.position.z - boss.position.z).normalized()
+			spawn_sword_wave(boss.position, wdir, 18)
+	zone_prompt_option[2] = boss.option
+	show_question()
 
 func _on_boss_defeated(boss):
 	if game.rules.boss_defeated:
@@ -1750,6 +1967,100 @@ func spawn_danger_ring(target_pos: Vector3, radius: float = 3.4, dmg_val: int = 
 	danger_rings.append({"pos": gpos, "radius": radius, "damage": dmg_val, "duration": 1.45, "left": 1.45, "node": root, "inner": inner})
 	game.play_sfx("warning_lock", -10)
 	game._notice("⚠ 警告：首领蓄力轰炸红圈锁定！迅速冲刺跑出红圈！", Color("ff8080"))
+
+func spawn_sword_wave(origin: Vector3, dir_xz: Vector3, dmg_val: int = 24):
+	## v0.8.6 Overlord Earth-Splitting Sword Wave ("裂地剑气") — blazing crescent energy slash traveling across arena!
+	if not is_instance_valid(arena):
+		return
+	var d := Vector3(dir_xz.x, 0.0, dir_xz.z)
+	if d.length_squared() < 0.001:
+		d = Vector3.FORWARD
+	d = d.normalized()
+	var g0: Vector3 = game.Layout.on_ground(origin + d * 2.2) + Vector3(0.0, 0.55, 0.0)
+	var root := Node3D.new()
+	root.position = g0
+	root.rotation.y = atan2(d.x, d.z)
+	arena.add_child(root)
+
+	var blade := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(3.10, 0.95, 0.34)
+	blade.mesh = bm
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color("ff922b")
+	bmat.emission_enabled = true
+	bmat.emission = Color("ff5228")
+	bmat.emission_energy_multiplier = 2.8
+	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	blade.material_override = bmat
+	root.add_child(blade)
+
+	# Brief red linear ground telegraph ribbon along wave path
+	var strip := MeshInstance3D.new()
+	var sm := BoxMesh.new()
+	sm.size = Vector3(2.4, 0.06, 18.0)
+	strip.mesh = sm
+	strip.position = g0 + d * 9.0 - Vector3(0.0, 0.48, 0.0)
+	strip.rotation.y = atan2(d.x, d.z)
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(1.0, 0.22, 0.16, 0.36)
+	smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	strip.material_override = smat
+	arena.add_child(strip)
+	var tw := strip.create_tween()
+	tw.tween_property(smat, "albedo_color:a", 0.0, 0.85)
+	tw.tween_callback(strip.queue_free)
+
+	sword_waves.append({"pos": g0, "dir": d, "speed": 17.5, "damage": dmg_val, "left": 1.35, "node": root, "hit_player": false})
+
+func on_overlord_skyfall_impact(at_pos: Vector3):
+	## v0.8.6 Skyfall shockwave knocks down grounded soldiers & wildlife + briefly staggers player (1.0s)!
+	for z_list in troops.values():
+		for s in z_list:
+			if is_instance_valid(s) and not s.defeated and not s.is_skyfall_overlord and s.position.distance_to(at_pos) <= 28.0:
+				var away_s := Vector3(s.position.x - at_pos.x, 0.0, s.position.z - at_pos.z).normalized()
+				if s.has_method("apply_knockdown"):
+					s.apply_knockdown(1.0, away_s * 3.5)
+	if is_instance_valid(game.wildlife) and game.wildlife.has_method("shockwave_knockdown_near"):
+		game.wildlife.shockwave_knockdown_near(at_pos, 28.0)
+	if is_instance_valid(game.player) and game.player.position.distance_to(at_pos) <= 26.0:
+		var push_p := Vector3(game.player.position.x - at_pos.x, 0.0, game.player.position.z - at_pos.z)
+		if push_p.length_squared() < 0.04:
+			push_p = Vector3.BACK
+		if game.player.has_method("apply_knockback"):
+			game.player.apply_knockback(push_p.normalized() * 6.5 + Vector3.UP * 1.8)
+		game.screen_flash.color = Color(1.0, 0.72, 0.24, 0.24)
+		game._notice("⚡ 玄铁词尊轰然天降！震地冲击波震倒全场生灵 1.0 秒！", Color("ffd15c"))
+
+func apply_ultimate_crush_to_10hp():
+	## v0.8.6 Ultimate「天地万象」impact: strips Shield to 0 & crushes HP to strictly 10 HP (non-lethal from >10 HP)!
+	if not in_field():
+		return
+	shield = 0.0
+	shield_delay = 0.0
+	if health > 10:
+		health = 10
+	elif health > 0:
+		health = maxi(1, health)
+	if is_instance_valid(game.player):
+		game.player.add_screen_shake(1.25)
+		if game.player.has_method("apply_knockback"):
+			game.player.apply_knockback(Vector3(0.0, 1.4, 4.2))
+	game.screen_flash.color = Color(1.0, 0.16, 0.12, 0.38)
+	game._notice("💥【天地万象】倒悬山压顶！护盾清零、生命骤降至 10 HP！准备趁 4.5s 喘息窗回血！", Color("ff4757"))
+	show_question()
+
+func rearm_overlord_round_two():
+	if not is_instance_valid(boss_unit) or boss_unit.defeated or not boss_unit.is_skyfall_overlord:
+		return
+	boss_unit.configure_overlord_round_two(_build_wave_words(3))
+	game.play_sfx("boss_phase", -7)
+	game._notice("🔥 玄铁词尊重振第二轮！3 面公转金盾重启——10 秒内按 1→3 顺序破盾斩杀！", Color("ffd15c"))
+	show_question()
+	var nxt: Dictionary = boss_unit.expected_overlord_word()
+	if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not nxt.is_empty():
+		game.speak_english(str(nxt.get("english", "")))
 
 func blocked(from: Vector3, to: Vector3) -> bool:
 	var ray = PhysicsRayQueryParameters3D.create(from, to, 1)

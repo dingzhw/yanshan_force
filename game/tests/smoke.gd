@@ -26,17 +26,18 @@ func run():
 	r.answer(true, "u1_good")
 	verify(r.streak == 3 and r.score == 50, "3-answer streak awards +5 bonus points")
 
-	# Low accuracy (< 70%) can still reach 260 in practice mode while crates stay locked
-	for i in 16:
+	# Low accuracy (< 70%) can still reach 420 in practice mode while crates stay locked
+	for i in 22:
 		r.open_question()
 		r.answer(false)
-	for i in 12:
+	for i in 20:
 		r.open_question()
 		r.answer(true)
-	verify(r.score >= Rules.EXTRACTION_SCORE and r.accuracy() < 0.70, "low accuracy can accumulate 260 extraction score")
+	verify(Rules.EXTRACTION_SCORE == 420 and Rules.CONFIDENTIAL_EXTRACTION_SCORE == 520 and Rules.total_catalog_count() == 108, "v0.8.6 sets extraction thresholds 420/520 and expands museum catalog to 108 collectibles")
+	verify(r.score >= Rules.EXTRACTION_SCORE and r.accuracy() < 0.70, "low accuracy can accumulate 420 extraction score")
 	verify(not r.crate_ready(1), "low accuracy still locks password crate")
 	verify(not r.add_loot("test", 35, 2), "v0.8.1 #15: practice mode blocks loot collection cleanly")
-	verify(r.request_extraction(), "practice mode can begin extraction at 260 points")
+	verify(r.request_extraction(), "practice mode can begin extraction at 420 points")
 	verify(r.finish_extraction(), "practice extraction settles run cleanly")
 
 	# Combat Normal Operation loot, accuracy gate & warehouse economy checks
@@ -48,7 +49,7 @@ func run():
 	r.outposts_cleared = 2
 	r.boss_defeated = true
 	verify(r.add_loot("test", 35, 2), "combat mode field loot accessible")
-	verify(r.request_extraction(), "normal combat extraction succeeds at >=60% accuracy + 260 pts + 2 camps + boss")
+	verify(r.request_extraction(), "normal combat extraction succeeds at >=60% accuracy + 420 pts + 2 camps + boss")
 	verify(r.finish_extraction(), "extraction banks loot")
 	var wh_after_first = r.profile.warehouse.size()
 	verify(not r.finish_extraction() and r.profile.warehouse.size() == wh_after_first, "settlement cannot duplicate loot")
@@ -109,7 +110,7 @@ func run():
 		game.rules.answer(true)
 	game.rules.outposts_cleared = 2
 	game.rules.boss_defeated = true
-	verify(game.rules.score >= Rules.EXTRACTION_SCORE, "question sequence reaches 260 extraction threshold")
+	verify(game.rules.score >= Rules.EXTRACTION_SCORE, "question sequence reaches 420 extraction threshold")
 
 	# Tier 1 crate requires 2 consecutive stages: Core Word -> Textbook Phrase
 	game.player.position = game.crate_nodes[0].position + Vector3(0, 0, 1.4)

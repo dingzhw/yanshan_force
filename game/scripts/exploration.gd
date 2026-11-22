@@ -6,6 +6,27 @@ const TacticalProps = preload("res://scripts/tactical_props.gd")
 const INTEL_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof"]
 const SECRET_EVENT_IDS = ["intel_container", "intel_cleft", "intel_cave", "intel_roof", "recon_radio", "airdrop_beacon"]
 const HERITAGE_IDS = ["cliff_inscription", "cave_mural", "cave_hearth"]
+const SPELL_CHALLENGE_IDS = [
+	"english", "intel_container", "intel_cleft", "intel_cave", "intel_roof",
+	"recon_radio", "airdrop_beacon", "cliff_inscription", "cave_mural", "cave_hearth"
+]
+const DEEP_REWARD_IDS = ["cave_hearth", "cave_mural", "airdrop_beacon"]
+
+const HERITAGE_LORE_VARIANTS := {
+	"cave_hearth": [
+		"穹顶「一线天光」斜映碧色寒潭，青石圆桌上展陈先民手书竹简《烟山煮茗记》：「汲寒潭甘泉，燃枯竹微火，山中岁月静，一卷书声清。」",
+		"寒潭畔青石茶灶余温犹存，竹简《诚庄农谚》载：「春采云雾茶，夏听翠竹风，秋收万顷稻，冬藏一洞温。」",
+		"石案青瓷茶盏旁置有先民手抄《洞中夜读录》：「山外烟霞重，洞里松灯明；勤读知远方，字字见真情。」"
+	],
+	"cave_mural": [
+		"西壁青灰岩体阴刻《烟山耕读岩画》（背篓采茶、驱牛扶犁、洞中挑灯），东壁《烟霞古洞志》载：「昔诚庄先民辟山畴，见暮霭竹烟常绕石壁，遂名此山曰烟山。」",
+		"石壁之上铁錾斧痕历经风雨犹自清晰：画卷描绘江南先民晨涉碧溪采新茶、暮归岩洞燃松火授书的温润图景，烟山文脉由此代代相承。"
+	],
+	"cliff_inscription": [
+		"竹石奇阵摩崖朱砂镌刻：「瘦石穿云立，翠篁引风吟。曲径通幽洞，清泉洗凡心。」——循翠竹幽径或矮石拱 [C] 蹲行即可通往千年古迹烟霞古洞。",
+		"绝壁苔痕间刻有诚庄先贤题记：「入竹阵莫急，听溪声辨向；低首过石门，别有洞天藏。」——北端石门后即烟霞古洞入口。"
+	]
+}
 
 var game
 var nodes = []
@@ -16,6 +37,9 @@ var data = {}
 var current_items = {}
 var current_options = {}
 var current_answer_index = {}
+var current_spell_words = {}
+var current_lore_snippets = {}
+var rolled_rewards = {}
 var revealed_secrets = {}
 var radar_scan_active = false
 var busy = false
@@ -26,6 +50,10 @@ var body: Label
 var explanation: Label
 var source: Label
 var buttons = []
+var spell_box: Control
+var spell_input: LineEdit
+var spell_submit_btn: Button
+var spell_speak_btn: Button
 var swap_button: Button
 var gate: Node3D
 var gate_plaque: Label3D
@@ -335,6 +363,36 @@ func _ui():
 	body.clip_text = true
 	for i in 3:
 		buttons.append(game._button(overlay, "", Rect2(256, 308 + i * 48, 768, 42), choose.bind(i)))
+
+	# v0.8.6 Live Random English Word Spelling Bar (used by Heritage / Intel / Radio / Airdrop / English nodes)
+	spell_box = Control.new()
+	spell_box.position = Vector2(256, 326)
+	spell_box.size = Vector2(768, 96)
+	overlay.add_child(spell_box)
+	spell_input = LineEdit.new()
+	spell_input.position = Vector2(0, 0)
+	spell_input.size = Vector2(496, 46)
+	spell_input.placeholder_text = "输入完整英文单词（按 Enter 或点右侧提交）"
+	spell_input.add_theme_font_size_override("font_size", 20)
+	spell_input.add_theme_color_override("font_color", Color("f4f8ef"))
+	spell_input.add_theme_color_override("font_placeholder_color", Color("7ea897"))
+	var sb_norm := StyleBoxFlat.new()
+	sb_norm.bg_color = Color("0e1e19")
+	sb_norm.border_color = Color("62c8a0")
+	sb_norm.set_border_width_all(2)
+	sb_norm.set_corner_radius_all(8)
+	sb_norm.content_margin_left = 14
+	sb_norm.content_margin_right = 14
+	var sb_focus := sb_norm.duplicate()
+	sb_focus.border_color = Color("ffd15c")
+	spell_input.add_theme_stylebox_override("normal", sb_norm)
+	spell_input.add_theme_stylebox_override("focus", sb_focus)
+	spell_input.text_submitted.connect(submit_spelling)
+	spell_box.add_child(spell_input)
+	spell_submit_btn = game._button(spell_box, "✓ 提交拼写", Rect2(508, 0, 134, 46), func(): submit_spelling(spell_input.text), true)
+	spell_speak_btn = game._button(spell_box, "🔊 听读音", Rect2(650, 0, 118, 46), _speak_active_spell_word, false)
+	spell_box.hide()
+
 	explanation = game._text(overlay, "", Vector2(256, 460), Vector2(768, 110), 15, game.GOLD)
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	explanation.clip_text = true
@@ -346,27 +404,40 @@ func _ui():
 	game._text(overlay, "阅读与思考期间暂停计时和敌方攻击", Vector2(256, 630), Vector2(300, 28), 14, game.MINT)
 	overlay.hide()
 
-func _reflow_ui(has_buttons: bool):
+func _reflow_ui(mode: String):
 	var txt_len := body.text.length()
 	var fsize := 17 if txt_len > 155 else (19 if txt_len > 95 else 21)
 	body.add_theme_font_size_override("font_size", fsize)
 	var measured_h := 120.0
 	if is_instance_valid(game) and game.font != null:
-		measured_h = game.font.get_multiline_string_size(body.text, HORIZONTAL_ALIGNMENT_LEFT, 768.0, fsize).y + 14.0
+		measured_h = game.font.get_multiline_string_size(body.text, HORIZONTAL_ALIGNMENT_LEFT, 768.0, fsize).y + 16.0
 	else:
 		measured_h = ceilf(float(txt_len) / 34.0) * float(fsize + 9) + 18.0
-	var body_h := clampf(measured_h, 88.0, 232.0)
+	var max_body_h := 268.0 if mode == "spell" else 232.0
+	var body_h := clampf(measured_h, 88.0, max_body_h)
 	body.position = Vector2(256, 100)
 	body.size = Vector2(768, body_h)
 	var btn_top := 100.0 + body_h + 14.0
-	if has_buttons:
+	if mode == "mc":
+		spell_box.hide()
 		for i in 3:
 			buttons[i].position = Vector2(256, btn_top + float(i) * 46.0)
 			buttons[i].size = Vector2(768, 40)
 		var exp_top := btn_top + 3.0 * 46.0 + 10.0
 		explanation.position = Vector2(256, exp_top)
 		explanation.size = Vector2(768, maxf(54.0, 574.0 - exp_top))
+	elif mode == "spell":
+		for i in 3:
+			buttons[i].hide()
+		spell_box.position = Vector2(256, btn_top)
+		spell_box.show()
+		var exp_top_s := btn_top + 58.0
+		explanation.position = Vector2(256, exp_top_s)
+		explanation.size = Vector2(768, maxf(64.0, 574.0 - exp_top_s))
 	else:
+		spell_box.hide()
+		for i in 3:
+			buttons[i].hide()
 		explanation.position = Vector2(256, btn_top + 12.0)
 		explanation.size = Vector2(768, maxf(96.0, 574.0 - btn_top - 12.0))
 
@@ -390,6 +461,76 @@ func _prepare_item(id: String, picked: Dictionary):
 	current_options[id] = opts
 	current_answer_index[id] = ans
 
+func _normalize_english(raw: String) -> String:
+	var parts := raw.strip_edges().to_lower().split(" ", false)
+	return " ".join(parts)
+
+func _spelling_mask(english: String) -> String:
+	var words_arr := english.strip_edges().split(" ", false)
+	var masked := []
+	for w in words_arr:
+		var s := str(w)
+		if s.length() <= 1:
+			masked.append(s)
+		else:
+			var chars := [s.substr(0, 1)]
+			for ci in range(1, s.length()):
+				var ch := s.substr(ci, 1)
+				if ch in ["-", "'", ".", "?"]:
+					chars.append(ch)
+				else:
+					chars.append("_")
+			masked.append(" ".join(chars))
+	return "   ".join(masked)
+
+func _pick_random_spell_words():
+	current_spell_words.clear()
+	current_lore_snippets.clear()
+	var pool: Array = []
+	if is_instance_valid(game) and not game.words.is_empty():
+		var due: Array = game.rules.learning.pending(game.words, 0, true) if is_instance_valid(game.rules) else []
+		for w in due:
+			if str(w.get("english", "")).strip_edges() != "":
+				pool.append(w)
+		var shuffled_all: Array = game.words.duplicate()
+		shuffled_all.shuffle()
+		for w in shuffled_all:
+			if not (w in pool) and str(w.get("english", "")).strip_edges() != "":
+				pool.append(w)
+	var used_ids := {}
+	for sid in SPELL_CHALLENGE_IDS:
+		var picked: Dictionary = {}
+		# Mix review-due priority (first 16) with full-pack variety so every run feels genuinely fresh!
+		var top_span := mini(pool.size(), 28)
+		for _attempt in 14:
+			if pool.is_empty():
+				break
+			var idx := rng.randi_range(0, top_span - 1) if (_attempt < 5 and top_span > 0) else rng.randi_range(0, pool.size() - 1)
+			var cand: Dictionary = pool[idx]
+			var wid := str(cand.get("id", cand.get("english", "")))
+			if not used_ids.has(wid):
+				picked = cand
+				used_ids[wid] = true
+				break
+		if picked.is_empty() and not pool.is_empty():
+			picked = pool[rng.randi_range(0, pool.size() - 1)]
+		current_spell_words[sid] = picked
+		if HERITAGE_LORE_VARIANTS.has(sid):
+			var lv: Array = HERITAGE_LORE_VARIANTS[sid]
+			current_lore_snippets[sid] = str(lv[rng.randi_range(0, lv.size() - 1)])
+
+func is_spelling_challenge(id: String) -> bool:
+	return id in SPELL_CHALLENGE_IDS and current_spell_words.has(id) and not (current_spell_words[id] as Dictionary).is_empty()
+
+func expected_spelling_word(id: String) -> String:
+	return str((current_spell_words.get(id, {}) as Dictionary).get("english", ""))
+
+func _speak_active_spell_word():
+	if active_id != "" and is_spelling_challenge(active_id):
+		var en := expected_spelling_word(active_id)
+		if en != "":
+			game.speak_english(en)
+
 func answer_button_index(id: String) -> int:
 	return int(current_answer_index.get(id, 0))
 
@@ -397,8 +538,9 @@ func is_locked_out(id: String) -> bool:
 	return bool(failed.get(id, false))
 
 func reset():
-	states = {"clue": false, "english": false, "math": false, "poem": false, "math_claimed": false, "poem_claimed": false}
+	states = {"clue": false, "english": false, "english_claimed": false, "math": false, "poem": false, "math_claimed": false, "poem_claimed": false}
 	failed = {}
+	rolled_rewards = {}
 	for sid in SECRET_EVENT_IDS:
 		states[sid] = false
 		states[sid + "_claimed"] = false
@@ -423,6 +565,16 @@ func reset():
 	for hid in HERITAGE_IDS:
 		if hpools.has(hid):
 			_prepare_item(hid, hpools[hid])
+	current_items["english"] = {
+		"title": "路牌旁的封存补给 · 拼写核验",
+		"question": "循着巡护员纸条上的方位词 next to（在……旁边），你找到了封存补给箱。",
+		"explanation": "核验通过！封条已解开，可自由挑选箱内随机补给物资。",
+		"source": "江苏五上英语词表 · 随机单词拼写核验",
+		"reward_title": "随机补给物资",
+		"reward_value": 50,
+		"reward_rarity": 2,
+	}
+	_pick_random_spell_words()
 	if is_instance_valid(overlay):
 		overlay.hide()
 	game.Props.set_enabled(gate, true)
@@ -462,33 +614,11 @@ func open(node: Node3D):
 	var id: String = node.get_meta("explore_id")
 	if id in ["cave_mural", "cave_hearth"] and is_instance_valid(game.cave_warden) and game.cave_warden.is_alive() and game.cave_warden.state == "hunt":
 		game.play_sfx("warning_lock", -10)
-		game._notice("⚠ 古洞循音石卫正在追击！请先潜行甩开、[G]烟雾EMP致盲或将其击败后再探查古迹！", Color("ff8080"))
+		game._notice("⚠ 古洞循音石卫正在追击！请先潜行转移甩开、[G]烟雾掩护或将其击败后再探查古迹！", Color("ff8080"))
 		return
-	if id == "english":
-		if not states.clue:
-			game._notice("补给箱贴着封条！先看附近巡护员纸条上的方位提示。")
-			game.play_sfx("hit_wrong", -14)
-		elif states.english:
-			game._notice("这份方位线索补给已收集。")
-		elif not game.rules.can_loot():
-			states.english = true
-			game.Props.set_enabled(node, false)
-			game.play_sfx("cipher_unlock", -11)
-			game.speak_english("next to")
-			game._notice("读懂 next to（在……旁边）！自由靶场仅纯练词不入包物资，实战中可领稀有无线电台！", game.MINT)
-		else:
-			var radio_items: Array = node.get_meta("pending_items", [])
-			if radio_items.is_empty():
-				radio_items = [game.rules._enrich_loot_dict({"title": "加密无线电台", "value": 82, "rarity": 3})]
-				node.set_meta("pending_items", radio_items)
-				node.set_meta("opened_remaining", true)
-			game.play_sfx("cipher_unlock", -11)
-			game.speak_english("next to")
-			if is_instance_valid(game.loot_container_ui):
-				game.loot_container_ui.open_container(
-					node, "exploration", "路牌旁的封存补给", radio_items,
-					"读懂方位词 next to（在……旁边）已解开封条！请确认拾取、存安全箱或留在原地。", false, "english"
-				)
+	if id == "english" and not states.clue:
+		game._notice("补给箱贴着封条！先看附近巡护员纸条上的方位提示。")
+		game.play_sfx("hit_wrong", -14)
 		return
 	# v0.8.4: Revisiting a solved exploration stash with leftover reward items opens LootContainerUI directly!
 	if bool(states.get(id, false)) and node.has_meta("pending_items"):
@@ -514,26 +644,64 @@ func open(node: Node3D):
 	if id == "clue":
 		states.clue = true
 		title.text = "巡护员留下的方位纸条"
-		body.text = "山道补给箱藏在路牌旁边。\n英文方位线索：The supply box is  next to  the signpost.\n读懂方位词，去山路右侧路牌旁找一找！"
+		body.text = "山道补给箱藏在路牌旁边。\n英文方位线索：The supply box is  next to  the signpost.\n读懂方位词，去山路右侧路牌旁找到封存箱，完成随机英语拼写核验即可开启！"
 		source.text = "词汇来源：江苏五上英语词表 · next to（在……旁边）。已同步播放读音。"
-		for i in 3:
-			buttons[i].hide()
-		explanation.text = "提示：next to = 在……旁边。找到封存箱按 [F] 即可领取稀有物资！"
-		_reflow_ui(false)
+		explanation.text = "提示：next to = 在……旁边。找到封存箱按 [F] 拼对随机考题即可抽取随机品质补给！"
+		_reflow_ui("info")
 		game.speak_english("next to")
+	elif is_spelling_challenge(id):
+		var item: Dictionary = current_items.get(id, {})
+		var w: Dictionary = current_spell_words[id]
+		var w_en := str(w.get("english", ""))
+		var w_zh := str(w.get("chinese", ""))
+		var raw_unit = w.get("unit", "")
+		var w_unit := ("Unit %d" % int(raw_unit)) if (raw_unit is int or raw_unit is float) else (str(raw_unit) if str(raw_unit) != "" else "五上英语")
+		var lore_text := str(current_lore_snippets.get(id, ""))
+		if lore_text == "":
+			if id == "english":
+				lore_text = "循着巡护员纸条上的方位线索 next to（在……旁边），你找到了贴着密码封条的山道补给箱。"
+			elif id in INTEL_IDS:
+				lore_text = "巡护线报原件加密锁闭——输入对应英文单词即可破译密电，并在战术雷达上标亮隐藏秘藏坐标！"
+			elif id == "recon_radio":
+				lore_text = "东岭侦察电台待校准频段——拼出对应英文口令即可启动全图雷达扫描并领取战术补给！"
+			elif id == "airdrop_beacon":
+				lore_text = "北脊卫星空投信标等待身份核验——正确拼写随机英文词即可召唤补给弹药与随机品质战利品！"
+			else:
+				lore_text = str(item.get("question", "")).split("\n")[0]
+		var cl: Dictionary = game.cloze_for_word(str(w.get("id", "")))
+		var cloze_line := ("\n教材语境：%s  (p.%d)" % [str(cl.cloze_text), int(cl.textbook_page)]) if not cl.is_empty() else ""
+		title.text = str(item.get("title", "烟山探索 · 随机单词拼写考题"))
+		body.text = "%s\n\n【本局随机单词考题】请根据中文释义拼写对应英文：\n中文释义：%s   |   拼写轮廓：%s%s" % [
+			lore_text, w_zh, _spelling_mask(w_en), cloze_line
+		]
+		source.text = "随机抽词自 175 词教材总库（%s） · 每局刷新 · 奖励按全局爆率金字塔随机抽取" % w_unit
+		var locked_now := is_locked_out(id)
+		var solved_now := bool(states.get(id, false))
+		spell_input.text = w_en if solved_now else ""
+		spell_input.editable = (not locked_now and not solved_now)
+		spell_submit_btn.disabled = (locked_now or solved_now)
+		_reflow_ui("spell")
+		if not locked_now and not solved_now:
+			spell_input.grab_focus()
+		game.speak_english(w_en)
+		if locked_now:
+			var ex_line := ("\n例句：%s" % str(cl.english)) if not cl.is_empty() else ""
+			explanation.text = "✕ 本局该处拼写考题已答错锁死（不可重试，下局换新词）。\n正确拼写：%s（%s）%s" % [w_en, w_zh, ex_line]
+		elif solved_now:
+			_reward(id)
 	else:
 		var item = current_items[id]
 		var opts = current_options[id]
 		var expected_idx = answer_button_index(id)
 		title.text = item.title
 		body.text = item.question
-		source.text = item.source
+		source.text = item.source + " · 奖励按爆率金字塔随机抽取"
 		var locked_now := is_locked_out(id)
 		for i in 3:
 			buttons[i].show()
 			buttons[i].text = opts[i]
 			buttons[i].disabled = locked_now
-		_reflow_ui(true)
+		_reflow_ui("mc")
 		if not locked_now:
 			buttons[0].grab_focus()
 		if item.has("tts"):
@@ -543,8 +711,51 @@ func open(node: Node3D):
 		elif states.get(id, false):
 			_reward(id)
 
+func submit_spelling(raw_text: String):
+	if not busy or active_id == "" or not is_spelling_challenge(active_id):
+		return
+	if bool(states.get(active_id, false)) or is_locked_out(active_id):
+		return
+	var cleaned := _normalize_english(raw_text)
+	if cleaned == "":
+		explanation.text = "请先在输入框内拼写完整英文单词，再按 Enter 或点击「✓ 提交拼写」！"
+		return
+	var w: Dictionary = current_spell_words[active_id]
+	var w_id := str(w.get("id", ""))
+	var w_en := str(w.get("english", ""))
+	var w_zh := str(w.get("chinese", ""))
+	var expected := _normalize_english(w_en)
+	var item: Dictionary = current_items.get(active_id, {})
+	var cl: Dictionary = game.cloze_for_word(w_id)
+	var ex_line := ("\n教材例句：%s (p.%d)" % [str(cl.english), int(cl.textbook_page)]) if not cl.is_empty() else ""
+	if cleaned != expected:
+		failed[active_id] = true
+		spell_input.editable = false
+		spell_submit_btn.disabled = true
+		if is_instance_valid(game.rules):
+			game.rules.learning.record_spelling(w_id, game.rules.learning.INCORRECT, false, -1, true, "exploration_" + active_id)
+		if not (w in game.wrong_words):
+			game.wrong_words.append(w)
+		game.play_sfx("hit_wrong", -13)
+		game.speak_english(w_en)
+		explanation.text = "✕ 拼写有误！本局该处已锁死（不可重试，下局刷新全新词题）。\n正确拼写：%s（%s）%s" % [w_en, w_zh, ex_line]
+		if node_labels.has(active_id):
+			var info: Dictionary = node_labels[active_id]
+			var lbl: Label3D = info.label
+			if is_instance_valid(lbl):
+				lbl.text = str(item.get("title", active_id)) + " · [本局已锁]"
+				lbl.modulate = Color("ff8c7a")
+		return
+	spell_input.text = w_en
+	spell_input.editable = false
+	spell_submit_btn.disabled = true
+	if is_instance_valid(game.rules):
+		game.rules.learning.record_spelling(w_id, game.rules.learning.INDEPENDENT, false, -1, true, "exploration_" + active_id)
+	game.speak_english(w_en)
+	_complete_solved_node(active_id, "✓ 拼写正确：%s（%s）！%s" % [w_en, w_zh, ex_line])
+
 func choose(index: int):
-	if not busy or active_id not in current_items:
+	if not busy or active_id not in current_items or is_spelling_challenge(active_id):
 		return
 	if bool(states.get(active_id, false)) or is_locked_out(active_id):
 		return
@@ -567,34 +778,42 @@ func choose(index: int):
 				lbl.text = str(item.title) + " · [本局已锁]"
 				lbl.modulate = Color("ff8c7a")
 		return
-	var first_solve := not bool(states.get(active_id, false))
-	states[active_id] = true
-	if active_id == "math":
+	_complete_solved_node(active_id, "")
+
+func _complete_solved_node(id: String, lead_prefix: String):
+	var item: Dictionary = current_items.get(id, {})
+	var first_solve := not bool(states.get(id, false))
+	states[id] = true
+	if id == "math":
 		gate.rotation.y = -PI / 2
 		if is_instance_valid(gate_plaque):
 			gate_plaque.visible = false
 		game.play_sfx("cipher_unlock", -11)
-	elif first_solve and active_id in HERITAGE_IDS:
+	elif first_solve and id == "english":
+		game.rules.score += 18
+		game.play_sfx("cipher_unlock", -11)
+		game._notice("拼写核验通过！已解开路牌旁封存补给（+18 积分）！", game.MINT)
+	elif first_solve and id in HERITAGE_IDS:
 		var h_pts := int(item.get("reward_score", 30))
 		game.rules.score += h_pts
 		var hrk := str(item.get("reveal_key", ""))
 		if hrk != "":
 			revealed_secrets[hrk] = true
-		if active_id == "cave_hearth" and is_instance_valid(game.combat):
+		if id == "cave_hearth" and is_instance_valid(game.combat):
 			game.combat.heal(20, 15)
 			game.play_sfx("heal_shield", -10)
 			game._notice("品饮寒潭山茶 · 生命+20 护盾+15 · 烟山秘史 +%d 分！" % h_pts, game.GOLD)
 		else:
 			game.play_sfx("cipher_unlock", -10)
-			game._notice("品读烟山古迹成功！获得 +%d 撤离积分" % h_pts, game.MINT)
-	elif first_solve and active_id in INTEL_IDS:
+			game._notice("品读烟山古迹并通过随机单词核验！获得 +%d 撤离积分" % h_pts, game.MINT)
+	elif first_solve and id in INTEL_IDS:
 		game.rules.score += int(item.get("reward_score", 20))
 		var rk := str(item.get("reveal_key", ""))
 		if rk != "":
 			revealed_secrets[rk] = true
 		game.play_sfx("cipher_unlock", -11)
 		game._notice("破译战地英文线报！雷达已标记秘宝定位（+%d 分）" % int(item.get("reward_score", 20)), game.MINT)
-	elif first_solve and active_id == "recon_radio":
+	elif first_solve and id == "recon_radio":
 		radar_scan_active = true
 		game.rules.score += 45
 		game.player.grenades += 1
@@ -603,7 +822,7 @@ func choose(index: int):
 			game.player.add_reserve_ammo(radio_ammo)
 		game.play_sfx("radio_scan", -10)
 		game._notice("东岭雷达全图扫描已激活！+45分 +1烟雾EMP +%d备弹" % radio_ammo, Color("7ceeff"))
-	elif first_solve and active_id == "airdrop_beacon":
+	elif first_solve and id == "airdrop_beacon":
 		game.rules.score += 40
 		var drop_ammo := 12 if game.rules.is_confidential() else 10
 		if not game.player.has_infinite_ammo():
@@ -612,31 +831,26 @@ func choose(index: int):
 		game._notice("北脊卫星空投已解锁！+40分 +%d备弹" % drop_ammo, game.GOLD)
 	else:
 		game.play_sfx("cipher_unlock", -11)
-	_reward(active_id)
+	_reward(id, lead_prefix)
 
-func _resolved_reward(id: String, item: Dictionary) -> Dictionary:
-	# v0.8.2_dev2 D2-4: Calibrate guaranteed exploration rewards so Normal mode stays at T4 Epic
-	# while Confidential mode upgrades to T5/T6 calibrated treasures (no free guaranteed Big Gold in Normal!).
-	if id == "cave_hearth":
-		if game.rules.is_confidential():
-			return {"title": "翡翠节节高玉佩", "value": 255, "rarity": 5}
-		return {"title": "先民青铜茶铫", "value": 198, "rarity": 4}
-	if id == "airdrop_beacon":
-		if game.rules.is_confidential():
-			return {"title": str(item.reward_title), "value": int(item.reward_value), "rarity": int(item.get("reward_rarity", 5))}
-		return {"title": "军用黑匣子", "value": 165, "rarity": 4}
-	return {
-		"title": str(item.reward_title),
-		"value": int(item.reward_value),
-		"rarity": int(item.get("reward_rarity", 3)),
-	}
+func _resolved_reward(id: String, _item: Dictionary) -> Dictionary:
+	# v0.8.6: ALL exploration item rewards roll probabilistically against the global calibrated drop pyramid!
+	# (Cached per run per node so reopening never re-rolls; zero guaranteed Purple/Gold giveaways!)
+	if rolled_rewards.has(id):
+		return rolled_rewards[id]
+	var ctx := "exploration_deep" if id in DEEP_REWARD_IDS else "exploration_standard"
+	var rarity: int = game.rules.roll_calibrated_rarity(game.rules.is_confidential(), ctx, true)
+	var rolled: Dictionary = game.rules.roll_item_by_rarity(rarity)
+	rolled_rewards[id] = rolled
+	return rolled
 
-func _reward(id: String):
-	var item = current_items[id]
+func _reward(id: String, lead_prefix: String = ""):
+	var item: Dictionary = current_items.get(id, {})
+	var base_exp := (lead_prefix + "\n" + str(item.get("explanation", ""))) if lead_prefix != "" else str(item.get("explanation", ""))
 	if not item.has("reward_title"):
 		swap_button.hide()
 		var pts := int(item.get("reward_score", 20))
-		explanation.text = "%s\n已解锁雷达定位并获得 +%d 撤离积分！" % [item.explanation, pts]
+		explanation.text = "%s\n已解锁雷达定位并获得 +%d 撤离积分！" % [base_exp, pts]
 		for b in buttons:
 			b.disabled = true
 		return
@@ -650,7 +864,7 @@ func _reward(id: String):
 	if not states.get(key, false):
 		if not game.rules.can_loot():
 			states[key] = true
-			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可领取【%s】%s！" % [game.Rules.RARITY_NAMES[rarity], rw_title]
+			suffix = "自由靶场模式仅作纯学习练习（不入包物资），实战行动中可随机抽取【%s】%s 等物资！" % [game.Rules.RARITY_NAMES[rarity], rw_title]
 		else:
 			var nd := _node_for_id(id)
 			var rw_item: Dictionary = game.rules._enrich_loot_dict(rw)
@@ -658,10 +872,10 @@ func _reward(id: String):
 				if not nd.has_meta("pending_items") or (nd.get_meta("pending_items") as Array).is_empty():
 					nd.set_meta("pending_items", [rw_item])
 					nd.set_meta("opened_remaining", true)
-			suffix = "已解锁【%s】%s（估值 %d 币）！请点下方「📦 确认拾取奖励物资」选择入包、存安全箱或留原处。" % [game.Rules.RARITY_NAMES[rarity], rw_title, rw_value]
+			suffix = "随机抽得【%s】%s（估值 %d 币）！请点下方「📦 确认拾取奖励物资」选择入包、存安全箱或留原处。" % [game.Rules.RARITY_NAMES[rarity], rw_title, rw_value]
 			swap_button.text = "📦 确认拾取奖励物资"
 			swap_button.show()
-	explanation.text = item.explanation + "\n" + suffix
+	explanation.text = base_exp + "\n" + suffix
 	for b in buttons:
 		b.disabled = true
 

@@ -156,13 +156,14 @@ func discovery(id: String) -> bool:
 	if not await travel(node.position + Vector3(0, 0, 2)):
 		return false
 	game.interact()
-	if id == "english":
-		return game.exploration.states.english
 	if not game.exploration.busy:
-		return false
+		return game.exploration.states.get(id, false)
 	if id != "clue":
-		var ans_idx = game.exploration.answer_button_index(id)
-		game.exploration.buttons[ans_idx].pressed.emit()
+		if game.exploration.is_spelling_challenge(id):
+			game.exploration.submit_spelling(game.exploration.expected_spelling_word(id))
+		else:
+			var ans_idx = game.exploration.answer_button_index(id)
+			game.exploration.buttons[ans_idx].pressed.emit()
 	await get_tree().process_frame
 	game.exploration.close()
 	return game.exploration.states[id]
@@ -215,8 +216,8 @@ func _run_formal_combat_supply_and_extract() -> Dictionary:
 		out.blocked_at = "formal-supply-box"
 		game._end_run(false)
 		return out
-	# 2) Meet Tier-1 crate & extraction criteria cleanly, then crack Tier-1 password crate
-	for _k in 18:
+	# 2) Meet Tier-1 crate & extraction criteria cleanly (v0.8.6: 420 pts), then crack Tier-1 password crate
+	while game.rules.score < game.rules.extraction_score_required() or game.rules.answered < 18:
 		game.rules.open_question()
 		game.rules.answer(true)
 	game.rules.outposts_cleared = 2
@@ -254,7 +255,7 @@ func run():
 	var began = Time.get_ticks_msec()
 	route_ok = true
 	blocked_at = ""
-	await challenge(0, 6)
+	await challenge(0, 8)
 	for waypoint in game.Layout.ROUTE.slice(1):
 		if not route_ok:
 			break
@@ -287,7 +288,7 @@ func run():
 				break
 		for index in [1, 2]:
 			if waypoint.distance_to(game.Layout.STATIONS[index].at) < 0.1:
-				await challenge(index, 5)
+				await challenge(index, 7)
 	if route_ok:
 		game.interact()
 		var extract_began = Time.get_ticks_msec()
