@@ -325,6 +325,13 @@ func _mark_zone_cleared(z_idx: int):
 	if is_instance_valid(game.rangers):
 		game.rangers.unlock_card("mistbound_syndicate", false)
 		game.rangers.record_bounty_progress("camp_cleared", 1)
+	if game.rules.active_map == "ahsarah":
+		game.rules.inc_lore_stat("camps_cleared_ahsarah", 1)
+		var zinfo := zone_info(z_idx)
+		if str(zinfo.get("id", "")) == "substation" or str(zinfo.get("title", "")).contains("变电站"):
+			game.rules.inc_lore_stat("substation_cleared", 1)
+	else:
+		game.rules.inc_lore_stat("camps_cleared_yanshan", 1)
 	game._sync_question()
 	game._notice("★ 已彻底肃清【%s】全部 3 波守军！+%d 积分 · 医疗包+1 备弹+%d（已攻克 %d/%d 营地，撤离需%d处）" % [
 		zone_info(z_idx).title, game.Rules.OUTPOST_CLEAR_SCORE, clear_ammo,
@@ -2162,6 +2169,10 @@ func _on_boss_defeated(boss):
 		else:
 			game.rangers.unlock_card("skyfall_overlord" if is_ov else "vanguard_boss", false)
 		game.rangers.record_bounty_progress("boss_defeated", 1)
+	if is_ah_boss:
+		game.rules.inc_lore_stat("reis_defeats" if is_ov else "saeed_defeats", 1)
+	else:
+		game.rules.inc_lore_stat("overlord_defeats" if is_ov else "ironface_defeats", 1)
 	var boss_name := ("阿萨拉军阀·雷斯" if is_ov else "赤枭·赛伊德") if is_ah_boss else ("雾隐机关王·玄铁词尊" if is_ov else "雾隐先锋·铁面词卫")
 	game._notice("🏆 击败【%s】！夺得停机坪/撤离密钥 + %s(%d)%s%s！" % [boss_name, str(core_item.title), int(core_item.value), extra_red_msg, bp_msg], Color("ffd15c"))
 

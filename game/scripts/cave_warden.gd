@@ -788,6 +788,8 @@ func _on_defeated():
 	if is_instance_valid(game.rangers):
 		game.rangers.unlock_card("cave_warden", false)
 		game.rangers.record_bounty_progress("warden_defeated", 1)
+	game.rules.inc_lore_stat("warden_defeats", 1)
+	game.rules.mark_lore_scene("yanshan_cave")
 	if game.rules.is_confidential() and game.has_method("on_confidential_cave_warden_defeated"):
 		game.on_confidential_cave_warden_defeated()
 	game._notice("★ 成功击败【古洞循音石卫】！+80 积分%s" % loot_msg, game.GOLD)

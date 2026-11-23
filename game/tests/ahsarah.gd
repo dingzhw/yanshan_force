@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.4" and game.active_map_id == "yanshan", "v0.9.4 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.5" and game.active_map_id == "yanshan", "v0.9.5 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -486,6 +486,49 @@ func run():
 	verify(game.intel_overlay.visible, "v0.9.3: toggle_intel_overlay() opens on-demand full status & keybinds card")
 	game.toggle_intel_overlay()
 	verify(not game.intel_overlay.visible, "v0.9.3: second toggle closes intel drawer cleanly")
+
+	# =========================================================================
+	# 11. v0.9.5 Grand 3D Strategic War Map Login Screen & Standalone Multi-Faction Lore Codex UI
+	# =========================================================================
+	game._end_run(false, "测试收尾")
+	await frames(4)
+	verify(is_instance_valid(game.war_map) and is_instance_valid(game.nav_story_btn) and is_instance_valid(game.lore_codex), "v0.9.5: Login screen mounts live 3D WarMap3D diorama, Story/Yanshan/Ahsarah left rail & standalone LoreCodexUI")
+	game._select_nav_theater("yanshan")
+	await frames(2)
+	verify(game.war_map.current_theater == "yanshan" and game.war_map.pin_buttons.has("yanshan_base") and game.war_map.pin_buttons.has("jingtang_school") and game.war_map.pin_buttons.has("chengzhuang_port"), "v0.9.5: Yanshan 3D War Map displays 烟山基地, 鲸塘中心小学 & 诚庄村河港 landmark pins")
+	game.war_map.select_landmark("jingtang_school")
+	verify(game.selected_landmark_id == "jingtang_school" and game.deploy_back_btn.visible and not game.start_button.visible, "v0.9.5: Selecting locked placeholder landmark shows coming-soon brief and return button")
+	game._select_nav_theater("ahsarah")
+	await frames(2)
+	verify(game.war_map.current_theater == "ahsarah" and game.war_map.pin_buttons.has("ahsarah_fortress") and game.war_map.pin_buttons.has("brakkesh_oldtown") and game.war_map.pin_buttons.has("space_city"), "v0.9.5: Ahsarah 3D War Map displays 阿萨拉堡垒, 巴克什古城外围 & 哈夫克航天禁区 landmark pins")
+	game._select_nav_theater("story")
+	await frames(2)
+	verify(game.war_map.current_theater == "story" and game.prologue_button.visible, "v0.9.5: Story Mode tab displays golden-hour 3D vista & playable Prologue chapter launch button")
+
+	# Standalone Multi-Faction Lore Codex (4 factions, 14 portraits, 56 progressive chapters!)
+	var all_dids: PackedStringArray = game.LoreCodexUI.all_dossier_ids()
+	var portraits_ok := 0
+	for did in all_dids:
+		var pt: Texture2D = game.LoreCodexUI.load_portrait(str(did))
+		if pt != null and pt.get_width() >= 256:
+			portraits_ok += 1
+	verify(all_dids.size() == 14 and portraits_ok == 14, "v0.9.5: Standalone Lore Codex loads all 14 high-res character portraits (%d/14)" % portraits_ok)
+	var tot_before: Dictionary = game.lore_codex.total_chapter_counts()
+	verify(int(tot_before.total) == 56 and int(tot_before.unlocked) >= 14, "v0.9.5: Lore Codex provides 56 multi-stage chapters across 4 factions (%d/56 initially unlocked)" % int(tot_before.unlocked))
+	game.lore_codex.open("rangers")
+	await frames(2)
+	verify(game.lore_codex.busy and game.lore_codex.view_mode == "hub" and game.lore_codex.hub_cards_grid.get_child_count() == 5, "v0.9.5: Lore Codex Page 1 displays Faction Hub with 5 Rangers portrait cards")
+	game.lore_codex.open_character("shaoyu")
+	await frames(2)
+	verify(game.lore_codex.view_mode == "detail" and game.lore_codex.detail_portrait_tex.texture != null and game.lore_codex.detail_chapters_vbox.get_child_count() == 4, "v0.9.5: Lore Codex Page 2 shows Left Portrait + Right 4-stage progressive dossier for Shaoyu")
+	var sy_pre: int = game.lore_codex.unlocked_chapters_for("shaoyu")
+	game.rules.inc_lore_stat("shaoyu_runs", 4)
+	game.rules.inc_lore_stat("shaoyu_skill_uses", 6)
+	game.rules.profile.extractions = maxi(int(game.rules.profile.extractions), 4)
+	var sy_post: int = game.lore_codex.unlocked_chapters_for("shaoyu")
+	verify(sy_post >= sy_pre and sy_post >= 3, "v0.9.5: Playing Shaoyu runs/skills/extractions progressively unlocks deeper Shaoyu lore chapters (%d -> %d/4)" % [sy_pre, sy_post])
+	game.lore_codex.close()
+	verify(not game.lore_codex.busy, "v0.9.5: Lore Codex closes cleanly back to War Map login")
 
 	if FileAccess.file_exists(tmp_profile):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_profile))

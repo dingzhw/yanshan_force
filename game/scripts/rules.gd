@@ -41,6 +41,25 @@ const DEFAULT_SETTINGS = {
 	"mouse_sensitivity": 1.0
 }
 
+const DEFAULT_LORE_STATS = {
+	"shaoyu_runs": 0,
+	"shaoyu_extractions": 0,
+	"shaoyu_skill_uses": 0,
+	"yanshan_runs": 0,
+	"ahsarah_runs": 0,
+	"camps_cleared_yanshan": 0,
+	"camps_cleared_ahsarah": 0,
+	"substation_cleared": 0,
+	"ironface_defeats": 0,
+	"overlord_defeats": 0,
+	"warden_defeats": 0,
+	"saeed_defeats": 0,
+	"reis_defeats": 0,
+	"mandel_decodes": 0,
+	"perfect_ciphers_total": 0,
+	"scenes_visited": []
+}
+
 const AHSARAH_LOOT_TITLES = [
 	"赤枭青铜猎徽",
 	"巴克什鎏金油灯",
@@ -356,7 +375,7 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.9.4",
+	"saved_by_version": "0.9.5",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
@@ -377,6 +396,7 @@ var profile = {
 	"mastery": {},
 	"review_due": {},
 	"learning_stats": {},
+	"lore_stats": DEFAULT_LORE_STATS.duplicate(true),
 	"settings": DEFAULT_SETTINGS.duplicate(true),
 	"last_run": {},
 	"stats": {},
@@ -555,6 +575,71 @@ func ensure_ranger_profile():
 	if not ("shaoyu" in profile.character_cards):
 		profile.character_cards.insert(0, "shaoyu")
 
+func ensure_lore_stats() -> Dictionary:
+	if not profile.has("lore_stats") or not (profile["lore_stats"] is Dictionary):
+		profile["lore_stats"] = DEFAULT_LORE_STATS.duplicate(true)
+	var ls: Dictionary = profile["lore_stats"]
+	for k in DEFAULT_LORE_STATS:
+		if not ls.has(k):
+			if DEFAULT_LORE_STATS[k] is Array:
+				ls[k] = []
+			else:
+				ls[k] = DEFAULT_LORE_STATS[k]
+	if not (ls["scenes_visited"] is Array):
+		ls["scenes_visited"] = []
+	for k in DEFAULT_LORE_STATS:
+		if k != "scenes_visited":
+			ls[k] = maxi(0, int(ls.get(k, 0)))
+	# Retroactive milestone credit for existing saves so veterans immediately see earned chapters!
+	var ext_n: int = maxi(0, int(profile.get("extractions", 0)))
+	if ext_n > 0:
+		ls["shaoyu_runs"] = maxi(int(ls["shaoyu_runs"]), ext_n)
+		ls["shaoyu_extractions"] = maxi(int(ls["shaoyu_extractions"]), ext_n)
+		ls["yanshan_runs"] = maxi(int(ls["yanshan_runs"]), ext_n)
+		if not ("yanshan_base" in ls["scenes_visited"]):
+			ls["scenes_visited"].append("yanshan_base")
+	if bool(profile.get("prologue_completed", false)) and not ("prologue" in ls["scenes_visited"]):
+		ls["scenes_visited"].append("prologue")
+	var cards: Array = profile.get("character_cards", [])
+	if "mistbound_syndicate" in cards:
+		ls["camps_cleared_yanshan"] = maxi(int(ls["camps_cleared_yanshan"]), 1)
+	if "vanguard_boss" in cards:
+		ls["ironface_defeats"] = maxi(int(ls["ironface_defeats"]), 1)
+	if "skyfall_overlord" in cards:
+		ls["overlord_defeats"] = maxi(int(ls["overlord_defeats"]), 1)
+	if "cave_warden" in cards:
+		ls["warden_defeats"] = maxi(int(ls["warden_defeats"]), 1)
+		if not ("yanshan_cave" in ls["scenes_visited"]):
+			ls["scenes_visited"].append("yanshan_cave")
+	if "saeed_fiery_owl" in cards:
+		ls["saeed_defeats"] = maxi(int(ls["saeed_defeats"]), 1)
+		ls["ahsarah_runs"] = maxi(int(ls["ahsarah_runs"]), 1)
+		if not ("ahsarah_fortress" in ls["scenes_visited"]):
+			ls["scenes_visited"].append("ahsarah_fortress")
+	if "reis_warlord" in cards:
+		ls["reis_defeats"] = maxi(int(ls["reis_defeats"]), 1)
+		ls["ahsarah_runs"] = maxi(int(ls["ahsarah_runs"]), 1)
+		if not ("ahsarah_fortress" in ls["scenes_visited"]):
+			ls["scenes_visited"].append("ahsarah_fortress")
+	if is_ahsarah_permanently_unlocked() and not ("ahsarah_fortress" in ls["scenes_visited"]):
+		ls["scenes_visited"].append("ahsarah_fortress")
+	return ls
+
+func inc_lore_stat(key: String, delta: int = 1) -> int:
+	var ls := ensure_lore_stats()
+	if key == "scenes_visited":
+		return (ls["scenes_visited"] as Array).size()
+	ls[key] = maxi(0, int(ls.get(key, 0)) + delta)
+	return int(ls[key])
+
+func mark_lore_scene(scene_id: String) -> bool:
+	var ls := ensure_lore_stats()
+	var arr: Array = ls["scenes_visited"]
+	if scene_id == "" or (scene_id in arr):
+		return false
+	arr.append(scene_id)
+	return true
+
 func ensure_settings() -> Dictionary:
 	if not profile.has("settings") or not (profile["settings"] is Dictionary):
 		profile["settings"] = DEFAULT_SETTINGS.duplicate(true)
@@ -645,6 +730,7 @@ func migrate_legacy_items():
 	ensure_settings()
 	ensure_ranger_profile()
 	ensure_map_profile()
+	ensure_lore_stats()
 	profile["schema_version"] = PROFILE_SCHEMA_VERSION
 
 static func catalog_meta(title: String) -> Dictionary:
@@ -991,6 +1077,7 @@ func open_crate(crate_id: String, tier: int, perfect_spell: bool = false) -> Arr
 			awarded.append(item)
 	if perfect_spell:
 		perfect_ciphers += 1
+		inc_lore_stat("perfect_ciphers_total", 1)
 		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 	crates.append(crate_id)
 	return awarded
@@ -1005,6 +1092,7 @@ func unlock_crate_pending(crate_id: String, tier: int, perfect_spell: bool = fal
 		rolled.append(roll_item_by_rarity(rarity))
 	if perfect_spell:
 		perfect_ciphers += 1
+		inc_lore_stat("perfect_ciphers_total", 1)
 		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 	crates.append(crate_id)
 	return rolled
@@ -1023,6 +1111,7 @@ func unlock_crate_full(crate_id: String, tier: int, perfect_spell: bool = false)
 			overflow.append(item)
 	if perfect_spell:
 		perfect_ciphers += 1
+		inc_lore_stat("perfect_ciphers_total", 1)
 		score += CIPHER_PERFECT_SCORE + maxi(0, tier - 1) * 10
 	crates.append(crate_id)
 	return {"items": all_items, "overflow": overflow}
@@ -1090,6 +1179,7 @@ func finish_extraction() -> bool:
 		gained_xp = roundi(float(gained_xp) * CONFIDENTIAL_VALUE_MULT)
 	profile.xp += gained_xp
 	profile.extractions += 1
+	inc_lore_stat("shaoyu_extractions", 1)
 	bag.clear()
 	safe_box.clear()
 	phase = "result"

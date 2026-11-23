@@ -546,6 +546,7 @@ func activate_skill() -> bool:
 	var cd_now: float = effective_skill_cooldown()
 	skill_cooldown_left = cd_now
 	slam_uses_run += 1
+	game.rules.inc_lore_stat("shaoyu_skill_uses", 1)
 	if is_instance_valid(game.player.weapon_view) and game.player.weapon_view.has_method("trigger_ground_slam"):
 		game.player.weapon_view.trigger_ground_slam()
 	if is_instance_valid(game.player.player_body) and game.player.player_body.has_method("trigger_ground_slam"):

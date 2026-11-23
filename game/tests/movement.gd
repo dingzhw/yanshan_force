@@ -282,7 +282,29 @@ func run():
 		await physics_frame
 	verify(pb.slam_anim_left > 0.0 and pb.world_rifle_root.get_parent() == pb.weapon_back_attach, "v0.9.4: [V] Shaoyu Ground-Slam temporarily back-holsters rifle so fist slams cleanly without sky-pointing barrel")
 	pb.slam_anim_left = 0.0
+
+	# v0.9.5 Refined Sculpted Head/Eyes, Closed 3P Waist Belt, Clean 1P Look-Down & Zero-Twist Prone Rig
+	var eyes_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_EyesBrows", true, false) as MeshInstance3D
+	var waist_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_LowerWaist", true, false) as MeshInstance3D
+	var head_mi: MeshInstance3D = pb.head_pivot as MeshInstance3D
+	var head_verts: int = 0
+	if is_instance_valid(head_mi) and head_mi.mesh != null and head_mi.mesh.get_surface_count() > 0:
+		head_verts = head_mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
+	verify(is_instance_valid(eyes_node) and is_instance_valid(waist_node) and head_verts >= 1200, "v0.9.5: Shaoyu loads sculpted Blender Studio head (%d verts), expressive 3D eyes/brows & closed waist belt" % head_verts)
+	game.player.stance = 2
+	for i in 8:
+		await physics_frame
+	var ul_idx: int = pb.skeleton.find_bone("UpperLeg.L")
+	var ur_idx: int = pb.skeleton.find_bone("UpperLeg.R")
+	var fl_idx: int = pb.skeleton.find_bone("Foot.L")
+	var fr_idx: int = pb.skeleton.find_bone("Foot.R")
+	var feet_sep: float = pb.skeleton.get_bone_global_pose(fl_idx).origin.distance_to(pb.skeleton.get_bone_global_pose(fr_idx).origin)
+	verify(pb.cur_lower_state == "prone_idle" and ul_idx >= 0 and ur_idx >= 0 and feet_sep < 0.65, "v0.9.5: Prone_Idle aligns legs cleanly behind hips without gimbal twist (feet_sep=%.2fm)" % feet_sep)
+	game.player.stance = 0
 	game.player.set_third_person(false, true)
+	for i in 4:
+		await physics_frame
+	verify(not waist_node.visible and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.5: 1P hides waist cap while keeping smooth cargo-pant legs & boots visible for clean look-down")
 
 	game.player.clear_movement_input()
 	game.queue_free()

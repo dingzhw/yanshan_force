@@ -549,6 +549,7 @@ func _complete_decryption():
 
 	if is_instance_valid(game.achievements):
 		game.achievements.record_stat("mandel_decoded", 1)
+	game.rules.inc_lore_stat("mandel_decodes", 1)
 
 	# Spawn physical MandelBrick Reward Crate right beside the station (3 calibrated pyramid rolls!)
 	var rewards: Array = game.rules.roll_mandel_reward_items()

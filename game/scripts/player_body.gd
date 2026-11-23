@@ -212,7 +212,7 @@ func _build_hero():
 	left_arm_ik.set_root_bone_name(0, "UpperArm.L")
 	left_arm_ik.set_middle_bone_name(0, "LowerArm.L")
 	left_arm_ik.set_end_bone_name(0, "Hand.L")
-	left_arm_ik.set_pole_direction(0, SkeletonModifier3D.SECONDARY_DIRECTION_MINUS_Y)
+	left_arm_ik.set_pole_direction(0, SkeletonModifier3D.SECONDARY_DIRECTION_MINUS_Z)
 	left_arm_ik.influence = 0.0
 	skeleton.add_child(left_arm_ik)
 
@@ -600,11 +600,12 @@ func update_pose(
 	if is_instance_valid(world_muzzle_flash):
 		world_muzzle_flash.visible = (not is_first_person) and flash_left > 0.0 and weapon_slot == 0 and (not slamming)
 
-	# 1P subtle backward offset so looking down shows real skinned thighs, knees & combat boots cleanly!
+	# 1P natural backward & subtle downward offset so looking straight down shows full cargo-pant legs, kneepads & boots (zero cut-off pelvis/belly!)
 	var target_body_z: float = 0.0
 	var target_body_y: float = 0.0
 	if is_first_person:
-		target_body_z = 0.22 if stance == 2 else (0.14 if stance == 1 else 0.09)
+		target_body_z = 0.34 if stance == 2 else (0.30 if stance == 1 else 0.27)
+		target_body_y = -0.04 if stance == 0 else 0.0
 	elif stance == 2:
 		# Subtle prone lift keeps belly, cargo pants & boots gliding cleanly ON TOP of undulating sand dunes!
 		target_body_y = 0.08

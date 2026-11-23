@@ -248,16 +248,27 @@ func run():
 					and ap.has_animation("Sprint_Fwd")
 					and ap.has_animation("Shaoyu_GroundSlam")
 					and hi.find_child("Shaoyu_Head", true, false) != null
+					and hi.find_child("Shaoyu_EyesBrows", true, false) != null
 					and hi.find_child("Shaoyu_HeadGear", true, false) != null
 					and hi.find_child("Shaoyu_UpperBody", true, false) != null
 					and hi.find_child("Shaoyu_TacticalGear", true, false) != null
+					and hi.find_child("Shaoyu_LowerWaist", true, false) != null
 					and hi.find_child("Shaoyu_ScarfTail", true, false) != null
 					and hi.find_child("Shaoyu_Backpack", true, false) != null
 					and hi.find_child("Shaoyu_LowerLegs", true, false) != null
 					and hi.find_child("Shaoyu_LowerBoots", true, false) != null
 				)
 			hi.free()
-	verify(hero_ok, "standalone PCK includes v0.9.4 rigged player_shaoyu.glb (%d bones, %d anims, 8 Plan B meshes & scarf/weapon sockets)" % [hero_bones, hero_anims])
+	verify(hero_ok, "standalone PCK includes v0.9.5 refined player_shaoyu.glb (%d bones, %d anims, 10 sculpted meshes incl. EyesBrows & LowerWaist)" % [hero_bones, hero_anims])
+	var portrait_ids := ["shaoyu", "chen_guide", "tingfeng", "qinghe", "zhuying", "mistbound_soldier", "vanguard_boss", "skyfall_overlord", "cave_warden", "ahsarah_guard", "saeed_fiery_owl", "reis_warlord", "haavk_trooper", "mandel_protocol"]
+	var portraits_loaded := 0
+	for pid in portrait_ids:
+		var pp := "res://assets/portraits/%s.png" % pid
+		if ResourceLoader.exists(pp):
+			var pt = load(pp)
+			if pt is Texture2D and pt.get_width() >= 256:
+				portraits_loaded += 1
+	verify(ResourceLoader.exists("res://scripts/lore_codex_ui.gd") and ResourceLoader.exists("res://scripts/war_map_3d.gd") and portraits_loaded == 14, "standalone PCK includes v0.9.5 LoreCodexUI, WarMap3D & all 14 character portraits (%d/14 loaded)" % portraits_loaded)
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

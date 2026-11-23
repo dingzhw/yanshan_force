@@ -1309,9 +1309,13 @@ func _build_compendium_modal():
 		comp_tab = "achievements"
 		_refresh_compendium_ui()
 	)
-	comp_tab_chars_btn = game._button(comp_overlay, "👤 人物小记", Rect2(698, 68, 168, 36), func():
-		comp_tab = "characters"
-		_refresh_compendium_ui()
+	comp_tab_chars_btn = game._button(comp_overlay, "👤 角色小传", Rect2(698, 68, 168, 36), func():
+		if is_instance_valid(game.lore_codex):
+			close_compendium()
+			game.lore_codex.open("", "", true)
+		else:
+			comp_tab = "characters"
+			_refresh_compendium_ui()
 	)
 	game._button(comp_overlay, "返回营地", Rect2(1020, 68, 138, 38), close_compendium)
 

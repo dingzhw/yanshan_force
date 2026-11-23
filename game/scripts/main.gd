@@ -18,8 +18,10 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.4"
+const VERSION = "0.9.5"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
+const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
+const WarMap3D = preload("res://scripts/war_map_3d.gd")
 const SliceWorld = preload("res://scripts/slice_world.gd")
 const AhsarahWorld = preload("res://scripts/ahsarah_world.gd")
 const MandelEvent = preload("res://scripts/mandel_event.gd")
@@ -187,6 +189,13 @@ var abandon_button: Button
 var practice_button: Button
 var warehouse_button: Button
 var compendium_button: Button
+var lore_codex_button: Button
+var nav_story_btn: Button
+var deploy_drawer: Panel
+var deploy_title_lbl: Label
+var deploy_back_btn: Button
+var selected_nav_tab: String = "yanshan"
+var selected_landmark_id: String = "yanshan_base"
 var camp_display_stand: Node3D
 var camp_display_upper_shelf: Node3D
 var camp_display_header: Label3D
@@ -200,6 +209,8 @@ var wildlife
 var cipher_terminal
 var achievements
 var rangers
+var lore_codex
+var war_map
 var cave_warden
 var mandel_event
 var prologue
@@ -279,6 +290,9 @@ func _ready():
 	rangers = Rangers.new()
 	add_child(rangers)
 	rangers.setup(self)
+	lore_codex = LoreCodexUI.new()
+	add_child(lore_codex)
+	lore_codex.setup(self)
 	_build_camp_display_stand()
 	refresh_camp_display_stand()
 	_sync_settings_ui()
@@ -770,6 +784,10 @@ func switch_map(map_id: String, force_rebuild: bool = false) -> bool:
 		radar_title_label.text = "N"
 	if is_instance_valid(minimap):
 		minimap.queue_redraw()
+	selected_nav_tab = target_id
+	selected_landmark_id = "ahsarah_fortress" if target_id == "ahsarah" else "yanshan_base"
+	if is_instance_valid(war_map):
+		war_map.set_theater(target_id, false)
 	_refresh_terminal_title()
 	_refresh_menu()
 	return true
@@ -1433,99 +1451,178 @@ func _build_ui():
 	screen_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(screen_flash)
 
-	# CAMP / PAUSE MENU
+	# =========================================================================
+	# v0.9.5 GRAND 3D STRATEGIC WAR MAP LOGIN SCREEN (Left 1/5 Rail + Right 4/5 3D Map!)
+	# =========================================================================
 	menu = Control.new()
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(menu)
+
+	# Full backdrop behind everything
 	var veil = ColorRect.new()
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	veil.color = Color(0.03, 0.065, 0.08, 0.62)
+	veil.color = Color(0.024, 0.046, 0.060, 0.96)
 	menu.add_child(veil)
-	_panel(menu, Rect2(86, 56, 534, 608), Color(0.038, 0.082, 0.102, 0.97), Color(0.46, 0.80, 0.66, 0.42))
 
-	menu_title = _text(menu, "烟山基地", Vector2(120, 76), Vector2(204, 44), 28, MINT)
+	# RIGHT 4/5 (x=268..1280): Live 3D Tactical Relief War Map Diorama!
+	war_map = WarMap3D.new()
+	menu.add_child(war_map)
+	war_map.setup(self, Rect2(268, 0, 1012, 720))
+	war_map.landmark_selected.connect(_on_war_map_landmark_selected)
+
+	# LEFT 1/5 COMMAND SIDEBAR (x=0..268, width=268px ≈ 20.9%)
+	var sidebar := Panel.new()
+	sidebar.position = Vector2(0, 0)
+	sidebar.size = Vector2(268, 720)
+	var sb_style := StyleBoxFlat.new()
+	sb_style.bg_color = Color(0.030, 0.056, 0.072, 0.98)
+	sb_style.border_width_right = 2
+	sb_style.border_color = Color("3c6e68")
+	sidebar.add_theme_stylebox_override("panel", sb_style)
+	menu.add_child(sidebar)
+
+	menu_title = _text(sidebar, "烟山行动", Vector2(16, 14), Vector2(148, 32), 22, MINT)
 	menu_title.clip_text = true
-	_text(menu, "英语搜撤行动 · v" + VERSION, Vector2(122, 124), Vector2(460, 22), 15, GOLD)
-	settings_button = _button(menu, "⚙ 设置", Rect2(328, 86, 72, 36), func():
+	_text(sidebar, "英语搜撤 · v" + VERSION, Vector2(16, 46), Vector2(150, 20), 12, GOLD)
+
+	settings_button = _button(sidebar, "⚙", Rect2(170, 16, 40, 32), func():
 		armory_panel.hide()
 		settings_panel.visible = not settings_panel.visible
 		if settings_panel.visible:
 			_sync_settings_ui()
 	)
-	settings_button.add_theme_font_size_override("font_size", 13)
-	_button(menu, "退出", Rect2(518, 86, 64, 36), _quit_game)
-	abandon_button = _button(menu, "放弃本局", Rect2(406, 86, 104, 36), func(): _end_run(false, "放弃本局"))
-	abandon_button.hide()
+	settings_button.add_theme_font_size_override("font_size", 15)
+	settings_button.tooltip_text = "舒适、音量、视角与试玩设置"
+	var quit_btn: Button = _button(sidebar, "退出", Rect2(214, 16, 42, 32), _quit_game)
+	quit_btn.add_theme_font_size_override("font_size", 12)
 
-	menu_summary = _text(menu, "", Vector2(122, 148), Vector2(460, 102), 14)
-	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	menu_summary.clip_text = false
-	review_button = _button(menu, "查看本局错词与例句（含页码）", Rect2(122, 254, 456, 26), _show_review)
-	review_button.hide()
+	# Primary Mode & Theater Rail (Top-to-Bottom: 剧情模式 / 烟山行动 / 阿萨拉行动)
+	_text(sidebar, "作战入口 · THEATER", Vector2(16, 70), Vector2(236, 18), 11, Color("7baaa0"))
 
+	nav_story_btn = _button(sidebar, "📖 剧情模式", Rect2(14, 90, 240, 44), func():
+		_select_nav_theater("story")
+	)
+	nav_story_btn.add_theme_font_size_override("font_size", 15)
+
+	map_yanshan_btn = _button(sidebar, "🏔 烟山行动", Rect2(14, 140, 240, 44), func():
+		_select_nav_theater("yanshan")
+	)
+	map_yanshan_btn.add_theme_font_size_override("font_size", 15)
+
+	map_ahsarah_btn = _button(sidebar, "🏜 阿萨拉行动", Rect2(14, 190, 240, 44), func():
+		_select_nav_theater("ahsarah")
+	)
+	map_ahsarah_btn.add_theme_font_size_override("font_size", 15)
+
+	# Vocabulary Scope & Daily Review Section
+	_text(sidebar, "词库范围 · VOCAB", Vector2(16, 244), Vector2(236, 18), 11, Color("7baaa0"))
 	unit_picker = OptionButton.new()
-	unit_picker.position = Vector2(122, 286)
-	unit_picker.size = Vector2(290, 34)
+	unit_picker.position = Vector2(14, 264)
+	unit_picker.size = Vector2(240, 30)
+	unit_picker.add_theme_font_size_override("font_size", 13)
 	unit_picker.add_item("全部单元 · %d 条词汇" % words.size())
 	for i in range(1, 9):
 		unit_picker.add_item("Unit " + str(i))
-	menu.add_child(unit_picker)
+	sidebar.add_child(unit_picker)
 
 	include_extra = CheckBox.new()
 	include_extra.text = "含拓展词与专名"
-	include_extra.position = Vector2(422, 288)
+	include_extra.position = Vector2(14, 298)
 	include_extra.button_pressed = true
-	include_extra.add_theme_font_size_override("font_size", 15)
-	menu.add_child(include_extra)
+	include_extra.add_theme_font_size_override("font_size", 13)
+	sidebar.add_child(include_extra)
 	unit_picker.item_selected.connect(func(_index): _refresh_progress())
 	include_extra.toggled.connect(func(_on): _refresh_progress())
 
-	# v0.9.0 Dual-Theater Map Selector ('烟山基地' / '阿萨拉堡垒')
-	map_yanshan_btn = _button(menu, "⛰ 烟山基地（江南幽谷）", Rect2(122, 326, 224, 34), func():
-		if switch_map("yanshan"):
-			play_sfx("weapon_change", -14)
-	)
-	map_yanshan_btn.add_theme_font_size_override("font_size", 14)
-	map_ahsarah_btn = _button(menu, "🔒 阿萨拉堡垒（荒漠巨坝）", Rect2(354, 326, 224, 34), func():
-		if switch_map("ahsarah"):
-			play_sfx("cipher_unlock", -13)
-	)
-	map_ahsarah_btn.add_theme_font_size_override("font_size", 14)
+	retest_button = _button(sidebar, "无提示复测", Rect2(14, 328, 240, 30), _open_retest)
+	retest_button.add_theme_font_size_override("font_size", 12)
 
-	prologue_button = _button(menu, "✨ 烟山初行 · 单人序章（推荐首玩 · 5–8分钟）", Rect2(122, 366, 456, 36), func():
-		try_menu_deploy(false, "prologue")
-	)
-	_style_tactical_button(prologue_button, Color("1f4f42"), Color("8de8c0"), Color("f4fffa"))
+	# Camp Archives & Armory Section (Featuring Standalone 👤 角色小传!)
+	_text(sidebar, "营地档案与整备 · BASE", Vector2(16, 368), Vector2(236, 18), 11, Color("7baaa0"))
 
-	start_button = _button(menu, "开始普通行动", Rect2(122, 408, 154, 46), func():
-		var in_active: bool = rules.phase in ["active", "extracting"]
-		try_menu_deploy(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
-	, true)
-	confidential_button = _button(menu, "机密行动", Rect2(284, 408, 154, 46), func(): try_menu_deploy(true, "confidential"))
-	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
-	practice_button = _button(menu, "自由靶场", Rect2(446, 408, 132, 46), func(): try_menu_deploy(false, "normal"))
-
-	_button(menu, "战备与改装", Rect2(122, 460, 146, 36), func():
+	lore_codex_button = _button(sidebar, "👤 角色小传 · 全阵营档案", Rect2(14, 388, 240, 38), func():
+		armory_panel.hide()
 		settings_panel.hide()
-		armory_panel.visible = not armory_panel.visible
+		if is_instance_valid(lore_codex):
+			lore_codex.open()
 	)
-	warehouse_button = _button(menu, "我的仓库", Rect2(276, 460, 148, 36), func():
+	lore_codex_button.add_theme_font_size_override("font_size", 14)
+	_style_tactical_button(lore_codex_button, Color("1a433e"), Color("5ce8be"), Color("f0fff9"))
+
+	warehouse_button = _button(sidebar, "我的仓库", Rect2(14, 432, 117, 34), func():
 		if is_instance_valid(loot_ui):
 			armory_panel.hide()
 			settings_panel.hide()
 			loot_ui.open_warehouse()
 	)
+	warehouse_button.add_theme_font_size_override("font_size", 13)
 	_style_tactical_button(warehouse_button, Color("3c341a"), Color("f6c34e"), Color("fff2c4"))
-	compendium_button = _button(menu, "奇珍图鉴", Rect2(432, 460, 146, 36), func():
+
+	var armory_btn: Button = _button(sidebar, "战备改装", Rect2(137, 432, 117, 34), func():
+		settings_panel.hide()
+		armory_panel.visible = not armory_panel.visible
+	)
+	armory_btn.add_theme_font_size_override("font_size", 13)
+
+	compendium_button = _button(sidebar, "奇珍图鉴", Rect2(14, 472, 117, 34), func():
 		if is_instance_valid(loot_ui):
 			armory_panel.hide()
 			settings_panel.hide()
 			loot_ui.open_compendium()
 	)
-	retest_button = _button(menu, "无提示复测", Rect2(122, 504, 456, 36), _open_retest)
-	menu_finance = _text(menu, "", Vector2(122, 548), Vector2(460, 50), 14, GOLD)
-	menu_status = _text(menu, "", Vector2(122, 602), Vector2(460, 50), 13, Color("a9c4b6"))
+	compendium_button.add_theme_font_size_override("font_size", 13)
+
+	review_button = _button(sidebar, "本局错词", Rect2(137, 472, 117, 34), _show_review)
+	review_button.add_theme_font_size_override("font_size", 12)
+	review_button.hide()
+
+	# Operative Telemetry & Status Footer on Left Rail
+	menu_finance = _text(sidebar, "", Vector2(14, 516), Vector2(240, 74), 12, GOLD)
+	menu_finance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	menu_status = _text(sidebar, "", Vector2(14, 594), Vector2(240, 72), 11, Color("a9c4b6"))
 	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	abandon_button = _button(sidebar, "放弃本局", Rect2(14, 672, 240, 36), func(): _end_run(false, "放弃本局"))
+	_style_tactical_button(abandon_button, Color("481e1e"), Color("e86862"), Color("ffe8e6"))
+	abandon_button.hide()
+
+	# FLOATING TACTICAL DEPLOYMENT DRAWER OVER BOTTOM OF 3D WAR MAP (x=294..1254, y=522..702)
+	deploy_drawer = _panel(menu, Rect2(294, 522, 960, 180), Color(0.028, 0.062, 0.078, 0.88), Color("468a80"))
+	deploy_title_lbl = _text(deploy_drawer, "🏔 烟山基地 · 江南山地搜撤战区", Vector2(20, 12), Vector2(620, 28), 19, Color("ffd86b"))
+	menu_summary = _text(deploy_drawer, "", Vector2(20, 42), Vector2(920, 68), 13, CREAM)
+	menu_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	menu_summary.clip_text = false
+
+	prologue_button = _button(deploy_drawer, "✨ 开始序章 · 烟山初行（推荐首玩 · 5–8分钟）", Rect2(20, 118, 460, 46), func():
+		try_menu_deploy(false, "prologue")
+	)
+	_style_tactical_button(prologue_button, Color("1f5646"), Color("8de8c0"), Color("f4fffa"))
+
+	start_button = _button(deploy_drawer, "开始普通行动（15分·3营）", Rect2(20, 118, 286, 46), func():
+		var in_active: bool = rules.phase in ["active", "extracting"]
+		try_menu_deploy(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
+	, true)
+	confidential_button = _button(deploy_drawer, "机密行动（20分·3营）", Rect2(318, 118, 250, 46), func(): try_menu_deploy(true, "confidential"))
+	_style_tactical_button(confidential_button, Color("683c1c"), Color("ffb84d"), Color("fff0cf"))
+	practice_button = _button(deploy_drawer, "自由靶场（无敌人训练）", Rect2(580, 118, 224, 46), func(): try_menu_deploy(false, "normal"))
+
+	deploy_back_btn = _button(deploy_drawer, "↩ 返回已开放据点", Rect2(20, 118, 320, 44), func():
+		if selected_nav_tab == "ahsarah" and not rules.is_map_unlocked("ahsarah"):
+			armory_panel.hide()
+			settings_panel.show()
+			_sync_settings_ui()
+		elif selected_nav_tab == "story":
+			if is_instance_valid(war_map):
+				war_map.select_landmark("story_ch1")
+		elif selected_nav_tab == "ahsarah":
+			if is_instance_valid(war_map):
+				war_map.select_landmark("ahsarah_fortress")
+		else:
+			if is_instance_valid(war_map):
+				war_map.select_landmark("yanshan_base")
+	)
+	_style_tactical_button(deploy_back_btn, Color("203640"), Color("78b8c8"), Color("eefaff"))
+	deploy_back_btn.hide()
 
 	# Comfort, Audio, Sensitivity & Strict Review Settings Drawer (Right side of Menu/Pause)
 	settings_panel = Control.new()
@@ -1657,6 +1754,8 @@ func _build_ui():
 		_save()
 		if not on and active_map_id == "ahsarah" and not rules.is_ahsarah_permanently_unlocked():
 			switch_map("yanshan")
+		elif on and selected_nav_tab == "ahsarah" and active_map_id != "ahsarah":
+			switch_map("ahsarah")
 		else:
 			_refresh_menu()
 	)
@@ -1808,6 +1907,59 @@ func _open_retest():
 		if not todo.is_empty():
 			cipher_terminal.open_retest(todo)
 
+func _select_nav_theater(tab: String):
+	if rules.phase in ["active", "extracting"]:
+		return
+	armory_panel.hide()
+	settings_panel.hide()
+	selected_nav_tab = tab
+	if tab == "story":
+		selected_landmark_id = "story_ch1"
+		if is_instance_valid(war_map):
+			war_map.set_theater("story", false)
+		play_sfx("weapon_change", -15)
+		_refresh_menu()
+	elif tab == "yanshan":
+		selected_landmark_id = "yanshan_base"
+		if active_map_id != "yanshan":
+			switch_map("yanshan")
+		else:
+			if is_instance_valid(war_map):
+				war_map.set_theater("yanshan", false)
+			_refresh_menu()
+		play_sfx("weapon_change", -14)
+	elif tab == "ahsarah":
+		selected_landmark_id = "ahsarah_fortress"
+		if rules.is_map_unlocked("ahsarah"):
+			if active_map_id != "ahsarah":
+				switch_map("ahsarah")
+			else:
+				if is_instance_valid(war_map):
+					war_map.set_theater("ahsarah", false)
+				_refresh_menu()
+			play_sfx("cipher_unlock", -13)
+		else:
+			# Still show the grand 3D Desert Diorama & unlock instructions so players can preview Ahsarah!
+			if is_instance_valid(war_map):
+				war_map.set_theater("ahsarah", false)
+			play_sfx("warning_lock", -13)
+			_refresh_menu()
+
+
+func _on_war_map_landmark_selected(landmark_id: String, _lm: Dictionary):
+	selected_landmark_id = landmark_id
+	play_sfx("weapon_change", -16)
+	_refresh_menu()
+
+
+func _current_landmark_meta() -> Dictionary:
+	var list: Array = WarMap3D.LANDMARKS.get(selected_nav_tab, [])
+	for lm in list:
+		if str(lm["id"]) == selected_landmark_id:
+			return lm
+	return list[0] if not list.is_empty() else {}
+
+
 func _refresh_progress():
 	var pending := _pending_retest().size()
 	var in_run: bool = rules.phase in ["active", "extracting"]
@@ -1815,31 +1967,31 @@ func _refresh_progress():
 	var strict_on: bool = bool(rules.setting("strict_daily_review", true))
 	if is_instance_valid(prologue_button):
 		var done_p: bool = bool(rules.profile.get("prologue_completed", false))
-		prologue_button.visible = not in_run
 		if done_p:
-			prologue_button.text = "🔒 重温序章 · 烟山初行" if blocked_by_review else "✓ 烟山初行 · 重温单人序章（望稻亭失联信标）"
+			prologue_button.text = "🔒 重温序章 · 烟山初行" if blocked_by_review else "✓ 重温序章：烟山初行（望稻亭失联信标）"
 		else:
-			prologue_button.text = "✨ 烟山初行 · 单人序章（推荐新玩家首玩 · 5–8分钟）"
+			prologue_button.text = "✨ 开始序章：烟山初行（推荐首玩 · 5–8分钟）"
 	if blocked_by_review:
-		retest_button.text = "🔒 必做 · 完成今日到期复习（%s剩 %d 题）" % ["全词库" if strict_on else "本单元", pending]
+		retest_button.text = "🔒 今日到期复习（%s剩 %d 题）" % ["全词库" if strict_on else "本单元", pending]
 		_style_tactical_button(retest_button, Color("6c4318"), Color("ffd15c"), Color("fff4d1"))
 		start_button.text = "🔒 普通行动"
 		confidential_button.text = "🔒 机密行动"
 		practice_button.text = "🔒 自由靶场"
 	else:
-		retest_button.text = "今日到期复测 · 0 题待练（已全部完成）" if pending == 0 else "今日到期复测 · %d 题待练" % pending
+		retest_button.text = "今日到期复测 · 0 题待练 ✓" if pending == 0 else "今日到期复测 · %d 题待练" % pending
 		_style_tactical_button(retest_button, Color("173138"), Color("4a7570"), Color("b8d8ce"))
-		start_button.text = ("继续%s" % rules.mode_label()) if in_run else "开始普通行动"
-		confidential_button.text = "机密行动"
+		start_button.text = ("继续%s" % rules.mode_label()) if in_run else "开始普通行动（15分·3营）"
+		confidential_button.text = "机密行动（20分·3营）"
 		practice_button.text = "自由靶场"
 	retest_button.disabled = pending == 0 or in_run
 	var ranger_tag := ""
 	if is_instance_valid(rangers):
 		var ar: Dictionary = rangers.active_ranger()
-		ranger_tag = "游侠·%s · 名望 %d（%s） | " % [str(ar.name), rangers.reputation(), rangers.reputation_rank()]
-	menu_finance.text = "掌握词条 %d/%d · 句型 %d/%d · 到期 %d\n%s货币 %d · 奖励券 %d" % [
+		ranger_tag = "游侠·%s · 名望 %d（%s）\n" % [str(ar.name), rangers.reputation(), rangers.reputation_rank()]
+	menu_finance.text = "%s词汇 %d/%d · 句型 %d/%d · 到期 %d\n货币 %d · 奖励券 %d" % [
+		ranger_tag,
 		rules.learning.mastered_count(words), words.size(), rules.learning.mastered_count(sentences),
-		sentences.size(), pending, ranger_tag, rules.profile.coins, rules.profile.points
+		sentences.size(), pending, rules.profile.coins, rules.profile.points
 	]
 
 func _refresh_menu(result = ""):
@@ -1847,24 +1999,45 @@ func _refresh_menu(result = ""):
 	var collected = rules.profile.collection.size()
 	var total_collectibles = Rules.total_collectible_count()
 	var ach_cnt: int = int(achievements.unlocked_count()) if is_instance_valid(achievements) else 0
-	compendium_button.text = "图鉴·成就(%d)" % ach_cnt
+	compendium_button.text = "奇珍·成就(%d)" % ach_cnt
 	compendium_button.tooltip_text = "高阶奇珍 %d/%d · 成就与枪械挂件" % [collected, total_collectibles]
+	if is_instance_valid(lore_codex_button) and is_instance_valid(lore_codex):
+		var lc: Dictionary = lore_codex.total_chapter_counts()
+		lore_codex_button.text = "📖 角色小传（解封 %d/%d）" % [int(lc.unlocked), int(lc.total)]
 	var wh_count = rules.profile.warehouse.size()
 	if is_instance_valid(warehouse_button):
-		warehouse_button.text = "我的仓库 · %d" % wh_count
+		warehouse_button.text = "仓库 · %d" % wh_count
 		warehouse_button.disabled = rules.phase in ["active", "extracting"]
-	menu_title.text = result if result != "" else ("阿萨拉堡垒" if is_ahsarah_map() else "烟山基地")
-	if result == "":
-		var done_p: bool = bool(rules.profile.get("prologue_completed", false))
-		if is_ahsarah_map():
-			menu_summary.text = "🏜 【2035 · 阿萨拉堡垒】已就位！融合零号巨坝、西侧水泥厂、巴克什砂岩集市与哈夫克变电站。\n普通行动迎战「赤枭·赛伊德」，机密行动挑战「军阀·雷斯」，寻觅「非洲之心」与「曼德尔加密砖」！"
+	menu_title.text = result if result != "" else ("阿萨拉堡垒" if selected_nav_tab == "ahsarah" else ("剧情模式" if selected_nav_tab == "story" else "烟山行动"))
+
+	var in_run: bool = rules.phase in ["active", "extracting"]
+	var ah_unlocked: bool = rules.is_map_unlocked("ahsarah")
+	var lm: Dictionary = _current_landmark_meta()
+	var lm_id: String = str(lm.get("id", "yanshan_base"))
+	var lm_open: bool = bool(lm.get("open", true))
+	var ah_locked_preview: bool = (selected_nav_tab == "ahsarah" and lm_id == "ahsarah_fortress" and not ah_unlocked)
+
+	if is_instance_valid(deploy_title_lbl):
+		if in_run:
+			deploy_title_lbl.text = "⏸ %s · 行动暂停中" % rules.mode_label()
+			deploy_title_lbl.add_theme_color_override("font_color", Color("ffd86b"))
+		elif result != "":
+			deploy_title_lbl.text = "📋 " + result
+			deploy_title_lbl.add_theme_color_override("font_color", Color("ffd86b"))
+		elif ah_locked_preview:
+			deploy_title_lbl.text = "🔒 阿萨拉堡垒 · 尚未解锁"
+			deploy_title_lbl.add_theme_color_override("font_color", Color("ffb84d"))
 		else:
-			menu_summary.text = (
-				"首次来烟山？推荐先体验下方「烟山初行 · 单人序章」（5–8 分钟）熟悉听词、路线与交锋！\n正式行动中认词、搜盲盒、把珍宝存进安全箱带回营地；按「⚙ 设置」可调减震动与音量。"
-				if not done_p else
-				"认词、搜盲盒、把大金/大红放进安全箱带回营地！\n可在烟霞古洞机密击败循音石卫开启「次元石壁」解锁新战区【阿萨拉堡垒】！"
-			)
-		menu_status.text = "学习统计区分「独立答对」与「提示/练习完成」，避免虚高。"
+			deploy_title_lbl.text = "%s  ·  %s" % [str(lm.get("badge", "烟山基地")), str(lm.get("subtitle", ""))]
+			var acc: Color = lm.get("accent", MINT)
+			deploy_title_lbl.add_theme_color_override("font_color", acc.lightened(0.18))
+
+	if result == "":
+		if ah_locked_preview:
+			menu_summary.text = "🔒 【阿萨拉堡垒】尚未解锁：在烟山【机密行动】击败烟霞古洞循音石卫并开启「次元石壁」即可永久解锁！\n（家长或体验试玩也可点击下方按钮，在 ⚙ 设置中打开「阿萨拉试玩快捷开关」直接体验。）"
+		else:
+			menu_summary.text = str(lm.get("desc", ""))
+		menu_status.text = "学习统计区分「独立答对」与「提示/练习」，真实反映掌握进度。"
 		if profile_read_failed or last_save_error != "":
 			menu_summary.text = "⚠ 存档状态提醒：" + (last_save_error if last_save_error != "" else "存档读取异常，已保护原文件不覆盖。") + "\n" + menu_summary.text
 
@@ -1872,12 +2045,11 @@ func _refresh_menu(result = ""):
 	var unlocked_val: int = rules.unlocked_warehouse_value()
 	var locked_cnt: int = rules.locked_warehouse_count()
 	sell_button.text = "出售未锁物资（%d件·%d币 | 已锁%d件）" % [unlocked_cnt, unlocked_val, locked_cnt]
-	sell_button.disabled = unlocked_cnt == 0 or rules.phase in ["active", "extracting"]
+	sell_button.disabled = unlocked_cnt == 0 or in_run
 
 	var eq_optic: String = rules.active_optic()
 	var eq_muzzle: String = rules.active_muzzle()
 	var eq_grip: String = rules.active_grip()
-	var in_run: bool = rules.phase in ["active", "extracting"]
 	armory_progress.text = "等级 %d · %d/120 XP · 大红 %d 件 · 荣誉金杯 %d 座" % [
 		rules.level(), rules.profile.xp % 120, rules.profile.red_extracted, int(rules.profile.get("trophies", 0))
 	]
@@ -1917,31 +2089,64 @@ func _refresh_menu(result = ""):
 			can_click = not in_run and not owned and not prereq_missing and rules.profile.coins >= item.cost
 		shop_buttons[id].disabled = not can_click
 
-	start_button.text = ("继续%s" % rules.mode_label()) if in_run else ("🔒 普通行动" if daily_review_required() else "开始普通行动")
-	start_button.size = Vector2(274 if in_run else 154, 46)
+	# Toggle deployment drawer action buttons cleanly by state (Pause vs Story vs Playable Base vs Locked Teaser)
+	var show_story_play: bool = (not in_run) and selected_nav_tab == "story" and lm_open
+	var show_combat_deploy: bool = in_run or ((selected_nav_tab != "story") and lm_open and (not ah_locked_preview))
+	var show_locked_back: bool = (not in_run) and (not show_story_play) and (not show_combat_deploy)
+
+	start_button.text = ("继续%s" % rules.mode_label()) if in_run else ("🔒 普通行动" if daily_review_required() else "开始普通行动（15分·3营）")
+	start_button.size = Vector2(300 if in_run else 286, 46)
+	start_button.visible = show_combat_deploy
 	if is_instance_valid(confidential_button):
-		confidential_button.visible = not in_run
-	practice_button.visible = not in_run
+		confidential_button.visible = show_combat_deploy and (not in_run)
+	practice_button.visible = show_combat_deploy and (not in_run)
 	if is_instance_valid(prologue_button):
-		prologue_button.visible = not in_run
+		prologue_button.visible = show_story_play
+	if is_instance_valid(deploy_back_btn):
+		deploy_back_btn.visible = show_locked_back
+		if ah_locked_preview:
+			deploy_back_btn.text = "⚙ 打开设置 · 开启阿萨拉试玩开关"
+		else:
+			deploy_back_btn.text = "↩ 返回已开放作战据点"
 	abandon_button.visible = in_run
 	unit_picker.disabled = in_run
 	include_extra.disabled = unit_picker.disabled
+
+	# Style Left 1/5 Primary Navigation Buttons (剧情模式 / 烟山行动 / 阿萨拉行动)
+	if is_instance_valid(nav_story_btn):
+		nav_story_btn.disabled = in_run
+		var sel_s := (selected_nav_tab == "story")
+		nav_story_btn.text = ("▸ 📖 剧情模式" if sel_s else "📖 剧情模式")
+		_style_tactical_button(
+			nav_story_btn,
+			Color("3a351c") if sel_s else Color("12222a"),
+			Color("ffd86b") if sel_s else Color("3a5a60"),
+			Color("fff8dc") if sel_s else Color("c0dad4")
+		)
 	if is_instance_valid(map_yanshan_btn) and is_instance_valid(map_ahsarah_btn):
-		var ah_unlocked: bool = rules.is_map_unlocked("ahsarah")
 		map_yanshan_btn.disabled = in_run
 		map_ahsarah_btn.disabled = in_run
-		map_yanshan_btn.text = ("✓ ⛰ 烟山基地" if active_map_id == "yanshan" else "⛰ 烟山基地")
+		var sel_y := (selected_nav_tab == "yanshan")
+		var sel_a := (selected_nav_tab == "ahsarah")
+		map_yanshan_btn.text = ("▸ 🏔 烟山行动" if sel_y else "🏔 烟山行动")
 		if ah_unlocked:
-			map_ahsarah_btn.text = ("✓ 🏜 阿萨拉堡垒" if active_map_id == "ahsarah" else "🏜 阿萨拉堡垒")
+			map_ahsarah_btn.text = ("▸ 🏜 阿萨拉行动" if sel_a else "🏜 阿萨拉行动")
 		else:
-			map_ahsarah_btn.text = "🔒 阿萨拉堡垒（古洞解锁）"
-		if active_map_id == "yanshan":
-			_style_tactical_button(map_yanshan_btn, Color("205948"), Color("8de8c0"), Color("f6fffb"))
-			_style_tactical_button(map_ahsarah_btn, Color("382918") if ah_unlocked else Color("24282b"), Color("e0a958") if ah_unlocked else Color("5c686e"), Color("ffe5b4") if ah_unlocked else Color("98a6ad"))
-		else:
-			_style_tactical_button(map_yanshan_btn, Color("193330"), Color("5b8e7e"), Color("c8e2d8"))
-			_style_tactical_button(map_ahsarah_btn, Color("70431d"), Color("ffd166"), Color("fff6dc"))
+			map_ahsarah_btn.text = ("▸ 🔒 阿萨拉行动" if sel_a else "🔒 阿萨拉行动")
+		_style_tactical_button(
+			map_yanshan_btn,
+			Color("1c5446") if sel_y else Color("12222a"),
+			Color("6bf0c2") if sel_y else Color("3a5a60"),
+			Color("f6fffb") if sel_y else Color("c0dad4")
+		)
+		_style_tactical_button(
+			map_ahsarah_btn,
+			Color("663c18") if sel_a else (Color("2b2218") if ah_unlocked else Color("1a2026")),
+			Color("ffc254") if sel_a else (Color("c2904a") if ah_unlocked else Color("546068")),
+			Color("fff5d8") if sel_a else (Color("f0d4a4") if ah_unlocked else Color("98a6ad"))
+		)
+	if is_instance_valid(war_map):
+		war_map.refresh_unlock_states()
 
 func _sell():
 	var value = rules.sell_all()
@@ -2027,6 +2232,16 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 			mandel_event.reset_for_run()
 		if eff_combat and is_ahsarah_map() and is_instance_valid(achievements):
 			achievements.record_stat("ahsarah_entered", 1)
+		if eff_combat or is_prologue_req:
+			rules.inc_lore_stat("shaoyu_runs", 1)
+		if is_prologue_req:
+			rules.mark_lore_scene("prologue")
+		elif active_map_id == "ahsarah":
+			rules.inc_lore_stat("ahsarah_runs", 1)
+			rules.mark_lore_scene("ahsarah_fortress")
+		else:
+			rules.inc_lore_stat("yanshan_runs", 1)
+			rules.mark_lore_scene("yanshan_base")
 		if is_instance_valid(cipher_terminal):
 			cipher_terminal.reset()
 		if is_instance_valid(loot_container_ui):
@@ -2111,12 +2326,16 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 				_next_question()
 	if is_instance_valid(loot_ui):
 		loot_ui.close_all_modals()
+	if is_instance_valid(lore_codex) and lore_codex.busy:
+		lore_codex.close()
 	paused = false
 	get_viewport().gui_release_focus()
 	player.clear_movement_input()
 	player.active = true
 	player.camera.fov = 75
 	menu.hide()
+	if is_instance_valid(war_map):
+		war_map.set_rendering_active(false)
 	hud.show()
 	combat_panel.show()
 	_refresh_terminal_title()
@@ -3102,6 +3321,13 @@ func _input(event):
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code = event.physical_keycode if event.physical_keycode != 0 else event.keycode
 		var is_esc = (code == KEY_ESCAPE)
+		if is_instance_valid(lore_codex) and lore_codex.busy and is_esc:
+			if lore_codex.view_mode == "detail":
+				lore_codex.show_faction_hub()
+			else:
+				lore_codex.close()
+			get_viewport().set_input_as_handled()
+			return
 		if is_instance_valid(loot_ui) and loot_ui.any_modal_open():
 			if is_esc:
 				loot_ui.close_all_modals()
