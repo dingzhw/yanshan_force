@@ -4,6 +4,25 @@
 
 ---
 
+## [v0.9.4] - 2026-11-23
+
+交付 **「游侠·少羽 · 精品全骨骼重塑、真实动作库、精准双手据枪与物理飘带围巾」**，彻底告别 `v0.9.3` 的刚体拼装木偶与三角函数摆动，建立可直接复用于后续多游侠的现代 3D 角色工业管线（100% CC0 开源精品底座 + Blender 4.5 精雕 + Godot 4.7.2 原生骨骼动画/IK/物理）：
+
+- **「游侠·少羽」方案 B 外观精雕与平滑蒙皮拓扑（`tools/build_v094_shaoyu_rigged.py` / `game/assets/slice/player_shaoyu.glb`）**：
+  - 引入经核验的 CC0 开源精品人体与战术拓扑底座（Quaternius Ultimate Modular Men `Swat` + `Casual` 少年头模），经顶点焊接、光滑法线与多套程序化 PBR 织物/皮革/鎏金云纹臂章贴图升级，在 Blender 4.5 精雕定版为 **55 骨平滑蒙皮英雄模型（`9,897` 面 / `1.75m` 健朗少年比例）**：
+    - 层次感乌黑微扬短碎发 + **方案 B 戴眼半透明琥珀战术护目镜** + 单耳战术耳麦与弯曲拾音麦；
+    - **朱砂红编织游侠围巾 + 4 节独立物理蒙皮飘带（`Scarf_01`→`Scarf_04`）**；
+    - 青黛墨竹短款收腰战术夹克（卷袖露出前臂肌肤 + 炭灰运动护腕缠带 + 左肩鎏金云纹臂章）+ 紧凑暗炭灰三联弹匣 MOLLE 胸挂与迷你对讲机；
+    - 贴身流线型山野突击小背囊（彻底告别旧版绿色大方块）+ 半指皮革战术手套与古铜加固指虎护拳 + 修身炭灰多袋战术工装裤/硬壳护膝/深棕越野作战靴；
+  - 网格按 `Shaoyu_Head / HeadGear / UpperBody / TacticalGear / ScarfTail / Backpack` 与 `Shaoyu_LowerLegs / LowerBoots` 清晰分层，保证 1P 低头同样展示真实平滑蒙皮双腿与战靴。
+- **24 段真实骨骼动作库与精准双手据枪（Quaternius UAL + KayKit CC0 重定向 + Blender 2-Bone IK 精校）**：
+  - 通过精确世界空间四元数重定向引擎，将 Quaternius Universal Animation Library（CC0）与 KayKit Character Animations 1.1（CC0）真实人形步态/战斗动作无损迁移至 55 骨骨架：`Idle_Stance`、`Walk_Fwd`、`Jog_Fwd`、`Sprint_Fwd`、`Walk_Back`、`Strafe_Left`、`Strafe_Right`、`Crouch_Idle`、`Crouch_Walk`、`Prone_Crawl`、`Jump_Start / Loop / Land`、`Rifle_Reload`、`Knife_Idle / Slash_1 / Slash_2`、`Hit_React`；
+  - 在 Blender 4.5 中以真实 YS-04 卡宾枪坐标直接求解双臂解析 2-Bone IK 与五指局部弯折，生成精准抵肩据枪动作（`Rifle_LowReady` 枪口斜下低戒备、`Rifle_Aim` 枪托稳抵右肩窝 + 右手贴握把/食指搭扳机 + 左手托护木、`Rifle_Fire`、`Rifle_Crouch_Aim`、真实贴地俯卧 `Prone_Idle`），并专为 `[V]`「天生神力」制作全套 **`Shaoyu_GroundSlam`**（砸地瞬间步枪自动斜背挂至背后 `Weapon_Back`，右拳古铜指虎全力砸地，彻底杜绝旧版步枪指天）。
+- **Godot 4.7.2 现代 TPS 骨骼控制架构（`game/scripts/player_body.gd`）**：
+  - 全面重构为 **`Skeleton3D` + `AnimationTree`（`AnimationNodeBlendTree` 上下半身骨骼分层融合 + `AnimationNodeOneShot` 重拳触发）**；
+  - 叠加自定义 **`AimSpineModifier`（`SkeletonModifier3D`）** 实时将镜头俯仰与 Q/E 探头按比例分配至脊柱/胸腔/头部，内置 **`TwoBoneIK3D`** 左臂护木挂点，并启用 Godot 4.7.2 原生 **`SpringBoneSimulator3D`** 驱动朱砂红围巾飘带随奔跑与转向实时迎风飘动；
+  - `BoneAttachment3D`（`Weapon_R` / `Weapon_Back`）精准同步 YS-04 涂装/瞄具/消音器/扩容弹匣及 3D 精雕战术匕首（`tactical_knife.glb`），切刀与发动 `[V]` 重拳自动优雅背枪。
+
 ## [v0.9.3] - 2026-11-22
 
 交付 **「全阵营离线中文配音、15/20 分钟三营节奏、极简现代战术 HUD 与主角 3D 实体化 1P/3P 视角切换」**，全面补全角色声画沉浸感、现代极简 HUD 观感与真正有身体可切第三人称的游侠体验（100% 原创自研 Blender 4.5 模型与本地离线音频）：

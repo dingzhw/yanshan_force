@@ -261,6 +261,29 @@ func run():
 		await physics_frame
 	verify(not game.player.third_person and game.player.effective_fp_view, "v0.9.3: [F5] switches smoothly back to 1P mode")
 
+	# v0.9.4 Rigged Skinned Hero '游侠·少羽' (55-bone Skeleton3D, 24 animations, AnimationTree, AimSpineModifier, TwoBoneIK3D, SpringBone Scarf & Auto Back-Holster)
+	verify(is_instance_valid(pb.skeleton) and pb.skeleton.get_bone_count() >= 55, "v0.9.4: Shaoyu rig loads full 55-bone Skeleton3D (bones=%d)" % (pb.skeleton.get_bone_count() if is_instance_valid(pb.skeleton) else 0))
+	verify(is_instance_valid(pb.anim_player) and pb.anim_player.get_animation_list().size() >= 22, "v0.9.4: AnimationPlayer embeds >=22 real skeletal animation clips (%d loaded)" % (pb.anim_player.get_animation_list().size() if is_instance_valid(pb.anim_player) else 0))
+	verify(is_instance_valid(pb.anim_tree) and pb.anim_tree.active, "v0.9.4: AnimationTree upper/lower bone-filtered blend tree is active")
+	verify(is_instance_valid(pb.aim_spine_mod) and is_instance_valid(pb.left_arm_ik) and is_instance_valid(pb.scarf_spring), "v0.9.4: AimSpineModifier, TwoBoneIK3D & SpringBoneSimulator3D scarf physics are mounted on Skeleton3D")
+	verify(pb.upper_meshes.size() >= 6 and pb.lower_meshes.size() == 2 and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.4: Plan B Shaoyu meshes cleanly split upper gear vs always-visible 1P lower legs/boots")
+	# Switch to 3P and verify live locomotion + combat state transitions & auto back-holster on Knife / [V] Ground-Slam!
+	game.player.set_third_person(true, true)
+	game.player.select_weapon(1)
+	for i in 4:
+		await physics_frame
+	verify(pb.world_rifle_root.get_parent() == pb.weapon_back_attach and pb.cur_upper_state == "knife_idle", "v0.9.4: selecting Tactical Knife holsters YS-04 diagonally on Weapon_Back and enters knife_idle")
+	game.player.select_weapon(0)
+	for i in 4:
+		await physics_frame
+	verify(pb.world_rifle_root.get_parent() == pb.weapon_r_attach and pb.cur_upper_state == "low_ready", "v0.9.4: returning to YS-04 mounts rifle onto calibrated Weapon_R bone socket in low_ready")
+	pb.trigger_ground_slam()
+	for i in 4:
+		await physics_frame
+	verify(pb.slam_anim_left > 0.0 and pb.world_rifle_root.get_parent() == pb.weapon_back_attach, "v0.9.4: [V] Shaoyu Ground-Slam temporarily back-holsters rifle so fist slams cleanly without sky-pointing barrel")
+	pb.slam_anim_left = 0.0
+	game.player.set_third_person(false, true)
+
 	game.player.clear_movement_input()
 	game.queue_free()
 	await process_frame

@@ -1,6 +1,6 @@
 {
-  "recorded_date": "2026-11-22",
-  "stage": "v0.9.3 · 全阵营 63 条离线中文配音、15/20 分钟三营行动、《三角洲行动》极简现代战术 HUD 与主角「少羽」3D 实体身体 1P/3P 无缝切换（341 英文语音 + 63 中文角色语音 + 43 SFX）",
+  "recorded_date": "2026-11-23",
+  "stage": "v0.9.4 · 主角「游侠·少羽」55 骨平滑蒙皮精品重塑（方案 B 琥珀护目镜）、24 段真实骨骼动作库、上下半身融合动画树、精准双手抵肩据枪与 SpringBone 物理围巾",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -101,9 +101,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 63 条阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，开发基线 v0.9.3（承接 v0.9.2 / 35c1f35）"
+    "version_control": "Git，开发基线 v0.9.4（承接 v0.9.3 / ec61701）"
   },
-  "playtest": "playtest/windows-v0.9.3/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.4/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

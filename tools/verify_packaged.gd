@@ -219,22 +219,46 @@ func run():
 				cn_decoded += 1
 	verify(cn_entries.size() >= 60 and cn_decoded == cn_entries.size(), "standalone PCK decodes ALL offline Chinese faction/boss OGG voice clips cleanly (%d/%d decoded)" % [cn_decoded, cn_entries.size()])
 	var hero_ok := false
+	var hero_bones := 0
+	var hero_anims := 0
 	if ResourceLoader.exists("res://scripts/player_body.gd") and ResourceLoader.exists("res://scripts/hud_widgets.gd") and ResourceLoader.exists("res://assets/slice/player_shaoyu.glb"):
 		var hp_p = load("res://assets/slice/player_shaoyu.glb")
 		if hp_p is PackedScene:
 			var hi: Node = hp_p.instantiate()
-			hero_ok = (
-				hi.find_child("hips_pivot", true, false) != null
-				and hi.find_child("torso_pivot", true, false) != null
-				and hi.find_child("head_pivot", true, false) != null
-				and hi.find_child("leg_l_pivot", true, false) != null
-				and hi.find_child("leg_r_pivot", true, false) != null
-				and hi.find_child("weapon_hand_mount", true, false) != null
-				and hi.find_child("weapon_back_mount", true, false) != null
-			)
+			var sk := hi.find_child("Skeleton3D", true, false) as Skeleton3D
+			var ap := hi.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if sk != null and ap != null:
+				hero_bones = sk.get_bone_count()
+				hero_anims = ap.get_animation_list().size()
+				hero_ok = (
+					hero_bones >= 55
+					and hero_anims >= 22
+					and sk.find_bone("Hips") >= 0
+					and sk.find_bone("Chest") >= 0
+					and sk.find_bone("Hand.L") >= 0
+					and sk.find_bone("Hand.R") >= 0
+					and sk.find_bone("Weapon_R") >= 0
+					and sk.find_bone("Weapon_Back") >= 0
+					and sk.find_bone("Scarf_01") >= 0
+					and sk.find_bone("Scarf_04") >= 0
+					and ap.has_animation("Rifle_LowReady")
+					and ap.has_animation("Rifle_Aim")
+					and ap.has_animation("Prone_Idle")
+					and ap.has_animation("Prone_Crawl")
+					and ap.has_animation("Sprint_Fwd")
+					and ap.has_animation("Shaoyu_GroundSlam")
+					and hi.find_child("Shaoyu_Head", true, false) != null
+					and hi.find_child("Shaoyu_HeadGear", true, false) != null
+					and hi.find_child("Shaoyu_UpperBody", true, false) != null
+					and hi.find_child("Shaoyu_TacticalGear", true, false) != null
+					and hi.find_child("Shaoyu_ScarfTail", true, false) != null
+					and hi.find_child("Shaoyu_Backpack", true, false) != null
+					and hi.find_child("Shaoyu_LowerLegs", true, false) != null
+					and hi.find_child("Shaoyu_LowerBoots", true, false) != null
+				)
 			hi.free()
-	verify(hero_ok, "standalone PCK includes v0.9.3 player_body.gd, hud_widgets.gd & articulated player_shaoyu.glb full-body hero")
-	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt"), "standalone PCK carries source and license notices")
+	verify(hero_ok, "standalone PCK includes v0.9.4 rigged player_shaoyu.glb (%d bones, %d anims, 8 Plan B meshes & scarf/weapon sockets)" % [hero_bones, hero_anims])
+	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)
 	quit(1 if failures else 0)
