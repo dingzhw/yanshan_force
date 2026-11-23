@@ -1,98 +1,116 @@
 extends Control
-## Grand 3D Interactive Strategic War Map ('作战沙盘' — v0.9.5).
-## Renders a live miniature 3D terrain diorama inside an isolated SubViewport (own_world_3d = true)
-## occupying the right 4/5 of the Login Screen (1012x720):
-## - Theater 1 ('yanshan'): Lush Jiangnan mountains, terraced paddies, winding Chengzhuang River:
-##     * Upper-Center Hill -> 【烟山基地】 (playable)
-##     * Bottom-Left Campus -> 【鲸塘中心小学（暂未开放）】 (mini 3D school + oval track)
-##     * Mid-Right Riverbend -> 【诚庄村河港（暂未开放）】 (mini Jiangnan white-wall village + arch bridge + wharf)
-## - Theater 2 ('ahsarah'): Golden North African desert dunes, canyon gorge, dam reservoir & oasis:
-##     * North-Central Gorge -> 【阿萨拉堡垒】 (mini Zero Dam + sandstone fortress + twin Babel towers)
-##     * Southwest Oasis -> 【巴克什古城外围（暂未开放）】 (mini mudbrick domes + palms)
-##     * Southeast Mesa -> 【哈夫克航天禁区（暂未开放）】 (mini futuristic gantry + radar dishes)
-## - Theater 3 ('story'): Golden-hour scenic flyover of Yanshan Valley for Story Mode chapters.
+## Grand 3D Tactical Relief War-Table & 3D Volumetric Landmark Beacons (v0.9.6).
+## Renders bespoke Ultra-HD stylized aerial topographic maps (1600x900) mounted onto a
+## gently sculpted 3D tactical relief war-table inside an isolated SubViewport (own_world_3d = true),
+## crowned with custom-sculpted 3D metallic/holographic rotating landmark beacons,
+## parabolic 3D data-link arcs, and an animated holographic radar scan sweep.
 ## Automatically disables SubViewport rendering whenever hidden during combat -> ZERO in-match FPS cost!
 
 signal landmark_selected(landmark_id: String, meta: Dictionary)
 
+const MAP_TEXTURES := {
+	"yanshan": "res://assets/warmap/map_yanshan_hd.png",
+	"ahsarah": "res://assets/warmap/map_ahsarah_hd.png",
+	"story": "res://assets/warmap/map_story_hd.png",
+}
+
+const TABLE_W := 24.0
+const TABLE_D := 13.5  # Exact 16:9 aspect ratio matching 1600x900 HD relief textures
+
+# Landmark coordinates use normalized map UV (u: 0=left..1=right, v: 0=top..1=bottom)
+# calibrated directly to the architectural landmarks on each HD map!
 const LANDMARKS := {
 	"yanshan": [
 		{
 			"id": "yanshan_base",
+			"code": "SEC-01A",
 			"title": "烟山基地",
-			"badge": "🏔 烟山基地",
+			"badge": "烟山基地",
 			"subtitle": "已开放 · 江南山地搜撤核心战区",
-			"pos": Vector3(0.4, 5.25, -4.8),
+			"uv": Vector2(0.48, 0.27),
+			"icon_3d": "base_diamond",
 			"open": true,
 			"map_id": "yanshan",
-			"accent": Color("58f0b8"),
+			"accent": Color("3ef0b4"),
 			"desc": "烟山北麓高地前哨，串联东岭望稻亭、古石拱桥、竹海总坛与烟霞古洞。15 分钟普通行动 / 20 分钟机密行动，肃清 3 座营地并击败首领即可携宝撤离！",
 		},
 		{
 			"id": "jingtang_school",
+			"code": "SEC-01B",
 			"title": "鲸塘中心小学",
-			"badge": "🏫 鲸塘中心小学（暂未开放）",
+			"badge": "鲸塘中心小学（暂未开放）",
 			"subtitle": "暂未开放 · 后续版本规划中",
-			"pos": Vector3(-7.6, 2.20, 4.4),
+			"uv": Vector2(0.27, 0.70),
+			"icon_3d": "school_crest",
 			"open": false,
 			"map_id": "yanshan",
-			"accent": Color("9eb4c0"),
+			"accent": Color("7cc8dc"),
 			"desc": "【暂未开放 · 规划中】位于烟山西麓山脚的乡土校园与操场。未来版本将开放校园情景英语互动与课堂词汇支线探索，敬请期待！",
 		},
 		{
 			"id": "chengzhuang_port",
+			"code": "SEC-01C",
 			"title": "诚庄村河港",
-			"badge": "🏘 诚庄村河港（暂未开放）",
+			"badge": "诚庄村河港（暂未开放）",
 			"subtitle": "暂未开放 · 后续版本规划中",
-			"pos": Vector3(8.2, 2.05, 0.2),
+			"uv": Vector2(0.77, 0.54),
+			"icon_3d": "port_anchor",
 			"open": false,
 			"map_id": "yanshan",
-			"accent": Color("9eb4c0"),
+			"accent": Color("6ad4c4"),
 			"desc": "【暂未开放 · 规划中】粉墙黛瓦的诚庄水乡码头与古石桥河港。未来版本将拓展水陆双线潜行与货栈奇珍搜撤玩法，敬请期待！",
 		},
 	],
 	"ahsarah": [
 		{
 			"id": "ahsarah_fortress",
+			"code": "SEC-02A",
 			"title": "阿萨拉堡垒",
-			"badge": "🏰 阿萨拉堡垒",
+			"badge": "阿萨拉堡垒",
 			"subtitle": "零号大坝 · 沙漠堡垒搜撤战区",
-			"pos": Vector3(-0.2, 4.70, -4.3),
+			"uv": Vector2(0.71, 0.24),
+			"icon_3d": "fortress_bastion",
 			"open": true,
 			"map_id": "ahsarah",
-			"accent": Color("ffb84d"),
-			"desc": "扼守北非峡谷咽喉的零号大坝与行政堡垒！融汇水泥厂、巴克什砂岩集市与哈夫克变电站：普通迎战「赤枭·赛伊德」，机密直面「军阀·雷斯」，寻觅非洲之心与曼德尔加密砖！",
+			"accent": Color("ffb238"),
+			"desc": "扼守北非峡谷咽喉的零号大坝与雷达行政堡垒！融汇水泥厂、巴克什集市与哈夫克变电站：普通迎战「赤枭·赛伊德」，机密直面「军阀·雷斯」，夺取非洲之心与曼德尔砖！",
 		},
 		{
 			"id": "brakkesh_oldtown",
+			"code": "SEC-02B",
 			"title": "巴克什古城外围",
-			"badge": "🕌 巴克什古城外围（暂未开放）",
+			"badge": "巴克什古城外围（暂未开放）",
 			"subtitle": "暂未开放 · 后续荒漠拓展规划",
-			"pos": Vector3(-7.5, 2.25, 4.3),
+			"uv": Vector2(0.26, 0.69),
+			"icon_3d": "desert_dome",
 			"open": false,
 			"map_id": "ahsarah",
-			"accent": Color("b8a88c"),
+			"accent": Color("d2ae76"),
 			"desc": "【暂未开放 · 规划中】绿洲环抱的阿萨拉古城外围巷战区，拟于后续版本拓展多层屋顶立体对抗与遗迹密室，敬请期待！",
 		},
 		{
 			"id": "space_city",
+			"code": "SEC-02C",
 			"title": "哈夫克航天禁区",
-			"badge": "🛰 哈夫克航天禁区（暂未开放）",
+			"badge": "哈夫克航天禁区（暂未开放）",
 			"subtitle": "暂未开放 · 后续高阶拓展规划",
-			"pos": Vector3(8.0, 3.30, 1.6),
+			"uv": Vector2(0.83, 0.62),
+			"icon_3d": "orbital_spire",
 			"open": false,
 			"map_id": "ahsarah",
-			"accent": Color("7cc8e0"),
+			"accent": Color("58d8f6"),
 			"desc": "【暂未开放 · 规划中】沙漠东南高原上的哈夫克秘密发射台与科研高塔，拟于后续版本作为终极高难英语特战禁区登场！",
 		},
 	],
 	"story": [
 		{
 			"id": "story_ch1",
+			"code": "STORY-01",
 			"title": "第一章 · 烟山初行",
-			"badge": "✨ 第一章：烟山初行（单人序章）",
+			"badge": "第一章：烟山初行（序章）",
 			"subtitle": "已开放 · 5–8 分钟沉浸式教学剧情",
-			"pos": Vector3(0.4, 5.10, -4.8),
+			"uv": Vector2(0.46, 0.25),
+			"icon_3d": "story_star",
 			"open": true,
 			"map_id": "yanshan",
 			"accent": Color("ffd76a"),
@@ -100,13 +118,15 @@ const LANDMARKS := {
 		},
 		{
 			"id": "story_ch2",
+			"code": "STORY-02",
 			"title": "第二章 · 古洞秘闻",
-			"badge": "📜 第二章：烟霞古洞深处（敬请期待）",
+			"badge": "第二章：烟霞古洞深处（筹备中）",
 			"subtitle": "筹备中 · 后续剧情章节",
-			"pos": Vector3(6.8, 2.75, -0.8),
+			"uv": Vector2(0.20, 0.47),
+			"icon_3d": "cave_crystal",
 			"open": false,
 			"map_id": "yanshan",
-			"accent": Color("9eb4c0"),
+			"accent": Color("82c8bc"),
 			"desc": "【剧情筹备中】深入烟霞古洞寒潭石室，揭开雾隐帮词盾核心与阿萨拉零号大坝之间的跨国谜团。",
 		},
 	],
@@ -120,21 +140,25 @@ var world_env: WorldEnvironment
 var sun_light: DirectionalLight3D
 var fill_light: DirectionalLight3D
 
-var yanshan_root: Node3D
-var ahsarah_root: Node3D
-var beacon_rings: Array = []
-var cloud_nodes: Array = []
+var map_textures: Dictionary = {}
+var theater_roots: Dictionary = {}  # theater_id -> Node3D
+var scan_beams: Dictionary = {}     # theater_id -> MeshInstance3D
+var beacon_anims: Array = []        # [{emblem, outer_ring, inner_ring, pulse_ring, theater, id, base_y, accent}]
 
 var pins_layer: Control
-var pin_buttons: Dictionary = {}  # landmark_id -> {panel, btn, dot, world_pos, data}
+var pin_buttons: Dictionary = {}    # landmark_id -> {holder, btn, rail, dot, world_pos, data, effective_open}
 var theater_header_lbl: Label
+var theater_code_lbl: Label
 var theater_sub_lbl: Label
+var header_rail: ColorRect
+var live_coord_lbl: Label
 
-var current_theater: String = "yanshan"  # "story" | "yanshan" | "ahsarah"
+var current_theater: String = "yanshan"
 var selected_landmark_id: String = "yanshan_base"
 var anim_clock: float = 0.0
 var cam_focus_offset: Vector3 = Vector3.ZERO
 var target_focus_offset: Vector3 = Vector3.ZERO
+var mouse_parallax: Vector2 = Vector2.ZERO
 
 
 func setup(g, rect: Rect2):
@@ -144,18 +168,29 @@ func setup(g, rect: Rect2):
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_PASS
 
+	_load_hd_textures()
 	_build_viewport()
-	_build_yanshan_diorama()
-	_build_ahsarah_diorama()
+	_build_all_theaters()
 	_build_overlay_chrome()
 	set_theater("yanshan", true)
 
 
-func _mat(col: Color, rough: float = 0.85, met: float = 0.0, unshaded: bool = false, emit_col: Color = Color(0, 0, 0, 0), emit_e: float = 0.0) -> StandardMaterial3D:
+func _load_hd_textures():
+	for tid in MAP_TEXTURES:
+		var path: String = MAP_TEXTURES[tid]
+		if ResourceLoader.exists(path):
+			var tex = load(path)
+			if tex is Texture2D:
+				map_textures[tid] = tex
+
+
+func _mat(col: Color, rough: float = 0.45, met: float = 0.55, unshaded: bool = false, emit_col: Color = Color(0, 0, 0, 0), emit_e: float = 0.0, alpha: float = 1.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = col
+	m.albedo_color = Color(col.r, col.g, col.b, alpha)
 	m.roughness = rough
 	m.metallic = met
+	if alpha < 0.999:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if unshaded:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	if emit_e > 0.0:
@@ -163,6 +198,38 @@ func _mat(col: Color, rough: float = 0.85, met: float = 0.0, unshaded: bool = fa
 		m.emission = emit_col
 		m.emission_energy_multiplier = emit_e
 	return m
+
+
+func _uv_to_world(uv: Vector2, theater: String) -> Vector3:
+	var x := (uv.x - 0.5) * TABLE_W
+	var z := (uv.y - 0.5) * TABLE_D
+	var y := _relief_height(uv.x, uv.y, theater)
+	return Vector3(x, y, z)
+
+
+func _relief_height(u: float, v: float, theater: String) -> float:
+	# Subtle genuine 3D topographic relief under the HD terrain artwork so lighting & beacons feel tactile!
+	var h := 0.08 * sin(u * PI) * sin(v * PI)
+	if theater == "yanshan":
+		# Gentle summit swell under Yanshan Base hill & north ridges
+		var d_hill := Vector2((u - 0.46) * 1.4, (v - 0.28) * 1.6).length()
+		h += 0.62 * exp(-(d_hill * d_hill) / 0.085)
+		var d_nw := Vector2(u - 0.14, v - 0.14).length()
+		h += 0.48 * exp(-(d_nw * d_nw) / 0.07)
+		var d_ne := Vector2(u - 0.88, v - 0.14).length()
+		h += 0.46 * exp(-(d_ne * d_ne) / 0.07)
+	elif theater == "ahsarah":
+		# Twin canyon mesa plateaus & fortress cliff flanking Zero Dam!
+		var d_fort := Vector2((u - 0.72) * 1.3, (v - 0.26) * 1.5).length()
+		h += 0.65 * exp(-(d_fort * d_fort) / 0.09)
+		var d_west := Vector2((u - 0.24) * 1.3, (v - 0.24) * 1.5).length()
+		h += 0.55 * exp(-(d_west * d_west) / 0.08)
+		var d_mesa := Vector2((u - 0.82) * 1.4, (v - 0.68) * 1.6).length()
+		h += 0.36 * exp(-(d_mesa * d_mesa) / 0.065)
+	else:
+		var d_peak := Vector2((u - 0.46) * 1.5, (v - 0.22) * 1.5).length()
+		h += 0.50 * exp(-(d_peak * d_peak) / 0.08)
+	return h
 
 
 func _build_viewport():
@@ -175,26 +242,16 @@ func _build_viewport():
 	sub_viewport = SubViewport.new()
 	sub_viewport.own_world_3d = true
 	sub_viewport.size = Vector2i(maxi(320, int(size.x)), maxi(240, int(size.y)))
-	sub_viewport.msaa_3d = Viewport.MSAA_2X
+	sub_viewport.msaa_3d = Viewport.MSAA_4X
 	sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport_container.add_child(sub_viewport)
 
 	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	var sky := Sky.new()
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("285870")
-	sky_mat.sky_horizon_color = Color("8cc4b8")
-	sky_mat.ground_bottom_color = Color("1f3834")
-	sky_mat.ground_horizon_color = Color("6b9c8e")
-	sky.sky_material = sky_mat
-	env.sky = sky
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color("070c11")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("9cd4c8")
-	env.ambient_light_energy = 0.72
-	env.fog_enabled = true
-	env.fog_light_color = Color("8fc0b8")
-	env.fog_density = 0.0085
+	env.ambient_light_color = Color("cde4ee")
+	env.ambient_light_energy = 0.82
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 
 	world_env = WorldEnvironment.new()
@@ -202,47 +259,48 @@ func _build_viewport():
 	sub_viewport.add_child(world_env)
 
 	sun_light = DirectionalLight3D.new()
-	sun_light.rotation_degrees = Vector3(-31.0, 48.0, 0.0)
-	sun_light.light_color = Color("fff0d2")
-	sun_light.light_energy = 1.55
+	sun_light.rotation_degrees = Vector3(-48.0, 32.0, 0.0)
+	sun_light.light_color = Color("fff5e4")
+	sun_light.light_energy = 1.15
 	sun_light.shadow_enabled = false
 	sub_viewport.add_child(sun_light)
 
 	fill_light = DirectionalLight3D.new()
-	fill_light.rotation_degrees = Vector3(-28.0, -145.0, 0.0)
-	fill_light.light_color = Color("7bc8e2")
-	fill_light.light_energy = 0.42
+	fill_light.rotation_degrees = Vector3(-35.0, -140.0, 0.0)
+	fill_light.light_color = Color("5ec8e8")
+	fill_light.light_energy = 0.58
 	fill_light.shadow_enabled = false
 	sub_viewport.add_child(fill_light)
 
 	camera = Camera3D.new()
-	camera.fov = 42.0
+	camera.fov = 38.0
 	camera.near = 0.2
-	camera.far = 160.0
+	camera.far = 140.0
 	sub_viewport.add_child(camera)
-	camera.look_at_from_position(Vector3(0.0, 16.5, 22.8), Vector3(0.0, 0.6, 0.8), Vector3.UP)
+	camera.look_at_from_position(Vector3(0.0, 15.8, 11.4), Vector3(0.0, 0.0, 0.95), Vector3.UP)
 
 
-# ---------------------------------------------------------------------------
-# Procedural Sculpted 3D Relief Terrain Mesh Generator (Vertex-Colored!)
-# ---------------------------------------------------------------------------
-func _build_terrain_mesh(half_w: float, half_d: float, seg_x: int, seg_z: int, height_fn: Callable, color_fn: Callable) -> MeshInstance3D:
+func _build_relief_map_mesh(theater: String) -> MeshInstance3D:
+	var seg_x := 48
+	var seg_z := 28
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
 	var pts: Array = []
-	var cols: Array = []
+	var uvs: Array = []
 	pts.resize((seg_z + 1) * (seg_x + 1))
-	cols.resize((seg_z + 1) * (seg_x + 1))
+	uvs.resize((seg_z + 1) * (seg_x + 1))
+
 	for iz in range(seg_z + 1):
-		var tz := float(iz) / float(seg_z)
-		var z := lerpf(-half_d, half_d, tz)
+		var v := float(iz) / float(seg_z)
+		var z := (v - 0.5) * TABLE_D
 		for ix in range(seg_x + 1):
-			var tx := float(ix) / float(seg_x)
-			var x := lerpf(-half_w, half_w, tx)
-			var h: float = float(height_fn.call(x, z))
+			var u := float(ix) / float(seg_x)
+			var x := (u - 0.5) * TABLE_W
+			var h := _relief_height(u, v, theater)
 			var idx := iz * (seg_x + 1) + ix
 			pts[idx] = Vector3(x, h, z)
-			cols[idx] = color_fn.call(x, z, h)
+			uvs[idx] = Vector2(u, v)
 
 	for iz in range(seg_z):
 		for ix in range(seg_x):
@@ -252,33 +310,43 @@ func _build_terrain_mesh(half_w: float, half_d: float, seg_x: int, seg_z: int, h
 			var i11 := i01 + 1
 			for tri in [[i00, i10, i11], [i00, i11, i01]]:
 				for vi in tri:
-					st.set_color(cols[vi])
+					st.set_uv(uvs[vi])
 					st.add_vertex(pts[vi])
 
 	st.generate_normals()
 	var mi := MeshInstance3D.new()
+	mi.name = "HDMapRelief_" + theater
 	mi.mesh = st.commit()
 	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.88
-	mat.metallic = 0.02
+	if map_textures.has(theater):
+		mat.albedo_texture = map_textures[theater]
+		mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+	else:
+		mat.albedo_color = Color("284844")
+	mat.roughness = 0.72
+	mat.metallic = 0.04
+	# Keep HD colors ultra-vibrant & crisp under war-table lighting with gentle self-illumination!
+	if map_textures.has(theater):
+		mat.emission_enabled = true
+		mat.emission_texture = map_textures[theater]
+		mat.emission_energy_multiplier = 0.36
 	mi.material_override = mat
 	return mi
 
 
-func _add_box(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material, rot_y: float = 0.0) -> MeshInstance3D:
+func _add_box(parent: Node3D, pos: Vector3, sz: Vector3, mat: Material, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = sz
 	mi.mesh = bm
 	mi.position = pos
-	mi.rotation.y = rot_y
+	mi.rotation_degrees = rot_deg
 	mi.material_override = mat
 	parent.add_child(mi)
 	return mi
 
 
-func _add_cyl(parent: Node3D, pos: Vector3, r_top: float, r_bot: float, h: float, mat: Material, segs: int = 12) -> MeshInstance3D:
+func _add_cyl(parent: Node3D, pos: Vector3, r_top: float, r_bot: float, h: float, mat: Material, segs: int = 12, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = r_top
@@ -287,410 +355,339 @@ func _add_cyl(parent: Node3D, pos: Vector3, r_top: float, r_bot: float, h: float
 	cm.radial_segments = segs
 	mi.mesh = cm
 	mi.position = pos
+	mi.rotation_degrees = rot_deg
 	mi.material_override = mat
 	parent.add_child(mi)
 	return mi
 
 
-func _add_beacon_ring(parent: Node3D, pos: Vector3, col: Color, radius: float = 1.15):
-	var ring := MeshInstance3D.new()
+func _add_torus(parent: Node3D, pos: Vector3, inner_r: float, outer_r: float, mat: Material, rot_deg: Vector3 = Vector3.ZERO, rings: int = 28) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = radius * 0.82
-	tm.outer_radius = radius
-	tm.rings = 24
-	tm.ring_segments = 8
-	ring.mesh = tm
-	ring.position = pos
-	ring.material_override = _mat(col, 0.2, 0.1, true, col, 1.4)
-	parent.add_child(ring)
-	beacon_rings.append({"node": ring, "base_y": pos.y})
-
-	var beam := MeshInstance3D.new()
-	var bm := CylinderMesh.new()
-	bm.top_radius = 0.04
-	bm.bottom_radius = 0.16
-	bm.height = 2.6
-	beam.mesh = bm
-	beam.position = pos + Vector3(0, 1.3, 0)
-	var bmat := StandardMaterial3D.new()
-	bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bmat.albedo_color = Color(col.r, col.g, col.b, 0.36)
-	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bmat.emission_enabled = true
-	bmat.emission = col
-	bmat.emission_energy_multiplier = 1.1
-	beam.material_override = bmat
-	parent.add_child(beam)
+	tm.inner_radius = inner_r
+	tm.outer_radius = outer_r
+	tm.rings = rings
+	tm.ring_segments = 10
+	mi.mesh = tm
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
 
 
-# ---------------------------------------------------------------------------
-# DIORAMA 1: 烟山行动 (Jiangnan Mountain Relief + Base + School + River Port)
-# ---------------------------------------------------------------------------
-func _yanshan_river_z(x: float) -> float:
-	# Winding river sweeping from top-right through mid-right Chengzhuang Port to bottom-right
-	return 0.6 + sin(x * 0.24 - 0.6) * 1.9 + (x - 6.0) * 0.12
+func _build_table_chassis(root: Node3D, accent: Color) -> MeshInstance3D:
+	# Heavy brushed gunmetal tactical war-table deck & beveled metallic rails framing the HD map
+	var m_deck := _mat(Color("0d141b"), 0.52, 0.72)
+	var m_steel := _mat(Color("22303a"), 0.34, 0.85)
+	var m_glow := _mat(accent, 0.20, 0.35, true, accent, 1.55)
+	var m_grid := _mat(accent, 0.3, 0.1, true, accent, 0.65, 0.18)
+
+	# Dark sub-deck beneath the relief map
+	_add_box(root, Vector3(0, -0.34, 0), Vector3(TABLE_W + 2.8, 0.56, TABLE_D + 2.8), m_deck)
+	# Brushed gunmetal top perimeter rail framing the 16:9 HD relief map
+	var hw := TABLE_W * 0.5 + 0.24
+	var hd := TABLE_D * 0.5 + 0.24
+	_add_box(root, Vector3(0, 0.02, -hd), Vector3(TABLE_W + 0.96, 0.24, 0.44), m_steel)
+	_add_box(root, Vector3(0, 0.02, hd), Vector3(TABLE_W + 0.96, 0.24, 0.44), m_steel)
+	_add_box(root, Vector3(-hw, 0.02, 0), Vector3(0.44, 0.24, TABLE_D + 0.96), m_steel)
+	_add_box(root, Vector3(hw, 0.02, 0), Vector3(0.44, 0.24, TABLE_D + 0.96), m_steel)
+
+	# Glowing tactical edge strip inset along the gunmetal rim
+	_add_box(root, Vector3(0, 0.145, -hd + 0.16), Vector3(TABLE_W + 0.18, 0.04, 0.06), m_glow)
+	_add_box(root, Vector3(0, 0.145, hd - 0.16), Vector3(TABLE_W + 0.18, 0.04, 0.06), m_glow)
+	_add_box(root, Vector3(-hw + 0.16, 0.145, 0), Vector3(0.06, 0.04, TABLE_D + 0.18), m_glow)
+	_add_box(root, Vector3(hw - 0.16, 0.145, 0), Vector3(0.06, 0.04, TABLE_D + 0.18), m_glow)
+
+	# Subtle holographic tactical sector grid lines hovering just above the terrain relief
+	for gx in [-8.0, -4.0, 0.0, 4.0, 8.0]:
+		_add_box(root, Vector3(gx, 0.12, 0), Vector3(0.022, 0.008, TABLE_D - 0.2), m_grid)
+	for gz in [-4.5, -1.5, 1.5, 4.5]:
+		_add_box(root, Vector3(0, 0.12, gz), Vector3(TABLE_W - 0.2, 0.008, 0.022), m_grid)
+
+	# Animated holographic radar scan beam gliding smoothly north -> south across the map!
+	var beam := _add_box(root, Vector3(0, 0.56, 0), Vector3(TABLE_W - 0.3, 0.028, 0.22), _mat(accent, 0.1, 0.1, true, accent, 1.65, 0.42))
+	beam.name = "RadarScanBeam"
+	return beam
 
 
-func _yanshan_height(x: float, z: float) -> float:
-	# Main Yanshan Mountain peak at upper-center (0.4, -4.8)
-	var d_main := Vector2(x - 0.4, z + 4.8).length()
-	var h_main := 3.55 * exp(-(d_main * d_main) / 14.5)
-	# Secondary twin mist ridges along northern horizon
-	var d_nw := Vector2(x + 9.2, z + 7.2).length()
-	var h_nw := 4.1 * exp(-(d_nw * d_nw) / 24.0)
-	var d_ne := Vector2(x - 10.6, z + 7.6).length()
-	var h_ne := 4.4 * exp(-(d_ne * d_ne) / 26.0)
-	var d_mid_e := Vector2(x - 6.6, z + 2.2).length()
-	var h_me := 1.75 * exp(-(d_mid_e * d_mid_e) / 11.0)
-	# Gentle rolling Jiangnan foothills
-	var roll := 0.35 * sin(x * 0.32) * cos(z * 0.28) + 0.20 * cos((x + z) * 0.22)
-	var h := 0.62 + h_main + h_nw + h_ne + h_me + roll
-	# Flatten Jingtang School flatland (bottom-left: -8.4, +5.1)
-	var d_sch := Vector2(x + 8.4, z - 5.1).length()
-	if d_sch < 4.5:
-		h = lerpf(0.66, h, smoothstep(2.2, 4.5, d_sch))
-	# Carve Chengzhuang River channel flowing past mid-right (9.0, 0.4)
-	var rz := _yanshan_river_z(x)
-	var d_riv := absf(z - rz)
-	if x > -3.5 and d_riv < 2.2:
-		var carve := 1.0 - smoothstep(0.65, 2.2, d_riv)
-		h = lerpf(h, 0.14, carve * 0.92)
-	# Broad harbor basin right beside Chengzhuang Port (x ~ 8.8..12.8, z ~ 1.4..4.2)
-	var d_bay := Vector2((x - 10.4) * 0.72, z - 2.3).length()
-	if d_bay < 3.0:
-		h = lerpf(0.12, h, smoothstep(1.3, 3.0, d_bay))
-	return maxf(0.10, h)
+func _build_3d_landmark_beacon(root: Node3D, theater: String, lm: Dictionary):
+	var lid := str(lm["id"])
+	var uv: Vector2 = lm["uv"]
+	var base_pos := _uv_to_world(uv, theater)
+	var is_open := bool(lm["open"])
+	var acc: Color = lm["accent"]
+	var icon_kind := str(lm.get("icon_3d", "base_diamond"))
 
+	var holder := Node3D.new()
+	holder.name = "Beacon3D_" + lid
+	holder.position = base_pos
+	root.add_child(holder)
 
-func _yanshan_color(x: float, z: float, h: float) -> Color:
-	if h < 0.34:
-		return Color("297d88")  # Shallow river bed / turquoise banks
-	if h < 0.72:
-		# Terraced Jiangnan golden-green rice paddies near valley floor!
-		var stripe := 0.5 + 0.5 * sin(x * 1.4 + z * 1.2)
-		return Color("528b52").lerp(Color("8ea856"), stripe * 0.45)
-	if h < 1.85:
-		return Color("2d6d4c").lerp(Color("458a58"), clampf((h - 0.72) / 1.13, 0.0, 1.0))
-	if h < 3.10:
-		return Color("265a44").lerp(Color("48705e"), clampf((h - 1.85) / 1.25, 0.0, 1.0))
-	return Color("5e796e").lerp(Color("92a89e"), clampf((h - 3.10) / 1.5, 0.0, 1.0))
+	var m_gunmetal := _mat(Color("526c7e"), 0.26, 0.34, false, Color("263e4d"), 0.32)
+	var m_chrome := _mat(Color("e2f1fa"), 0.16, 0.42, false, Color("b8dcf0"), 0.38)
+	var m_acc_metal := _mat(acc.lightened(0.18), 0.18, 0.28, false, acc, 1.15 if is_open else 0.72)
+	var m_acc_glow := _mat(acc.lightened(0.25), 0.12, 0.18, true, acc, 1.95 if is_open else 1.10)
+	var m_beam := _mat(acc, 0.1, 0.0, true, acc, 1.15 if is_open else 0.70, 0.22 if is_open else 0.14)
+	var m_ring_glow := _mat(acc.lightened(0.12), 0.14, 0.22, true, acc, 1.65 if is_open else 0.92, 0.92 if is_open else 0.74)
 
+	# 1. Sleek Octagonal Mechanical Pedestal Anchor seated flush into the 3D relief terrain
+	var pad_r := 0.56 if is_open else 0.45
+	_add_cyl(holder, Vector3(0, 0.05, 0), pad_r * 0.88, pad_r, 0.13, m_gunmetal, 8)
+	_add_cyl(holder, Vector3(0, 0.12, 0), pad_r * 0.62, pad_r * 0.72, 0.05, m_chrome, 8)
+	_add_torus(holder, Vector3(0, 0.15, 0), pad_r * 0.86, pad_r * 0.98, m_ring_glow)
 
-func _build_yanshan_diorama():
-	yanshan_root = Node3D.new()
-	yanshan_root.name = "YanshanDiorama"
-	sub_viewport.add_child(yanshan_root)
-
-	# 1. Sculpted Jiangnan Mountain Relief
-	var terrain := _build_terrain_mesh(17.5, 13.5, 58, 44, _yanshan_height, _yanshan_color)
-	yanshan_root.add_child(terrain)
-
-	# 2. Translucent Sparkling River & Bay Water Plane
-	var water := MeshInstance3D.new()
-	var wplane := PlaneMesh.new()
-	wplane.size = Vector2(34.5, 26.5)
-	water.mesh = wplane
-	water.position = Vector3(0.0, 0.36, 0.0)
-	var wmat := StandardMaterial3D.new()
-	wmat.albedo_color = Color(0.16, 0.56, 0.64, 0.84)
-	wmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wmat.roughness = 0.16
-	wmat.metallic = 0.18
-	water.material_override = wmat
-	yanshan_root.add_child(water)
-
-	# 3. Stylized Pine & Bamboo Groves scattered organically across hills
-	var m_tree_dk := _mat(Color("1d543c"), 0.86)
-	var m_tree_lt := _mat(Color("2f764b"), 0.84)
-	var m_trunk := _mat(Color("5b4332"), 0.90)
-	var tree_spots := [
-		Vector2(-3.2, -5.6), Vector2(-1.8, -6.2), Vector2(2.6, -5.5), Vector2(4.2, -4.4),
-		Vector2(-4.8, -3.2), Vector2(-6.5, -2.5), Vector2(-3.8, -1.4), Vector2(-1.2, -1.8),
-		Vector2(3.6, -2.2), Vector2(5.4, -3.0), Vector2(6.8, -4.8), Vector2(-7.8, -4.8),
-		Vector2(-10.5, -1.6), Vector2(-4.2, 2.2), Vector2(-2.2, 3.8), Vector2(2.8, 3.4),
-		Vector2(5.2, 4.8), Vector2(-1.6, 6.2), Vector2(3.8, -6.8), Vector2(-5.4, -6.8),
-	]
-	for idx in tree_spots.size():
-		var tp: Vector2 = tree_spots[idx]
-		var th := _yanshan_height(tp.x, tp.y)
-		if th < 0.55:
-			continue
-		var s := 0.85 + float(idx % 3) * 0.22
-		_add_cyl(yanshan_root, Vector3(tp.x, th + 0.18 * s, tp.y), 0.06 * s, 0.08 * s, 0.36 * s, m_trunk, 6)
-		_add_cyl(yanshan_root, Vector3(tp.x, th + 0.62 * s, tp.y), 0.04, 0.44 * s, 0.78 * s, m_tree_dk if idx % 2 == 0 else m_tree_lt, 7)
-
-	# 4. LANDMARK 1 (Upper-Center Hill): 【烟山基地】 — Watchtower, Dongling Red Pavilion, Camp Tents & Beacon!
-	var m_wall := _mat(Color("e8e4d8"), 0.78)
-	var m_roof := _mat(Color("2b3842"), 0.68)
-	var m_red := _mat(Color("c43c32"), 0.60)
-	var m_tent := _mat(Color("3a6e54"), 0.82)
-	var m_pad := _mat(Color("3d484c"), 0.72)
-	var base_p := Vector3(0.4, _yanshan_height(0.4, -4.8), -4.8)
-	var base_grp := Node3D.new()
-	base_grp.position = base_p
-	yanshan_root.add_child(base_grp)
-	# Flat summit stone terrace
-	_add_cyl(base_grp, Vector3(0, -0.08, 0), 1.65, 1.95, 0.28, m_pad, 14)
-	# Iconic Dongling Pavilion (red pillars + upturned dark tile pagoda roof!)
-	_add_box(base_grp, Vector3(-0.48, 0.38, -0.22), Vector3(0.72, 0.54, 0.72), m_red)
-	_add_cyl(base_grp, Vector3(-0.48, 0.84, -0.22), 0.10, 0.74, 0.46, m_roof, 4)
-	# Tactical Radio Watchtower & Command Tent
-	_add_box(base_grp, Vector3(0.58, 0.56, 0.18), Vector3(0.42, 0.92, 0.42), m_wall)
-	_add_box(base_grp, Vector3(0.58, 1.08, 0.18), Vector3(0.56, 0.14, 0.56), m_roof)
-	_add_cyl(base_grp, Vector3(0.58, 1.48, 0.18), 0.03, 0.04, 0.74, _mat(Color("a4c0c4"), 0.4, 0.6), 6)
-	_add_box(base_grp, Vector3(-0.18, 0.24, 0.72), Vector3(0.76, 0.34, 0.48), m_tent, 0.25)
-	_add_beacon_ring(yanshan_root, base_p + Vector3(0, 0.14, 0), Color("58f0b8"), 1.52)
-
-	# 5. LANDMARK 2 (Bottom-Left): 【鲸塘中心小学（暂未开放）】 — Teaching Building, Flagpole & Red Oval Track!
-	var sch_p := Vector3(-7.6, _yanshan_height(-7.6, 4.4), 4.4)
-	var sch_grp := Node3D.new()
-	sch_grp.position = sch_p
-	yanshan_root.add_child(sch_grp)
-	var m_sch_wall := _mat(Color("ede6d4"), 0.74)
-	var m_sch_roof := _mat(Color("b64b3a"), 0.68)
-	var m_track := _mat(Color("b85642"), 0.86)
-	var m_pitch := _mat(Color("489a56"), 0.88)
-	# Courtyard concrete apron
-	_add_box(sch_grp, Vector3(0, 0.04, 0), Vector3(4.2, 0.08, 2.8), _mat(Color("aeb5b0"), 0.84))
-	# Main U-shaped Chinese Primary School Teaching Building
-	_add_box(sch_grp, Vector3(-0.75, 0.42, -0.58), Vector3(2.2, 0.72, 0.68), m_sch_wall)
-	_add_box(sch_grp, Vector3(-0.75, 0.84, -0.58), Vector3(2.36, 0.16, 0.80), m_sch_roof)
-	_add_box(sch_grp, Vector3(-1.55, 0.34, 0.18), Vector3(0.62, 0.56, 1.05), m_sch_wall)
-	_add_box(sch_grp, Vector3(-1.55, 0.68, 0.18), Vector3(0.72, 0.14, 1.15), m_sch_roof)
-	# Flagpole + tiny crimson flag in front courtyard
-	_add_cyl(sch_grp, Vector3(-0.55, 0.68, 0.35), 0.025, 0.03, 1.25, _mat(Color("cfd8dc"), 0.3, 0.7), 6)
-	_add_box(sch_grp, Vector3(-0.36, 1.18, 0.35), Vector3(0.36, 0.22, 0.04), m_red)
-	# Miniature Red-Clay Oval Sports Track + Green Soccer Field
-	_add_box(sch_grp, Vector3(0.95, 0.10, 0.25), Vector3(1.75, 0.06, 1.85), m_track)
-	_add_box(sch_grp, Vector3(0.95, 0.14, 0.25), Vector3(1.22, 0.05, 1.32), m_pitch)
-
-	# 6. LANDMARK 3 (Mid-Right Riverbend): 【诚庄村河港（暂未开放）】 — Jiangnan White-Wall Cottages, Stone Arch Bridge & Wharf!
-	var port_p := Vector3(8.2, maxf(0.46, _yanshan_height(8.2, 0.2)), 0.2)
-	var port_grp := Node3D.new()
-	port_grp.position = port_p
-	yanshan_root.add_child(port_grp)
-	var m_wood := _mat(Color("7b5638"), 0.84)
-	var m_stone := _mat(Color("9ea5a0"), 0.82)
-	var m_boat := _mat(Color("5c3d28"), 0.78)
-	# Cluster of 5 Jiangnan white-wall black-tile cottages
-	for c_spec in [
-		[Vector3(-0.95, 0.28, -0.75), Vector3(0.92, 0.54, 0.66), 0.12],
-		[Vector3(0.15, 0.32, -0.92), Vector3(1.06, 0.62, 0.68), -0.08],
-		[Vector3(1.18, 0.26, -0.42), Vector3(0.84, 0.48, 0.62), 0.22],
-		[Vector3(-0.55, 0.24, 0.15), Vector3(0.86, 0.46, 0.58), -0.15],
-		[Vector3(0.55, 0.26, 0.05), Vector3(0.90, 0.50, 0.60), 0.06],
-	]:
-		var cp: Vector3 = c_spec[0]
-		var cs: Vector3 = c_spec[1]
-		var cr: float = c_spec[2]
-		_add_box(port_grp, cp, cs, m_wall, cr)
-		_add_box(port_grp, cp + Vector3(0, cs.y * 0.5 + 0.08, 0), Vector3(cs.x + 0.14, 0.16, cs.z + 0.14), m_roof, cr)
-	# Wooden River Wharf Pier extending into Chengzhuang River Harbor
-	_add_box(port_grp, Vector3(0.15, 0.02, 1.25), Vector3(0.76, 0.14, 1.55), m_wood)
-	_add_box(port_grp, Vector3(0.15, 0.04, 1.85), Vector3(1.65, 0.14, 0.54), m_wood)
-	# Stone Arch Bridge spanning the creek
-	_add_box(port_grp, Vector3(-1.85, 0.12, 1.15), Vector3(1.55, 0.26, 0.46), m_stone, -0.22)
-	# Two tiny moored wooden riverboats on water
-	_add_box(port_grp, Vector3(1.15, -0.06, 1.65), Vector3(0.32, 0.14, 0.84), m_boat, 0.35)
-	_add_box(port_grp, Vector3(-0.85, -0.06, 1.82), Vector3(0.28, 0.12, 0.74), m_boat, -0.25)
-
-	# Subtle dotted tactical supply roads connecting Yanshan Base <-> Jingtang School <-> Chengzhuang Port!
-	var m_road := _mat(Color("d8c89c"), 0.88)
-	for seg_pair in [[Vector2(0.4, -3.2), Vector2(-6.2, 3.6)], [Vector2(1.4, -3.4), Vector2(6.8, -0.2)], [Vector2(-5.4, 4.0), Vector2(6.4, 0.8)]]:
-		var a: Vector2 = seg_pair[0]
-		var b: Vector2 = seg_pair[1]
-		for si in range(1, 9):
-			var t := float(si) / 9.0
-			var p2 := a.lerp(b, t) + Vector2(sin(t * PI) * 0.6, cos(t * PI) * 0.35)
-			var ph := _yanshan_height(p2.x, p2.y)
-			if ph > 0.38:
-				_add_box(yanshan_root, Vector3(p2.x, ph + 0.05, p2.y), Vector3(0.46, 0.08, 0.28), m_road, (b - a).angle())
-
-	# 7. Drifting Soft Jiangnan Mist Clouds
-	var m_cloud := StandardMaterial3D.new()
-	m_cloud.albedo_color = Color(0.95, 0.98, 0.96, 0.52)
-	m_cloud.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m_cloud.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# 4 Mechanical Corner Targeting Chevrons around base pad
 	for ci in range(4):
-		var cl := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 1.6 + float(ci % 2) * 0.55
-		sm.height = 0.55
-		cl.mesh = sm
-		cl.position = Vector3(-9.5 + ci * 6.4, 5.2 + float(ci % 2) * 0.7, -5.8 + float(ci % 3) * 2.2)
-		cl.scale = Vector3(1.8, 0.45, 0.95)
-		cl.material_override = m_cloud
-		yanshan_root.add_child(cl)
-		cloud_nodes.append({"node": cl, "base_x": cl.position.x, "speed": 0.28 + ci * 0.06})
+		var ang := deg_to_rad(45.0 + float(ci) * 90.0)
+		var cp := Vector3(cos(ang) * (pad_r + 0.22), 0.11, sin(ang) * (pad_r + 0.22))
+		_add_box(holder, cp, Vector3(0.20, 0.05, 0.06), m_acc_glow, Vector3(0, -rad_to_deg(ang), 0))
+
+	# Expanding Radar Pulse Ring
+	var pulse_ring := _add_torus(holder, Vector3(0, 0.16, 0), pad_r * 1.00, pad_r * 1.08, _mat(acc, 0.1, 0.1, true, acc, 1.4, 0.50))
+
+	# Vertical Translucent Holographic Light Column
+	var col_h := 2.05 if is_open else 1.55
+	_add_cyl(holder, Vector3(0, col_h * 0.5 + 0.12, 0), 0.03, 0.20 if is_open else 0.14, col_h, m_beam, 12)
+
+	# 2. Floating Sculpted 3D Emblem Assembly (rotates smoothly above the pedestal!)
+	var emblem := Node3D.new()
+	emblem.name = "SculptedEmblem_" + lid
+	var emb_y := 1.24 if is_open else 1.04
+	emblem.position = Vector3(0, emb_y, 0)
+	emblem.scale = Vector3.ONE * 0.84
+	holder.add_child(emblem)
+
+	var outer_ring: Node3D = null
+	var inner_ring: Node3D = null
+
+	match icon_kind:
+		"base_diamond":
+			# 【烟山基地】: Sculpted 3D Emerald Tactical Command Diamond + Winged Armor Shield + Dual Gyro Rings!
+			_add_cyl(emblem, Vector3(0, 0.36, 0), 0.02, 0.44, 0.72, m_acc_metal, 4, Vector3(0, 45, 0))
+			_add_cyl(emblem, Vector3(0, -0.36, 0), 0.44, 0.02, 0.72, m_acc_metal, 4, Vector3(0, 45, 0))
+			# Metallic gunmetal equatorial belt + twin angled wings
+			_add_cyl(emblem, Vector3(0, 0.0, 0), 0.52, 0.52, 0.12, m_gunmetal, 4, Vector3(0, 45, 0))
+			_add_box(emblem, Vector3(-0.56, 0.08, 0), Vector3(0.38, 0.12, 0.16), m_chrome, Vector3(0, 0, 26))
+			_add_box(emblem, Vector3(0.56, 0.08, 0), Vector3(0.38, 0.12, 0.16), m_chrome, Vector3(0, 0, -26))
+			# Apex laser spire
+			_add_cyl(emblem, Vector3(0, 0.88, 0), 0.02, 0.05, 0.44, m_acc_glow, 6)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.82, 0.90, m_ring_glow, Vector3(24, 0, 14))
+			inner_ring = _add_torus(emblem, Vector3.ZERO, 0.62, 0.68, m_chrome, Vector3(-28, 30, -18))
+
+		"fortress_bastion":
+			# 【阿萨拉堡垒】: 3D Armored Hexagonal Bastion Core + Battlement Fins + Dual Amber Gyro Rings!
+			_add_cyl(emblem, Vector3(0, 0.0, 0), 0.46, 0.54, 0.58, m_gunmetal, 6)
+			_add_cyl(emblem, Vector3(0, 0.38, 0), 0.24, 0.44, 0.24, m_acc_metal, 6)
+			_add_cyl(emblem, Vector3(0, -0.44, 0), 0.44, 0.04, 0.46, m_acc_metal, 6)
+			# 3 Armored radial fortress buttresses
+			for fi in range(3):
+				var fa := float(fi) * 120.0
+				var rad := deg_to_rad(fa)
+				_add_box(emblem, Vector3(cos(rad) * 0.50, 0.08, sin(rad) * 0.50), Vector3(0.28, 0.46, 0.14), m_chrome, Vector3(0, -fa, 0))
+			# Glowing amber command core crystal crowning the bastion
+			_add_cyl(emblem, Vector3(0, 0.68, 0), 0.02, 0.22, 0.42, m_acc_glow, 6)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.86, 0.94, m_ring_glow, Vector3(22, 10, -16))
+			inner_ring = _add_torus(emblem, Vector3.ZERO, 0.64, 0.70, m_chrome, Vector3(-26, -24, 18))
+
+		"story_star":
+			# 【剧情模式序章】: 3D Golden Tactical Compass Star Prism + Halo Ring!
+			_add_cyl(emblem, Vector3(0, 0.34, 0), 0.02, 0.38, 0.68, m_acc_metal, 4)
+			_add_cyl(emblem, Vector3(0, -0.34, 0), 0.38, 0.02, 0.68, m_acc_metal, 4)
+			_add_box(emblem, Vector3.ZERO, Vector3(1.18, 0.14, 0.14), m_acc_glow, Vector3(45, 0, 0))
+			_add_box(emblem, Vector3.ZERO, Vector3(0.14, 0.14, 1.18), m_acc_glow, Vector3(0, 0, 45))
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.76, 0.84, m_ring_glow, Vector3(28, 0, 0))
+			inner_ring = _add_torus(emblem, Vector3.ZERO, 0.56, 0.61, m_chrome, Vector3(-28, 45, 0))
+
+		"school_crest":
+			# 【鲸塘中心小学】: Sculpted 3D Classical School Pediment & Pillars Crest + Metallic Lock Halo!
+			_add_box(emblem, Vector3(0, -0.22, 0), Vector3(0.84, 0.12, 0.30), m_gunmetal)
+			for cx in [-0.28, 0.0, 0.28]:
+				_add_cyl(emblem, Vector3(cx, 0.04, 0), 0.06, 0.065, 0.42, m_chrome, 8)
+			# Sculpted triangular gable roof
+			_add_box(emblem, Vector3(-0.22, 0.34, 0), Vector3(0.54, 0.10, 0.34), m_acc_metal, Vector3(0, 0, 26))
+			_add_box(emblem, Vector3(0.22, 0.34, 0), Vector3(0.54, 0.10, 0.34), m_acc_metal, Vector3(0, 0, -26))
+			_add_cyl(emblem, Vector3(0, 0.56, 0), 0.03, 0.03, 0.26, m_acc_glow, 6)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.68, 0.74, m_ring_glow, Vector3(90, 0, 0))
+			_add_mini_3d_lock(emblem, Vector3(0, -0.52, 0), m_gunmetal, m_chrome, m_acc_glow)
+
+		"port_anchor":
+			# 【诚庄村河港】: Sculpted 3D Naval Anchor Emblem + Metallic Lock Halo!
+			_add_cyl(emblem, Vector3(0, 0.04, 0), 0.065, 0.075, 0.76, m_chrome, 8)
+			_add_box(emblem, Vector3(0, 0.22, 0), Vector3(0.56, 0.09, 0.09), m_acc_metal)
+			# Curved anchor arms (flukes)
+			_add_box(emblem, Vector3(-0.22, -0.24, 0), Vector3(0.42, 0.09, 0.10), m_acc_metal, Vector3(0, 0, -34))
+			_add_box(emblem, Vector3(0.22, -0.24, 0), Vector3(0.42, 0.09, 0.10), m_acc_metal, Vector3(0, 0, 34))
+			_add_torus(emblem, Vector3(0, 0.46, 0), 0.10, 0.15, m_acc_glow, Vector3(90, 0, 0), 16)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.68, 0.74, m_ring_glow, Vector3(90, 0, 0))
+			_add_mini_3d_lock(emblem, Vector3(0, -0.52, 0), m_gunmetal, m_chrome, m_acc_glow)
+
+		"desert_dome":
+			# 【巴克什古城外围】: Sculpted 3D Sandstone Citadel Dome & Spire + Metallic Lock Halo!
+			_add_cyl(emblem, Vector3(0, -0.16, 0), 0.42, 0.46, 0.30, m_gunmetal, 8)
+			var dome := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.36
+			sm.height = 0.56
+			dome.mesh = sm
+			dome.position = Vector3(0, 0.12, 0)
+			dome.material_override = m_acc_metal
+			emblem.add_child(dome)
+			_add_cyl(emblem, Vector3(0, 0.46, 0), 0.02, 0.05, 0.32, m_acc_glow, 6)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.68, 0.74, m_ring_glow, Vector3(90, 0, 0))
+			_add_mini_3d_lock(emblem, Vector3(0, -0.50, 0), m_gunmetal, m_chrome, m_acc_glow)
+
+		"orbital_spire":
+			# 【哈夫克航天禁区】: Sculpted 3D Orbital Rocket + Delta Fins + Tilted Ring!
+			_add_cyl(emblem, Vector3(0, 0.06, 0), 0.12, 0.16, 0.72, m_chrome, 10)
+			_add_cyl(emblem, Vector3(0, 0.54, 0), 0.01, 0.12, 0.28, m_acc_glow, 10)
+			for fi in range(3):
+				var fa := float(fi) * 120.0
+				var rad := deg_to_rad(fa)
+				_add_box(emblem, Vector3(cos(rad) * 0.20, -0.18, sin(rad) * 0.20), Vector3(0.24, 0.26, 0.05), m_acc_metal, Vector3(0, -fa, -18))
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.68, 0.74, m_ring_glow, Vector3(32, 0, 22))
+			_add_mini_3d_lock(emblem, Vector3(0, -0.50, 0), m_gunmetal, m_chrome, m_acc_glow)
+
+		_:
+			# Default / Cave Crystal
+			_add_cyl(emblem, Vector3(0, 0.26, 0), 0.02, 0.32, 0.52, m_acc_metal, 6)
+			_add_cyl(emblem, Vector3(0, -0.26, 0), 0.32, 0.02, 0.52, m_acc_metal, 6)
+			outer_ring = _add_torus(emblem, Vector3.ZERO, 0.64, 0.70, m_ring_glow, Vector3(24, 0, -24))
+			_add_mini_3d_lock(emblem, Vector3(0, -0.50, 0), m_gunmetal, m_chrome, m_acc_glow)
+
+	beacon_anims.append({
+		"theater": theater,
+		"id": lid,
+		"emblem": emblem,
+		"outer_ring": outer_ring,
+		"inner_ring": inner_ring,
+		"pulse_ring": pulse_ring,
+		"base_y": emb_y,
+		"is_open": is_open,
+		"phase": float(beacon_anims.size()) * 1.1,
+	})
+
+
+func _add_mini_3d_lock(parent: Node3D, pos: Vector3, m_body: Material, m_shackle: Material, m_keyhole: Material):
+	# Crisp miniature 3D brushed-steel padlock indicating locked/upcoming sectors
+	var lg := Node3D.new()
+	lg.position = pos
+	parent.add_child(lg)
+	_add_box(lg, Vector3(0, -0.04, 0), Vector3(0.28, 0.22, 0.12), m_body)
+	_add_box(lg, Vector3(0, -0.04, 0.065), Vector3(0.06, 0.10, 0.02), m_keyhole)
+	_add_torus(lg, Vector3(0, 0.09, 0), 0.06, 0.095, m_shackle, Vector3(90, 0, 0), 14)
+
+
+func _build_tactical_arc(root: Node3D, p_a: Vector3, p_b: Vector3, col: Color):
+	# 3D parabolic glowing dotted tactical link trajectory arcing cleanly above the relief map
+	var mat := _mat(col, 0.2, 0.1, true, col, 1.35, 0.72)
+	var steps := 14
+	for i in range(1, steps):
+		var t := float(i) / float(steps)
+		var p := p_a.lerp(p_b, t)
+		p.y += sin(t * PI) * 1.45 + 0.16
+		var next_t := minf(1.0, float(i + 1) / float(steps))
+		var np := p_a.lerp(p_b, next_t)
+		np.y += sin(next_t * PI) * 1.45 + 0.16
+		var seg := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.055, 0.045, p.distance_to(np) * 0.56)
+		seg.mesh = bm
+		seg.material_override = mat
+		root.add_child(seg)
+		seg.look_at_from_position(p, np, Vector3.UP)
+
+
+func _build_all_theaters():
+	var theme_accents := {
+		"yanshan": Color("3ef0b4"),
+		"ahsarah": Color("ffb238"),
+		"story": Color("ffd76a"),
+	}
+	for tid in ["yanshan", "ahsarah", "story"]:
+		var root := Node3D.new()
+		root.name = "WarTable_" + tid
+		sub_viewport.add_child(root)
+		theater_roots[tid] = root
+
+		var acc: Color = theme_accents[tid]
+		var beam := _build_table_chassis(root, acc)
+		scan_beams[tid] = beam
+		root.add_child(_build_relief_map_mesh(tid))
+
+		var lms: Array = LANDMARKS.get(tid, [])
+		var hub_pos := Vector3.ZERO
+		for i in range(lms.size()):
+			var lm: Dictionary = lms[i]
+			_build_3d_landmark_beacon(root, tid, lm)
+			var wp := _uv_to_world(lm["uv"], tid)
+			if i == 0:
+				hub_pos = wp
+			else:
+				_build_tactical_arc(root, hub_pos, wp, acc)
+		root.visible = (tid == "yanshan")
 
 
 # ---------------------------------------------------------------------------
-# DIORAMA 2: 阿萨拉行动 (North African Desert Dunes + Zero Dam Fortress + Oasis)
-# ---------------------------------------------------------------------------
-func _ahsarah_height(x: float, z: float) -> float:
-	# Dramatic north canyon mesas framing Zero Dam gorge (-0.4, -4.3)
-	var d_mesa_w := Vector2((x + 6.2) * 0.78, z + 5.2).length()
-	var h_mw := 3.85 * exp(-(d_mesa_w * d_mesa_w) / 18.0)
-	var d_mesa_e := Vector2((x - 6.8) * 0.78, z + 5.0).length()
-	var h_me := 3.95 * exp(-(d_mesa_e * d_mesa_e) / 20.0)
-	# Southeast high mesa plateau for HAAVK Space City
-	var d_se := Vector2(x - 8.8, z - 1.9).length()
-	var h_se := 1.75 * exp(-(d_se * d_se) / 14.0)
-	# Sweeping wind-carved sand dune ripples across south desert
-	var dunes := 0.42 * sin(x * 0.36 + z * 0.22) + 0.24 * cos(x * 0.20 - z * 0.40)
-	var h := 0.85 + h_mw + h_me + h_se + dunes
-	# Carve central North-South canyon gorge through Zero Dam (x ~ -0.4)
-	var gorge_x := -0.4 + sin(z * 0.28) * 1.15
-	var d_gorge := absf(x - gorge_x)
-	if d_gorge < 2.6:
-		var carve := 1.0 - smoothstep(0.95, 2.6, d_gorge)
-		var floor_h := 0.26 if z < -4.2 else 0.42
-		h = lerpf(h, floor_h, carve * 0.90)
-	# Southwest oasis basin around Brakkesh (-8.2, 4.9)
-	var d_oa := Vector2(x + 8.2, z - 4.9).length()
-	if d_oa < 3.6:
-		h = lerpf(0.68, h, smoothstep(1.8, 3.6, d_oa))
-	return maxf(0.18, h)
-
-
-func _ahsarah_color(x: float, z: float, h: float) -> Color:
-	# Oasis palm greenery in southwest
-	if Vector2(x + 8.2, z - 4.9).length() < 2.8 and h < 0.92:
-		return Color("568448")
-	if h < 0.40 and z < -3.6:
-		return Color("2a7a88")  # Dam reservoir water bed
-	if h < 0.78:
-		return Color("b8905a")  # Dry wadi canyon floor
-	if h < 1.95:
-		var band := 0.5 + 0.5 * sin(x * 0.65 + z * 0.45)
-		return Color("d6aa68").lerp(Color("c68e4c"), band * 0.55)  # Golden Sahara dunes
-	return Color("a86640").lerp(Color("874b32"), clampf((h - 1.95) / 2.2, 0.0, 1.0))  # Terracotta canyon cliffs
-
-
-func _build_ahsarah_diorama():
-	ahsarah_root = Node3D.new()
-	ahsarah_root.name = "AhsarahDiorama"
-	sub_viewport.add_child(ahsarah_root)
-
-	# 1. Sculpted Desert Dunes & Red-Rock Canyon Relief
-	var terrain := _build_terrain_mesh(17.5, 13.5, 58, 44, _ahsarah_height, _ahsarah_color)
-	ahsarah_root.add_child(terrain)
-
-	# 2. Sparkling Turquoise Dam Reservoir behind Zero Dam (north of z=-4.5)
-	var res_water := MeshInstance3D.new()
-	var rplane := PlaneMesh.new()
-	rplane.size = Vector2(9.2, 7.6)
-	res_water.mesh = rplane
-	res_water.position = Vector3(-0.4, 1.12, -8.3)
-	var rwmat := StandardMaterial3D.new()
-	rwmat.albedo_color = Color(0.14, 0.62, 0.72, 0.88)
-	rwmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	rwmat.roughness = 0.14
-	rwmat.metallic = 0.22
-	res_water.material_override = rwmat
-	ahsarah_root.add_child(res_water)
-
-	# 3. LANDMARK 1 (North-Central Gorge): 【阿萨拉堡垒】 — Zero Dam Wall + Sandstone Fortress + Twin Babel Towers!
-	var m_concrete := _mat(Color("b8b2a2"), 0.76)
-	var m_sandstone := _mat(Color("cfa36e"), 0.80)
-	var m_sand_dark := _mat(Color("9a6e42"), 0.84)
-	var m_haavk_w := _mat(Color("dce6ea"), 0.45, 0.22)
-	var m_cyan := _mat(Color("3ae8ff"), 0.2, 0.1, true, Color("3ae8ff"), 1.6)
-
-	var fort_grp := Node3D.new()
-	fort_grp.position = Vector3(-0.4, 0.0, -4.3)
-	ahsarah_root.add_child(fort_grp)
-	# Monumental Zero Dam Concrete Wall spanning the canyon gorge!
-	_add_box(fort_grp, Vector3(0.0, 1.25, -0.35), Vector3(5.6, 2.15, 0.82), m_concrete)
-	_add_box(fort_grp, Vector3(0.0, 2.38, -0.35), Vector3(5.8, 0.18, 1.04), _mat(Color("787a78"), 0.72))
-	# Spillway chutes on dam face
-	for sx in [-1.4, -0.45, 0.45, 1.4]:
-		_add_box(fort_grp, Vector3(sx, 1.15, 0.12), Vector3(0.32, 1.75, 0.22), _mat(Color("6c7678"), 0.66))
-	# Administrative Sandstone Fortress on east abutment
-	_add_box(fort_grp, Vector3(2.45, 1.75, 0.85), Vector3(2.15, 1.18, 1.55), m_sandstone)
-	_add_box(fort_grp, Vector3(2.45, 2.42, 0.85), Vector3(2.28, 0.18, 1.68), m_sand_dark)
-	# Twin HAAVK Babel Comms Towers rising dramatically above the fortress!
-	_add_cyl(fort_grp, Vector3(1.65, 2.85, 0.45), 0.16, 0.24, 2.35, m_haavk_w, 8)
-	_add_cyl(fort_grp, Vector3(1.65, 4.10, 0.45), 0.04, 0.06, 0.65, m_cyan, 6)
-	_add_cyl(fort_grp, Vector3(3.15, 2.65, 0.62), 0.14, 0.20, 1.85, m_haavk_w, 8)
-	# West Cement Plant twin silos
-	for cx in [-2.65, -2.10]:
-		_add_cyl(fort_grp, Vector3(cx, 1.85, 1.25), 0.26, 0.26, 1.15, m_concrete, 10)
-	_add_beacon_ring(ahsarah_root, Vector3(-0.4, 2.52, -4.3), Color("ffb84d"), 1.65)
-
-	# 4. LANDMARK 2 (Southwest Oasis): 【巴克什古城外围（暂未开放）】 — Mudbrick Domes, Minaret & Oasis Palms
-	var brk_p := Vector3(-7.5, _ahsarah_height(-7.5, 4.3), 4.3)
-	var brk_grp := Node3D.new()
-	brk_grp.position = brk_p
-	ahsarah_root.add_child(brk_grp)
-	for b_spec in [
-		[Vector3(-0.85, 0.34, -0.45), Vector3(1.15, 0.68, 0.95)],
-		[Vector3(0.45, 0.28, -0.65), Vector3(0.95, 0.56, 0.85)],
-		[Vector3(-0.25, 0.26, 0.65), Vector3(1.25, 0.52, 0.78)],
-	]:
-		_add_box(brk_grp, b_spec[0], b_spec[1], m_sandstone)
-	var dome := MeshInstance3D.new()
-	var dsm := SphereMesh.new()
-	dsm.radius = 0.44
-	dsm.height = 0.66
-	dome.mesh = dsm
-	dome.position = Vector3(-0.85, 0.72, -0.45)
-	dome.material_override = _mat(Color("dfbe74"), 0.52, 0.22)
-	brk_grp.add_child(dome)
-	_add_cyl(brk_grp, Vector3(0.75, 0.78, -0.65), 0.12, 0.16, 1.48, m_sand_dark, 8)
-	# Oasis turquoise pond & 3 stylized desert palm trees
-	_add_cyl(brk_grp, Vector3(1.25, 0.04, 0.65), 0.82, 0.88, 0.08, rwmat, 14)
-	var m_palm := _mat(Color("3f7c3b"), 0.82)
-	for pp in [Vector2(1.85, 0.25), Vector2(0.75, 1.25), Vector2(1.55, 1.20)]:
-		_add_cyl(brk_grp, Vector3(pp.x, 0.36, pp.y), 0.04, 0.06, 0.72, _mat(Color("6e5034"), 0.88), 6)
-		_add_cyl(brk_grp, Vector3(pp.x, 0.72, pp.y), 0.36, 0.08, 0.22, m_palm, 7)
-
-	# 5. LANDMARK 3 (Southeast Mesa): 【哈夫克航天禁区（暂未开放）】 — Futuristic Launch Spire & Radar Dishes
-	var spc_p := Vector3(8.0, _ahsarah_height(8.0, 1.6), 1.6)
-	var spc_grp := Node3D.new()
-	spc_grp.position = spc_p
-	ahsarah_root.add_child(spc_grp)
-	_add_box(spc_grp, Vector3(0, 0.10, 0), Vector3(3.2, 0.20, 2.4), _mat(Color("66747e"), 0.62))
-	_add_box(spc_grp, Vector3(-0.75, 0.56, -0.25), Vector3(1.15, 0.76, 0.95), m_haavk_w)
-	# Launch Gantry + sleek rocket spire
-	_add_box(spc_grp, Vector3(0.75, 1.25, -0.10), Vector3(0.32, 2.25, 0.32), _mat(Color("8898a2"), 0.45, 0.4))
-	_add_cyl(spc_grp, Vector3(0.32, 1.12, -0.10), 0.06, 0.16, 1.95, m_haavk_w, 10)
-	_add_cyl(spc_grp, Vector3(-0.75, 1.08, 0.55), 0.34, 0.08, 0.24, m_haavk_w, 10)
-	_add_cyl(spc_grp, Vector3(0.75, 2.45, -0.10), 0.06, 0.06, 0.22, m_cyan, 8)
-
-	# Desert tactical convoy tracks connecting Zero Dam <-> Brakkesh Oasis <-> Space Base!
-	var m_droad := _mat(Color("8a6a44"), 0.90)
-	for seg_pair in [[Vector2(-0.4, -2.5), Vector2(-6.4, 3.6)], [Vector2(1.2, -2.6), Vector2(6.6, 1.2)]]:
-		var a: Vector2 = seg_pair[0]
-		var b: Vector2 = seg_pair[1]
-		for si in range(1, 9):
-			var t := float(si) / 9.0
-			var p2 := a.lerp(b, t)
-			var ph := _ahsarah_height(p2.x, p2.y)
-			_add_box(ahsarah_root, Vector3(p2.x, ph + 0.05, p2.y), Vector3(0.48, 0.08, 0.28), m_droad, (b - a).angle())
-
-	ahsarah_root.hide()
-
-
-# ---------------------------------------------------------------------------
-# 2D Floating Projected Tactical Pins & Theater Header Chrome
+# 2D Mechanical Gunmetal Overlay Chrome & Projected Callout Tags
 # ---------------------------------------------------------------------------
 func _build_overlay_chrome():
-	# Soft top vignette bar over the 3D map for crisp header readability
-	var top_bar := ColorRect.new()
+	# Sharp mechanical top HUD telemetry bar (gunmetal carbon + glowing left accent rail)
+	var top_bar := Panel.new()
 	top_bar.position = Vector2(0, 0)
-	top_bar.size = Vector2(size.x, 78)
-	top_bar.color = Color(0.025, 0.052, 0.068, 0.72)
+	top_bar.size = Vector2(size.x, 66)
 	top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tb_st := StyleBoxFlat.new()
+	tb_st.bg_color = Color(0.032, 0.048, 0.064, 0.86)
+	tb_st.border_width_bottom = 1
+	tb_st.border_color = Color("28424f")
+	top_bar.add_theme_stylebox_override("panel", tb_st)
 	add_child(top_bar)
 
-	theater_header_lbl = game._text(self, "🏔 烟山行动 · 江南山地三维作战沙盘", Vector2(26, 12), Vector2(720, 32), 22, Color("f6fffa"))
-	theater_sub_lbl = game._text(self, "点击沙盘上的据点图标查看情报并部署出击", Vector2(28, 46), Vector2(780, 22), 13, Color("9ce8cf"))
+	header_rail = ColorRect.new()
+	header_rail.position = Vector2(18, 12)
+	header_rail.size = Vector2(4, 42)
+	header_rail.color = Color("3ef0b4")
+	header_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_bar.add_child(header_rail)
+
+	theater_code_lbl = game._text(top_bar, "SAT-LINK // SEC-01 · 实时三维战区沙盘", Vector2(32, 8), Vector2(480, 16), 11, Color("6ceac0"))
+	theater_header_lbl = game._text(top_bar, "烟山行动 · 江南山地三维作战沙盘", Vector2(32, 24), Vector2(560, 26), 19, Color("f4fffa"))
+	theater_sub_lbl = game._text(top_bar, "点击立体据点标志切换目标并部署出击", Vector2(32, 47), Vector2(680, 16), 11, Color("8fb2bd"))
+
+	live_coord_lbl = game._text(top_bar, "GRID 31.24°N 119.48°E // HD-RELIEF ACTIVE", Vector2(size.x - 364, 12), Vector2(346, 20), 11, Color("6f98a6"))
+	live_coord_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var badge_3d: Label = game._text(top_bar, "◈ 3D VOLUMETRIC BEACONS ONLINE", Vector2(size.x - 364, 34), Vector2(346, 18), 11, Color("48ddb0"))
+	badge_3d.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	pins_layer = Control.new()
 	pins_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pins_layer.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(pins_layer)
+
+
+func _style_pin_button(btn: Button, bg: Color, border: Color, font_col: Color, left_bar: Color, is_sel: bool):
+	for st_name in ["normal", "hover", "pressed", "disabled"]:
+		var st := StyleBoxFlat.new()
+		st.bg_color = bg if st_name == "normal" else (bg.lightened(0.14) if st_name == "hover" else bg.darkened(0.06))
+		st.border_color = border
+		st.border_width_top = 1
+		st.border_width_bottom = 1
+		st.border_width_right = 1
+		st.border_width_left = 4 if is_sel else 3
+		# Sharp chamfered tactical corners!
+		st.corner_radius_top_left = 2
+		st.corner_radius_top_right = 3
+		st.corner_radius_bottom_left = 2
+		st.corner_radius_bottom_right = 3
+		st.content_margin_left = 10
+		st.content_margin_right = 10
+		if st_name != "disabled":
+			st.border_color = left_bar if is_sel else border
+		btn.add_theme_stylebox_override(st_name, st)
+	btn.add_theme_color_override("font_color", font_col)
+	btn.add_theme_color_override("font_hover_color", Color("ffffff"))
+	btn.add_theme_color_override("font_pressed_color", font_col)
 
 
 func _rebuild_pins():
@@ -705,40 +702,66 @@ func _rebuild_pins():
 		var lid := str(lm["id"])
 		var is_open := bool(lm["open"])
 		var effective_open := is_open
+		var code_tag := str(lm.get("code", "SEC"))
 		var badge_txt := str(lm["badge"])
 		if lid == "ahsarah_fortress" and not ah_unlocked:
 			effective_open = false
 			badge_txt = "🔒 阿萨拉堡垒（古洞解锁）"
+		elif effective_open:
+			badge_txt = "◈ %s · %s" % [code_tag, badge_txt]
+		else:
+			badge_txt = "▪ %s" % badge_txt
 
 		var holder := Control.new()
 		holder.mouse_filter = Control.MOUSE_FILTER_PASS
-		var pill_w := 168 if effective_open else 234
-		holder.size = Vector2(pill_w, 52)
+		var pill_w := 206 if effective_open else 224
+		holder.size = Vector2(pill_w, 46)
 		pins_layer.add_child(holder)
 
 		var btn := Button.new()
 		btn.position = Vector2(0, 0)
-		btn.size = Vector2(pill_w, 36)
+		btn.size = Vector2(pill_w, 32)
 		btn.text = badge_txt
-		btn.add_theme_font_size_override("font_size", 14 if effective_open else 12)
+		btn.add_theme_font_size_override("font_size", 13 if effective_open else 12)
 		btn.pressed.connect(func():
 			select_landmark(lid)
 		)
 		holder.add_child(btn)
 
-		# Small pointer stem dot beneath the floating pin pill
+		var acc: Color = lm["accent"]
+		var rail := ColorRect.new()
+		rail.position = Vector2(0, 0)
+		rail.size = Vector2(4, 32)
+		rail.color = acc if effective_open else Color("5c727e")
+		rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(rail)
+
+		# Sleek tactical drop-line pointer anchoring the callout tag cleanly above the 3D sculpted beacon!
 		var stem := ColorRect.new()
-		stem.position = Vector2(pill_w * 0.5 - 2.0, 36)
-		stem.size = Vector2(4, 14)
-		stem.color = (lm["accent"] as Color) if effective_open else Color("7c8f98")
+		stem.position = Vector2(pill_w * 0.5 - 1.0, 32)
+		stem.size = Vector2(2, 12)
+		stem.color = Color(acc.r, acc.g, acc.b, 0.85) if effective_open else Color("667c88")
 		stem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		holder.add_child(stem)
+
+		var dot := ColorRect.new()
+		dot.position = Vector2(pill_w * 0.5 - 3.0, 42)
+		dot.size = Vector2(6, 4)
+		dot.color = acc if effective_open else Color("8fa6b2")
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(dot)
+
+		# Anchor label projection cleanly ABOVE the 3D sculpted emblem so the 3D icon below is 100% unobstructed!
+		var base_wp := _uv_to_world(lm["uv"], current_theater)
+		var label_wp := base_wp + Vector3(0.0, 2.78 if is_open else 2.28, 0.0)
 
 		pin_buttons[lid] = {
 			"holder": holder,
 			"btn": btn,
+			"rail": rail,
 			"stem": stem,
-			"world_pos": lm["pos"],
+			"world_pos": label_wp,
+			"base_pos": base_wp,
 			"data": lm,
 			"effective_open": effective_open,
 		}
@@ -750,73 +773,66 @@ func _style_pins():
 	for lid in pin_buttons:
 		var entry: Dictionary = pin_buttons[lid]
 		var btn: Button = entry["btn"]
+		var rail: ColorRect = entry["rail"]
 		var lm: Dictionary = entry["data"]
 		var is_sel: bool = (str(lid) == selected_landmark_id)
 		var eff_open := bool(entry["effective_open"])
 		var acc: Color = lm["accent"]
+		rail.color = acc if (eff_open or is_sel) else Color("586e7a")
 		if is_sel:
-			game._style_tactical_button(
+			_style_pin_button(
 				btn,
-				acc.darkened(0.58) if eff_open else Color("2a343c"),
-				acc if eff_open else Color("c8d4dc"),
-				Color("fffcf0")
+				Color(0.06, 0.13, 0.15, 0.96) if eff_open else Color(0.11, 0.15, 0.19, 0.95),
+				acc if eff_open else Color("a8c4d2"),
+				Color("ffffff"),
+				acc if eff_open else Color("a8c4d2"),
+				true
 			)
 		elif eff_open:
-			game._style_tactical_button(btn, Color(0.055, 0.14, 0.13, 0.92), acc, Color("e8fff6"))
+			_style_pin_button(btn, Color(0.04, 0.08, 0.10, 0.90), Color(acc.r, acc.g, acc.b, 0.72), Color("e6fff7"), acc, false)
 		else:
-			game._style_tactical_button(btn, Color(0.08, 0.10, 0.12, 0.86), Color("566872"), Color("b2c2ca"))
+			_style_pin_button(btn, Color(0.05, 0.07, 0.09, 0.86), Color("3c505c"), Color("adc0ca"), Color("586e7a"), false)
 
 
 func set_theater(theater: String, emit_signal_now: bool = true):
 	if not (theater in ["story", "yanshan", "ahsarah"]):
 		theater = "yanshan"
 	current_theater = theater
-	var is_desert := (theater == "ahsarah")
-	if is_instance_valid(yanshan_root):
-		yanshan_root.visible = not is_desert
-	if is_instance_valid(ahsarah_root):
-		ahsarah_root.visible = is_desert
+	for tid in theater_roots:
+		var root: Node3D = theater_roots[tid]
+		if is_instance_valid(root):
+			root.visible = (str(tid) == theater)
 
-	# Retune miniature diorama atmosphere & lighting per theater!
-	if is_instance_valid(world_env) and world_env.environment != null:
-		var env := world_env.environment
-		var sm := env.sky.sky_material as ProceduralSkyMaterial
-		if is_desert:
-			sm.sky_top_color = Color("3c6e96")
-			sm.sky_horizon_color = Color("e8c488")
-			sm.ground_bottom_color = Color("765232")
-			sm.ground_horizon_color = Color("d8aa6e")
-			env.ambient_light_color = Color("f0cca0")
-			env.fog_light_color = Color("e2c08a")
-			env.fog_density = 0.0075
-			sun_light.light_color = Color("ffe6ba")
-			sun_light.light_energy = 1.65
-			theater_header_lbl.text = "🏜 阿萨拉行动 · 零号大坝与荒漠三维战区沙盘"
-			theater_sub_lbl.text = "2035 北非荒漠战区 · 点击据点【阿萨拉堡垒】部署行动，其余地点规划筹建中"
-		elif theater == "story":
-			sm.sky_top_color = Color("3c5e7c")
-			sm.sky_horizon_color = Color("e0bc86")
-			sm.ground_bottom_color = Color("223834")
-			sm.ground_horizon_color = Color("8aa88e")
-			env.ambient_light_color = Color("d8d6b2")
-			env.fog_light_color = Color("c8bc9c")
-			env.fog_density = 0.009
-			sun_light.light_color = Color("ffd89c")
-			sun_light.light_energy = 1.50
-			theater_header_lbl.text = "📖 剧情模式 · 烟山初行沉浸式任务总览"
-			theater_sub_lbl.text = "推荐首次游玩的少年游侠由此启程 · 5–8 分钟完整体验听词、侦察、交锋与撤离"
-		else:
-			sm.sky_top_color = Color("285870")
-			sm.sky_horizon_color = Color("8cc4b8")
-			sm.ground_bottom_color = Color("1f3834")
-			sm.ground_horizon_color = Color("6b9c8e")
-			env.ambient_light_color = Color("9cd4c8")
-			env.fog_light_color = Color("8fc0b8")
-			env.fog_density = 0.0085
-			sun_light.light_color = Color("fff0d2")
-			sun_light.light_energy = 1.45
-			theater_header_lbl.text = "🏔 烟山行动 · 江南山地三维作战沙盘"
-			theater_sub_lbl.text = "中上【烟山基地】已开放出击 · 左下【鲸塘中心小学】与右中【诚庄村河港】待后续版本开放"
+	if theater == "ahsarah":
+		header_rail.color = Color("ffb238")
+		theater_code_lbl.text = "SAT-LINK // SEC-02 · 2035 北非荒漠战区沙盘"
+		theater_code_lbl.add_theme_color_override("font_color", Color("ffc462"))
+		theater_header_lbl.text = "阿萨拉行动 · 零号大坝与荒漠三维战区"
+		theater_sub_lbl.text = "点击立体据点标志【阿萨拉堡垒】部署行动 · 古城外围与航天禁区规划筹建中"
+		live_coord_lbl.text = "GRID 27.42°N 14.18°E // ZERO DAM SECTOR"
+		if is_instance_valid(sun_light):
+			sun_light.light_color = Color("ffebd0")
+			fill_light.light_color = Color("ffaa52")
+	elif theater == "story":
+		header_rail.color = Color("ffd76a")
+		theater_code_lbl.text = "SAT-LINK // SEC-00 · 单人沉浸式叙事任务"
+		theater_code_lbl.add_theme_color_override("font_color", Color("ffe084"))
+		theater_header_lbl.text = "剧情模式 · 烟山初行沉浸式任务总览"
+		theater_sub_lbl.text = "推荐首次游玩的少年游侠由此启程 · 5–8 分钟完整体验听词、侦察、交锋与撤离"
+		live_coord_lbl.text = "GRID 31.26°N 119.51°E // PROLOGUE BRIEF"
+		if is_instance_valid(sun_light):
+			sun_light.light_color = Color("ffe6bc")
+			fill_light.light_color = Color("80d6c2")
+	else:
+		header_rail.color = Color("3ef0b4")
+		theater_code_lbl.text = "SAT-LINK // SEC-01 · 江南山地三维作战沙盘"
+		theater_code_lbl.add_theme_color_override("font_color", Color("5ef5c0"))
+		theater_header_lbl.text = "烟山行动 · 江南山地立体战区沙盘"
+		theater_sub_lbl.text = "中上【烟山基地】已开放出击 · 左下【鲸塘中心小学】与右中【诚庄村河港】待后续开放"
+		live_coord_lbl.text = "GRID 31.24°N 119.48°E // YANSHAN VALLEY"
+		if is_instance_valid(sun_light):
+			sun_light.light_color = Color("fff6e6")
+			fill_light.light_color = Color("5ec8e8")
 
 	var list: Array = LANDMARKS.get(theater, [])
 	if not list.is_empty():
@@ -832,8 +848,8 @@ func select_landmark(landmark_id: String):
 	for lm in list:
 		if str(lm["id"]) == landmark_id:
 			selected_landmark_id = landmark_id
-			var p: Vector3 = lm["pos"]
-			target_focus_offset = Vector3(p.x * 0.22, 0.0, p.z * 0.18)
+			var wp := _uv_to_world(lm["uv"], current_theater)
+			target_focus_offset = Vector3(wp.x * 0.14, 0.0, wp.z * 0.12)
 			_style_pins()
 			landmark_selected.emit(landmark_id, lm)
 			return
@@ -860,10 +876,17 @@ func _update_pin_positions():
 			continue
 		holder.show()
 		var sp := camera.unproject_position(wp)
-		# Clamp cleanly inside visible 3D map region (above bottom deployment drawer y < 495!)
-		var px := clampf(sp.x - holder.size.x * 0.5, 16.0, size.x - holder.size.x - 16.0)
-		var py := clampf(sp.y - holder.size.y, 82.0, 456.0)
+		# Clamp cleanly inside visible map zone (below 66px top bar and above 548px deploy console!)
+		var px := clampf(sp.x - holder.size.x * 0.5, 14.0, size.x - holder.size.x - 14.0)
+		var py := clampf(sp.y - holder.size.y, 72.0, 498.0)
 		holder.position = Vector2(px, py)
+
+
+func _gui_input(event):
+	if event is InputEventMouseMotion:
+		var nx := clampf((event.position.x / maxf(size.x, 1.0)) * 2.0 - 1.0, -1.0, 1.0)
+		var ny := clampf((event.position.y / maxf(size.y, 1.0)) * 2.0 - 1.0, -1.0, 1.0)
+		mouse_parallax = Vector2(nx, ny)
 
 
 func _process(delta: float):
@@ -874,31 +897,44 @@ func _process(delta: float):
 	anim_clock += delta
 	cam_focus_offset = cam_focus_offset.lerp(target_focus_offset, minf(delta * 4.5, 1.0))
 
-	# Gentle cinematic breathing orbit over the 3D miniature strategic relief map!
-	var sway_x := sin(anim_clock * 0.34) * 0.95
-	var sway_y := cos(anim_clock * 0.26) * 0.28
-	var base_cam := Vector3(0.0, 16.5, 22.8)
-	var base_look := Vector3(0.0, 0.5, 0.6)
-	if current_theater == "story":
-		base_cam = Vector3(-4.5, 11.8, 17.5)
-		base_look = Vector3(0.4, 1.8, -3.2)
-	elif current_theater == "ahsarah":
-		base_cam = Vector3(0.2, 16.2, 22.4)
-		base_look = Vector3(-0.2, 0.8, 0.5)
+	# Sleek 3D War-Table perspective framing the entire 16:9 HD relief map edge-to-edge with headroom for top 3D beacons!
+	var sway_x := sin(anim_clock * 0.36) * 0.42 + mouse_parallax.x * 0.65
+	var sway_z := cos(anim_clock * 0.28) * 0.22 + mouse_parallax.y * 0.35
+	var base_cam := Vector3(0.0, 16.6, 12.2)
+	var base_look := Vector3(0.0, 0.0, 0.62)
 
-	camera.position = base_cam + Vector3(sway_x, sway_y, 0.0) + cam_focus_offset * 0.75
-	camera.look_at(base_look + cam_focus_offset, Vector3.UP)
+	camera.position = base_cam + Vector3(sway_x, 0.0, sway_z) + cam_focus_offset * 0.55
+	camera.look_at(base_look + cam_focus_offset * 0.45, Vector3.UP)
 
-	# Pulse active deployment beacon rings & drift Jiangnan clouds
-	for b in beacon_rings:
-		var n: Node3D = b["node"]
-		if is_instance_valid(n):
-			var p := 1.0 + sin(anim_clock * 2.8) * 0.12
-			n.scale = Vector3(p, 1.0, p)
-			n.rotation.y = anim_clock * 0.6
-	for cl in cloud_nodes:
-		var cn: Node3D = cl["node"]
-		if is_instance_valid(cn):
-			cn.position.x = fmod(float(cl["base_x"]) + anim_clock * float(cl["speed"]) + 18.0, 36.0) - 18.0
+	# Animate holographic radar scan beam sweeping north -> south across the active relief table
+	if scan_beams.has(current_theater):
+		var sb: MeshInstance3D = scan_beams[current_theater]
+		if is_instance_valid(sb):
+			var scan_t := fmod(anim_clock * 0.22, 1.0)
+			sb.position.z = lerpf(-TABLE_D * 0.48, TABLE_D * 0.48, scan_t)
+
+	# Animate all 3D sculpted landmark beacons (smooth levitation, gyro rotation & radar pulse!)
+	for b in beacon_anims:
+		if str(b["theater"]) != current_theater:
+			continue
+		var emb: Node3D = b["emblem"]
+		var is_sel: bool = (str(b["id"]) == selected_landmark_id)
+		var ph: float = float(b["phase"])
+		if is_instance_valid(emb):
+			emb.position.y = float(b["base_y"]) + sin(anim_clock * 2.2 + ph) * 0.09
+			emb.rotation.y = anim_clock * (1.15 if is_sel else 0.72) + ph
+			var target_s := 0.94 if is_sel else 0.80
+			emb.scale = emb.scale.lerp(Vector3.ONE * target_s, minf(delta * 6.0, 1.0))
+		var oring: Node3D = b["outer_ring"]
+		if is_instance_valid(oring):
+			oring.rotation.y = -anim_clock * 1.45
+		var iring: Node3D = b["inner_ring"]
+		if is_instance_valid(iring):
+			iring.rotation.x = anim_clock * 1.25
+		var pring: Node3D = b["pulse_ring"]
+		if is_instance_valid(pring):
+			var pt := fmod(anim_clock * 0.72 + ph * 0.2, 1.0)
+			var ps := 1.0 + pt * 0.85
+			pring.scale = Vector3(ps, 1.0, ps)
 
 	_update_pin_positions()
