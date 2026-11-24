@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.2 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1090,6 +1090,18 @@ func run():
 			if is_instance_valid(anim_rb) and anim_rb.has_animation("Idle") and anim_rb.has_animation("Walk") and anim_rb.has_animation("Run"):
 				judy_anim_ok += 1
 	verify(judy_rabbits >= 11 and judy_anim_ok >= 11, "v0.9.9.1: all %d ground rabbits mount rigged Judy Hopps model (JudyHoppsMesh + 29-bone Skeleton3D + Idle/Walk/Run hopping clips)" % judy_rabbits)
+	var real_deers := 0
+	var deer_anim_ok := 0
+	for a_dr in game.wildlife.animals:
+		if str(a_dr.get("kind", "")) == "deer":
+			var vis_dr: Node = a_dr.get("visual", null)
+			var anim_dr: AnimationPlayer = a_dr.get("anim", null)
+			var skel_dr := vis_dr.find_child("Skeleton3D", true, false) as Skeleton3D if is_instance_valid(vis_dr) else null
+			if is_instance_valid(vis_dr) and vis_dr.find_child("RealisticDeerMesh", true, false) != null and is_instance_valid(skel_dr) and skel_dr.get_bone_count() >= 18:
+				real_deers += 1
+			if is_instance_valid(anim_dr) and anim_dr.has_animation("Idle") and anim_dr.has_animation("Walk") and anim_dr.has_animation("Run"):
+				deer_anim_ok += 1
+	verify(real_deers >= 8 and deer_anim_ok >= 8, "v0.9.9.2: all %d woodland deer mount rigged Realistic Deer model (RealisticDeerMesh + 20-bone Skeleton3D + Idle/Walk/Run clips)" % real_deers)
 	game._end_run(false)
 
 	game.queue_free()

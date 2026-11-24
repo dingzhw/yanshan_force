@@ -1,6 +1,6 @@
 {
-  "recorded_date": "2026-11-24",
-  "stage": "v0.9.9.1 · 烟山全量草地野兔换装 Judy Hopps 29 骨蹦跳动画模型（延续 v0.9.8 顶置词牌/匕首扣血/立绘石卫/8 音色配音）",
+  "recorded_date": "2026-11-25",
+  "stage": "v0.9.9.2 · 主角「游侠·少羽」v2 精雕 PBR 全面换装 + 烟山写实雄鹿 20 骨骨骼动画替换（延续 Judy 蹦跳野兔与 v0.9.8 顶置词牌/匕首扣血/立绘石卫/8 音色配音）",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -99,11 +99,11 @@
   "technical_direction": {
     "engine": "Godot 4.7.2 Standard Windows x86_64",
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
-    "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 63 条阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
+    "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 66 条 8 音色阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，开发基线 v0.9.4（承接 v0.9.3 / ec61701）"
+    "version_control": "Git，当前开发里程碑 v0.9.9.2"
   },
-  "playtest": "playtest/windows-v0.9.4/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.2/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

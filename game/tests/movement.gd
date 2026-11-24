@@ -266,7 +266,7 @@ func run():
 	verify(is_instance_valid(pb.anim_player) and pb.anim_player.get_animation_list().size() >= 22, "v0.9.4: AnimationPlayer embeds >=22 real skeletal animation clips (%d loaded)" % (pb.anim_player.get_animation_list().size() if is_instance_valid(pb.anim_player) else 0))
 	verify(is_instance_valid(pb.anim_tree) and pb.anim_tree.active, "v0.9.4: AnimationTree upper/lower bone-filtered blend tree is active")
 	verify(is_instance_valid(pb.aim_spine_mod) and is_instance_valid(pb.left_arm_ik) and is_instance_valid(pb.scarf_spring), "v0.9.4: AimSpineModifier, TwoBoneIK3D & SpringBoneSimulator3D scarf physics are mounted on Skeleton3D")
-	verify(pb.upper_meshes.size() >= 6 and pb.lower_meshes.size() == 2 and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.4: Plan B Shaoyu meshes cleanly split upper gear vs always-visible 1P lower legs/boots")
+	verify(pb.upper_meshes.size() >= 1 and pb.lower_meshes.size() == 2 and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.9.2: Shaoyu v2 PBR meshes cleanly split upper body vs always-visible 1P lower legs/boots")
 	# Switch to 3P and verify live locomotion + combat state transitions & auto back-holster on Knife / [V] Ground-Slam!
 	game.player.set_third_person(true, true)
 	game.player.select_weapon(1)
@@ -283,14 +283,15 @@ func run():
 	verify(pb.slam_anim_left > 0.0 and pb.world_rifle_root.get_parent() == pb.weapon_back_attach, "v0.9.4: [V] Shaoyu Ground-Slam temporarily back-holsters rifle so fist slams cleanly without sky-pointing barrel")
 	pb.slam_anim_left = 0.0
 
-	# v0.9.5 Refined Sculpted Head/Eyes, Closed 3P Waist Belt, Clean 1P Look-Down & Zero-Twist Prone Rig
-	var eyes_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_EyesBrows", true, false) as MeshInstance3D
-	var waist_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_LowerWaist", true, false) as MeshInstance3D
-	var head_mi: MeshInstance3D = pb.head_pivot as MeshInstance3D
-	var head_verts: int = 0
-	if is_instance_valid(head_mi) and head_mi.mesh != null and head_mi.mesh.get_surface_count() > 0:
-		head_verts = head_mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
-	verify(is_instance_valid(eyes_node) and is_instance_valid(waist_node) and head_verts >= 1200, "v0.9.5: Shaoyu loads sculpted Blender Studio head (%d verts), expressive 3D eyes/brows & closed waist belt" % head_verts)
+	# v0.9.9.2 Sculpted PBR Protagonist '游侠·少羽 v2' (72-bone Mixamo+Sockets Skeleton, 24 retargeted anims, 1P/3P split, zero-twist prone!)
+	var upper_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_UpperBody", true, false) as MeshInstance3D
+	var legs_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_LowerLegs", true, false) as MeshInstance3D
+	var boots_node: MeshInstance3D = pb.hero_root.find_child("Shaoyu_LowerBoots", true, false) as MeshInstance3D
+	var total_v2_verts := 0
+	for mi_v2 in [upper_node, legs_node, boots_node]:
+		if is_instance_valid(mi_v2) and mi_v2.mesh != null and mi_v2.mesh.get_surface_count() > 0:
+			total_v2_verts += mi_v2.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
+	verify(is_instance_valid(upper_node) and is_instance_valid(legs_node) and is_instance_valid(boots_node) and total_v2_verts >= 10000 and pb.skeleton.get_bone_count() >= 65, "v0.9.9.2: Shaoyu v2 loads sculpted PBR hero (%d verts, %d bones) split cleanly into UpperBody/LowerLegs/LowerBoots" % [total_v2_verts, pb.skeleton.get_bone_count()])
 	game.player.stance = 2
 	for i in 8:
 		await physics_frame
@@ -299,12 +300,12 @@ func run():
 	var fl_idx: int = pb.skeleton.find_bone("Foot.L")
 	var fr_idx: int = pb.skeleton.find_bone("Foot.R")
 	var feet_sep: float = pb.skeleton.get_bone_global_pose(fl_idx).origin.distance_to(pb.skeleton.get_bone_global_pose(fr_idx).origin)
-	verify(pb.cur_lower_state == "prone_idle" and ul_idx >= 0 and ur_idx >= 0 and feet_sep < 0.65, "v0.9.5: Prone_Idle aligns legs cleanly behind hips without gimbal twist (feet_sep=%.2fm)" % feet_sep)
+	verify(pb.cur_lower_state == "prone_idle" and ul_idx >= 0 and ur_idx >= 0 and feet_sep < 0.65, "v0.9.9.2: Prone_Idle aligns Shaoyu v2 legs cleanly behind hips without gimbal twist (feet_sep=%.2fm)" % feet_sep)
 	game.player.stance = 0
 	game.player.set_third_person(false, true)
 	for i in 4:
 		await physics_frame
-	verify(not waist_node.visible and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.5: 1P hides waist cap while keeping smooth cargo-pant legs & boots visible for clean look-down")
+	verify(not upper_node.visible and pb.lower_meshes[0].visible and pb.lower_meshes[1].visible, "v0.9.9.2: 1P hides Shaoyu_UpperBody while keeping sculpted cargo-pant legs & combat boots visible for clean look-down")
 
 	game.player.clear_movement_input()
 	game.queue_free()

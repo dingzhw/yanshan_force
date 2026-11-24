@@ -247,19 +247,12 @@ func run():
 					and ap.has_animation("Prone_Crawl")
 					and ap.has_animation("Sprint_Fwd")
 					and ap.has_animation("Shaoyu_GroundSlam")
-					and hi.find_child("Shaoyu_Head", true, false) != null
-					and hi.find_child("Shaoyu_EyesBrows", true, false) != null
-					and hi.find_child("Shaoyu_HeadGear", true, false) != null
 					and hi.find_child("Shaoyu_UpperBody", true, false) != null
-					and hi.find_child("Shaoyu_TacticalGear", true, false) != null
-					and hi.find_child("Shaoyu_LowerWaist", true, false) != null
-					and hi.find_child("Shaoyu_ScarfTail", true, false) != null
-					and hi.find_child("Shaoyu_Backpack", true, false) != null
 					and hi.find_child("Shaoyu_LowerLegs", true, false) != null
 					and hi.find_child("Shaoyu_LowerBoots", true, false) != null
 				)
 			hi.free()
-	verify(hero_ok, "standalone PCK includes v0.9.5 refined player_shaoyu.glb (%d bones, %d anims, 10 sculpted meshes incl. EyesBrows & LowerWaist)" % [hero_bones, hero_anims])
+	verify(hero_ok, "standalone PCK includes v0.9.9.2 sculpted PBR Shaoyu v2 player_shaoyu.glb (%d bones, %d anims, 1P/3P split meshes)" % [hero_bones, hero_anims])
 	var portrait_ids := ["shaoyu", "chen_guide", "tingfeng", "qinghe", "zhuying", "mistbound_soldier", "vanguard_boss", "skyfall_overlord", "cave_warden", "ahsarah_guard", "saeed_fiery_owl", "reis_warlord", "haavk_trooper", "mandel_protocol", "locked_mystery"]
 	var portraits_loaded := 0
 	for pid in portrait_ids:
@@ -333,6 +326,21 @@ func run():
 			)
 			jr_i.free()
 	verify(v0991_judy_ok, "standalone PCK includes v0.9.9.1 rigged hopping Judy Hopps rabbit GLB (JudyHoppsMesh + 29-bone Skeleton3D + Idle/Walk/Run)")
+	var v0992_deer_ok := false
+	if ResourceLoader.exists("res://assets/slice/wildlife/animal_deer.glb"):
+		var dr_p = load("res://assets/slice/wildlife/animal_deer.glb")
+		if dr_p is PackedScene:
+			var dr_i: Node = dr_p.instantiate()
+			var dr_mesh = dr_i.find_child("RealisticDeerMesh", true, false)
+			var dr_skel = dr_i.find_child("Skeleton3D", true, false) as Skeleton3D
+			var dr_anim = dr_i.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			v0992_deer_ok = (
+				dr_mesh != null
+				and dr_skel != null and dr_skel.get_bone_count() >= 18
+				and dr_anim != null and dr_anim.has_animation("Idle") and dr_anim.has_animation("Walk") and dr_anim.has_animation("Run")
+			)
+			dr_i.free()
+	verify(v0992_deer_ok, "standalone PCK includes v0.9.9.2 rigged Realistic Deer GLB (RealisticDeerMesh + 20-bone Skeleton3D + Idle/Walk/Run)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

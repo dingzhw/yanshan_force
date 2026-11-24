@@ -164,7 +164,7 @@ func _build_hero():
 				leg_l_pivot = m
 		else:
 			upper_meshes.append(m)
-			if n == "Shaoyu_Head":
+			if n == "Shaoyu_Head" or (n == "Shaoyu_UpperBody" and head_pivot == null):
 				head_pivot = m
 
 	if not is_instance_valid(skeleton) or not is_instance_valid(anim_player):
@@ -607,8 +607,8 @@ func update_pose(
 		target_body_z = 0.34 if stance == 2 else (0.30 if stance == 1 else 0.27)
 		target_body_y = -0.04 if stance == 0 else 0.0
 	elif stance == 2:
-		# Subtle prone lift keeps belly, cargo pants & boots gliding cleanly ON TOP of undulating sand dunes!
-		target_body_y = 0.08
+		# Micro prone lift (2cm) lets Shaoyu v2 chest, kneepads & boots rest flush on grass/sand without floating or sinking!
+		target_body_y = 0.02
 	hero_root.position.z = lerpf(hero_root.position.z, target_body_z, minf(delta * 14.0, 1.0))
 	hero_root.position.y = lerpf(hero_root.position.y, target_body_y, minf(delta * 14.0, 1.0))
 

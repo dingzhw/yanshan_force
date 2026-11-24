@@ -255,7 +255,7 @@ func setup(g):
 func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 	if node == null:
 		return
-	var preserve_pbr := cache_key.contains("animal_rabbit")
+	var preserve_pbr := cache_key.contains("animal_rabbit") or cache_key.contains("animal_deer")
 	var targets: Array = []
 	if node is MeshInstance3D:
 		targets.append(node)
@@ -374,7 +374,7 @@ func _species_scale(kind: String, mesh_name: String) -> float:
 		"fish": return 1.05
 		"crab": return 0.94
 		"shrimp": return 0.80
-		"deer": return 1.10
+		"deer": return 1.00
 		"pheasant": return 1.06
 		"turtle": return 1.02
 		"butterfly": return 1.18
@@ -418,7 +418,7 @@ func _spawn_wildlife():
 		area.add_child(shp)
 		root.add_child(area)
 
-		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab", "turtle", "butterfly"] else (1.58 if kind == "deer" else (1.16 if kind == "rabbit" else (0.94 if kind == "boar" else 0.76)))
+		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab", "turtle", "butterfly"] else (1.72 if kind == "deer" else (1.16 if kind == "rabbit" else (0.94 if kind == "boar" else 0.76)))
 		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 20, Color("f2f7d4"))
 		lbl.visibility_range_end = 11.5
 		lbl.visible = false
