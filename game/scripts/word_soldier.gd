@@ -87,6 +87,8 @@ const OVERLORD_R2_DURATION := 10.0
 const OVERLORD_RECOVERY_DURATION := 4.5
 const OVERLORD_TRIGGER_RADIUS := 22.0
 const AHSARAH_CHARS_GLB := "res://assets/slice/v090_ahsarah_characters.glb"
+const MISTBOUND_ASSAULT_GLB := "res://assets/slice/v097_mistbound_assault.glb"
+const MISTBOUND_SNIPER_GLB := "res://assets/slice/v097_mistbound_sniper.glb"
 
 var is_ahsarah_unit: bool = false
 var ahsarah_faction: String = "ahsarah"
@@ -129,6 +131,8 @@ var frame_material: StandardMaterial3D
 var visor: StandardMaterial3D
 var laser_beam: MeshInstance3D
 var legs: Array[Node3D] = []
+var rig_anim_player: AnimationPlayer = null
+var rig_anim_state: String = ""
 var defeat_tween: Tween
 
 var stride = 0.0
@@ -401,7 +405,7 @@ func _build_model():
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
 	var shield_y := 1.70 if archetype == Archetype.BOSS_WARDEN else (1.40 if archetype == Archetype.SNIPER_GUARD else (1.38 if archetype == Archetype.SCOUT_DRONE else 1.34))
-	var shield_z := (0.98 if is_ahsarah_unit else 0.66) if archetype == Archetype.BOSS_WARDEN else (0.58 if is_ahsarah_unit else 0.46)
+	var shield_z := (0.98 if is_ahsarah_unit else 0.66) if archetype == Archetype.BOSS_WARDEN else (0.58 if is_ahsarah_unit else (0.98 if archetype == Archetype.SNIPER_GUARD else 0.88))
 	shield_area.position = Vector3(0, shield_y, shield_z)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
@@ -523,6 +527,51 @@ func _attach_ahsarah_rig(game, rig_name: String, sc: float = 1.0) -> Node3D:
 	inst.queue_free()
 	return null
 
+func _attach_mistbound_rig(game, glb_path: String, sc: float, default_visor_col: Color) -> bool:
+	if not ResourceLoader.exists(glb_path):
+		return false
+	if not game.scene_cache.has(glb_path):
+		game.scene_cache[glb_path] = load(glb_path)
+	var packed = game.scene_cache.get(glb_path)
+	if not (packed is PackedScene):
+		return false
+	var inst: Node3D = packed.instantiate()
+	inst.name = "MistboundSkeletalRig"
+	inst.position = Vector3.ZERO
+	inst.scale = Vector3.ONE * sc
+	visual_root.add_child(inst)
+
+	# Bind unique duplicated visor StandardMaterial3D from Mistbound_Helmet so aim/stun flashes work independently!
+	visor = null
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m == null or m.mesh == null:
+			continue
+		for s in m.mesh.get_surface_count():
+			var smat := m.mesh.surface_get_material(s)
+			if smat is StandardMaterial3D and "Visor" in String(smat.resource_name):
+				var dup := smat.duplicate() as StandardMaterial3D
+				dup.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				dup.albedo_color = default_visor_col
+				m.set_surface_override_material(s, dup)
+				visor = dup
+				break
+	if visor == null:
+		visor = game._mesh_box(visual_root, Vector3(0, 1.72, 0.16), Vector3(0.24, 0.06, 0.04), default_visor_col).material_override
+		visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	rig_anim_player = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	rig_anim_state = ""
+	if is_instance_valid(rig_anim_player):
+		for aname in rig_anim_player.get_animation_list():
+			var anim := rig_anim_player.get_animation(aname)
+			if anim != null:
+				anim.loop_mode = Animation.LOOP_LINEAR
+		if rig_anim_player.has_animation("Idle_Aim"):
+			rig_anim_state = "Idle_Aim"
+			rig_anim_player.play("Idle_Aim")
+	return true
+
 func _build_assault_chassis(game):
 	if is_ahsarah_unit:
 		var rig_nm := "haavk_trooper" if ahsarah_faction == "haavk" else "ahsarah_guard"
@@ -532,6 +581,8 @@ func _build_assault_chassis(game):
 			visor = game._mesh_box(visual_root, Vector3(0, 1.76, 0.24), Vector3(0.28, 0.08, 0.04), vcol).material_override
 			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return
+	elif _attach_mistbound_rig(game, MISTBOUND_ASSAULT_GLB, 1.04, Color("7ef0c8")):
+		return
 	var armor_mat = _ceramic_plate_mat(Color("42665c") if zone % 2 == 0 else Color("3c5960"), zone % 2 == 0)
 	var dark_mat = _metal_mat(Color("1f2b2b"), 0.20, 0.78)
 	var bronze_mat = _bronze_trim_mat()
@@ -574,6 +625,8 @@ func _build_sniper_chassis(game):
 			visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.32, 0.09, 0.05), Color("ff4d6d")).material_override
 			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return
+	elif _attach_mistbound_rig(game, MISTBOUND_SNIPER_GLB, 1.05, Color("ff5c6c")):
+		return
 	var heavy_mat = _ceramic_plate_mat(Color("3b3632"), false)
 	var trim_mat = _bronze_trim_mat(Color("b68542"))
 	var dark_mat = _metal_mat(Color("1c2226"), 0.22, 0.76)
@@ -2343,8 +2396,18 @@ func _walk(goal: Vector3, speed: float, delta: float):
 	velocity.y = -0.6 if is_on_floor() else velocity.y - 20.0 * delta
 	move_and_slide()
 	_clamp_above_ground()
-	if legs.size() >= 2:
-		var gait := Vector2(get_real_velocity().x, get_real_velocity().z).length()
+	var gait := Vector2(get_real_velocity().x, get_real_velocity().z).length()
+	if is_instance_valid(rig_anim_player):
+		var want_anim := "Idle_Aim"
+		if gait > 2.35 and rig_anim_player.has_animation("Run_Advance"):
+			want_anim = "Run_Advance"
+		elif gait > 0.32 and rig_anim_player.has_animation("Walk_Patrol"):
+			want_anim = "Walk_Patrol"
+		if want_anim != rig_anim_state and rig_anim_player.has_animation(want_anim):
+			rig_anim_state = want_anim
+			rig_anim_player.play(want_anim, 0.18)
+		rig_anim_player.speed_scale = 1.0 if want_anim == "Idle_Aim" else clampf(gait / 2.2, 0.85, 1.45)
+	elif legs.size() >= 2:
 		stride += delta * gait * 4.6
 		var swing := sin(stride) * minf(gait * 0.16, 0.42)
 		legs[0].rotation.x = swing

@@ -183,11 +183,20 @@ const BUILDING_PADS = [
 	[RADAR_TOWER_EAST, 8.2, 14.2],             # East Babel radar tower octagonal plinth
 	[Vector3(24.0, 0.0, -34.0), 4.6, 8.2],     # MandelBrick decode station (Bazaar)
 	[Vector3(-28.0, 0.0, -56.0), 4.2, 6.8],    # MandelBrick decode station (Cement)
-	[Vector3(-36.0, 0.0, -45.0), 4.5, 9.0],    # Cement container #1
+	[Vector3(-30.5, 0.0, -42.5), 4.8, 9.2],    # v0.9.7 Cement container #1 (shifted clear of Catwalk & Silo #1!)
 	[Vector3(-42.0, 0.0, -70.0), 4.5, 9.0],    # Cement container #2
 	[Vector3(-22.0, 0.0, -80.0), 4.5, 9.0],    # Mid-west container #3
 	[Vector3(24.0, 0.0, -76.0), 4.5, 9.0],     # Mid-east container #4
-	[Vector3(-38.0, 0.0, -54.0), 10.8, 15.5],  # v0.9.2 Cement elevated catwalk + full +X stair landing (applied last for dead-level pad!)
+	[Vector3(-38.0, 0.0, -54.0), 10.8, 15.5],  # v0.9.2 Cement elevated catwalk + full +X stair landing
+	# v0.9.7 Flat tactical pads for sloped crates, supply boxes, recon jeeps & ammo stacks (ZERO sunk props!)
+	[Vector3(38.5, 0.0, -135.5), 3.2, 6.2],    # Dam overlook vault crate pad
+	[Vector3(44.0, 0.0, -126.0), 3.4, 6.4],    # Helipad emergency supply box pad
+	[Vector3(44.0, 0.0, -132.0), 4.2, 7.6],    # NE Helipad tactical jeep pad
+	[Vector3(-12.0, 0.0, -48.0), 4.2, 7.6],    # Mid-canyon tactical jeep pad
+	[Vector3(7.5, 0.0, 16.5), 4.2, 7.4],       # Spawn tactical jeep pad
+	[Vector3(-5.8, 0.0, 14.2), 2.8, 5.2],      # Spawn ammo stack pad
+	[Vector3(-47.5, 0.0, -37.5), 2.8, 5.2],    # Cement ammo stack pad
+	[Vector3(56.0, 0.0, -132.0), 2.8, 5.2],    # Helipad ammo stack pad
 ]
 
 const LAND_ANCHORS = [
@@ -356,6 +365,12 @@ static func min_ground_height(x: float, z: float, radius: float) -> float:
 	for d in [Vector2(radius, 0), Vector2(-radius, 0), Vector2(0, radius), Vector2(0, -radius)]:
 		low = minf(low, height(x + d.x, z + d.y))
 	return low
+
+static func max_ground_height(x: float, z: float, radius: float) -> float:
+	var high := height(x, z)
+	for d in [Vector2(radius, 0), Vector2(-radius, 0), Vector2(0, radius), Vector2(0, -radius)]:
+		high = maxf(high, height(x + d.x, z + d.y))
+	return high
 
 static func stream_center_x(_z: float) -> float:
 	return 9999.0

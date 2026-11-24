@@ -59,7 +59,7 @@ const AHSARAH_LOOSE_SPOTS = [
 const AHSARAH_NEST_SPOTS = [
 	{"id": "ah_nest_oasis_palm", "title": "绿洲椰枣林陶罐暗格", "at": Vector3(-12.5, 0.0, 18.2), "kind": "desert_stash"},
 	{"id": "ah_nest_oasis_bank", "title": "绿洲西岸砂岩陶瓮", "at": Vector3(-25.8, 0.0, 8.8), "kind": "desert_stash"},
-	{"id": "ah_nest_cement_yard", "title": "水泥厂货柜东侧暗格", "at": Vector3(-32.2, 0.0, -45.5), "kind": "desert_stash"},
+	{"id": "ah_nest_cement_yard", "title": "水泥厂货柜东侧暗格", "at": Vector3(-26.8, 0.0, -43.5), "kind": "desert_stash"},
 	{"id": "ah_nest_bazaar_jar", "title": "巴克什浴场外廊陶罐", "at": Vector3(34.5, 0.0, -24.0), "kind": "desert_stash"},
 	{"id": "ah_nest_bazaar_arch", "title": "南拱门集市阶旁暗格", "at": Vector3(29.2, 0.0, -46.5), "kind": "desert_stash"},
 	{"id": "ah_nest_substation", "title": "变电站北角砂岩暗格", "at": Vector3(47.2, 0.0, -76.2), "kind": "desert_stash"},
@@ -118,6 +118,9 @@ func _build_static_anchors():
 		var gp: Vector3 = game.active_layout.on_ground(spec.at)
 		if spec.id == "loose_wangdao" and is_instance_valid(game.landscape) and game.landscape.wangdao_deck_pos != Vector3.ZERO:
 			gp = Vector3(spec.at.x, game.landscape.wangdao_deck_pos.y, spec.at.z)
+		elif spec.id == "ah_loose_helipad":
+			# Sit flush atop the v0.9.7 solid concrete helipad deck (+0.33m above plateau terrain)!
+			gp.y += 0.33
 		root.position = gp
 		root.set_meta("world_loot_kind", "loose")
 		root.set_meta("spot_id", spec.id)

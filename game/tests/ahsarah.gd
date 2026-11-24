@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.6" and game.active_map_id == "yanshan", "v0.9.6 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.7" and game.active_map_id == "yanshan", "v0.9.7 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -240,10 +240,10 @@ func run():
 	game.loot_container_ui.close()
 	# Verify mandel_decode strict pyramid odds (T7 < T6 < T5 < T4)
 	var m_counts := {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
-	for _mi in 400:
+	for _mi in 2000:
 		var mr: int = game.rules.roll_calibrated_rarity(true, "mandel_decode", true)
 		m_counts[mr] = int(m_counts[mr]) + 1
-	verify(int(m_counts[7]) < int(m_counts[6]) and int(m_counts[6]) < int(m_counts[5]) and int(m_counts[5]) < int(m_counts[4]), "MandelBrick reward table strictly obeys calibrated pyramid scarcity (T7=%d < T6=%d < T5=%d < T4=%d /400)" % [m_counts[7], m_counts[6], m_counts[5], m_counts[4]])
+	verify(int(m_counts[7]) < int(m_counts[6]) and int(m_counts[6]) < int(m_counts[5]) and int(m_counts[5]) < int(m_counts[4]), "MandelBrick reward table strictly obeys calibrated pyramid scarcity (T7=%d < T6=%d < T5=%d < T4=%d /2000)" % [m_counts[7], m_counts[6], m_counts[5], m_counts[4]])
 
 	# 8e. v0.9.1 Rigged Desert Wildlife Ecology (4 Species, 28 Critters, Skeleton3D + AnimationPlayer, 341 Voices, Zero Cross-Map Leakage)
 	verify(game.wildlife.desert_animals.size() == 22 and game.wildlife.desert_falcons.size() == 6, "Ahsarah desert wildlife spawns 22 ground critters (8 fennec, 4 camel, 10 scarab) + 6 soaring Desert Falcons = 28")
@@ -543,6 +543,46 @@ func run():
 	verify(sy_post >= sy_pre and sy_post >= 3, "v0.9.6: Playing Shaoyu runs/skills/extractions progressively unlocks deeper Shaoyu lore chapters (%d -> %d/4)" % [sy_pre, sy_post])
 	game.lore_codex.close()
 	verify(not game.lore_codex.busy, "v0.9.6: Lore Codex closes cleanly back to War Map login")
+
+	# 11) v0.9.7 Strict Ranger Unlock Gating (Veteran save with 0 rep keeps Tingfeng/Qinghe/Zhuying strictly locked!)
+	game.rules.profile.extractions = 22
+	game.rules.profile.runs = 30
+	game.rules.profile.reputation = 0
+	game.rules.profile.bounties_completed = 0
+	game.rules.profile.prologue_completed = false
+	game.rules.profile.lore_stats = {"shaoyu_runs": 22, "camps_cleared": 40, "warden_defeats": 5}
+	game.rules.profile.lore_scenes = ["yanshan_base"]
+	game.rules.profile.character_cards = ["shaoyu"]
+	verify(
+		game.lore_codex.is_character_unlocked("shaoyu")
+		and not game.lore_codex.is_character_unlocked("chen_guide")
+		and not game.lore_codex.is_character_unlocked("tingfeng")
+		and not game.lore_codex.is_character_unlocked("qinghe")
+		and not game.lore_codex.is_character_unlocked("zhuying")
+		and not game.rangers.is_card_unlocked("tingfeng")
+		and not game.rangers.is_card_unlocked("qinghe")
+		and not game.rangers.is_card_unlocked("zhuying"),
+		"v0.9.7: Veteran save with 0 reputation strictly keeps Chen/Tingfeng/Qinghe/Zhuying LOCKED ('?' mystery portrait)"
+	)
+	game.rules.profile.bounties_completed = 1
+	game.rules.profile.reputation = 300
+	verify(game.lore_codex.is_character_unlocked("chen_guide") and game.lore_codex.is_character_unlocked("tingfeng") and not game.lore_codex.is_character_unlocked("qinghe"), "v0.9.7: 1 bounty + 300 reputation unlocks Chen Guide & Tingfeng while Qinghe stays locked until 600")
+	game.rules.profile.reputation = 600
+	verify(game.lore_codex.is_character_unlocked("qinghe") and not game.lore_codex.is_character_unlocked("zhuying"), "v0.9.7: 600 reputation unlocks Qinghe while Zhuying stays locked until 900")
+	game.rules.profile.reputation = 900
+	verify(game.lore_codex.is_character_unlocked("zhuying") and game.rangers.is_card_unlocked("zhuying"), "v0.9.7: 900 reputation unlocks final Ranger Zhuying")
+
+	# 12) v0.9.7 Ahsarah Desert Multi-Layer PBR Terrain Shader, Solid Helipad & Photogrammetry Nature Scatter
+	game.rules.unlock_map("ahsarah")
+	game.switch_map("ahsarah")
+	await frames(3)
+	var desert_terrain := game.landscape.find_child("AhsarahDesertTerrain", true, false) as MeshInstance3D
+	var heli_deck: Node = game.landscape.find_child("HelipadConcreteDeck", true, false)
+	var scrub_mmi := game.landscape.find_child("DesertScrubBushes", true, false) as MultiMeshInstance3D
+	var stone_mmi := game.landscape.find_child("DesertScatterStones", true, false) as MultiMeshInstance3D
+	verify(is_instance_valid(desert_terrain) and desert_terrain.material_override is ShaderMaterial, "v0.9.7: Ahsarah Desert uses multi-layer CC0 PBR spatial ShaderMaterial")
+	verify(heli_deck != null and heli_deck.find_child("*", true, false) is StaticBody3D, "v0.9.7: Ahsarah Helipad concrete deck has solid beveled trimesh collision (zero sinking feet)")
+	verify(is_instance_valid(scrub_mmi) and scrub_mmi.multimesh.instance_count >= 50 and is_instance_valid(stone_mmi) and stone_mmi.multimesh.instance_count >= 80, "v0.9.7: Ahsarah Desert scatters GPU-instanced photogrammetry scrub & stones")
 
 	if FileAccess.file_exists(tmp_profile):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_profile))

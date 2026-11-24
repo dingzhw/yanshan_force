@@ -9,6 +9,8 @@ const TacticalProps = preload("res://scripts/tactical_props.gd")
 const ARCH_GLB := "res://assets/slice/v090_ahsarah_architecture.glb"
 const FORTRESS_GLB := "res://assets/slice/v091_ahsarah_fortress.glb"
 const PICKUPS_GLB := "res://assets/slice/v092_tactical_pickups.glb"
+const DESERT_NATURE_GLB := "res://assets/slice/v097_desert_nature.glb"
+const PBR_V097_DIR := "res://assets/pbr_v097/"
 const HORIZON_TEX := "res://assets/slice/horizon_ahsarah.png"
 const SAND_TEX := "res://assets/slice/ahsarah_sand_albedo.jpg"
 const SANDSTONE_TEX := "res://assets/slice/ahsarah_sandstone_albedo.jpg"
@@ -237,31 +239,17 @@ func _terrain():
 			var y := AhsarahLayout.height(x, z)
 			var idx := rz * cols + cx
 			grid_v[idx] = Vector3(x, y, z)
-			# Vertex-color blending: rich golden-ochre desert sand + darker gravel road + oasis greenery + warm sandstone courtyard
-			var col := Color("c69d66")
+			# v0.9.7 Splat weights encoded in vertex color channels:
+			#   R = compacted gravel road | G = oasis meadow grass | B = fortress sandstone courtyard | A = wet oasis shoreline
 			var rd := AhsarahLayout.road_distance(x, z, 6.0)
-			if rd < 4.5:
-				var rt := 1.0 - smoothstep(2.0, 4.5, rd)
-				col = col.lerp(Color("9c8260"), rt * 0.78)
-			# Lush palm-oasis moist earth, darkened wet sand shoreline & grass ring around south pool (-16, 12)
-			var od := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 13.5, (z - AhsarahLayout.OASIS_POOL.z) / 10.2).length()
-			if od < 1.38:
-				var ot := 1.0 - smoothstep(0.68, 1.38, od)
-				col = col.lerp(Color("6c8848"), ot * 0.78)
-			var shore_d := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 7.2, (z - AhsarahLayout.OASIS_POOL.z) / 5.2).length()
-			if shore_d < 1.24:
-				var wet_t := 1.0 - smoothstep(0.72, 1.24, shore_d)
-				col = col.lerp(Color("7d6442"), wet_t * 0.88)
-			# Warm limestone/concrete courtyard tone around Admin Fortress & Helipad
+			var w_road := (1.0 - smoothstep(1.9, 4.8, rd)) if rd < 4.8 else 0.0
+			var od := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 13.8, (z - AhsarahLayout.OASIS_POOL.z) / 10.5).length()
+			var w_oasis := (1.0 - smoothstep(0.66, 1.38, od)) if od < 1.38 else 0.0
+			var shore_d := Vector2((x - AhsarahLayout.OASIS_POOL.x) / 7.4, (z - AhsarahLayout.OASIS_POOL.z) / 5.4).length()
+			var w_wet := (1.0 - smoothstep(0.70, 1.26, shore_d)) if shore_d < 1.26 else 0.0
 			var fd := Vector2(x - AhsarahLayout.ADMIN_FORTRESS.x, z - AhsarahLayout.ADMIN_FORTRESS.z).length()
-			if fd < 24.0:
-				var ft := 1.0 - smoothstep(16.0, 24.0, fd)
-				col = col.lerp(Color("b6a68c"), ft * 0.70)
-			# Deep terracotta canyon rim walls near edges
-			var edge_w := smoothstep(54.0, 84.0, absf(x))
-			if edge_w > 0.01:
-				col = col.lerp(Color("a46238"), edge_w * 0.82)
-			grid_c[idx] = col
+			var w_court := (1.0 - smoothstep(16.5, 25.0, fd)) if fd < 25.0 else 0.0
+			grid_c[idx] = Color(w_road, w_oasis, w_court, w_wet)
 
 	for rz in rows - 1:
 		for cx in cols - 1:
@@ -273,22 +261,19 @@ func _terrain():
 			var v10: Vector3 = grid_v[i10]
 			var v01: Vector3 = grid_v[i01]
 			var v11: Vector3 = grid_v[i11]
-			var uv00 := Vector2(v00.x * 0.08, v00.z * 0.08)
-			var uv10 := Vector2(v10.x * 0.08, v10.z * 0.08)
-			var uv01 := Vector2(v01.x * 0.08, v01.z * 0.08)
-			var uv11 := Vector2(v11.x * 0.08, v11.z * 0.08)
+			var uv00 := Vector2(v00.x * 0.14, v00.z * 0.14)
+			var uv10 := Vector2(v10.x * 0.14, v10.z * 0.14)
+			var uv01 := Vector2(v01.x * 0.14, v01.z * 0.14)
+			var uv11 := Vector2(v11.x * 0.14, v11.z * 0.14)
 			for tri in [[i00, v00, uv00], [i10, v10, uv10], [i11, v11, uv11], [i00, v00, uv00], [i11, v11, uv11], [i01, v01, uv01]]:
 				st.set_color(grid_c[tri[0]])
 				st.set_uv(tri[2])
 				st.add_vertex(tri[1])
 
 	st.generate_normals()
+	st.generate_tangents()
 	var t_mesh := st.commit()
-	var t_mat := StandardMaterial3D.new()
-	t_mat.albedo_texture = load(SAND_TEX)
-	t_mat.vertex_color_use_as_albedo = true
-	t_mat.roughness = 0.92
-	t_mat.metallic = 0.0
+	var t_mat := _create_desert_terrain_shader_material()
 
 	var t_mi := MeshInstance3D.new()
 	t_mi.name = "AhsarahDesertTerrain"
@@ -306,8 +291,107 @@ func _terrain():
 	body.add_child(col)
 
 	# Seamless extended Outer Desert Dune Skirt stitching directly onto the 4 terrain edges out to r=290m!
-	# Eliminates any rectangular terrain cliff drop-off and marries the playable canyon into the 3D mesa ring & horizon!
 	_build_outer_desert_skirt(t_mat)
+
+func _create_desert_terrain_shader_material() -> ShaderMaterial:
+	# v0.9.7 Multi-Layer CC0 PBR Desert Shader (8 samplers: GL Compatibility + Forward+ safe!)
+	# Combines dual-scale anti-tiling wind-rippled coast sand, wadi gravel roads, triplanar stratified canyon cliffs,
+	# weathered fortress sandstone plazas, oasis greenery & sunlit quartz micro-sparkle!
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+uniform sampler2D sand_diff : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D sand_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D sand_rgh : filter_linear_mipmap, repeat_enable;
+uniform sampler2D gravel_diff : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D gravel_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D cliff_diff : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D cliff_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D stone_diff : source_color, filter_linear_mipmap, repeat_enable;
+
+varying vec3 v_wpos;
+varying vec3 v_wnrm;
+
+void vertex() {
+	v_wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
+void fragment() {
+	// 1) Dual-scale anti-tiling wind-rippled Saharan sand (near crisp ripples + macro rotated dune sweep)
+	vec2 uv_near = v_wpos.xz * 0.24;
+	mat2 rot28 = mat2(vec2(0.883, -0.469), vec2(0.469, 0.883));
+	vec2 uv_macro = (rot28 * v_wpos.xz) * 0.068 + vec2(0.31, 0.17);
+	vec3 s_near = texture(sand_diff, uv_near).rgb;
+	vec3 s_macro = texture(sand_diff, uv_macro).rgb;
+	vec3 sand_col = mix(s_near, s_macro, 0.44) * vec3(1.10, 0.94, 0.72);
+	vec3 sand_n = normalize(mix(texture(sand_nrm, uv_near).rgb, texture(sand_nrm, uv_macro).rgb, 0.36));
+	float sand_r = mix(texture(sand_rgh, uv_near).r, texture(sand_rgh, uv_macro).r, 0.40);
+
+	// 2) Sun-baked wadi gravel & convoy tracks (COLOR.r)
+	vec2 uv_grav = v_wpos.xz * 0.28;
+	vec3 grav_col = texture(gravel_diff, uv_grav).rgb * vec3(1.02, 0.92, 0.78);
+	vec3 grav_n = texture(gravel_nrm, uv_grav).rgb;
+	// Subtle arid gravel patches even off-road based on large organic wave
+	float dry_patch = smoothstep(0.56, 0.84, 0.5 + 0.5 * sin(v_wpos.x * 0.065 + cos(v_wpos.z * 0.058) * 1.9));
+	float w_road = clamp(COLOR.r * 0.92 + dry_patch * 0.28, 0.0, 1.0);
+
+	vec3 col = mix(sand_col, grav_col, w_road);
+	vec3 nrm = mix(sand_n, grav_n, w_road);
+	float rgh = mix(clamp(sand_r, 0.68, 0.94), 0.88, w_road);
+
+	// 3) Administrative Fortress weathered limestone courtyard (COLOR.b)
+	vec2 uv_st = v_wpos.xz * 0.34;
+	vec3 court_col = texture(stone_diff, uv_st).rgb * vec3(1.06, 0.98, 0.86);
+	float w_court = smoothstep(0.06, 0.82, COLOR.b);
+	col = mix(col, court_col, w_court * 0.84);
+	nrm = mix(nrm, grav_n, w_court * 0.50);
+	rgh = mix(rgh, 0.82, w_court);
+
+	// 4) South Oasis moist meadow & dark wet sand shoreline (COLOR.g / COLOR.a)
+	float w_oasis = smoothstep(0.04, 0.88, COLOR.g);
+	float w_wet = smoothstep(0.05, 0.85, COLOR.a);
+	vec3 oasis_grass = mix(vec3(0.28, 0.42, 0.19), vec3(0.42, 0.52, 0.24), clamp(dot(grav_col, vec3(0.333)) * 1.4, 0.0, 1.0));
+	col = mix(col, oasis_grass, w_oasis * 0.78);
+	col = mix(col, sand_col * vec3(0.54, 0.47, 0.38), w_wet * 0.85);
+	rgh = mix(rgh, 0.34, w_wet * 0.82);
+
+	// 5) World-space Triplanar Stratified Desert Cliff Rock auto-blended on steep canyon slopes & rims!
+	vec3 tri_b = pow(abs(v_wnrm), vec3(4.0));
+	tri_b /= max(tri_b.x + tri_b.y + tri_b.z, 0.0001);
+	vec2 cx = v_wpos.zy * 0.14;
+	vec2 cy = v_wpos.xz * 0.14;
+	vec2 cz = v_wpos.xy * 0.14;
+	vec3 cliff_c = (texture(cliff_diff, cx).rgb * tri_b.x + texture(cliff_diff, cy).rgb * tri_b.y + texture(cliff_diff, cz).rgb * tri_b.z) * vec3(1.16, 0.86, 0.64);
+	vec3 cliff_n = texture(cliff_nrm, cx).rgb * tri_b.x + texture(cliff_nrm, cy).rgb * tri_b.y + texture(cliff_nrm, cz).rgb * tri_b.z;
+
+	float slope_rock = smoothstep(0.935, 0.76, v_wnrm.y);
+	float rim_rock = smoothstep(55.0, 82.0, abs(v_wpos.x)) * (1.0 - smoothstep(92.0, 125.0, abs(v_wpos.x)));
+	float w_cliff = clamp(max(slope_rock * 0.92, rim_rock * 0.72), 0.0, 0.92) * (1.0 - w_oasis * 0.85);
+	col = mix(col, cliff_c, w_cliff);
+	nrm = mix(nrm, cliff_n, w_cliff);
+	rgh = mix(rgh, 0.91, w_cliff);
+
+	// Subtle desert dune macro shadow modulation for cinematic scale
+	float macro_shade = 0.93 + 0.14 * sin(v_wpos.x * 0.042 + v_wpos.z * 0.031);
+	ALBEDO = col * macro_shade;
+	NORMAL_MAP = nrm;
+	NORMAL_MAP_DEPTH = mix(1.05, 1.35, max(w_cliff, w_road * 0.5));
+	ROUGHNESS = clamp(rgh, 0.30, 0.96);
+	METALLIC = 0.0;
+	SPECULAR = mix(0.24, 0.08, w_cliff);
+}
+"""
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	sm.set_shader_parameter("sand_diff", load(PBR_V097_DIR + "coast_sand_01_diff.jpg"))
+	sm.set_shader_parameter("sand_nrm", load(PBR_V097_DIR + "coast_sand_01_nor_gl.jpg"))
+	sm.set_shader_parameter("sand_rgh", load(PBR_V097_DIR + "coast_sand_01_rough.jpg"))
+	sm.set_shader_parameter("gravel_diff", load(PBR_V097_DIR + "gravelly_sand_diff.jpg"))
+	sm.set_shader_parameter("gravel_nrm", load(PBR_V097_DIR + "gravelly_sand_nor_gl.jpg"))
+	sm.set_shader_parameter("cliff_diff", load(PBR_V097_DIR + "cliff_side_diff.jpg"))
+	sm.set_shader_parameter("cliff_nrm", load(PBR_V097_DIR + "cliff_side_nor_gl.jpg"))
+	sm.set_shader_parameter("stone_diff", load(PBR_V097_DIR + "old_sandstone_02_diff.jpg"))
+	return sm
 
 func _build_outer_desert_skirt(t_mat: Material):
 	var center_z := -70.0
@@ -352,10 +436,8 @@ func _build_outer_desert_skirt(t_mat: Material):
 				var far_lift := smoothstep(0.35, 1.0, rf) * 10.5
 				wy = lerpf(edge_y, rolling + far_lift, smoothstep(0.0, 0.55, rf))
 			rv.append(Vector3(wp.x, wy, wp.y))
-			# Match exact inner edge color and transition seamlessly into sunlit golden-ochre far desert
-			var inner_c := Color("c69d66").lerp(Color("a46238"), smoothstep(54.0, 84.0, absf(p.x)) * 0.82)
-			var far_c := Color("d4a46a").lerp(Color("c9925c"), smoothstep(0.4, 1.0, rf) * 0.6)
-			rc.append(inner_c.lerp(far_c, smoothstep(0.0, 0.65, rf)))
+			# v0.9.7 Skirt uses pure splat-weight 0 (wind-rippled dunes + automatic triplanar cliff slope!)
+			rc.append(Color(0.0, 0.0, 0.0, 0.0))
 		ring_verts.append(rv)
 		ring_cols.append(rc)
 
@@ -378,6 +460,7 @@ func _build_outer_desert_skirt(t_mat: Material):
 				st.set_uv(tri[2])
 				st.add_vertex(tri[1])
 	st.generate_normals()
+	st.generate_tangents()
 	var skirt := MeshInstance3D.new()
 	skirt.name = "AhsarahOuterDesertSkirt"
 	skirt.mesh = st.commit()
@@ -452,10 +535,15 @@ func _hero_landmarks():
 	root.name = "AhsarahHeroLandmarks"
 	add_child(root)
 
-	# 1) COLOSSAL NORTH ZERO DAM MONOLITH (114m concrete wall + flanking sculpted desert canyon abutments!)
+	# 1) COLOSSAL NORTH ZERO DAM MONOLITH (114m concrete wall + flanking photogrammetry desert canyon cliff abutments!)
 	var dam_y := AhsarahLayout.CLOUD_ARENA_Y - 1.2
 	var dam_mi := _place_arch(root, "zero_dam_wall_monolith", Vector3(0.0, dam_y, -158.0), 0.0, 1.0, true)
 	_make_mesh_solid(dam_mi)
+	# v0.9.7 Photogrammetry cliff abutments sealing Zero Dam cleanly into both canyon rock walls!
+	# Both cliffs face SOUTH (+14 deg West, -16 deg East) so ZERO 1-sided photogrammetry backfaces show!
+	for cliff_spec in [[Vector3(-64.0, dam_y - 3.2, -158.5), 14.0, 1.14], [Vector3(64.0, dam_y - 3.2, -158.5), -16.0, 1.14]]:
+		var cl_mi := _place_arch(root, "desert_cliff_abutment", cliff_spec[0], float(cliff_spec[1]), float(cliff_spec[2]), true)
+		_make_mesh_solid(cl_mi)
 	# Solid cliff wing blockers locking both dam flanks into canyon walls (strictly north of z=-150m, clear of NE Helipad!)
 	_add_solid_box(root, Vector3(-72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
 	_add_solid_box(root, Vector3(72.0, dam_y + 14.0, -158.0), Vector3(34.0, 34.0, 16.0))
@@ -568,10 +656,10 @@ func _hero_landmarks():
 	sub_lbl.pixel_size = 0.009
 	sub_lbl.visibility_range_end = 90.0
 
-	# 7) TACTICAL 4x4 DESERT RECON JEEPS (100% trimesh solid body, fenders, hood & bumpers!)
+	# 7) TACTICAL 4x4 DESERT RECON JEEPS (100% trimesh solid body, seated dead-level on dedicated flat pads!)
 	for jp in [[Vector3(7.5, 0.0, 16.5), -142.0], [Vector3(-12.0, 0.0, -48.0), 28.0], [Vector3(44.0, 0.0, -132.0), -64.0]]:
 		var j_in: Vector3 = jp[0]
-		var jpos := Vector3(j_in.x, AhsarahLayout.min_ground_height(j_in.x, j_in.z, 1.8) - 0.04, j_in.z)
+		var jpos := Vector3(j_in.x, AhsarahLayout.height(j_in.x, j_in.z) - 0.02, j_in.z)
 		var j_mi := _place_arch(root, "tactical_desert_jeep", jpos, float(jp[1]), 1.0, true)
 		_make_mesh_solid(j_mi)
 
@@ -744,13 +832,21 @@ func _sandstone_perimeter_and_covers():
 	add_child(cov)
 
 	var sand_mat := StandardMaterial3D.new()
-	sand_mat.albedo_texture = load(SANDSTONE_TEX)
-	sand_mat.uv1_scale = Vector3(2.5, 1.2, 1.0)
+	sand_mat.albedo_texture = load(PBR_V097_DIR + "old_sandstone_02_diff.jpg")
+	sand_mat.normal_enabled = true
+	sand_mat.normal_texture = load(PBR_V097_DIR + "old_sandstone_02_nor_gl.jpg")
+	sand_mat.normal_scale = 1.05
+	sand_mat.roughness_texture = load(PBR_V097_DIR + "old_sandstone_02_rough.jpg")
+	sand_mat.uv1_scale = Vector3(2.8, 1.4, 1.0)
 	sand_mat.roughness = 0.88
 
 	var conc_mat := StandardMaterial3D.new()
-	conc_mat.albedo_texture = load(CONCRETE_TEX)
-	conc_mat.uv1_scale = Vector3(2.0, 1.0, 1.0)
+	conc_mat.albedo_texture = load(PBR_V097_DIR + "plaster_grey_04_diff.jpg")
+	conc_mat.normal_enabled = true
+	conc_mat.normal_texture = load(PBR_V097_DIR + "plaster_grey_04_nor_gl.jpg")
+	conc_mat.normal_scale = 0.92
+	conc_mat.roughness_texture = load(PBR_V097_DIR + "plaster_grey_04_rough.jpg")
+	conc_mat.uv1_scale = Vector3(2.4, 1.2, 1.0)
 	conc_mat.roughness = 0.86
 
 	# Sandstone fortress courtyard perimeter walls framing the Admin Fortress Boss Arena cleanly
@@ -799,13 +895,13 @@ func _sandstone_perimeter_and_covers():
 	]
 	for am in ammo_spots:
 		var a_in: Vector3 = am[0]
-		var ap := Vector3(a_in.x, AhsarahLayout.min_ground_height(a_in.x, a_in.z, 1.1), a_in.z)
+		var ap := Vector3(a_in.x, maxf(AhsarahLayout.min_ground_height(a_in.x, a_in.z, 0.9), AhsarahLayout.height(a_in.x, a_in.z) - 0.04), a_in.z)
 		var am_mi := _place_arch(cov, "military_ammo_stack", ap, float(am[1]), 1.0, true)
 		_make_mesh_solid(am_mi)
 
 	# 4 weathered shipping containers in West Cement Plant & North Checkpoint for Zero Dam tactical feel
 	var cont_specs := [
-		[Vector3(-36.0, 0.0, -45.0), 12.0, Color("9a4c32")],
+		[Vector3(-30.5, 0.0, -42.5), 14.0, Color("9a4c32")],
 		[Vector3(-42.0, 0.0, -70.0), -78.0, Color("466170")],
 		[Vector3(-22.0, 0.0, -80.0), 22.0, Color("5a6845")],
 		[Vector3(24.0, 0.0, -76.0), -18.0, Color("9a4c32")],
@@ -943,6 +1039,57 @@ func _desert_flora_and_boulders():
 		_make_mesh_solid(b_mi)
 		placed_boulders += 1
 
+	# v0.9.7 GPU-Instanced Photogrammetry Desert Scrub Bushes & Scatter Stones (1 draw call each!)
+	_scatter_desert_nature(flora)
+
+func _scatter_desert_nature(parent: Node3D):
+	var scrub_m := _extract_mesh(DESERT_NATURE_GLB, "desert_scrub_bush")
+	var stone_m := _extract_mesh(DESERT_NATURE_GLB, "desert_scatter_stone")
+	var scrub_tx: Array[Transform3D] = []
+	var stone_tx: Array[Transform3D] = []
+	var srng := RandomNumberGenerator.new()
+	srng.seed = 2035097
+
+	for _i in 220:
+		if scrub_tx.size() >= 96:
+			break
+		var sx := srng.randf_range(-70.0, 70.0)
+		var sz := srng.randf_range(-142.0, 22.0)
+		if AhsarahLayout.clear_for_route(sx, sz, 2.2):
+			continue
+		var sy := AhsarahLayout.height(sx, sz) - 0.05
+		var sc := srng.randf_range(0.72, 1.35)
+		scrub_tx.append(Transform3D(Basis(Vector3.UP, srng.randf_range(0.0, TAU)).scaled(Vector3(sc, sc * srng.randf_range(0.85, 1.15), sc)), Vector3(sx, sy, sz)))
+
+	for _j in 300:
+		if stone_tx.size() >= 135:
+			break
+		var rx := srng.randf_range(-72.0, 72.0)
+		var rz := srng.randf_range(-145.0, 23.0)
+		if AhsarahLayout.clear_for_route(rx, rz, 1.4):
+			continue
+		var ry := AhsarahLayout.height(rx, rz) - 0.08
+		var sc := srng.randf_range(0.55, 1.38)
+		stone_tx.append(Transform3D(Basis(Vector3.UP, srng.randf_range(0.0, TAU)).scaled(Vector3(sc, sc * srng.randf_range(0.70, 1.10), sc)), Vector3(rx, ry, rz)))
+
+	for pair in [["DesertScrubBushes", scrub_m, scrub_tx, 105.0], ["DesertScatterStones", stone_m, stone_tx, 95.0]]:
+		var m: Mesh = pair[1]
+		var txs: Array = pair[2]
+		if m == null or txs.is_empty():
+			continue
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = str(pair[0])
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = m
+		mm.instance_count = txs.size()
+		for k in txs.size():
+			mm.set_instance_transform(k, txs[k])
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = float(pair[3])
+		parent.add_child(mmi)
+
 func _stations_and_targets():
 	for data in AhsarahLayout.STATIONS:
 		var station = game.Challenge.new()
@@ -970,7 +1117,7 @@ func _tactical_crates_and_pickups():
 	]
 	for cs in crate_specs:
 		var cpos_in: Vector3 = cs[2]
-		var gp := cpos_in if bool(cs[3]) else AhsarahLayout.on_ground(cpos_in)
+		var gp := cpos_in if bool(cs[3]) else Vector3(cpos_in.x, AhsarahLayout.max_ground_height(cpos_in.x, cpos_in.z, 0.65), cpos_in.z)
 		var cr: Node3D = game._make_crate(str(cs[0]), int(cs[1]), gp)
 		TacticalProps.build_tiered_vault_crate(game, cr, int(cs[1]))
 
@@ -1002,7 +1149,8 @@ func _tactical_crates_and_pickups():
 		var ps = pickup_specs[idx_p]
 		var kind := str(ps[0])
 		var title := str(ps[1])
-		var gp: Vector3 = ps[2] if bool(ps[3]) else AhsarahLayout.on_ground(ps[2])
+		var p_in: Vector3 = ps[2]
+		var gp: Vector3 = p_in if bool(ps[3]) else Vector3(p_in.x, AhsarahLayout.max_ground_height(p_in.x, p_in.z, 0.55 if kind == "supply" else 0.35), p_in.z)
 		var pnode := Node3D.new()
 		pnode.position = gp
 		pnode.set_meta("title", title)
@@ -1058,20 +1206,28 @@ func _extraction_helipad():
 	add_child(pad_root)
 
 	var conc_mat := StandardMaterial3D.new()
-	conc_mat.albedo_texture = load(CONCRETE_TEX)
-	conc_mat.albedo_color = Color("969ca0")
+	conc_mat.albedo_texture = load(PBR_V097_DIR + "plaster_grey_04_diff.jpg")
+	conc_mat.normal_enabled = true
+	conc_mat.normal_texture = load(PBR_V097_DIR + "plaster_grey_04_nor_gl.jpg")
+	conc_mat.normal_scale = 0.88
+	conc_mat.roughness_texture = load(PBR_V097_DIR + "plaster_grey_04_rough.jpg")
+	conc_mat.albedo_color = Color("a2a6aa")
+	conc_mat.uv1_scale = Vector3(4.0, 4.0, 1.0)
 	conc_mat.roughness = 0.84
 
+	# v0.9.7 Solid walkable concrete helipad with 22-deg beveled 360-deg curb ramp (ZERO sinking boots!)
 	var pad := MeshInstance3D.new()
+	pad.name = "HelipadConcreteDeck"
 	var pm := CylinderMesh.new()
 	pm.top_radius = 7.4
-	pm.bottom_radius = 7.8
-	pm.height = 0.36
-	pm.radial_segments = 24
+	pm.bottom_radius = 8.2
+	pm.height = 0.34
+	pm.radial_segments = 32
 	pad.mesh = pm
-	pad.position.y = 0.14
+	pad.position.y = 0.16
 	pad.material_override = conc_mat
 	pad_root.add_child(pad)
+	_make_mesh_solid(pad)
 
 	var ymat := StandardMaterial3D.new()
 	ymat.albedo_color = Color("f6c343")

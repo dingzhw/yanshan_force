@@ -255,9 +255,9 @@ func _build_animation_tree():
 	var root_bt := AnimationNodeBlendTree.new()
 	anim_tree.tree_root = root_bt
 
-	# Lower-Body Locomotion Transition (15 crisp states with smooth 0.16s crossfade!)
+	# Lower-Body Locomotion Transition (15 crisp states with silky 0.20s crossfade!)
 	var lower_tr := AnimationNodeTransition.new()
-	lower_tr.xfade_time = 0.16
+	lower_tr.xfade_time = 0.20
 	lower_tr.allow_transition_to_self = false
 	var lower_specs := [
 		["rifle_idle", ["Rifle_LowReady", "Idle_Stance"]],
@@ -288,9 +288,9 @@ func _build_animation_tree():
 		_add_anim_node(root_bt, nid, cands)
 		root_bt.connect_node("LowerLocomotion", i, nid)
 
-	# Upper-Body Combat Transition (7 tactical weapon states with crisp 0.11s crossfade!)
+	# Upper-Body Combat Transition (7 tactical weapon states with silky 0.14s crossfade!)
 	var upper_tr := AnimationNodeTransition.new()
-	upper_tr.xfade_time = 0.11
+	upper_tr.xfade_time = 0.14
 	upper_tr.allow_transition_to_self = true
 	var upper_specs := [
 		["low_ready", ["Rifle_LowReady"]],

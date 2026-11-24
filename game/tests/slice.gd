@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.6" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.6 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.7" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.7 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1052,6 +1052,22 @@ func run():
 	game.loot_ui.open_compendium("characters")
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.rangers.CHARACTER_CARDS.size(), "v0.8.3 R3: Compendium exposes '👤 人物小记' tab listing all 8 Ranger & enemy character cards")
 	game.loot_ui.close_compendium()
+
+	# 10) v0.9.7 Yanshan Solid Scenery Colliders, Sculpted Chen Guide Rig & Animated Mistbound Skeletal Troops
+	var y_sc_body := game.landscape.find_child("YanshanSceneryColliders", true, false) as StaticBody3D
+	verify(is_instance_valid(y_sc_body) and y_sc_body.is_in_group("solid_props") and y_sc_body.get_child_count() >= 200, "v0.9.7: YanshanSceneryColliders provides solid physics collision for all tea hedges, mossy boulders, lanterns, benches, fallen logs & shrubs (%d shapes)" % (y_sc_body.get_child_count() if is_instance_valid(y_sc_body) else 0))
+	var chen_rig: Node = game.rangers.camp_npc_node.find_child("ChenGuideRig", true, false)
+	var chen_col: Node = game.rangers.camp_npc_node.find_child("ChenGuideCollider", true, false)
+	verify(chen_rig != null and chen_col != null, "v0.9.7: Camp Liaison Chen Guide loads sculpted animated npc_chen_guide.glb with solid collider")
+	game.start_action(true, "normal")
+	await frames(3)
+	var skel_bots := 0
+	for zid in game.combat.troops.keys():
+		for bot in game.combat.troops[zid]:
+			if is_instance_valid(bot) and bot.find_child("MistboundSkeletalRig", true, false) != null:
+				skel_bots += 1
+	verify(skel_bots >= 6, "v0.9.7: Yanshan Mistbound Assault & Sniper soldiers use sculpted animated skeletal rigs (%d active)" % skel_bots)
+	game._end_run(false)
 
 	game.queue_free()
 	await process_frame

@@ -252,6 +252,8 @@ func setup(g):
 	_build_modal_ui()
 	reset_for_run(false, false)
 
+const CHEN_GUIDE_GLB := "res://assets/slice/npc_chen_guide.glb"
+
 func _build_camp_npc():
 	camp_npc_node = Node3D.new()
 	camp_npc_node.name = "CampBountyGuideNPC"
@@ -261,31 +263,65 @@ func _build_camp_npc():
 	camp_npc_node.set_meta("camp_bounty_npc", true)
 	add_child(camp_npc_node)
 
-	# Stylized Jiangnan ranger liaison silhouette standing neatly beside Camp Command Tent
-	var coat_mat := StandardMaterial3D.new()
-	coat_mat.albedo_color = Color("2b5a4d")
-	coat_mat.roughness = 0.72
-	var scarf_mat := StandardMaterial3D.new()
-	scarf_mat.albedo_color = Color("d8a948")
-	scarf_mat.roughness = 0.55
-	var skin_mat := StandardMaterial3D.new()
-	skin_mat.albedo_color = Color("e8c4a2")
-	skin_mat.roughness = 0.62
-	var boot_mat := StandardMaterial3D.new()
-	boot_mat.albedo_color = Color("2b2623")
-	boot_mat.roughness = 0.85
+	# v0.9.7 Sculpted & skeletally animated Chen Guide (Blender Studio CC0 face + eyes + scout hat + binoculars + Idle_Camp!)
+	var rig_loaded := false
+	if ResourceLoader.exists(CHEN_GUIDE_GLB):
+		if not game.scene_cache.has(CHEN_GUIDE_GLB):
+			game.scene_cache[CHEN_GUIDE_GLB] = load(CHEN_GUIDE_GLB)
+		var packed = game.scene_cache.get(CHEN_GUIDE_GLB)
+		if packed is PackedScene:
+			var chen_rig: Node3D = packed.instantiate()
+			chen_rig.name = "ChenGuideRig"
+			chen_rig.position = Vector3(0.0, 0.05, 0.0)
+			camp_npc_node.add_child(chen_rig)
+			var ap := chen_rig.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if is_instance_valid(ap):
+				for aname in ap.get_animation_list():
+					var anim := ap.get_animation(aname)
+					if anim != null:
+						anim.loop_mode = Animation.LOOP_LINEAR
+				if ap.has_animation("Idle_Camp"):
+					ap.play("Idle_Camp")
+				elif not ap.get_animation_list().is_empty():
+					ap.play(ap.get_animation_list()[0])
+			rig_loaded = true
+	if not rig_loaded:
+		var coat_mat := StandardMaterial3D.new()
+		coat_mat.albedo_color = Color("2b5a4d")
+		coat_mat.roughness = 0.72
+		var scarf_mat := StandardMaterial3D.new()
+		scarf_mat.albedo_color = Color("d8a948")
+		scarf_mat.roughness = 0.55
+		var skin_mat := StandardMaterial3D.new()
+		skin_mat.albedo_color = Color("e8c4a2")
+		skin_mat.roughness = 0.62
+		var boot_mat := StandardMaterial3D.new()
+		boot_mat.albedo_color = Color("2b2623")
+		boot_mat.roughness = 0.85
+		for lx in [-0.14, 0.14]:
+			var leg: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(lx, 0.42, 0), Vector3(0.18, 0.84, 0.20), Color("2b2623"), false)
+			leg.material_override = boot_mat
+		var torso: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.14, 0), Vector3(0.50, 0.64, 0.28), Color("2b5a4d"), false)
+		torso.material_override = coat_mat
+		var scarf: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.44, 0.02), Vector3(0.54, 0.12, 0.32), Color("d8a948"), false)
+		scarf.material_override = scarf_mat
+		var head: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.66, 0), Vector3(0.30, 0.30, 0.30), Color("e8c4a2"), false)
+		head.material_override = skin_mat
+		var brim: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.82, 0.03), Vector3(0.52, 0.05, 0.48), Color("28473c"), false)
+		brim.material_override = coat_mat
 
-	for lx in [-0.14, 0.14]:
-		var leg: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(lx, 0.42, 0), Vector3(0.18, 0.84, 0.20), Color("2b2623"), false)
-		leg.material_override = boot_mat
-	var torso: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.14, 0), Vector3(0.50, 0.64, 0.28), Color("2b5a4d"), false)
-	torso.material_override = coat_mat
-	var scarf: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.44, 0.02), Vector3(0.54, 0.12, 0.32), Color("d8a948"), false)
-	scarf.material_override = scarf_mat
-	var head: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.66, 0), Vector3(0.30, 0.30, 0.30), Color("e8c4a2"), false)
-	head.material_override = skin_mat
-	var brim: MeshInstance3D = game._mesh_box(camp_npc_node, Vector3(0, 1.82, 0.03), Vector3(0.52, 0.05, 0.48), Color("28473c"), false)
-	brim.material_override = coat_mat
+	# Solid NPC body cylinder collider so players walk cleanly around Chen Guide instead of clipping through him
+	var npc_body := StaticBody3D.new()
+	npc_body.name = "ChenGuideCollider"
+	npc_body.add_to_group("solid_props")
+	camp_npc_node.add_child(npc_body)
+	var npc_col := CollisionShape3D.new()
+	var npc_cyl := CylinderShape3D.new()
+	npc_cyl.radius = 0.36
+	npc_cyl.height = 1.82
+	npc_col.shape = npc_cyl
+	npc_col.position = Vector3(0.0, 0.91, 0.0)
+	npc_body.add_child(npc_col)
 
 	var beacon := MeshInstance3D.new()
 	var b_cyl := CylinderMesh.new()
@@ -365,10 +401,12 @@ func is_card_unlocked(card_id: String) -> bool:
 	game.rules.ensure_ranger_profile()
 	if card_id == "shaoyu":
 		return true
-	if card_id == "tingfeng" and reputation() >= 300:
-		return true
-	if card_id == "qinghe" and reputation() >= 600:
-		return true
+	if card_id == "tingfeng":
+		return reputation() >= 300
+	if card_id == "qinghe":
+		return reputation() >= 600
+	if card_id == "zhuying":
+		return reputation() >= 900
 	return card_id in game.rules.profile.character_cards
 
 func unlocked_card_count() -> int:
@@ -457,15 +495,19 @@ func close_npc_modal():
 
 func _refresh_modal_text():
 	var r: Dictionary = active_ranger()
+	var rep_now := reputation()
+	var t_tag := "林听风（已解锁）" if rep_now >= 300 else "???（名望 300 解锁）"
+	var q_tag := "苏青禾（已解锁）" if rep_now >= 600 else "???（名望 600 解锁）"
+	var z_tag := "竹影（已解锁）" if rep_now >= 900 else "???（名望 900 解锁）"
 	modal_ranger_body.text = (
 		"当前出战游侠：【%s · %s】  |  烟山名望：%d（%s）  |  已完成委托：%d\n" +
 		"主动技能 [%s] %s（冷却 %.0f 秒 · 半径 %.1fm）：%s\n" +
 		"被动特质：%s\n" +
-		"后续招募预告（v0.9.0）：林听风（名望 300）· 苏青禾（名望 600）· 竹影（名望 900）"
+		"游侠招募与形象解封进度：%s · %s · %s"
 	) % [
-		str(r.name), str(r.title), reputation(), reputation_rank(), int(game.rules.profile.get("bounties_completed", 0)),
+		str(r.name), str(r.title), rep_now, reputation_rank(), int(game.rules.profile.get("bounties_completed", 0)),
 		str(r.skill_key), str(r.skill_name), float(r.skill_cooldown), float(r.skill_radius), str(r.skill_desc),
-		str(r.passive_desc)
+		str(r.passive_desc), t_tag, q_tag, z_tag
 	]
 	if active_bounty.is_empty():
 		modal_bounty_body.text = "当前为自由靶场练习模式：可随时按 [V] 演练少羽「天生神力」重拳震地！\n进入「普通行动」或「机密行动」后，陈向导将为你派发每日烟山名望委托。"

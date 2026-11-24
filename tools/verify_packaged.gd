@@ -277,6 +277,24 @@ func run():
 			if wt is Texture2D and wt.get_width() >= 1024:
 				warmaps_loaded += 1
 	verify(ResourceLoader.exists("res://scripts/lore_codex_ui.gd") and ResourceLoader.exists("res://scripts/war_map_3d.gd") and portraits_loaded == 15 and warmaps_loaded == 3, "standalone PCK includes v0.9.6 LoreCodexUI, WarMap3D, 14 portraits + '?' silhouette (%d/15) & 3 HD relief maps (%d/3)" % [portraits_loaded, warmaps_loaded])
+	var pbr_sets := ["coast_sand_01", "gravelly_sand", "cliff_side", "gravel_road", "clay_plaster", "old_sandstone_02", "plaster_grey_04", "aerial_grass_rock", "mossy_rock"]
+	var pbr_loaded := 0
+	for slug in pbr_sets:
+		for ch in ["diff", "nor_gl", "rough"]:
+			var tp := "res://assets/pbr_v097/%s_%s.jpg" % [slug, ch]
+			if ResourceLoader.exists(tp):
+				var t = load(tp)
+				if t is Texture2D and t.get_width() >= 512:
+					pbr_loaded += 1
+	var v097_glbs_ok := true
+	for gp in ["res://assets/slice/v097_desert_nature.glb", "res://assets/slice/v097_yanshan_nature.glb", "res://assets/slice/npc_chen_guide.glb", "res://assets/slice/v097_mistbound_assault.glb", "res://assets/slice/v097_mistbound_sniper.glb"]:
+		if not ResourceLoader.exists(gp):
+			v097_glbs_ok = false
+		else:
+			var sc = load(gp)
+			if not (sc is PackedScene):
+				v097_glbs_ok = false
+	verify(pbr_loaded == 27 and v097_glbs_ok, "standalone PCK includes v0.9.7 Poly Haven CC0 1K PBR sets (%d/27 maps) & 5 photogrammetry/skeletal GLBs" % pbr_loaded)
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

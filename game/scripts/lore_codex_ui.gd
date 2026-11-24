@@ -113,19 +113,19 @@ const DOSSIERS := {
 			{
 				"title": "档案 I · 三十年烟山活地图",
 				"cond": {"type": "any", "parts": [
-					{"type": "scene", "scene": "prologue", "label": "完成序章或与陈向导对话"},
-					{"type": "lore_stat", "key": "shaoyu_runs", "target": 1, "label": "派遣少羽出击 1 局"},
-				], "label": "完成序章、与陈向导对话或出击任意 1 局"},
+					{"type": "prologue_done", "label": "完成《烟山初行·序章》"},
+					{"type": "bounties", "target": 1, "label": "完成陈向导营地委托 1 次"},
+				], "label": "完成《烟山初行·序章》或完成任意 1 项营地委托"},
 				"text": "陈向导在烟山巡护了整整三十年，山中哪条溪谷雨后涨水、哪块青石板下藏着先民古碑，他闭着眼睛都能画出来。胸前那副磕掉漆的军绿双筒望远镜，陪他走过了半生风霜。",
 			},
 			{
 				"title": "档案 II · 诚庄初行引路人",
-				"cond": {"type": "scene", "scene": "prologue", "label": "完成剧情模式《烟山初行·序章》或与陈向导完成联络"},
+				"cond": {"type": "bounties", "target": 1, "label": "完成任意 1 项陈向导营地委托"},
 				"text": "雾隐帮悄然渗入烟山那年，正是陈向导最先截获了伪装成英文气象码的无线电信号。他连夜在山脚空地搭起前哨指挥帐，将少羽等年轻游侠组织起来，一字一句教他们如何把英语听读化作破盾利器。",
 			},
 			{
 				"title": "档案 III · 名望簿上的秘密",
-				"cond": {"type": "bounties", "target": 1, "label": "完成任意 1 项陈向导营地委托"},
+				"cond": {"type": "bounties", "target": 3, "label": "累计完成 3 项陈向导营地委托"},
 				"text": "外人只道陈向导手里的名望登记簿记录着奖赏与行动币，却很少有人知道，每当游侠带回一件散落山野的诚庄古瓷或竹简，老陈都会悄悄拍照编目，盼着风波平息那天全部还给村里的乡土陈列馆。",
 			},
 			{
@@ -139,7 +139,7 @@ const DOSSIERS := {
 		"id": "tingfeng",
 		"faction": "rangers",
 		"name": "林听风 · 听风斥候",
-		"hidden_title": "待解锁 · 东岭观风斥候",
+		"hidden_title": "待解锁 · 东岭观风斥候（需烟山名望 300）",
 		"en": "LIN TINGFENG · RECON RANGER",
 		"role": "远距侦察游侠 · 望稻亭观风手",
 		"quote": "「竹叶响动偏西三寸——两百米外有侦察蜂压低高度摸过来了。」",
@@ -147,26 +147,29 @@ const DOSSIERS := {
 		"chapters": [
 			{
 				"title": "档案 I · 望稻亭上的观风客",
-				"cond": {"type": "any", "parts": [
-					{"type": "lore_stat", "key": "camps_cleared_yanshan", "target": 1, "label": "肃清烟山营地 1 座"},
-					{"type": "reputation", "target": 50, "label": "烟山名望达 50 点"},
-				], "label": "在烟山肃清 1 座营地或名望达 50 点"},
+				"cond": {"type": "reputation", "target": 300, "label": "累计「烟山名望」达 300 点解锁游侠形象"},
 				"text": "高束墨发、身披青碧轻甲风衣的青年斥候，常年驻守东岭望稻亭制高点。他极少高声交谈，却能凭山风掠过竹林的频率分辨出百米外巡逻队的脚步轻重。",
 			},
 			{
 				"title": "档案 II · 声学单筒镜的来历",
-				"cond": {"type": "lore_stat", "key": "camps_cleared_yanshan", "target": 3, "label": "在烟山行动中累计肃清 3 座雾隐营地"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 300, "label": "烟山名望达 300 点"},
+					{"type": "lore_stat", "key": "camps_cleared_yanshan", "target": 3, "label": "肃清烟山雾隐营地 3 座"},
+				], "label": "烟山名望达 300 点且肃清烟山雾隐营地 3 座"},
 				"text": "林听风手中那具银灰光学测距镜并非制式军品，而是他用废旧气象测风仪与望远镜亲手拼装的宝贝。烟山每一座雾隐营地的布防草图，大半都出自他黎明前的静默测绘。",
 			},
 			{
 				"title": "档案 III · 严苛的校准习惯",
-				"cond": {"type": "achievements", "target": 5, "label": "累计解锁 5 项成就"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 360, "label": "烟山名望达 360 点"},
+					{"type": "achievements", "target": 5, "label": "累计解锁 5 项成就"},
+				], "label": "烟山名望达 360 点且累计解锁 5 项成就"},
 				"text": "少羽爱冲阵、听风爱算风。两人联手清剿东岭哨所时曾打赌谁的命中率更高，结果听风在八十米外连续十枪精准击碎移动词盾，只留下一句『别急着扣扳机，先听清重音节』。",
 			},
 			{
 				"title": "档案 IV · 风起名望时",
-				"cond": {"type": "reputation", "target": 300, "label": "累计「烟山名望」达 300 点"},
-				"text": "当烟山名望突破三百大关，林听风终于在营地名册上签下了自己的代号。他向陈向导承诺，待下阶段战线向诚庄河港与外围延伸时，他愿作为游侠小队第二名常驻出战干员亲自压阵。",
+				"cond": {"type": "reputation", "target": 450, "label": "累计「烟山名望」达 450 点"},
+				"text": "当烟山名望突破三百大关并声名远播，林听风终于在营地名册上签下了自己的代号。他向陈向导承诺，待下阶段战线向诚庄河港与外围延伸时，他愿作为游侠小队第二名常驻出战干员亲自压阵。",
 			},
 		],
 	},
@@ -174,7 +177,7 @@ const DOSSIERS := {
 		"id": "qinghe",
 		"faction": "rangers",
 		"name": "苏青禾 · 悬壶游侠",
-		"hidden_title": "待解锁 · 战地青囊医者",
+		"hidden_title": "待解锁 · 战地青囊医者（需烟山名望 600）",
 		"en": "SU QINGHE · FIELD MEDIC",
 		"role": "战地医疗游侠 · 本草通识者",
 		"quote": "「护盾碎了别硬扛！深呼吸，喝口山泉草药饮就能再战三回合。」",
@@ -182,25 +185,28 @@ const DOSSIERS := {
 		"chapters": [
 			{
 				"title": "档案 I · 茶田畔的青囊少女",
-				"cond": {"type": "any", "parts": [
-					{"type": "extractions", "target": 1, "label": "成功撤离 1 局"},
-					{"type": "collection", "target": 2, "label": "收藏 2 件高阶遗珍"},
-				], "label": "累计成功撤离 1 局或收藏 2 件高阶遗珍"},
+				"cond": {"type": "reputation", "target": 600, "label": "累计「烟山名望」达 600 点解锁游侠形象"},
 				"text": "出身江南中医世家的苏青禾，发髻总系着一缕翠绿竹丝带。白绿相间的轻便医疗战服上嵌着发光纳米急救匣，在漫山梯田间既像采茶姑娘，又是伤员眼中最安心的微光。",
 			},
 			{
 				"title": "档案 II · 能量饮的神秘配方",
-				"cond": {"type": "collection", "target": 4, "label": "在奇珍图鉴中累计收藏 4 件高阶遗珍"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 600, "label": "烟山名望达 600 点"},
+					{"type": "collection", "target": 4, "label": "奇珍图鉴收藏 4 件高阶遗珍"},
+				], "label": "烟山名望达 600 点且收藏 4 件高阶遗珍"},
 				"text": "营地里人人爱用的战术能量饮，其实经过了苏青禾的私房改良——她在电解质里添了几滴烟山明前茶露与薄荷草精，既提神又解乏，连一向挑剔的林听风都悄悄多塞了两罐进背囊。",
 			},
 			{
 				"title": "档案 III · 逆风救场手记",
-				"cond": {"type": "extractions", "target": 4, "label": "累计成功撤离 4 局"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 660, "label": "烟山名望达 660 点"},
+					{"type": "extractions", "target": 4, "label": "累计成功撤离 4 局"},
+				], "label": "烟山名望达 660 点且累计成功撤离 4 局"},
 				"text": "她的随身笔记本一半画着烟山八大奇植手绘图谱，另一半写满英文医学与急救词根。她说，多记住一个英文词，危急时就能更快读懂敌方缴获仪器的操作面板，救回更多同伴。",
 			},
 			{
 				"title": "档案 IV · 青囊出山约",
-				"cond": {"type": "reputation", "target": 600, "label": "累计「烟山名望」达 600 点"},
+				"cond": {"type": "reputation", "target": 750, "label": "累计「烟山名望」达 750 点"},
 				"text": "眼看战事已蔓延至荒漠古堡，苏青禾连夜升级了「青囊脉冲」便携发生器，专门针对沙漠高温与燃烧弹灼伤调校了冷却喷雾，随时准备奔赴最危险的前线。",
 			},
 		],
@@ -209,7 +215,7 @@ const DOSSIERS := {
 		"id": "zhuying",
 		"faction": "rangers",
 		"name": "竹影 · 踏雾潜行者",
-		"hidden_title": "待解锁 · 深林潜行暗影",
+		"hidden_title": "待解锁 · 深林潜行暗影（需烟山名望 900）",
 		"en": "ZHUYING · STEALTH RANGER",
 		"role": "深林潜行游侠 · 古洞探路人",
 		"quote": "「听声石卫不怕火炮，只怕连心跳都能藏进竹风里的人。」",
@@ -217,26 +223,28 @@ const DOSSIERS := {
 		"chapters": [
 			{
 				"title": "档案 I · 雾中无声的墨绿斗篷",
-				"cond": {"type": "any", "parts": [
-					{"type": "scene", "scene": "yanshan_cave", "label": "深入烟霞古洞"},
-					{"type": "lore_stat", "key": "warden_defeats", "target": 1, "label": "击败古洞循音石卫 1 次"},
-					{"type": "reputation", "target": 150, "label": "烟山名望达 150 点"},
-				], "label": "探访烟霞古洞、击败古洞石卫或名望达 150 点"},
+				"cond": {"type": "reputation", "target": 900, "label": "累计「烟山名望」达 900 点解锁游侠形象"},
 				"text": "深绿连帽斗篷、半遮面的战术面罩与泛着幽紫微光的单眼微光目镜——没人见过竹影真正出声大笑的模样，只知道每当竹海起雾，她总能比任何人更早摸清敌巢虚实。",
 			},
 			{
 				"title": "档案 II · 静步穿过一线天",
-				"cond": {"type": "lore_stat", "key": "warden_defeats", "target": 1, "label": "击败烟霞古洞「古洞循音石卫」1 次"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 900, "label": "烟山名望达 900 点"},
+					{"type": "lore_stat", "key": "warden_defeats", "target": 1, "label": "击败古洞循音石卫 1 次"},
+				], "label": "烟山名望达 900 点且击败古洞循音石卫 1 次"},
 				"text": "古洞循音石卫曾令无数贸然闯入的探险者仓皇退走。竹影耗时七夜在寒潭岩壁旁静坐听音，终于测出石卫放弃搜寻的 1.5 秒静默窗口，并将其刻在洞口青石上留给后来者。",
 			},
 			{
 				"title": "档案 III · 消音器的艺术",
-				"cond": {"type": "lore_stat", "key": "perfect_ciphers_total", "target": 3, "label": "累计无错破译 3 个密码物资箱"},
+				"cond": {"type": "combo", "parts": [
+					{"type": "reputation", "target": 950, "label": "烟山名望达 950 点"},
+					{"type": "lore_stat", "key": "perfect_ciphers_total", "target": 3, "label": "无错破译 3 个密码箱"},
+				], "label": "烟山名望达 950 点且累计无错破译 3 个密码箱"},
 				"text": "相比正面强攻，竹影更痴迷于「一枪不发拿走高阶密码箱」的优雅战术。她亲自为营地军械库校验了钛合金消音器的气流折板，使游侠在偷袭狙击卫时几乎不留回音。",
 			},
 			{
 				"title": "档案 IV · 暗夜守望",
-				"cond": {"type": "reputation", "target": 900, "label": "累计「烟山名望」达 900 点"},
+				"cond": {"type": "reputation", "target": 1050, "label": "累计「烟山名望」达 1050 点"},
 				"text": "很少有人知道，竹影曾短暂卧底于雾隐帮外围情报站，并在玄铁词尊尚未完全苏醒前偷出核心加密协议交给陈向导。那道微光目镜后的沉静眼神，始终护着整片烟山夜空。",
 			},
 		],
@@ -701,12 +709,15 @@ func _evaluate_condition(cond: Dictionary) -> Dictionary:
 	if ctype == "map_ahsarah":
 		var ok: bool = game.rules.is_map_unlocked("ahsarah")
 		return {"unlocked": ok, "cur": 1 if ok else 0, "target": 1, "label": str(cond.get("label", "解锁阿萨拉堡垒"))}
+	if ctype == "prologue_done":
+		var ok: bool = bool(prof.get("prologue_completed", false))
+		return {"unlocked": ok, "cur": 1 if ok else 0, "target": 1, "label": str(cond.get("label", "完成《烟山初行·序章》"))}
 	if ctype == "scene":
 		var sc := str(cond.get("scene", ""))
 		var visited: Array = ls.get("scenes_visited", [])
 		var ok := (sc in visited)
 		if sc == "prologue":
-			ok = ok or bool(prof.get("prologue_completed", false)) or ("chen_guide" in prof.get("character_cards", []))
+			ok = ok or bool(prof.get("prologue_completed", false))
 		return {"unlocked": ok, "cur": 1 if ok else 0, "target": 1, "label": str(cond.get("label", ""))}
 	if ctype == "scenes_count":
 		var target := maxi(1, int(cond.get("target", 1)))

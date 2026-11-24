@@ -38,6 +38,49 @@ var ink_arch_mat_cache: Dictionary = {}
 var dimensional_rift_node: Node3D = null
 var dimensional_rift_light: OmniLight3D = null
 var dimensional_rift_label: Label3D = null
+var scenery_collider_body: StaticBody3D = null
+var scenery_collider_count: int = 0
+
+func _ensure_scenery_collider_body() -> StaticBody3D:
+	if not is_instance_valid(scenery_collider_body):
+		scenery_collider_body = StaticBody3D.new()
+		scenery_collider_body.name = "YanshanSceneryColliders"
+		scenery_collider_body.add_to_group("solid_props")
+		add_child(scenery_collider_body)
+	return scenery_collider_body
+
+func _add_scenery_collider_box(xform: Transform3D, size: Vector3, local_y: float):
+	var body := _ensure_scenery_collider_body()
+	var sc := xform.basis.get_scale()
+	var rot_basis := xform.basis.orthonormalized()
+	var col := CollisionShape3D.new()
+	var shp := BoxShape3D.new()
+	shp.size = Vector3(absf(size.x * sc.x), absf(size.y * sc.y), absf(size.z * sc.z))
+	col.shape = shp
+	col.transform = Transform3D(rot_basis, xform.origin + rot_basis * Vector3(0.0, local_y * absf(sc.y), 0.0))
+	body.add_child(col)
+	scenery_collider_count += 1
+
+func _add_scenery_collider_cylinder(pos: Vector3, radius: float, height: float):
+	var body := _ensure_scenery_collider_body()
+	var col := CollisionShape3D.new()
+	var shp := CylinderShape3D.new()
+	shp.radius = radius
+	shp.height = height
+	col.shape = shp
+	col.position = pos
+	body.add_child(col)
+	scenery_collider_count += 1
+
+func _add_scenery_collider_sphere(pos: Vector3, radius: float):
+	var body := _ensure_scenery_collider_body()
+	var col := CollisionShape3D.new()
+	var shp := SphereShape3D.new()
+	shp.radius = radius
+	col.shape = shp
+	col.position = pos
+	body.add_child(col)
+	scenery_collider_count += 1
 
 func refresh_dimensional_rift_visual(awakened: bool, unlocked: bool):
 	if is_instance_valid(dimensional_rift_light):
@@ -515,57 +558,80 @@ uniform sampler2D mud_cobble : source_color, filter_linear_mipmap, repeat_enable
 uniform sampler2D mud_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D trail_stone : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D trail_stone_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mossy_rock : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D mossy_rock_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
 varying vec3 pos;
-void vertex(){pos=VERTEX;}
+varying vec3 wnrm;
+void vertex(){
+ pos = VERTEX;
+ wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
 void fragment(){
- // Multi-scale UV blend eliminates 2002-style tiled grass repetition!
- vec3 tex_near = texture(soil, UV).rgb;
- vec3 tex_macro = texture(soil, UV * 0.23 + vec2(0.37, 0.19)).rgb;
- float lum = dot(mix(tex_near, tex_macro, 0.55), vec3(0.299, 0.587, 0.114));
- float tex_tone = mix(0.84, 1.14, clamp(lum * 1.45, 0.0, 1.0));
+ // v0.9.7 Multi-scale CC0 PBR hillside grass + automatic triplanar mossy granite on steep slopes!
+ vec2 uv_near = pos.xz * 0.24;
+ mat2 rot25 = mat2(vec2(0.906, -0.422), vec2(0.422, 0.906));
+ vec2 uv_macro = (rot25 * pos.xz) * 0.062 + vec2(0.37, 0.19);
+ vec3 tex_near = texture(soil, uv_near).rgb;
+ vec3 tex_macro = texture(soil, uv_macro).rgb;
+ vec3 grass_tex = mix(tex_near, tex_macro, 0.45);
+ float lum = dot(grass_tex, vec3(0.299, 0.587, 0.114));
+ float tex_tone = mix(0.82, 1.18, clamp(lum * 1.48, 0.0, 1.0));
 
  float road_edge = smoothstep(0.28, 0.90, COLOR.r);
- float stream_bank = 1.0 - smoothstep(0.32, 0.98, COLOR.g);
+ float stream_bank = 1.0 - smoothstep(0.22, 0.96, COLOR.g);
 
  // Warm sunlit golden-olive spring meadow & cool emerald shaded patches (Taiping Village hillside harmony!)
  float wash1 = 0.5 + 0.5 * sin(pos.x * 0.13 + sin(pos.z * 0.11) * 2.2);
  float wash2 = 0.5 + 0.5 * cos(pos.z * 0.27 - cos(pos.x * 0.23) * 1.7);
  float ink_wash = smoothstep(0.25, 0.78, wash1 * 0.65 + wash2 * 0.35);
 
- vec3 damp_moss = mix(vec3(0.11, 0.25, 0.14), vec3(0.26, 0.39, 0.13), ink_wash);
- // v0.8.1 FB-3: Crisp carved Jiangnan bluestone path bedding along mountain trails instead of muddy blur
+ vec3 damp_moss = mix(vec3(0.13, 0.28, 0.15), vec3(0.28, 0.41, 0.15), ink_wash) * tex_tone;
+ damp_moss = mix(damp_moss, grass_tex * vec3(0.86, 1.04, 0.76), 0.34);
+
+ // World-space triplanar CC0 mossy granite outcrops blended smoothly onto steep mountain hillsides
+ vec3 tb = pow(abs(wnrm), vec3(4.0));
+ tb /= max(tb.x + tb.y + tb.z, 0.0001);
+ vec3 rock_c = texture(mossy_rock, pos.zy * 0.18).rgb * tb.x + texture(mossy_rock, pos.xz * 0.18).rgb * tb.y + texture(mossy_rock, pos.xy * 0.18).rgb * tb.z;
+ vec3 rock_n = texture(mossy_rock_nrm, pos.zy * 0.18).rgb * tb.x + texture(mossy_rock_nrm, pos.xz * 0.18).rgb * tb.y + texture(mossy_rock_nrm, pos.xy * 0.18).rgb * tb.z;
+ float slope_rock = smoothstep(0.92, 0.72, wnrm.y) * road_edge;
+ vec3 hill_surf = mix(damp_moss, rock_c * vec3(0.84, 0.90, 0.80), slope_rock * 0.78);
+
+ // Crisp carved Jiangnan bluestone path bedding along mountain trails
  vec2 flag_uv = pos.xz * 0.52;
  vec3 stone_albedo = texture(trail_stone, flag_uv).rgb;
  vec3 stone_nrm = texture(trail_stone_nrm, flag_uv).rgb;
  float trail_core = 1.0 - smoothstep(0.18, 0.68, COLOR.r);
  vec3 trail_earth = mix(vec3(0.34, 0.31, 0.25) * tex_tone, stone_albedo * vec3(0.96, 0.98, 0.95), trail_core * 0.86);
- vec3 slope_col = mix(trail_earth, damp_moss * tex_tone, road_edge);
+ vec3 slope_col = mix(trail_earth, hill_surf, road_edge);
 
- // Natural CC0 mud-and-cobble feathering along creek banks
- vec2 bank_uv = pos.xz * 0.42;
+ // v0.9.7 Softened natural mossy cobble feathering along creek banks (eliminates dark harsh trench walls!)
+ vec2 bank_uv = pos.xz * 0.36;
  vec3 mc_rgb = texture(mud_cobble, bank_uv).rgb;
  float mc_lum = dot(mc_rgb, vec3(0.299, 0.587, 0.114));
- vec3 wet_bank = vec3(0.24, 0.26, 0.23) * mix(0.76, 1.24, mc_lum);
+ vec3 wet_bank = mix(vec3(0.31, 0.36, 0.27), rock_c * vec3(0.78, 0.84, 0.74), 0.38) * mix(0.84, 1.18, mc_lum);
 
- ALBEDO = mix(slope_col, wet_bank, stream_bank * 0.88);
+ ALBEDO = mix(slope_col, wet_bank, stream_bank * 0.68);
  #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
   ALBEDO = pow(ALBEDO, vec3(0.88));
  #endif
- vec3 base_nrm = mix(stone_nrm, texture(soil_normal, UV * 0.65).rgb, smoothstep(0.24, 0.72, COLOR.r));
- NORMAL_MAP = mix(base_nrm, texture(mud_normal, bank_uv).rgb, stream_bank);
- NORMAL_MAP_DEPTH = mix(mix(0.88, 0.24, road_edge), 0.62, stream_bank);
- ROUGHNESS = mix(mix(0.62, 0.95, road_edge), 0.56, stream_bank);
- SPECULAR = mix(0.16, 0.04, road_edge);
+ vec3 hill_nrm = mix(texture(soil_normal, uv_near).rgb, rock_n, slope_rock * 0.82);
+ vec3 base_nrm = mix(stone_nrm, hill_nrm, smoothstep(0.24, 0.72, COLOR.r));
+ NORMAL_MAP = mix(base_nrm, texture(mud_normal, bank_uv).rgb, stream_bank * 0.75);
+ NORMAL_MAP_DEPTH = mix(mix(0.88, mix(0.55, 1.05, slope_rock), road_edge), 0.72, stream_bank);
+ ROUGHNESS = mix(mix(0.62, 0.92, road_edge), 0.58, stream_bank);
+ SPECULAR = mix(0.16, 0.06, road_edge);
 }
 """
 	var mat = ShaderMaterial.new()
 	mat.shader = shader
-	mat.set_shader_parameter("soil", load("res://assets/slice/ground_color.jpg"))
-	mat.set_shader_parameter("soil_normal", load("res://assets/slice/ground_normal.jpg"))
+	mat.set_shader_parameter("soil", load("res://assets/pbr_v097/aerial_grass_rock_diff.jpg"))
+	mat.set_shader_parameter("soil_normal", load("res://assets/pbr_v097/aerial_grass_rock_nor_gl.jpg"))
 	mat.set_shader_parameter("mud_cobble", load("res://assets/slice/ink_jiangnan/mud_cobble_albedo.jpg"))
 	mat.set_shader_parameter("mud_normal", load("res://assets/slice/ink_jiangnan/mud_cobble_normal.jpg"))
 	mat.set_shader_parameter("trail_stone", load("res://assets/slice/ink_jiangnan/flagstone_albedo.png"))
 	mat.set_shader_parameter("trail_stone_nrm", load("res://assets/slice/ink_jiangnan/flagstone_normal.png"))
+	mat.set_shader_parameter("mossy_rock", load("res://assets/pbr_v097/mossy_rock_diff.jpg"))
+	mat.set_shader_parameter("mossy_rock_nrm", load("res://assets/pbr_v097/mossy_rock_nor_gl.jpg"))
 	ground.material_override = mat
 	add_child(ground)
 
@@ -1562,7 +1628,9 @@ void fragment(){
  if (UV.y < 0.03) {
   discard;
  }
- vec2 uv = vec2(UV.x, clamp(UV.y, 0.02, 0.985));
+ // v0.9.7 Seamless 360-deg mirror-wrapped horizon UVs (eliminates dead-center skyline cliff seam!)
+ float u_seamless = 1.0 - abs(fract(UV.x * 2.0) * 2.0 - 1.0);
+ vec2 uv = vec2(u_seamless, clamp(UV.y, 0.02, 0.985));
  vec4 t = texture(pano, uv);
  float top_guard = smoothstep(0.03, 0.09, UV.y);
  float a = smoothstep(0.05, 0.28, t.a) * top_guard;
@@ -2026,6 +2094,7 @@ func _stream():
 	bed_inst.mesh = bed_mesh
 	var bed_shader := Shader.new()
 	bed_shader.code = """shader_type spatial;
+render_mode blend_mix;
 uniform sampler2D pebbles : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pebbles_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D pebbles_rough : filter_linear_mipmap, repeat_enable;
@@ -2043,20 +2112,23 @@ void fragment(){
  float p_rough = texture(pebbles_rough, UV).r;
  float moss_n = 0.5 + 0.5 * sin(wpos.x * 2.1 + cos(wpos.z * 1.8) * 2.0);
 
- vec3 dry_cobble = mix(vec3(0.28, 0.30, 0.29), vec3(0.21, 0.26, 0.22), moss_n * 0.55 * (1.0 - wet)) * mix(0.76, 1.24, p_lum);
- vec3 wet_pebble = vec3(0.18, 0.21, 0.20) * mix(0.75, 1.25, p_lum);
+ vec3 dry_cobble = mix(vec3(0.32, 0.35, 0.29), vec3(0.22, 0.32, 0.19), moss_n * 0.65 * (1.0 - wet)) * mix(0.80, 1.24, p_lum);
+ vec3 wet_pebble = vec3(0.20, 0.25, 0.22) * mix(0.78, 1.25, p_lum);
  vec3 channel_col = mix(dry_cobble, wet_pebble, wet);
 
  vec2 bank_uv = wpos.xz * 0.42;
  vec3 mc = texture(mud_cobble, bank_uv).rgb;
  float mc_lum = dot(mc, vec3(0.299, 0.587, 0.114));
- vec3 wet_bank = vec3(0.22, 0.24, 0.23) * mix(0.75, 1.25, mc_lum);
+ // v0.9.7 Warm mossy earth & meadow feathering (eliminates harsh flat dark-grey concrete strip along creek!)
+ vec3 mossy_earth = mix(vec3(0.27, 0.34, 0.22), vec3(0.22, 0.36, 0.15), smoothstep(0.28, 0.88, grass_t)) * mix(0.82, 1.18, mc_lum);
 
- ALBEDO = mix(channel_col, wet_bank, grass_t);
+ ALBEDO = mix(channel_col, mossy_earth, grass_t);
  NORMAL_MAP = mix(texture(pebbles_normal, UV).rgb, texture(mud_normal, bank_uv).rgb, grass_t);
- NORMAL_MAP_DEPTH = mix(0.82, 0.62, grass_t);
- ROUGHNESS = mix(mix(clamp(p_rough * 0.88, 0.48, 0.86), 0.24, wet), 0.56, grass_t);
- SPECULAR = mix(0.24, 0.06, grass_t);
+ NORMAL_MAP_DEPTH = mix(0.82, 0.54, grass_t);
+ ROUGHNESS = mix(mix(clamp(p_rough * 0.88, 0.48, 0.86), 0.24, wet), 0.78, grass_t);
+ SPECULAR = mix(0.24, 0.05, grass_t);
+ float edge_n = 0.5 + 0.5 * sin(wpos.z * 1.65 + cos(wpos.x * 2.3) * 1.5);
+ ALPHA = 1.0 - smoothstep(0.36, 0.94, grass_t + edge_n * 0.14);
 }
 """
 	var bed_mat := ShaderMaterial.new()
@@ -2631,9 +2703,10 @@ func _build_v086_scenery():
 		var lp: Vector2 = lantern_coords[i]
 		var ly := float(game.terrain_height(lp.x, lp.y)) - 0.04
 		lantern_tx.append(Transform3D(Basis(Vector3.UP, float(i) * 0.65), Vector3(lp.x, ly, lp.y)))
+		_add_scenery_collider_cylinder(Vector3(lp.x, ly + 1.05, lp.y), 0.38, 2.10)
 	_batch_direct(lantern_mesh, lantern_tx, false, "JiangnanStoneLanterns", 92.0)
 
-	# 3) Lush Terraced Jiangnan Tea-Bush Hedges ("梯田茶垄") along East Tea Ridge, Wangdao slopes & South-East hillside
+	# 3) Lush Terraced Jiangnan Tea-Bush Hedges ("梯田茶垄" — v0.9.7 leafy multi-stem botanical hedges + SOLID collision!)
 	var tea_mesh := _extract_mesh(arch_glb, "tea_terraced_hedge")
 	var tea_tx: Array = []
 	var tea_zones := [
@@ -2656,11 +2729,13 @@ func _build_v086_scenery():
 			var ty := float(game.terrain_height(tx, tz_z)) - 0.08
 			var tyaw := atan2(game.terrain_height(tx + 1.0, tz_z) - game.terrain_height(tx - 1.0, tz_z), 2.0) + PI * 0.5
 			var tsc := sc_rng.randf_range(0.88, 1.24)
-			tea_tx.append(Transform3D(Basis(Vector3.UP, tyaw + sc_rng.randf_range(-0.25, 0.25)).scaled(Vector3(tsc, tsc * 0.96, tsc)), Vector3(tx, ty, tz_z)))
+			var t_xf := Transform3D(Basis(Vector3.UP, tyaw + sc_rng.randf_range(-0.25, 0.25)).scaled(Vector3(tsc, tsc * 0.96, tsc)), Vector3(tx, ty, tz_z))
+			tea_tx.append(t_xf)
+			_add_scenery_collider_box(t_xf, Vector3(3.30, 0.96, 1.08), 0.48)
 			placed += 1
 	_batch_direct(tea_mesh, tea_tx, false, "JiangnanTeaHedges", 115.0)
 
-	# 4) Sculpted Mossy Mountain Boulder Clusters ("太湖苔石群") enriching hillsides & creek meadows
+	# 4) Photogrammetry Mossy Mountain Boulder Clusters ("太湖苔石群" — v0.9.7 CC0 rock_07 + rock_moss_set_02 + SOLID collision!)
 	var boulder_mesh := _extract_mesh(arch_glb, "mossy_boulder_cluster")
 	var boulder_tx: Array = []
 	var b_tries := 0
@@ -2672,17 +2747,21 @@ func _build_v086_scenery():
 			continue
 		var by := float(game.terrain_height(bx, bz)) - 0.14
 		var bsc := sc_rng.randf_range(0.75, 1.32)
-		boulder_tx.append(Transform3D(Basis(Vector3.UP, sc_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * bsc), Vector3(bx, by, bz)))
+		var b_xf := Transform3D(Basis(Vector3.UP, sc_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * bsc), Vector3(bx, by, bz))
+		boulder_tx.append(b_xf)
+		_add_scenery_collider_sphere(Vector3(bx, by + 0.62 * bsc, bz), 1.04 * bsc)
+		var side_off := b_xf.basis.orthonormalized() * Vector3(-0.92 * bsc, 0.38 * bsc, -0.45 * bsc)
+		_add_scenery_collider_sphere(Vector3(bx, by, bz) + side_off, 0.72 * bsc)
 	_batch_direct(boulder_mesh, boulder_tx, false, "MossyBoulderClusters", 110.0)
 
-	# 5) 8 Rustic Bluestone Scenic Resting Benches ("青石游憩凳") beside landmarks & overlooks
+	# 5) 8 Rustic Bluestone Scenic Resting Benches ("青石游憩凳" — v0.9.7 SOLID collision!)
 	var bench_mesh := _extract_mesh(arch_glb, "trail_stone_bench")
 	var bench_specs := [
 		[Vector2(-8.2, 16.5), 0.45],
 		[Vector2(24.0 + wd_dx, 16.5 + wd_dz), -0.65],
 		[Vector2(50.5, -36.5), -1.10],
 		[Vector2(-35.5, -45.0), 0.72],
-		[Vector2(18.5, -28.0), 1.40],
+		[Vector2(18.5, -24.0), 1.40],
 		[Vector2(20.5, -80.5), 1.55],
 		[Vector2(-24.0, -138.0), 0.25],
 		[Vector2(28.0, -158.0), -0.80]
@@ -2691,7 +2770,9 @@ func _build_v086_scenery():
 	for bs in bench_specs:
 		var bp: Vector2 = bs[0]
 		var by := float(game.terrain_height(bp.x, bp.y)) - 0.03
-		bench_tx.append(Transform3D(Basis(Vector3.UP, float(bs[1])), Vector3(bp.x, by, bp.y)))
+		var bn_xf := Transform3D(Basis(Vector3.UP, float(bs[1])), Vector3(bp.x, by, bp.y))
+		bench_tx.append(bn_xf)
+		_add_scenery_collider_box(bn_xf, Vector3(1.86, 0.58, 0.68), 0.29)
 	_batch_direct(bench_mesh, bench_tx, false, "ScenicStoneBenches", 85.0)
 
 func _build_stone_arch_bridge(z_center: float):
@@ -3399,7 +3480,11 @@ func _flora_meadows():
 		var yaw := rng.randf_range(0.0, TAU)
 		var r_choice := i % 10
 		if r_choice == 0 or r_choice == 1:
-			azalea_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.82, 1.32)), Vector3(fx, fy - 0.04, fz)))
+			var az_sc := rng.randf_range(0.82, 1.32)
+			azalea_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * az_sc), Vector3(fx, fy - 0.04, fz)))
+			var near_bridge_lane := (absf(fz + 28.0) < 3.4 or absf(fz + 74.0) < 3.4 or absf(fz + 124.0) < 3.4) and fx > 10.0 and fx < 45.0
+			if az_sc >= 0.94 and not near_bridge_lane:
+				_add_scenery_collider_sphere(Vector3(fx, fy + 0.40 * az_sc, fz), 0.50 * az_sc)
 		elif r_choice == 2 or r_choice == 3 or r_choice == 4:
 			wfern_tx.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * rng.randf_range(0.92, 1.52)), Vector3(fx, fy - 0.03, fz)))
 		elif r_choice == 5 or r_choice == 6:
@@ -3428,7 +3513,7 @@ func _flora_meadows():
 			var fz2 := bt.z + sin(ang + 0.5) * 1.45
 			wfern_tx.append(Transform3D(Basis(Vector3.UP, ang * 1.3).scaled(Vector3.ONE * 1.35), Vector3(fx2, _surface_height_any(fx2, fz2) - 0.03, fz2)))
 
-	# 4) Mossy Fallen Logs resting flush on forest & fence-side slopes
+	# 4) Mossy Fallen Logs resting flush on forest & fence-side slopes (v0.9.7 endpoint-grounded + SOLID collision!)
 	for l_i in 38:
 		var lx := rng.randf_range(gx_min + 4.0, gx_max - 4.0)
 		var lz := rng.randf_range(gz_min + 6.0, gz_max - 8.0)
@@ -3436,18 +3521,49 @@ func _flora_meadows():
 			lx = (1.0 if l_i % 4 == 0 else -1.0) * rng.randf_range(52.0, gx_max - 4.0)
 		if game.Layout.clear_for_route(lx, lz, 2.2) or _is_vista_corridor(lx, lz):
 			continue
-		var ly := _surface_height_any(lx, lz) - 0.05
-		var hx0 := _surface_height_any(lx - 0.8, lz)
-		var hx1 := _surface_height_any(lx + 0.8, lz)
-		var hz0 := _surface_height_any(lx, lz - 0.8)
-		var hz1 := _surface_height_any(lx, lz + 0.8)
-		var nrm := Vector3(hx0 - hx1, 1.6, hz0 - hz1).normalized()
+		var hx0 := _surface_height_any(lx - 0.9, lz)
+		var hx1 := _surface_height_any(lx + 0.9, lz)
+		var hz0 := _surface_height_any(lx, lz - 0.9)
+		var hz1 := _surface_height_any(lx, lz + 0.9)
+		var nrm := Vector3(hx0 - hx1, 1.8, hz0 - hz1).normalized()
 		var lyaw := rng.randf_range(0.0, TAU)
 		var l_right := Vector3(cos(lyaw), 0.0, -sin(lyaw))
 		var l_fwd := nrm.cross(l_right).normalized()
 		l_right = l_fwd.cross(nrm).normalized()
 		var lsc := rng.randf_range(0.84, 1.24)
-		log_tx.append(Transform3D(Basis(l_right, nrm, l_fwd).scaled(Vector3.ONE * lsc), Vector3(lx, ly, lz)))
+		# Sample ground under BOTH log endpoints so NO log ever floats over convex hillside crests!
+		var h_mid := _surface_height_any(lx, lz)
+		var h_p1 := _surface_height_any(lx + l_right.x * 1.15 * lsc, lz + l_right.z * 1.15 * lsc)
+		var h_p2 := _surface_height_any(lx - l_right.x * 1.15 * lsc, lz - l_right.z * 1.15 * lsc)
+		var ly := minf(h_mid, 0.5 * (h_p1 + h_p2)) - 0.08
+		var log_xf := Transform3D(Basis(l_right, nrm, l_fwd).scaled(Vector3.ONE * lsc), Vector3(lx, ly, lz))
+		log_tx.append(log_xf)
+		_add_scenery_collider_box(log_xf, Vector3(2.45, 0.48, 0.54), 0.22)
+
+	# 4B) v0.9.7 Photogrammetry Jiangnan Woodland Shrubs (Poly Haven CC0 shrub_01 & shrub_02 + SOLID trunk collision!)
+	var v097_nat := "res://assets/slice/v097_yanshan_nature.glb"
+	var shrub_a := _extract_mesh(v097_nat, "yanshan_shrub_a")
+	var shrub_b := _extract_mesh(v097_nat, "yanshan_shrub_b")
+	var shrub_a_tx: Array = []
+	var shrub_b_tx: Array = []
+	for sh_i in 90:
+		if shrub_a_tx.size() + shrub_b_tx.size() >= 48:
+			break
+		var sx := rng.randf_range(gx_min + 3.0, gx_max - 3.0)
+		var sz := rng.randf_range(gz_min + 4.0, gz_max - 6.0)
+		var on_bridge_lane := (absf(sz + 28.0) < 3.6 or absf(sz + 74.0) < 3.6 or absf(sz + 124.0) < 3.6) and sx > 8.0 and sx < 46.0
+		if on_bridge_lane or game.Layout.clear_for_route(sx, sz, 2.2) or absf(sx - _outer_stream_x(sz)) < 2.6 or _is_vista_corridor(sx, sz):
+			continue
+		var sy := _surface_height_any(sx, sz) - 0.05
+		var ssc := rng.randf_range(0.84, 1.32)
+		var sxf := Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * ssc), Vector3(sx, sy, sz))
+		if sh_i % 2 == 0:
+			shrub_a_tx.append(sxf)
+		else:
+			shrub_b_tx.append(sxf)
+		_add_scenery_collider_sphere(Vector3(sx, sy + 0.46 * ssc, sz), 0.58 * ssc)
+	_batch_direct(shrub_a, shrub_a_tx, false, "YanshanPhotogrammetryShrubsA", 104.0)
+	_batch_direct(shrub_b, shrub_b_tx, false, "YanshanPhotogrammetryShrubsB", 104.0)
 
 	# 5) Cluster exotic orchids & berry ferns near creek banks, bridges, overlooks & caves
 	var special_spots := [

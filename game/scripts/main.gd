@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.6"
+const VERSION = "0.9.7"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -984,23 +984,39 @@ func _build_camp_display_stand():
 	add_child(camp_display_stand)
 
 	var wood_mat := StandardMaterial3D.new()
-	wood_mat.albedo_color = Color("3a241b")
-	wood_mat.roughness = 0.44
-	wood_mat.metallic = 0.12
+	wood_mat.albedo_color = Color("4a2e22")
+	wood_mat.albedo_texture = load("res://assets/slice/tree_bark.jpg")
+	wood_mat.uv1_scale = Vector3(2.4, 1.2, 1.0)
+	wood_mat.roughness = 0.56
+	wood_mat.metallic = 0.06
+
+	var velvet_mat := StandardMaterial3D.new()
+	velvet_mat.albedo_color = Color("18322c")
+	velvet_mat.roughness = 0.92
+	velvet_mat.metallic = 0.0
 
 	var brass_mat := StandardMaterial3D.new()
-	brass_mat.albedo_color = Color("c9a252")
-	brass_mat.metallic = 0.78
-	brass_mat.roughness = 0.28
+	brass_mat.albedo_color = Color("d4aa58")
+	brass_mat.metallic = 0.80
+	brass_mat.roughness = 0.26
 
-	# Grounded rosewood gallery cabinet (collidable so player walks cleanly around it)
-	var base: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.42, 0), Vector3(3.12, 0.84, 0.78), Color("3a241b"), true)
+	# Grounded carved rosewood gallery cabinet with inset dark jade velvet backboard & brass pillars
+	var base: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.42, 0), Vector3(3.12, 0.84, 0.78), Color("4a2e22"), true)
 	base.material_override = wood_mat
-	var trim_top: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.855, 0), Vector3(3.18, 0.04, 0.84), Color("c9a252"), false)
+	var plinth: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.05, 0), Vector3(3.24, 0.10, 0.88), Color("281a14"), false)
+	plinth.material_override = wood_mat
+	var trim_top: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 0.855, 0), Vector3(3.20, 0.045, 0.86), Color("d4aa58"), false)
 	trim_top.material_override = brass_mat
-	var backboard: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.18, -0.34), Vector3(3.10, 0.68, 0.08), Color("281914"), false)
+	var backboard: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.22, -0.34), Vector3(3.12, 0.74, 0.09), Color("4a2e22"), false)
 	backboard.material_override = wood_mat
-	var crown: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.54, -0.34), Vector3(3.18, 0.05, 0.14), Color("c9a252"), false)
+	var velvet_inset: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.22, -0.29), Vector3(2.88, 0.58, 0.025), Color("18322c"), false)
+	velvet_inset.material_override = velvet_mat
+	for px in [-1.52, 1.52]:
+		var stile: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(px, 1.22, -0.32), Vector3(0.10, 0.76, 0.14), Color("4a2e22"), false)
+		stile.material_override = wood_mat
+		var brk: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(px, 0.42, 0.39), Vector3(0.06, 0.78, 0.04), Color("d4aa58"), false)
+		brk.material_override = brass_mat
+	var crown: MeshInstance3D = _mesh_box(camp_display_stand, Vector3(0, 1.59, -0.33), Vector3(3.24, 0.06, 0.16), Color("d4aa58"), false)
 	crown.material_override = brass_mat
 
 	camp_display_header = _label3d(camp_display_stand, "🏆 烟山奇珍 3D 展台（最多陈列 4 件）", Vector3(0, 1.80, -0.20), 28, Color("ffd46e"))
