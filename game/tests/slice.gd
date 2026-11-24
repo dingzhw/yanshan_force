@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.7" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.7 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.8" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.8 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1058,7 +1058,18 @@ func run():
 	verify(is_instance_valid(y_sc_body) and y_sc_body.is_in_group("solid_props") and y_sc_body.get_child_count() >= 200, "v0.9.7: YanshanSceneryColliders provides solid physics collision for all tea hedges, mossy boulders, lanterns, benches, fallen logs & shrubs (%d shapes)" % (y_sc_body.get_child_count() if is_instance_valid(y_sc_body) else 0))
 	var chen_rig: Node = game.rangers.camp_npc_node.find_child("ChenGuideRig", true, false)
 	var chen_col: Node = game.rangers.camp_npc_node.find_child("ChenGuideCollider", true, false)
-	verify(chen_rig != null and chen_col != null, "v0.9.7: Camp Liaison Chen Guide loads sculpted animated npc_chen_guide.glb with solid collider")
+	var chen_hair: Node = chen_rig.find_child("Chen_VeteranHair", true, false) if chen_rig != null else null
+	var chen_old_hat: Node = chen_rig.find_child("Chen_ScoutHat", true, false) if chen_rig != null else null
+	verify(chen_rig != null and chen_col != null and chen_hair != null and chen_old_hat == null, "v0.9.8: Camp Liaison Chen Guide loads portrait-faithful npc_chen_guide.glb with Chen_VeteranHair (no awkward hat) & solid collider")
+	var cn_manifest_raw := FileAccess.get_file_as_string("res://data/audio/cn_voice_manifest.json")
+	var cn_manifest = JSON.parse_string(cn_manifest_raw)
+	var cn_timbres: Dictionary = cn_manifest.get("profile_timbres", {}) if (cn_manifest is Dictionary) else {}
+	var uniq_timbres := {}
+	var uniq_actors := {}
+	for gk in cn_timbres.keys():
+		uniq_timbres[str(cn_timbres[gk].get("timbre", ""))] = true
+		uniq_actors[str(cn_timbres[gk].get("voice", ""))] = true
+	verify(cn_manifest is Dictionary and int(cn_manifest.get("count", 0)) >= 66 and uniq_timbres.size() == 8 and uniq_actors.size() >= 5, "v0.9.8: offline Chinese voice pack ships %d clips with 8 unique faction/boss timbres across %d base neural actors" % [int(cn_manifest.get("count", 0)) if cn_manifest is Dictionary else 0, uniq_actors.size()])
 	game.start_action(true, "normal")
 	await frames(3)
 	var skel_bots := 0

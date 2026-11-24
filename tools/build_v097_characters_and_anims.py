@@ -98,8 +98,7 @@ def export_rig_glb(arm, meshes, out_path: Path):
         export_nla_strips_merged_animation_name="",
         export_optimize_animation_size=True,
         export_materials="EXPORT",
-        export_image_format="JPEG",
-        export_jpeg_quality=82,
+        export_image_format="AUTO",
     )
     kb = out_path.stat().st_size / 1024.0
     tris = sum(len(m.data.polygons) for m in meshes if m and m.name in bpy.data.objects)
@@ -126,10 +125,11 @@ def push_actions_to_nla(arm, actions):
 
 
 # ---------------------------------------------------------------------------
-# 1. Camp Liaison NPC: 陈向导 (npc_chen_guide.glb)
+# 1. Camp Liaison NPC: 陈向导 (npc_chen_guide.glb) — v0.9.8 Portrait-Faithful Rebuild
 # ---------------------------------------------------------------------------
 def build_chen_guide():
-    s95.TARGET_HEIGHT = 1.78
+    # Match exact 1.72m head/neck bone reference of build_sculpted_blender_studio_head so neck/collar join seamlessly!
+    s95.TARGET_HEIGHT = 1.72
     arm, body, legs, feet = s95.build_normalized_shaoyu_base()
     arm.name = "ChenGuideArmature"
     s95.weld_and_subsurf(body, subsurf_level=0, smooth_iters=1, smooth_fac=0.14)
@@ -137,62 +137,142 @@ def build_chen_guide():
     s95.weld_and_subsurf(feet, subsurf_level=0, smooth_iters=1, smooth_fac=0.12)
 
     pal = s95.create_material_palette()
-    # Veteran guide custom warm weathered materials
+    # Veteran guide portrait-faithful materials (olive hooded parka, folded warm golden scarf, salt-and-pepper hair)
     fab_n = s95.make_fabric_normal_image("Tex_ChenRipstop", 256, 14, 0.36)
     lth_n = s95.make_leather_normal_image("Tex_ChenLeather", 256)
-    m_coat = s95.make_pbr_mat("Chen_RangerCoat", s95.srgb(46, 92, 74), roughness=0.70, normal_img=fab_n, normal_scale=0.34, tex_scale=10.0)
-    m_vest = s95.make_pbr_mat("Chen_FieldVest", s95.srgb(58, 52, 44), roughness=0.68, normal_img=fab_n, normal_scale=0.38, tex_scale=12.0)
-    m_scarf = s95.make_pbr_mat("Chen_GoldScarf", s95.srgb(220, 168, 66), roughness=0.74, normal_img=fab_n, normal_scale=0.38, tex_scale=14.0)
-    m_pants = s95.make_pbr_mat("Chen_FieldPants", s95.srgb(44, 48, 52), roughness=0.76, normal_img=fab_n, normal_scale=0.34, tex_scale=9.0)
-    m_boot = s95.make_pbr_mat("Chen_Boots", s95.srgb(74, 52, 38), roughness=0.58, normal_img=lth_n, normal_scale=0.40, tex_scale=8.0)
-    m_hat = s95.make_pbr_mat("Chen_ScoutHat", s95.srgb(42, 72, 58), roughness=0.72, normal_img=fab_n, normal_scale=0.32, tex_scale=10.0)
-    m_brass = s95.make_pbr_mat("Chen_Brass", s95.srgb(208, 164, 74), roughness=0.30, metallic=0.82)
-    m_glass = s95.make_pbr_mat("Chen_OpticLens", s95.srgb(38, 128, 152), roughness=0.10, metallic=0.25)
-    m_hair = s95.make_pbr_mat("Chen_VeteranHair", s95.srgb(46, 48, 54), roughness=0.54)
-    # Slightly warmer sun-tanned skin for veteran field guide
-    pal["skin"] = s95.make_pbr_mat("Chen_Skin", s95.srgb(214, 162, 126), roughness=0.58)
-    pal["eyebrow"] = m_hair
+    m_coat = s95.make_pbr_mat("Chen_RangerCoat", s95.srgb(52, 74, 58), roughness=0.72, normal_img=fab_n, normal_scale=0.34, tex_scale=10.0)
+    m_vest = s95.make_pbr_mat("Chen_FieldVest", s95.srgb(44, 56, 46), roughness=0.70, normal_img=fab_n, normal_scale=0.38, tex_scale=12.0)
+    m_scarf = s95.make_pbr_mat("Chen_GoldScarf", s95.srgb(192, 138, 44), roughness=0.78, normal_img=fab_n, normal_scale=0.40, tex_scale=14.0)
+    m_pants = s95.make_pbr_mat("Chen_FieldPants", s95.srgb(42, 46, 50), roughness=0.76, normal_img=fab_n, normal_scale=0.34, tex_scale=9.0)
+    m_boot = s95.make_pbr_mat("Chen_Boots", s95.srgb(64, 48, 36), roughness=0.58, normal_img=lth_n, normal_scale=0.40, tex_scale=8.0)
+    m_strap = s95.make_pbr_mat("Chen_DarkGear", s95.srgb(28, 32, 34), roughness=0.55, metallic=0.18)
+    m_radio = s95.make_pbr_mat("Chen_RadioOlive", s95.srgb(58, 72, 54), roughness=0.48, metallic=0.28)
+    m_brass = s95.make_pbr_mat("Chen_Brass", s95.srgb(214, 168, 72), roughness=0.28, metallic=0.84)
+    m_glass = s95.make_pbr_mat("Chen_OpticLens", s95.srgb(42, 138, 164), roughness=0.10, metallic=0.25)
+    m_hair_dark = s95.make_pbr_mat("Chen_HairCharcoal", s95.srgb(38, 40, 46), roughness=0.60)
+    m_hair_silver = s95.make_pbr_mat("Chen_HairSilver", s95.srgb(138, 144, 152), roughness=0.54)
+    # Warm sun-weathered rugged veteran Jiangnan ranger skin (reads naturally in bright daylight!)
+    pal["skin"] = s95.make_pbr_mat("Chen_Skin", s95.srgb(186, 134, 98), roughness=0.66)
+    pal["eyebrow"] = m_hair_dark
 
     color_swat_body_zones(body, m_coat, m_vest, m_boot, pal["skin"], m_brass)
     clean_mesh_materials(legs, m_pants)
     clean_mesh_materials(feet, m_boot)
 
-    # Real sculpted Blender Studio CC0 stylized face + expressive eyes!
+    # Real sculpted Blender Studio CC0 stylized face + expressive eyes (NO floating hat!)
     head_obj, eyes_obj, hinfo = s95.build_sculpted_blender_studio_head(arm, pal)
     head_obj.name = "Chen_Head"
     eyes_obj.name = "Chen_Eyes"
 
-    # Trim hair + sculpted Jiangnan wide-brim ranger scout hat + mustache/stubble ridge
+    # Portrait-faithful short brushed salt-and-pepper veteran hair extracted seamlessly from actual head cranium!
     head_top = hinfo["z_max"]
-    head_y = 0.5 * (hinfo["y_min"] + hinfo["y_max"])
-    bm_hat = bmesh.new()
-    # Hair sideburns & back crown peeking cleanly under scout hat
-    s95.add_sphere_mesh(bm_hat, (0.0, head_y + 0.014, head_top - 0.088), (0.096, 0.106, 0.085), segs=16, rings=10, mat_idx=2)
-    # Wide-brim Jiangnan ranger hat (slightly tilted back so his sculpted face & eyes read clearly!)
-    hat_c = Vector((0.0, head_y + 0.008, head_top - 0.032))
-    s95.add_cyl_mesh(bm_hat, hat_c + Vector((0, 0, 0.038)), 0.106, 0.072, 0.092, segs=22, rot_euler=(math.radians(-6), 0, 0), mat_idx=0)
-    s95.add_cyl_mesh(bm_hat, hat_c + Vector((0, 0, -0.005)), 0.235, 0.112, 0.036, segs=26, rot_euler=(math.radians(-6), 0, 0), mat_idx=0)
-    # Brass hatband & cloud badge at front
-    s95.add_cyl_mesh(bm_hat, hat_c + Vector((0, 0, 0.018)), 0.108, 0.104, 0.022, segs=22, rot_euler=(math.radians(-6), 0, 0), mat_idx=1)
-    s95.add_box_mesh(bm_hat, hat_c + Vector((0, -0.108, 0.022)), (0.038, 0.012, 0.028), rot_euler=(math.radians(-6), 0, 0), mat_idx=1, bevel=0.004)
-    hat_obj = attach_mesh_to_bone(arm, "Chen_ScoutHat", bm_hat, [m_hat, m_brass, m_hair], "Head")
+    head_y_max = hinfo["y_max"]
+    eye_z = hinfo["eye_z"]
+    eye_y = hinfo["eye_y"]
+    head_cy = 0.5 * (eye_y + head_y_max)
 
-    # Golden collar scarf + chest binoculars + belt field radio + ranger shoulder satchel
+    bm_hair = bmesh.new()
+    # 1) Exact form-fitting cranium scalp shell (zero floating seam, zero ear clipping, clean hairline above forehead!)
+    bm_scalp = bmesh.new()
+    bm_scalp.from_mesh(head_obj.data)
+    bm_scalp.verts.ensure_lookup_table()
+    bm_scalp.faces.ensure_lookup_table()
+    keep_faces = set()
+    for f in bm_scalp.faces:
+        c = f.calc_center_median()
+        is_ear = (abs(c.x) > 0.068 and (eye_z - 0.036) < c.z < (eye_z + 0.018) and abs(c.y - head_cy) < 0.038)
+        if is_ear:
+            continue
+        # Natural lower hairline covering upper forehead + neat trimmed sides + clean rear skull down to nape
+        in_crown = (c.z > eye_z + 0.030) and (c.y > eye_y + 0.002)
+        in_back = (c.y > head_cy + 0.002) and (c.z > eye_z - 0.070)
+        in_temple = (abs(c.x) > 0.054) and (c.y > eye_y + 0.020) and (c.z > eye_z - 0.004)
+        if in_crown or in_back or in_temple:
+            keep_faces.add(f)
+    del_f = [f for f in bm_scalp.faces if f not in keep_faces]
+    bmesh.ops.delete(bm_scalp, geom=del_f, context="FACES")
+    bm_scalp.normal_update()
+    for _ in range(3):
+        bmesh.ops.smooth_vert(bm_scalp, verts=list(bm_scalp.verts), factor=0.40, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    bm_scalp.normal_update()
+    for v in bm_scalp.verts:
+        thick = 0.015 if v.co.z > eye_z + 0.055 else (0.011 if v.co.y > head_cy else 0.008)
+        v.co += v.normal * thick
+    res_ext = bmesh.ops.extrude_face_region(bm_scalp, geom=list(bm_scalp.faces))
+    for g in res_ext["geom"]:
+        if isinstance(g, bmesh.types.BMVert):
+            g.co -= g.normal * 0.009
+    for f in bm_scalp.faces:
+        c = f.calc_center_median()
+        is_temple_silver = (abs(c.x) > 0.068 and c.z < eye_z + 0.044 and c.y < head_cy + 0.018)
+        f.material_index = 1 if is_temple_silver else 0
+        f.smooth = True
+    scalp_tmp = bpy.data.meshes.new("_chen_scalp_tmp")
+    bm_scalp.to_mesh(scalp_tmp)
+    bm_scalp.free()
+    bm_hair.from_mesh(scalp_tmp)
+    bpy.data.meshes.remove(scalp_tmp)
+
+    # 2) Handsome side-parted brushed veteran hair locks (feathered forehead sweep + temple silver streaks matching chen_guide.png!)
+    chen_locks = [
+        # Side-parted swept forehead bangs framing upper forehead naturally (eliminates bald swim-cap look!)
+        ([(-0.048, eye_y + 0.004, head_top - 0.036), (-0.006, eye_y - 0.012, eye_z + 0.058), (0.044, eye_y - 0.006, eye_z + 0.040)], [0.036, 0.040, 0.018], [0.014, 0.016, 0.009], 0),
+        ([(-0.022, head_cy - 0.030, head_top + 0.006), (0.016, eye_y - 0.010, eye_z + 0.066), (0.056, eye_y + 0.006, eye_z + 0.046)], [0.042, 0.040, 0.018], [0.015, 0.016, 0.009], 0),
+        ([(-0.056, head_cy - 0.022, head_top - 0.014), (-0.064, eye_y + 0.002, eye_z + 0.048), (-0.068, eye_y + 0.016, eye_z + 0.024)], [0.034, 0.032, 0.014], [0.012, 0.013, 0.008], 0),
+        # Soft layered brushed crown volume curving smoothly back
+        ([(0.000, eye_y + 0.004, head_top - 0.012), (0.006, head_cy - 0.006, head_top + 0.022), (0.008, head_cy + 0.046, head_top + 0.006)], [0.064, 0.068, 0.042], [0.016, 0.022, 0.013], 0),
+        ([(-0.040, eye_y + 0.014, head_top - 0.024), (-0.046, head_cy - 0.006, head_top + 0.012), (-0.046, head_cy + 0.040, head_top - 0.004)], [0.048, 0.050, 0.032], [0.014, 0.017, 0.010], 0),
+        ([(0.042, eye_y + 0.012, head_top - 0.024), (0.048, head_cy - 0.006, head_top + 0.012), (0.048, head_cy + 0.040, head_top - 0.004)], [0.048, 0.050, 0.032], [0.014, 0.017, 0.010], 0),
+        # Subtle signature salt-and-pepper silver streaks swept near temples & part
+        ([(-0.030, eye_y + 0.004, head_top - 0.024), (-0.004, eye_y - 0.014, eye_z + 0.062), (0.024, head_cy - 0.012, head_top + 0.014)], [0.014, 0.016, 0.010], [0.009, 0.011, 0.007], 1),
+        ([(-0.068, eye_y + 0.024, eye_z + 0.032), (-0.075, head_cy - 0.004, eye_z + 0.022), (-0.068, head_cy + 0.034, eye_z + 0.002)], [0.020, 0.020, 0.012], [0.008, 0.009, 0.006], 1),
+        ([(0.068, eye_y + 0.024, eye_z + 0.032), (0.075, head_cy - 0.004, eye_z + 0.022), (0.068, head_cy + 0.034, eye_z + 0.002)], [0.020, 0.020, 0.012], [0.008, 0.009, 0.006], 1),
+        # Neat sideburns in front of ears
+        ([(-0.070, eye_y + 0.032, eye_z + 0.020), (-0.073, eye_y + 0.028, eye_z - 0.004), (-0.068, eye_y + 0.026, eye_z - 0.024)], [0.015, 0.013, 0.006], [0.007, 0.006, 0.004], 1),
+        ([(0.070, eye_y + 0.032, eye_z + 0.020), (0.073, eye_y + 0.028, eye_z - 0.004), (0.068, eye_y + 0.026, eye_z - 0.024)], [0.015, 0.013, 0.006], [0.007, 0.006, 0.004], 1),
+        # Clean trimmed back-of-head layers
+        ([(0.000, head_y_max - 0.014, head_top - 0.030), (0.000, head_y_max + 0.014, eye_z + 0.006), (0.000, head_y_max + 0.004, eye_z - 0.058)], [0.088, 0.078, 0.044], [0.016, 0.014, 0.008], 0),
+        ([(-0.048, head_y_max - 0.024, head_top - 0.040), (-0.058, head_y_max + 0.004, eye_z + 0.002), (-0.050, head_y_max - 0.006, eye_z - 0.054)], [0.050, 0.044, 0.024], [0.012, 0.011, 0.007], 0),
+        ([(0.048, head_y_max - 0.024, head_top - 0.040), (0.058, head_y_max + 0.004, eye_z + 0.002), (0.050, head_y_max - 0.006, eye_z - 0.054)], [0.050, 0.044, 0.024], [0.012, 0.011, 0.007], 0),
+    ]
+    for pts, ws, ts, midx in chen_locks:
+        s95.add_ribbon_strip(bm_hair, pts, ws, ts, mat_idx=midx)
+
+    hair_obj = attach_mesh_to_bone(arm, "Chen_VeteranHair", bm_hair, [m_hair_dark, m_hair_silver], "Head")
+
+    # Portrait-faithful ranger field gear: olive hooded parka collar, neatly folded ribbed golden-ochre scarf,
+    # dual-barrel black binoculars on chest strap, olive radio on left shoulder strap, brass whistle on right!
     bm_gear = bmesh.new()
-    # Warm golden woven collar scarf + trailing front drape
-    s95.add_cyl_mesh(bm_gear, (0.0, 0.012, 1.415), 0.118, 0.108, 0.078, segs=20, mat_idx=0)
-    s95.add_box_mesh(bm_gear, (0.055, -0.112, 1.315), (0.088, 0.028, 0.21), rot_euler=(0.14, 0.0, -0.15), mat_idx=0, bevel=0.009)
-    s95.add_box_mesh(bm_gear, (-0.062, -0.108, 1.335), (0.078, 0.026, 0.16), rot_euler=(0.12, 0.0, 0.18), mat_idx=0, bevel=0.009)
-    # Field binoculars hanging on chest
+    # Folded olive parka collar & hood bunched neatly behind neck/shoulders (mat_idx=5 -> m_coat)
+    s95.add_cyl_mesh(bm_gear, (0.0, 0.056, 1.398), 0.146, 0.130, 0.068, segs=20, rot_euler=(0.24, 0.0, 0.0), mat_idx=5)
+    # Sleek folded warm golden-ochre scarf nestled tightly inside open parka collar (clean tubular collar fold!)
+    s95.add_cyl_mesh(bm_gear, (0.0, 0.012, 1.392), 0.102, 0.094, 0.052, segs=20, mat_idx=0)
+    s95.add_cyl_mesh(bm_gear, (0.0, 0.002, 1.356), 0.106, 0.098, 0.036, segs=20, rot_euler=(0.14, 0.0, 0.0), mat_idx=0)
+    s95.add_box_mesh(bm_gear, (0.016, -0.096, 1.326), (0.068, 0.024, 0.088), rot_euler=(0.16, 0.0, -0.14), mat_idx=0, bevel=0.010)
+    # Harness shoulder straps for radio, binoculars & whistle (mat_idx=4 -> m_strap)
+    for sx in (-0.125, 0.125):
+        s95.add_box_mesh(bm_gear, (sx, -0.102, 1.24), (0.036, 0.014, 0.34), rot_euler=(0.06, 0.0, 0.0), mat_idx=4, bevel=0.004)
+    # Dual-barrel black field binoculars hanging on chest with teal optic lenses & center focus wheel
     for bx in (-0.036, 0.036):
-        s95.add_cyl_mesh(bm_gear, (bx, -0.152, 1.245), 0.024, 0.020, 0.115, segs=14, rot_euler=(math.radians(78), 0, 0), mat_idx=1)
-        s95.add_cyl_mesh(bm_gear, (bx, -0.208, 1.233), 0.018, 0.018, 0.010, segs=12, rot_euler=(math.radians(78), 0, 0), mat_idx=3)
-    s95.add_box_mesh(bm_gear, (0.0, -0.148, 1.248), (0.052, 0.042, 0.026), mat_idx=2, bevel=0.005)
-    # Rolled topographic map tube + radio pouch on hip/chest
-    s95.add_cyl_mesh(bm_gear, (-0.155, 0.025, 1.015), 0.028, 0.028, 0.28, segs=12, rot_euler=(0.2, 0.85, 0.0), mat_idx=2)
-    s95.add_box_mesh(bm_gear, (0.145, -0.095, 1.18), (0.058, 0.042, 0.11), mat_idx=1, bevel=0.008)
-    s95.add_cyl_mesh(bm_gear, (0.162, -0.095, 1.29), 0.004, 0.003, 0.14, segs=8, mat_idx=2)
-    gear_obj = attach_mesh_to_bone(arm, "Chen_RangerGear", bm_gear, [m_scarf, m_vest, m_brass, m_glass], "Chest")
+        s95.add_cyl_mesh(bm_gear, (bx, -0.148, 1.205), 0.025, 0.020, 0.118, segs=16, rot_euler=(math.radians(80), 0, 0), mat_idx=4)
+        s95.add_cyl_mesh(bm_gear, (bx, -0.206, 1.194), 0.019, 0.019, 0.010, segs=14, rot_euler=(math.radians(80), 0, 0), mat_idx=3)
+    s95.add_box_mesh(bm_gear, (0.0, -0.146, 1.208), (0.056, 0.044, 0.024), mat_idx=4, bevel=0.005)
+    s95.add_cyl_mesh(bm_gear, (0.0, -0.128, 1.216), 0.012, 0.012, 0.028, segs=12, rot_euler=(math.radians(80), 0, 0), mat_idx=2)
+    # Tactical olive field radio with whip antenna clipped to LEFT shoulder strap (x > 0 in Blender front view!)
+    s95.add_box_mesh(bm_gear, (0.140, -0.116, 1.275), (0.056, 0.038, 0.105), mat_idx=6, bevel=0.008)
+    s95.add_box_mesh(bm_gear, (0.140, -0.138, 1.288), (0.036, 0.008, 0.042), mat_idx=4, bevel=0.003)
+    s95.add_cyl_mesh(bm_gear, (0.156, -0.114, 1.385), 0.0045, 0.003, 0.135, segs=8, mat_idx=4)
+    # Brass scout whistle clipped cleanly to RIGHT shoulder strap (matching chen_guide.png!)
+    s95.add_cyl_mesh(bm_gear, (-0.128, -0.118, 1.245), 0.010, 0.008, 0.046, segs=12, rot_euler=(0.12, 0.0, 0.08), mat_idx=2)
+    # Rolled topographic map tube at hip
+    s95.add_cyl_mesh(bm_gear, (-0.152, 0.020, 0.995), 0.026, 0.026, 0.27, segs=12, rot_euler=(0.2, 0.85, 0.0), mat_idx=2)
+    gear_obj = attach_mesh_to_bone(
+        arm,
+        "Chen_RangerGear",
+        bm_gear,
+        [m_scarf, m_vest, m_brass, m_glass, m_strap, m_coat, m_radio],
+        "Chest",
+    )
 
     # Smooth natural breathing & camp-survey Idle animation!
     if arm.animation_data is None:
@@ -206,7 +286,7 @@ def build_chen_guide():
     )
     push_actions_to_nla(arm, acts)
 
-    meshes = [body, legs, feet, head_obj, eyes_obj, hat_obj, gear_obj]
+    meshes = [body, legs, feet, head_obj, eyes_obj, hair_obj, gear_obj]
     export_rig_glb(arm, meshes, SLICE_DIR / "npc_chen_guide.glb")
 
 
@@ -359,9 +439,11 @@ def build_mistbound_trooper(variant: str):
 
 
 def main():
+    only_chen = "--only-chen" in sys.argv
     build_chen_guide()
-    build_mistbound_trooper("assault")
-    build_mistbound_trooper("sniper")
+    if not only_chen:
+        build_mistbound_trooper("assault")
+        build_mistbound_trooper("sniper")
     print("V097_CHARACTER_RIGS_COMPLETE")
 
 

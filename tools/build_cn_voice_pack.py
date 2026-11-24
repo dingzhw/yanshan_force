@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate offline Chinese faction & boss voice pack (.ogg) for Yanshan Force v0.9.3.
+"""Generate offline Chinese faction & boss voice pack (.ogg) for Yanshan Force v0.9.8.
 
-Synthesizes 63 expressive Chinese dialogue lines across all enemy factions & bosses
-(Ahsarah Guard, Captain Saeed, Warlord Reis, HAAVK Security, Yanshan Mistbound Clan,
-Ironface Vanguard, Skyfall Overlord, and Yanxia Cave Acoustic Warden) using edge-tts
-neural Chinese voices + tailored ffmpeg acoustic filters (radio bandpass for HAAVK,
-valley majesty echo for Overlord, cavern resonance for Cave Warden).
+Synthesizes 66 expressive Chinese dialogue lines across all 8 enemy factions & bosses
+with genuinely distinct neural voice actors + vocal-tract formant shifting (asetrate/atempo)
+and character-specific acoustic shaping (desert grit, hunter baritone, booming warlord
+gramophone hall, corporate female helmet-comms radio, agile young mountain scout,
+forged iron-mask cavity resonance, cloud-peak sovereign chorus, and monolithic cavern stone).
 
 Outputs:
   game/assets/voice_cn/*.ogg
@@ -28,64 +28,109 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 GAME_DIR = ROOT / "game"
 OUT_DIR = GAME_DIR / "assets" / "voice_cn"
 MANIFEST_PATH = GAME_DIR / "data" / "audio" / "cn_voice_manifest.json"
-CONCURRENCY = 5
+CONCURRENCY = 4
 
 PROFILES = {
     "ahsarah_guard": {
         "speaker": "阿萨拉卫队",
-        "voice": "zh-CN-YunxiNeural",
-        "rate": "+5%",
-        "pitch": "-6Hz",
-        "af": "highpass=f=120,equalizer=f=2400:t=q:w=1.2:g=2.5,loudnorm=I=-15:TP=-1.5:LRA=8",
+        "voice": "zh-CN-YunjianNeural",
+        "rate": "+7%",
+        "pitch": "-4Hz",
+        "timbre": "gruff_desert_mercenary",
+        "af": (
+            "aresample=24000,asetrate=24000*0.93,aresample=24000,atempo=1.0753,"
+            "highpass=f=130,equalizer=f=1850:t=q:w=1.1:g=3.4,equalizer=f=3100:t=q:w=1.4:g=2.0,"
+            "acompressor=threshold=0.14:ratio=3.5:attack=10:release=90,"
+            "loudnorm=I=-14.5:TP=-1.5:LRA=8"
+        ),
     },
     "boss_saeed": {
         "speaker": "赤枭·赛伊德",
-        "voice": "zh-CN-YunjianNeural",
-        "rate": "+2%",
-        "pitch": "-4Hz",
-        "af": "highpass=f=95,equalizer=f=200:t=q:w=1.1:g=2.0,equalizer=f=2800:t=q:w=1.3:g=2.5,loudnorm=I=-14:TP=-1.2:LRA=9",
+        "voice": "zh-CN-YunxiaNeural",
+        "rate": "+0%",
+        "pitch": "-8Hz",
+        "timbre": "predatory_hunter_baritone",
+        "af": (
+            "aresample=24000,asetrate=24000*0.80,aresample=24000,atempo=1.2500,"
+            "highpass=f=100,equalizer=f=230:t=q:w=1.1:g=3.4,equalizer=f=3200:t=q:w=1.3:g=3.0,"
+            "acompressor=threshold=0.15:ratio=3.4:attack=8:release=85,"
+            "loudnorm=I=-14:TP=-1.2:LRA=9"
+        ),
     },
     "boss_reis": {
         "speaker": "阿萨拉军阀·雷斯",
         "voice": "zh-CN-YunyangNeural",
-        "rate": "-2%",
-        "pitch": "-10Hz",
-        "af": "highpass=f=85,equalizer=f=160:t=q:w=1.0:g=3.2,equalizer=f=2200:t=q:w=1.2:g=1.8,loudnorm=I=-14:TP=-1.2:LRA=9",
+        "rate": "-6%",
+        "pitch": "-8Hz",
+        "timbre": "booming_warlord_gramophone_hall",
+        "af": (
+            "aresample=24000,asetrate=24000*0.81,aresample=24000,atempo=1.2346,"
+            "highpass=f=80,equalizer=f=155:t=q:w=1.0:g=4.0,equalizer=f=2100:t=q:w=1.2:g=1.8,"
+            "aecho=0.88:0.74:38:0.20,loudnorm=I=-14:TP=-1.2:LRA=9"
+        ),
     },
     "haavk_trooper": {
         "speaker": "哈夫克特勤",
-        "voice": "zh-CN-XiaoyiNeural",
-        "rate": "+4%",
-        "pitch": "-3Hz",
-        "af": "highpass=f=360,lowpass=f=3200,acompressor=threshold=0.14:ratio=4.5:attack=8:release=80,equalizer=f=1600:t=q:w=1.4:g=3.0,loudnorm=I=-15:TP=-1.5:LRA=7",
+        "voice": "zh-CN-XiaoxiaoNeural",
+        "rate": "+8%",
+        "pitch": "+3Hz",
+        "timbre": "cold_corporate_female_radio",
+        "af": (
+            "aresample=24000,asetrate=24000*1.04,aresample=24000,atempo=0.9615,"
+            "highpass=f=440,lowpass=f=3150,equalizer=f=1750:t=q:w=1.6:g=4.2,"
+            "acompressor=threshold=0.10:ratio=5.8:attack=5:release=60,"
+            "aecho=0.82:0.55:14:0.22,loudnorm=I=-14.5:TP=-1.5:LRA=7"
+        ),
     },
     "mistbound_soldier": {
         "speaker": "雾隐词兵",
         "voice": "zh-CN-YunxiNeural",
-        "rate": "+3%",
-        "pitch": "-2Hz",
-        "af": "highpass=f=115,equalizer=f=2500:t=q:w=1.2:g=2.0,loudnorm=I=-15:TP=-1.5:LRA=8",
+        "rate": "+9%",
+        "pitch": "+6Hz",
+        "timbre": "agile_young_mountain_scout",
+        "af": (
+            "aresample=24000,asetrate=24000*1.07,aresample=24000,atempo=0.9346,"
+            "highpass=f=145,equalizer=f=2700:t=q:w=1.2:g=2.6,"
+            "loudnorm=I=-15:TP=-1.5:LRA=8"
+        ),
     },
     "boss_ironface": {
         "speaker": "雾隐先锋·铁面词卫",
         "voice": "zh-CN-YunjianNeural",
-        "rate": "+0%",
-        "pitch": "-6Hz",
-        "af": "highpass=f=90,equalizer=f=180:t=q:w=1.0:g=2.8,loudnorm=I=-14:TP=-1.2:LRA=9",
+        "rate": "-5%",
+        "pitch": "-10Hz",
+        "timbre": "forged_iron_mask_enforcer",
+        "af": (
+            "aresample=24000,asetrate=24000*0.83,aresample=24000,atempo=1.2048,"
+            "highpass=f=135,lowpass=f=3450,equalizer=f=680:t=q:w=2.1:g=5.2,equalizer=f=1550:t=q:w=2.3:g=4.4,"
+            "aecho=0.85:0.65:16|29:0.34|0.20,loudnorm=I=-14:TP=-1.2:LRA=9"
+        ),
     },
     "boss_overlord": {
         "speaker": "雾隐机关王·玄铁词尊",
-        "voice": "zh-CN-YunyangNeural",
-        "rate": "-5%",
-        "pitch": "-12Hz",
-        "af": "highpass=f=80,equalizer=f=150:t=q:w=1.0:g=3.5,aecho=0.85:0.76:48:0.24,loudnorm=I=-14:TP=-1.2:LRA=9",
+        "voice": "zh-CN-YunxiNeural",
+        "rate": "-10%",
+        "pitch": "-14Hz",
+        "timbre": "cloud_peak_sovereign_chorus",
+        "af": (
+            "aresample=24000,asetrate=24000*0.76,aresample=24000,atempo=1.3158,"
+            "highpass=f=75,equalizer=f=145:t=q:w=1.0:g=4.0,"
+            "chorus=0.7:0.8:35|55:0.22|0.18:0.3|0.4:1.4|1.9,"
+            "aecho=0.85:0.78:68|138:0.30|0.16,loudnorm=I=-14:TP=-1.2:LRA=9"
+        ),
     },
     "cave_warden": {
         "speaker": "古洞循音石卫",
         "voice": "zh-CN-YunyangNeural",
-        "rate": "-10%",
-        "pitch": "-18Hz",
-        "af": "highpass=f=70,lowpass=f=2900,equalizer=f=130:t=q:w=1.0:g=4.0,aecho=0.85:0.80:75|145:0.34|0.18,loudnorm=I=-14:TP=-1.2:LRA=9",
+        "rate": "-14%",
+        "pitch": "-16Hz",
+        "timbre": "monolithic_cavern_stone_colossus",
+        "af": (
+            "aresample=24000,asetrate=24000*0.69,aresample=24000,atempo=1.4493,"
+            "highpass=f=55,lowpass=f=2150,equalizer=f=110:t=q:w=0.9:g=5.5,"
+            "flanger=delay=4:depth=1.8:speed=0.35,"
+            "aecho=0.82:0.82:95|195:0.42|0.24,loudnorm=I=-13.5:TP=-1.2:LRA=9"
+        ),
     },
 }
 
@@ -163,12 +208,15 @@ LINES = [
     ("over_06", "boss_overlord", "combat", "竟能从天地万象下稳住阵脚，有点意思！", None),
     ("over_07", "boss_overlord", "combat", "来吧，看看你的词汇量够不够硬！", None),
 
-    # 8. Yanxia Cave Acoustic Warden (5)
+    # 8. Yanxia Cave Acoustic Warden (8)
     ("cave_01", "cave_warden", "proximity", "擅入烟霞古洞者……止步！", "擅入烟霞古洞者，止步！"),
     ("cave_02", "cave_warden", "alert", "我听见你的脚步了……", "我听见你的脚步了。"),
     ("cave_03", "cave_warden", "alert", "屏息静气，也藏不住你的动静！", None),
     ("cave_04", "cave_warden", "skill_lance", "藏在暗处放冷枪？穿石声波——锁！", "藏在暗处放冷枪？穿石声波，锁！"),
     ("cave_05", "cave_warden", "proximity", "休想染指一线天后的次元石壁！", None),
+    ("cave_06", "cave_warden", "skill_rush", "响动暴露了你的位置——石躯冲锋！", "响动暴露了你的位置，石躯冲锋！"),
+    ("cave_07", "cave_warden", "wall_stun", "呃……石壁震裂！双盾暂开！", "呃，石壁震裂！双盾暂开！"),
+    ("cave_08", "cave_warden", "decoy_lure", "那边……有碎石声响？", "那边，有碎石声响？"),
 ]
 
 
@@ -233,7 +281,7 @@ async def run_build(overwrite: bool) -> None:
     reused = 0
     print(f"Synthesizing {len(LINES)} Chinese faction/boss offline voice lines...", flush=True)
 
-    with tempfile.TemporaryDirectory(prefix="yanshan_cn_voice_") as td:
+    with tempfile.TemporaryDirectory(prefix="yanshan_cn_voice_", ignore_cleanup_errors=True) as td:
         tmp_dir = pathlib.Path(td)
         tasks = [
             synth_one(
@@ -266,6 +314,8 @@ async def run_build(overwrite: bool) -> None:
             "id": lid,
             "group": grp,
             "speaker": PROFILES[grp]["speaker"],
+            "voice_actor": PROFILES[grp]["voice"],
+            "timbre": PROFILES[grp]["timbre"],
             "tag": tag,
             "file": fname,
             "text": sub,
@@ -275,12 +325,13 @@ async def run_build(overwrite: bool) -> None:
         groups.setdefault(grp, []).append(lid)
 
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "language": "zh-CN",
         "audio_format": "ogg_vorbis_mono_24khz",
         "usage_notice": "仅供个人与家庭离线教育试玩使用；对外公开分发前请通过 tools/build_cn_voice_pack.py 替换为开源语音或自录音频。",
         "count": len(entries),
         "total_bytes": total_bytes,
+        "profile_timbres": {k: {"speaker": v["speaker"], "voice": v["voice"], "timbre": v["timbre"]} for k, v in PROFILES.items()},
         "groups": groups,
         "entries": entries,
     }

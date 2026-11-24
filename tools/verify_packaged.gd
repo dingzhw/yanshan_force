@@ -295,6 +295,29 @@ func run():
 			if not (sc is PackedScene):
 				v097_glbs_ok = false
 	verify(pbr_loaded == 27 and v097_glbs_ok, "standalone PCK includes v0.9.7 Poly Haven CC0 1K PBR sets (%d/27 maps) & 5 photogrammetry/skeletal GLBs" % pbr_loaded)
+	var v098_warden_ok := false
+	if ResourceLoader.exists("res://assets/slice/v098_cave_warden.glb"):
+		var w98_p = load("res://assets/slice/v098_cave_warden.glb")
+		if w98_p is PackedScene:
+			var w98_i: Node = w98_p.instantiate()
+			v098_warden_ok = (
+				w98_i.find_child("warden_body", true, false) != null
+				and w98_i.find_child("head_crest", true, false) != null
+				and w98_i.find_child("arm_left_pivot", true, false) != null
+				and w98_i.find_child("arm_right_pivot", true, false) != null
+				and w98_i.find_child("leg_left_pivot", true, false) != null
+				and w98_i.find_child("leg_right_pivot", true, false) != null
+			)
+			w98_i.free()
+	var v098_chen_ok := false
+	if ResourceLoader.exists("res://assets/slice/npc_chen_guide.glb"):
+		var ch98_p = load("res://assets/slice/npc_chen_guide.glb")
+		if ch98_p is PackedScene:
+			var ch98_i: Node = ch98_p.instantiate()
+			v098_chen_ok = (ch98_i.find_child("Chen_VeteranHair", true, false) != null and ch98_i.find_child("Chen_ScoutHat", true, false) == null)
+			ch98_i.free()
+	var cn_timbre_dict: Dictionary = cn_parsed.get("profile_timbres", {}) if (cn_parsed is Dictionary) else {}
+	verify(v098_warden_ok and v098_chen_ok and cn_entries.size() >= 66 and cn_timbre_dict.size() == 8, "standalone PCK includes v0.9.8 portrait-faithful 6-part Cave Warden GLB, hat-free Chen Guide & 66 multi-cast CN voice clips (8 timbres)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

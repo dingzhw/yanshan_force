@@ -1,10 +1,52 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "language": "zh-CN",
   "audio_format": "ogg_vorbis_mono_24khz",
   "usage_notice": "仅供个人与家庭离线教育试玩使用；对外公开分发前请通过 tools/build_cn_voice_pack.py 替换为开源语音或自录音频。",
-  "count": 63,
-  "total_bytes": 1430178,
+  "count": 66,
+  "total_bytes": 1413196,
+  "profile_timbres": {
+    "ahsarah_guard": {
+      "speaker": "阿萨拉卫队",
+      "voice": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary"
+    },
+    "boss_saeed": {
+      "speaker": "赤枭·赛伊德",
+      "voice": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone"
+    },
+    "boss_reis": {
+      "speaker": "阿萨拉军阀·雷斯",
+      "voice": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall"
+    },
+    "haavk_trooper": {
+      "speaker": "哈夫克特勤",
+      "voice": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio"
+    },
+    "mistbound_soldier": {
+      "speaker": "雾隐词兵",
+      "voice": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout"
+    },
+    "boss_ironface": {
+      "speaker": "雾隐先锋·铁面词卫",
+      "voice": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer"
+    },
+    "boss_overlord": {
+      "speaker": "雾隐机关王·玄铁词尊",
+      "voice": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus"
+    },
+    "cave_warden": {
+      "speaker": "古洞循音石卫",
+      "voice": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus"
+    }
+  },
   "groups": {
     "ahsarah_guard": [
       "ag_01",
@@ -83,7 +125,10 @@
       "cave_02",
       "cave_03",
       "cave_04",
-      "cave_05"
+      "cave_05",
+      "cave_06",
+      "cave_07",
+      "cave_08"
     ]
   },
   "entries": {
@@ -91,631 +136,793 @@
       "id": "ag_01",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "proximity",
       "file": "ag_01.ogg",
       "text": "来！咱俩练练！",
-      "bytes": 15713,
-      "sha256": "d59c2e66fbd1ab6ac50ee94f39330de99fac4e128f41c8af9affafe1da5264b0"
+      "bytes": 13996,
+      "sha256": "335f344788e8b0ad8cf42c186e17f461eb02ba5fd08df1ff9c456bda37d1ff7f"
     },
     "ag_02": {
       "id": "ag_02",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "combat",
       "file": "ag_02.ogg",
       "text": "别让他们跑了，围上去！",
-      "bytes": 13526,
-      "sha256": "e33421f44c895e3387fbecbf99953ffd0fd337ac4dd54b43596d11415f472b0d"
+      "bytes": 16759,
+      "sha256": "73ab170bb732b47959a26ca2e8ee2fc10b783f2e2e1013f3f87451ac16aa28dd"
     },
     "ag_03": {
       "id": "ag_03",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "combat",
       "file": "ag_03.ogg",
       "text": "守住防线，都给我顶上去！",
-      "bytes": 15916,
-      "sha256": "d76e25454230fa63c0cc809c574bf55a100ffb5cbe88bb7cbce8e8bca1d9e2cf"
+      "bytes": 18771,
+      "sha256": "ce5c42df17a5678ef706c775b283c05bc8227563af4c2a7a39ea5763e2ed7df3"
     },
     "ag_04": {
       "id": "ag_04",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "proximity",
       "file": "ag_04.ogg",
       "text": "发现外来者！注意掩体，准备开火！",
-      "bytes": 24816,
-      "sha256": "b28e904681e2807f720d3b7ff70632364d744e740b44f5643c4076575486b939"
+      "bytes": 26577,
+      "sha256": "fbd44be7f1133fafe71c2f08e7a5ad50c934c0b032769bea1fa404951ca42724"
     },
     "ag_05": {
       "id": "ag_05",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "proximity",
       "file": "ag_05.ogg",
       "text": "阿萨拉的地盘，可不是你想来就来的！",
-      "bytes": 21159,
-      "sha256": "022f82b14ebbd5c5aef4c962f5bb1f94b05720fe0318c557f175f79344109f68"
+      "bytes": 22802,
+      "sha256": "162c46b66c55b47d0269e801426920bb9cd1d45f42a4d4dd82992f67b81821e5"
     },
     "ag_06": {
       "id": "ag_06",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "combat",
       "file": "ag_06.ogg",
       "text": "快掩护我换位，别露破绽！",
-      "bytes": 14625,
-      "sha256": "61bfdc553f1141423b4745de3774f10d8e68b5ff1c474f5f13acdacbc74ecf27"
+      "bytes": 18499,
+      "sha256": "fa710fbe6a62b5b1fde1e414a2a483c7993e5fdb9ef17a6630ab00effb25e755"
     },
     "ag_07": {
       "id": "ag_07",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "combat",
       "file": "ag_07.ogg",
       "text": "小心侧翼包抄，把词盾撑紧了！",
-      "bytes": 20272,
-      "sha256": "56864b3fa33b8222494a82034563de70219836795bfea05f98249bdc05e38027"
+      "bytes": 21763,
+      "sha256": "9156f2c4b332334b1dcb3ec62db2d0134482b93e4dfe26971d54d5a0ca91567b"
     },
     "ag_08": {
       "id": "ag_08",
       "group": "ahsarah_guard",
       "speaker": "阿萨拉卫队",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "gruff_desert_mercenary",
       "tag": "proximity",
       "file": "ag_08.ogg",
       "text": "哟，还挺能躲的，咱俩接着练！",
-      "bytes": 21137,
-      "sha256": "f634cacb8e13e906323c09620fd5409cca3c56bbfacddfa17f058464b48798e5"
+      "bytes": 22772,
+      "sha256": "94d1497b419790f787564e9b6e70286a4c8353749b8704f6385f0f0d29e4ce77"
     },
     "saeed_01": {
       "id": "saeed_01",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "intro",
       "file": "saeed_01.ogg",
       "text": "父亲教导我，好的猎人懂得尊重猎物……但你，不配！",
-      "bytes": 37608,
-      "sha256": "e5769563f35b3b803f5224bcafd31ddc8705ff000710992cde12562c387018b2"
+      "bytes": 29601,
+      "sha256": "48bae1be84e7b4a339a06d6260269eced40434adb711d7a7d84b22ced157cc4a"
     },
     "saeed_02": {
       "id": "saeed_02",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "proximity",
       "file": "saeed_02.ogg",
       "text": "我看到你了，小耗子！",
-      "bytes": 17169,
-      "sha256": "cc7c52fe1711177c7b54b821d13878d4c51e4d53cc54b74c6d5bd123fbc6644e"
+      "bytes": 14408,
+      "sha256": "c42e288d4dda9319a285ac4ecf892455bfa85460e5de6083eb7f586fd1a90b02"
     },
     "saeed_03": {
       "id": "saeed_03",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "combat",
       "file": "saeed_03.ogg",
       "text": "你掉进陷阱里了！",
-      "bytes": 15176,
-      "sha256": "6bc915afb06469f0a036fe4eabd32442a2abbe128d7ca3bf72f78e2855b3a0a1"
+      "bytes": 13025,
+      "sha256": "e3da6ae9a8f78e27584e5d13c1ddc6694fdd636c5ff453e5f6231e33084c7cca"
     },
     "saeed_04": {
       "id": "saeed_04",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "proximity",
       "file": "saeed_04.ogg",
       "text": "赤枭的领地，轮不到外来者撒野！",
-      "bytes": 24722,
-      "sha256": "f724c5c21da9e9e598597ebcf64bc2473085b724675419e6958552647d38b5f7"
+      "bytes": 20115,
+      "sha256": "7f31d6f9ed5001806ca1bfe1f2ca9cb1b0c28c535034bd8f712d089d313a3963"
     },
     "saeed_05": {
       "id": "saeed_05",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "skill_lmg",
       "file": "saeed_05.ogg",
       "text": "M249 火力压制！看你往哪儿躲！",
-      "bytes": 24349,
-      "sha256": "7d6cadec906d358f38650921fc5a6648e0af3abb649148c76f8e408a9a1020b6"
+      "bytes": 21551,
+      "sha256": "06580f3cc6298a6d9f32b5c5a5a9af29f25fcbc566c6a7911be7ee4bc967aa39"
     },
     "saeed_06": {
       "id": "saeed_06",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "skill_bolt",
       "file": "saeed_06.ogg",
       "text": "尝尝我的燃烧弩箭，烧断你的退路！",
-      "bytes": 25004,
-      "sha256": "86212ce6f231eb0078b7816bcb3b147d5ed40c9e0ebbfda4c7367146947e2b3b"
+      "bytes": 20201,
+      "sha256": "b333f62ad42db095d34a29cbff75a5e614e1b499870cc8c9541346d98e3f2380"
     },
     "saeed_07": {
       "id": "saeed_07",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "skill_smoke",
       "file": "saeed_07.ogg",
       "text": "烟幕掩护，换位包抄！",
-      "bytes": 18589,
-      "sha256": "ed066ecaa4097eb7bbaf73751e78d148b9aeeb2ab8187219ca47bf1ded3c1c9e"
+      "bytes": 15333,
+      "sha256": "34e0fe90f568d328835c7375436071e1531def9fbda070ee22def9ec08e47949"
     },
     "saeed_08": {
       "id": "saeed_08",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "phase",
       "file": "saeed_08.ogg",
       "text": "有两下子，居然破了我的词盾！",
-      "bytes": 20916,
-      "sha256": "210abafe6fcba2c3fb41635b2717bdfb168ab3ff8ffd7e2b3590d60ae29eac30"
+      "bytes": 18215,
+      "sha256": "135f3a52c6cc372b756b212a4107dc5016fd69f9a684e58354bf7cc15ee21fdf"
     },
     "saeed_09": {
       "id": "saeed_09",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "proximity",
       "file": "saeed_09.ogg",
       "text": "想带走曼德尔砖？先问问我手里的枪！",
-      "bytes": 25995,
-      "sha256": "0a5219cd9d225b14508c98dd6b48d478becd7cdcbbfe0815b90575b055b45d58"
+      "bytes": 23176,
+      "sha256": "9335aa3d204e91d057328ae94a675b09dffc637534e26715bb1b9ca05de155b3"
     },
     "saeed_10": {
       "id": "saeed_10",
       "group": "boss_saeed",
       "speaker": "赤枭·赛伊德",
+      "voice_actor": "zh-CN-YunxiaNeural",
+      "timbre": "predatory_hunter_baritone",
       "tag": "combat",
       "file": "saeed_10.ogg",
       "text": "还站得起来？那就继续，小耗子！",
-      "bytes": 25193,
-      "sha256": "a6a3a6d33ce09ae62689d37138fe6a259d0c84ab26ec0a6b04f1998bda57533c"
+      "bytes": 23193,
+      "sha256": "7b96ff234d66f7c54308d1d450bac0033c406251e1d42e21c210caa9a659cfc6"
     },
     "reis_01": {
       "id": "reis_01",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "intro",
       "file": "reis_01.ogg",
       "text": "把留声机开大声点！没有交响乐的战场，简直粗俗不堪！",
-      "bytes": 38193,
-      "sha256": "bc57f4d0faad84998980cb867d6dc2a2e315c23926f831ea0213a4099d573f95"
+      "bytes": 36224,
+      "sha256": "f7a6b6fecf19be59fe0fecc33f5980e63516f1dc4ca2d8c328e7004bf0af249d"
     },
     "reis_02": {
       "id": "reis_02",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "proximity",
       "file": "reis_02.ogg",
       "text": "在阿萨拉，规矩由枪口和黄金说了算！",
-      "bytes": 27160,
-      "sha256": "634a6abe1aa24256c0b4c0be87e978e0cd6bd9ad9e38700d1a678381ceb1a0c5"
+      "bytes": 26352,
+      "sha256": "e72222990e8a27b3c79e82a743d29b450893beeacbbc4d48ac4480c578aaf29d"
     },
     "reis_03": {
       "id": "reis_03",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "skill_sonic",
       "file": "reis_03.ogg",
       "text": "听听这首交响乐，专为你的撤离倒计时准备的！",
-      "bytes": 28953,
-      "sha256": "6b0dd138acc7ddf36a3b60b3b89101332d2849e9dc95308864a91196eb321a87"
+      "bytes": 27245,
+      "sha256": "af3c8d225cdd01bb6094607c11016f0b2ae2d4613803cdddb0ef86b252b690ce"
     },
     "reis_04": {
       "id": "reis_04",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "skill_shotgun",
       "file": "reis_04.ogg",
       "text": "重甲突击！尝尝霰弹枪的滋味！",
-      "bytes": 24593,
-      "sha256": "0f4ac20badee8cad8170d9bf62b56e0cf0de52c0772823f57f4c6505e272acca"
+      "bytes": 23411,
+      "sha256": "8cf09f48abd3a2a4f89752f0ef75588a091ec67d5c48f3acb3067039258e9141"
     },
     "reis_05": {
       "id": "reis_05",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "skill_grenade",
       "file": "reis_05.ogg",
       "text": "送你三颗破片手雷，跟着节奏跳支舞吧！",
-      "bytes": 26865,
-      "sha256": "faafa76093b499ba3a07881cf30ed827f17eb16750a03d7249975dc920e22e74"
+      "bytes": 25412,
+      "sha256": "1e6172bd1a632853c0b5dc5de9ac22851c0c45ba743aa3a48385e5514da43de9"
     },
     "reis_06": {
       "id": "reis_06",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "phase",
       "file": "reis_06.ogg",
       "text": "近卫们！出来好好招待一下我们的贵客！",
-      "bytes": 27185,
-      "sha256": "8008a4ce648cb8994d6804bcfdbba307e457b8a3551318b6022ceca99cb833dc"
+      "bytes": 25350,
+      "sha256": "e1d0495bd5ba1838111f3f6666c5433bbe0f52eb52a37fca971787defa1698e3"
     },
     "reis_07": {
       "id": "reis_07",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "skill_ult",
       "file": "reis_07.ogg",
       "text": "零号大坝听令！重炮泄洪，全区覆盖！",
-      "bytes": 28209,
-      "sha256": "a66e5b4318bff9ce54724ba54b528ace0551738f1909cd943eff3e685c103620"
+      "bytes": 27055,
+      "sha256": "d965be88c6c1841e0b6cfb3a32bd1e2461ccbe216878d6bb978044a8dffa5f26"
     },
     "reis_08": {
       "id": "reis_08",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "combat",
       "file": "reis_08.ogg",
       "text": "哈哈哈，居然撑过了零号大坝的炮火！",
-      "bytes": 23034,
-      "sha256": "285fd1a32d12707157ecf023d66ed643370ed1dc39b90ce02cf0fc469db28921"
+      "bytes": 22225,
+      "sha256": "a070e87c487ad18284d29a5a435bfb252cef0f6da6595dafbb3c032a98544299"
     },
     "reis_09": {
       "id": "reis_09",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "proximity",
       "file": "reis_09.ogg",
       "text": "非洲之心，岂是你能轻易带走的？",
-      "bytes": 23579,
-      "sha256": "ca52896769ea1857ed9185ec3414854273db3f81d0e36cb03f9acef810d06bd6"
+      "bytes": 21394,
+      "sha256": "5a2e65215c282fc1f3c838fd849e804625e35a464368108dab33f5a310cc54ca"
     },
     "reis_10": {
       "id": "reis_10",
       "group": "boss_reis",
       "speaker": "阿萨拉军阀·雷斯",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "booming_warlord_gramophone_hall",
       "tag": "combat",
       "file": "reis_10.ogg",
       "text": "不错！你配听完这最后一曲！",
-      "bytes": 21494,
-      "sha256": "b116a255fa73ea80f985272210acb39bfb639ac9cfb60f51072029dbcd246401"
+      "bytes": 20413,
+      "sha256": "e16fccefe8c516daae76c2554a9daf32319e7ae4292ec120ef06c60b19b8ac82"
     },
     "haavk_01": {
       "id": "haavk_01",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "proximity",
       "file": "haavk_01.ogg",
       "text": "警告，未授权目标进入哈夫克管制区。",
-      "bytes": 23220,
-      "sha256": "fd55e38a572123fd2bb347484669e44d8b555d1d29a7429252d17e002c754619"
+      "bytes": 23464,
+      "sha256": "1b1205403339f6ae166f3c3a8742063d9bd286f757cd288c09952976aed551a5"
     },
     "haavk_02": {
       "id": "haavk_02",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "combat",
       "file": "haavk_02.ogg",
       "text": "安保协议三级启动，展开全息词盾阵列。",
-      "bytes": 24306,
-      "sha256": "80cb0f75011732ce3eb0745d0154146f806cd04caf5168b31b91e37cc3c929b1"
+      "bytes": 24710,
+      "sha256": "62a7e7662fb5366085f6e1d1bc1c8f49c1e664f63fbf2c531cd5e260ae761cb8"
     },
     "haavk_03": {
       "id": "haavk_03",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "combat",
       "file": "haavk_03.ogg",
       "text": "监测到曼德尔砖异常信号，立即拦截目标。",
-      "bytes": 24139,
-      "sha256": "dde38752dda08f4367fc13ee642e68e7b170b37e43f208785ad18714dde1e693"
+      "bytes": 24466,
+      "sha256": "c29ea9f02f7ef0d738d3d10834d4cd16ae4ef67b179313bd633ab20a252e70e4"
     },
     "haavk_04": {
       "id": "haavk_04",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "proximity",
       "file": "haavk_04.ogg",
       "text": "保护变电站核心资产，执行精准清除。",
-      "bytes": 24720,
-      "sha256": "2e96c5c17c534cc3a6d987977782dc7588ef3391c2253147b65fe9321938c46c"
+      "bytes": 23390,
+      "sha256": "438199eb1080bd9ba90c71f4bb879c7343168353144875969a7d0687976110e5"
     },
     "haavk_05": {
       "id": "haavk_05",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "combat",
       "file": "haavk_05.ogg",
       "text": "目标已锁定，请求无人机协同压制。",
-      "bytes": 21597,
-      "sha256": "7a4e2c4a670463876fdf9621322cb9aa8e0b5021be0acf720c1e577810d6a5ae"
+      "bytes": 20955,
+      "sha256": "52c0c28bbbacff419b9403af091e1c448c3001d206aba955555351717ee76d4f"
     },
     "haavk_06": {
       "id": "haavk_06",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "proximity",
       "file": "haavk_06.ogg",
       "text": "哈夫克财产不容侵犯，立刻停止行动。",
-      "bytes": 23239,
-      "sha256": "583a9cc134b5955a752b4172ba1237f41cb9a8a1c96f02add05ecc0a7c3da94b"
+      "bytes": 22805,
+      "sha256": "c47a7fbbbfd2ac6ccb74806759c05bbd652b6630a7a219be00c426063b78966c"
     },
     "haavk_07": {
       "id": "haavk_07",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "combat",
       "file": "haavk_07.ogg",
       "text": "敌方具备识词破盾能力，提高警戒等级。",
-      "bytes": 24607,
-      "sha256": "680e59583723524eddd644d4d173b0e38f8595c7d5ceee7469d056c79b8eaa74"
+      "bytes": 24430,
+      "sha256": "505e606c1cc8badb3c9ebb42aa4c11f08f47dce0dc92e5b9c1835c9abffbd6cb"
     },
     "haavk_08": {
       "id": "haavk_08",
       "group": "haavk_trooper",
       "speaker": "哈夫克特勤",
+      "voice_actor": "zh-CN-XiaoxiaoNeural",
+      "timbre": "cold_corporate_female_radio",
       "tag": "combat",
       "file": "haavk_08.ogg",
       "text": "封锁撤退通道，严禁数据外泄。",
-      "bytes": 18996,
-      "sha256": "9adeab674b8545ebe63f2ca9addaaa125f298da2f1aff3c198f7e5ee956dfcd5"
+      "bytes": 19846,
+      "sha256": "2f97eddf96a293302c4b31040fa868d9eea36cdbb0dfa943caf69187590f138d"
     },
     "mb_01": {
       "id": "mb_01",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "proximity",
       "file": "mb_01.ogg",
       "text": "站住！烟山重地，谁敢擅闯！",
-      "bytes": 25655,
-      "sha256": "8a10dd63f7d322196aa2a12e56cd042b65079e55861ab9ea694bf78245397b5b"
+      "bytes": 24843,
+      "sha256": "bb7e83cbfa7042c84140d132e92c2769ce7ef147d62d0a4c1863380a50338a58"
     },
     "mb_02": {
       "id": "mb_02",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "combat",
       "file": "mb_02.ogg",
       "text": "兄弟们，把词盾撑起来，别放他过桥！",
-      "bytes": 21626,
-      "sha256": "ca78fdefec00c38a1a8dc193418a15ae45e872a8238a40eeaaa564bc4033f63f"
+      "bytes": 21267,
+      "sha256": "457bbe74cc8b0ec70a9285886f2c1846169a0eec42fa1269ef5d30f0cd26e5ec"
     },
     "mb_03": {
       "id": "mb_03",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "combat",
       "file": "mb_03.ogg",
       "text": "好小子，有两下子，吃我一记！",
-      "bytes": 22245,
-      "sha256": "d471bb4590738ab0cbd75fb7637d55a8901b37d8c42550381859e22d00648e6c"
+      "bytes": 21188,
+      "sha256": "2c3dd026ae802ca0165280739a96fbf3e8e94214f5c1dbd2b6472be40917bb31"
     },
     "mb_04": {
       "id": "mb_04",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "proximity",
       "file": "mb_04.ogg",
       "text": "休想动诚庄留下的秘藏箱！",
-      "bytes": 17312,
-      "sha256": "a3b63a53306f74f74cc7cc65a92da93f61cf5fa3754cf41c1a60b8414fbb9b79"
+      "bytes": 16952,
+      "sha256": "0f49a11b6be766455b58bb1bc44b01392501fa85cb7e2f7fbc7e093dcabfebc8"
     },
     "mb_05": {
       "id": "mb_05",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "combat",
       "file": "mb_05.ogg",
       "text": "快掩护，往竹林那边绕后包抄！",
-      "bytes": 19032,
-      "sha256": "60266a254625370579969924655f680653654831429beb72e1deeb920533df1a"
+      "bytes": 18584,
+      "sha256": "15f9a586c2168c3e1424f2d4cc7f47e8e1034ddb8bbe282d53aa51f95c119b31"
     },
     "mb_06": {
       "id": "mb_06",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "combat",
       "file": "mb_06.ogg",
       "text": "英文认得挺溜，看你破不破得了这面盾！",
-      "bytes": 26336,
-      "sha256": "f9c4ff1ef8e4fb4556a6bc70bddb6bd5e9771e0157d8ce232ffd6abfa92c56e7"
+      "bytes": 25240,
+      "sha256": "95fd5036cfec4a448bb1447bd1548bc68b0d33a6350ef26b2e8663e82d320c6e"
     },
     "mb_07": {
       "id": "mb_07",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "proximity",
       "file": "mb_07.ogg",
       "text": "盯紧山道，有人摸上来了！",
-      "bytes": 14999,
-      "sha256": "0873f9ef45e9d7fd806239a213c463671ebaedb7c58a5310f10e2f60b3f1bbe9"
+      "bytes": 14723,
+      "sha256": "d8c4497e5c773f76ed26187629d1af8df35efa31313d85ab64c31b6bf9f9f322"
     },
     "mb_08": {
       "id": "mb_08",
       "group": "mistbound_soldier",
       "speaker": "雾隐词兵",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "agile_young_mountain_scout",
       "tag": "proximity",
       "file": "mb_08.ogg",
       "text": "小心点，这家伙枪法不赖！",
-      "bytes": 18098,
-      "sha256": "ac925fe4d3937a1d8f12825214e1105952bade673f0f3b719e712468b54fe40f"
+      "bytes": 17390,
+      "sha256": "ebbf9a96fed329550448caa1514e3c493eff887e193969f22b73da3c8b8772cb"
     },
     "iron_01": {
       "id": "iron_01",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "intro",
       "file": "iron_01.ogg",
       "text": "想过云顶？先过我铁面词卫这一关！",
-      "bytes": 28333,
-      "sha256": "cc6a806d553676fd10889182d7398ddfa697460e1a3e947b927c23d148af2c78"
+      "bytes": 25033,
+      "sha256": "48fd433bdbdede4e9d836eada7ed7905affbbef16170fa52dfc028a617fbc483"
     },
     "iron_02": {
       "id": "iron_02",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "phase2",
       "file": "iron_02.ogg",
       "text": "破一面盾算什么？双盾齐开！",
-      "bytes": 21916,
-      "sha256": "40e742f4e501c114c720f806b39d10b2567a16cca3b0c08f18ea766e7cd7e8e4"
+      "bytes": 19307,
+      "sha256": "feb67323a8eaa4f004ed7a163ea277d665a2d0d544dfbd7117f96e4ba5066ca5"
     },
     "iron_03": {
       "id": "iron_03",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "phase3",
       "file": "iron_03.ogg",
       "text": "三盾困阵已成，看你认不认得清！",
-      "bytes": 24908,
-      "sha256": "24b1982801fa4161fa063b88a6a5781563e35d1ecea626b96c02772d4f1384f3"
+      "bytes": 21934,
+      "sha256": "e5680fb5f46f48f914b7289d0bab9376eed6d547b38ffffac2048ef45da56f71"
     },
     "iron_04": {
       "id": "iron_04",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "combat",
       "file": "iron_04.ogg",
       "text": "侦察蜂升空，封死他的走位！",
-      "bytes": 22118,
-      "sha256": "1c850e6515289b77d981ef1b6e087c6d83960f3c2e1471de3cccc2700ace0b21"
+      "bytes": 18947,
+      "sha256": "360db519ce7a74d18790a09f9e6834006ca3c9a8de0dfa9b2ace70d5ef6c48b0"
     },
     "iron_05": {
       "id": "iron_05",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "proximity",
       "file": "iron_05.ogg",
       "text": "别光躲在石头后面，出来拼真本事！",
-      "bytes": 24977,
-      "sha256": "021844fea09d0da3d2f8f086ae312682a24d181754973f2405920790994103b5"
+      "bytes": 22100,
+      "sha256": "bef2808302328d2089d7313eb8002aee54ac6c21ba4cd6d56972e5289cc971a1"
     },
     "iron_06": {
       "id": "iron_06",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "skill",
       "file": "iron_06.ogg",
       "text": "重盾冲锋，接招！",
-      "bytes": 15917,
-      "sha256": "ec8909952b884f4f88932a7f97090b037e5601ffe85504daaad1c23ba803310f"
+      "bytes": 14600,
+      "sha256": "dc8ad4c891c31a4c2cd90e0ff85521e0a156049e29cadbfa5a8d76af9f9adcb5"
     },
     "iron_07": {
       "id": "iron_07",
       "group": "boss_ironface",
       "speaker": "雾隐先锋·铁面词卫",
+      "voice_actor": "zh-CN-YunjianNeural",
+      "timbre": "forged_iron_mask_enforcer",
       "tag": "combat",
       "file": "iron_07.ogg",
       "text": "好本事，看来今天遇到硬茬了！",
-      "bytes": 21501,
-      "sha256": "ecc89a1b25f44a73fd1b0b24e632d0ce46b800a92afc034891e1a1752b32ded9"
+      "bytes": 19020,
+      "sha256": "fe72db808dbb9a69d1da59437ee1f3bd4128cabbbeaf4e5ed105c35b490562da"
     },
     "over_01": {
       "id": "over_01",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "proximity",
       "file": "over_01.ogg",
       "text": "区区凡辈，也敢踏足云顶演武坛！",
-      "bytes": 24110,
-      "sha256": "d91d167fd46b59536f74227ac37103313dd6c4c188de05facbb3f8372c7c9fae"
+      "bytes": 25850,
+      "sha256": "0bce4a24121cb5592baeaab2cfcd057c4205eda82c7e0866c097955e66a120f9"
     },
     "over_02": {
       "id": "over_02",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "intro",
       "file": "over_02.ogg",
       "text": "雷云天降，玄铁词尊在此！",
-      "bytes": 20359,
-      "sha256": "6989f6f9da2c635bb28e06635feee128815e6bb6a5143aaaa219797bf9f0c176"
+      "bytes": 23817,
+      "sha256": "cbaab76d956a4991baa35f190a57482e6cf35da9fcac82a5d47187c1672269bc"
     },
     "over_03": {
       "id": "over_03",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "skill",
       "file": "over_03.ogg",
       "text": "玄铁法轮起，万词皆为我刃！",
-      "bytes": 21855,
-      "sha256": "dc3e0ee644255bda17ef71cf977c72f59c0dda1c687bd668ac11413cb52f10e0"
+      "bytes": 22642,
+      "sha256": "db772f384466f8458d171d51d2d5a457e38ab540448962ce68c05a6ba279cd04"
     },
     "over_04": {
       "id": "over_04",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "phase2",
       "file": "over_04.ogg",
       "text": "十息之内，若破不得三面金盾，便见识天地万象！",
-      "bytes": 33934,
-      "sha256": "52a039174c6bd4d574cc211f30bb35c18551b970dfe975a8108722b1d24609cc"
+      "bytes": 36713,
+      "sha256": "0d719bef2f4616ae16e54bf9e56f1d3ab1a8a7438cf780ff38f740038250e708"
     },
     "over_05": {
       "id": "over_05",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "skill_ult",
       "file": "over_05.ogg",
       "text": "云海倒悬，镜像烟山——镇！",
-      "bytes": 22615,
-      "sha256": "13c62609fa630c84111fe4db276a3a03484b8530383e92935691d705272b1ee3"
+      "bytes": 22982,
+      "sha256": "38da9b5cc978cb133d9c161149f8e9dc234bfd337adc297f9dd3d4665d94ff27"
     },
     "over_06": {
       "id": "over_06",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "combat",
       "file": "over_06.ogg",
       "text": "竟能从天地万象下稳住阵脚，有点意思！",
-      "bytes": 29894,
-      "sha256": "6f68d59891421627281d9229cce55cd9f92ffd4be52ae92aba3a12027b5a16a6"
+      "bytes": 27041,
+      "sha256": "fe64660ae28bfaa34d6fedee04ce548f66a30be27d0c4ff3b59131ae9746b9d8"
     },
     "over_07": {
       "id": "over_07",
       "group": "boss_overlord",
       "speaker": "雾隐机关王·玄铁词尊",
+      "voice_actor": "zh-CN-YunxiNeural",
+      "timbre": "cloud_peak_sovereign_chorus",
       "tag": "combat",
       "file": "over_07.ogg",
       "text": "来吧，看看你的词汇量够不够硬！",
-      "bytes": 22008,
-      "sha256": "0786a8bdddf3b05236f5ba075cf79fcd0181bcacebd775b4fe02a92bfcbd8325"
+      "bytes": 20835,
+      "sha256": "b0175775bdf6c15e179d786ee6f5115d5354db5b3c1a77c6e3f60b579167e957"
     },
     "cave_01": {
       "id": "cave_01",
       "group": "cave_warden",
       "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
       "tag": "proximity",
       "file": "cave_01.ogg",
       "text": "擅入烟霞古洞者……止步！",
-      "bytes": 16679,
-      "sha256": "26a37b523abd73bc329b0bf91240ae4800162cbb822cdbe406bc2a50ecb0c961"
+      "bytes": 15520,
+      "sha256": "c58af4ffac4722aebdc7979c80e169fbaf635397c540165404179f97d0c60056"
     },
     "cave_02": {
       "id": "cave_02",
       "group": "cave_warden",
       "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
       "tag": "alert",
       "file": "cave_02.ogg",
       "text": "我听见你的脚步了……",
-      "bytes": 12451,
-      "sha256": "092feed1e59448e1bf176c5fc26c880228c71845bd43e2680c6526ec76f821af"
+      "bytes": 11599,
+      "sha256": "2f6880ccb6da856028767f1c5e56c20c0c7c202932b61909c18bf8f62e9722d8"
     },
     "cave_03": {
       "id": "cave_03",
       "group": "cave_warden",
       "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
       "tag": "alert",
       "file": "cave_03.ogg",
       "text": "屏息静气，也藏不住你的动静！",
-      "bytes": 20529,
-      "sha256": "f42a8f6b6fb7ae776f01ef9a61f1aeb5e8c4a271133367d9e59746fb2eb4298e"
+      "bytes": 17398,
+      "sha256": "be08c77e1dd47766f5eb4bcae8e6d86a10f2d3df472771c4902119e86b6bf2c7"
     },
     "cave_04": {
       "id": "cave_04",
       "group": "cave_warden",
       "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
       "tag": "skill_lance",
       "file": "cave_04.ogg",
       "text": "藏在暗处放冷枪？穿石声波——锁！",
-      "bytes": 23483,
-      "sha256": "d2b8e1cdcfd46467079e3e4e0a5796a5b950f483b0fe635f8b3ce260b51412a3"
+      "bytes": 21190,
+      "sha256": "903bc695ae010aae66655d3dd0d0820df9b8bbb2345da6a6a2de6c44b61d6505"
     },
     "cave_05": {
       "id": "cave_05",
       "group": "cave_warden",
       "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
       "tag": "proximity",
       "file": "cave_05.ogg",
       "text": "休想染指一线天后的次元石壁！",
-      "bytes": 21314,
-      "sha256": "2097ce4b96c2158ccff325e25102960ebd15c5e94fb7b7a12ec13412ce8734c5"
+      "bytes": 18100,
+      "sha256": "e3d929f3713a4b2e30205e94094a7b9fb68a86a6ef34efda04c8cded5c4cd367"
+    },
+    "cave_06": {
+      "id": "cave_06",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
+      "tag": "skill_rush",
+      "file": "cave_06.ogg",
+      "text": "响动暴露了你的位置——石躯冲锋！",
+      "bytes": 17872,
+      "sha256": "46e3d8eceee18b3c64b3e9755247b5579c0747734380ca701115111960acfc2a"
+    },
+    "cave_07": {
+      "id": "cave_07",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
+      "tag": "wall_stun",
+      "file": "cave_07.ogg",
+      "text": "呃……石壁震裂！双盾暂开！",
+      "bytes": 17964,
+      "sha256": "6e98fb003070a51fca42b1ae089a60a996c160bc2da217e189cd4dee1d19185b"
+    },
+    "cave_08": {
+      "id": "cave_08",
+      "group": "cave_warden",
+      "speaker": "古洞循音石卫",
+      "voice_actor": "zh-CN-YunyangNeural",
+      "timbre": "monolithic_cavern_stone_colossus",
+      "tag": "decoy_lure",
+      "file": "cave_08.ogg",
+      "text": "那边……有碎石声响？",
+      "bytes": 12641,
+      "sha256": "fdcf4b0d4d2cadab3815f702a7421a1db313b74a5b86f182025da06062da4135"
     }
   }
 }

@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.7"
+const VERSION = "0.9.8"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -2702,7 +2702,9 @@ func melee_strike(camera: Camera3D):
 		return
 	var shooting_field = combat.in_field() and (combat.zone >= 0 or active_station < 0)
 	if shooting_field:
-		combat.melee_strike(camera)
+		var hit_s: bool = combat.melee_strike(camera)
+		if not hit_s and is_instance_valid(cave_warden) and cave_warden.is_mode_active():
+			cave_warden.melee_strike(camera)
 		if is_instance_valid(wildlife):
 			wildlife.melee_strike(camera)
 		return
@@ -2767,6 +2769,8 @@ func fire(camera: Camera3D):
 			if result.is_empty() or from.distance_to(cwhit.position) <= from.distance_to(result.position) + 0.05:
 				if cave_warden.hit_bullet(cwhit.collider):
 					return
+		elif cwhit and not (cwhit.collider is Area3D):
+			cave_warden.on_bullet_impact_sound(cwhit.position)
 	if is_instance_valid(wildlife):
 		wildlife.on_gunshot_near(player.position, rules.active_muzzle() == "suppressor")
 		var wq = PhysicsRayQueryParameters3D.create(from, to, 1 | Wildlife.HIT_LAYER, [player.get_rid()])

@@ -862,6 +862,8 @@ func run():
 		game.combat.health = 100
 		game.combat.shield = 30
 		var norm_survived_4 := true
+		var hp_bar_before_m: float = norm_melee_s.hp_fill.scale.x
+		verify(norm_melee_s.shield_area.position.y >= 2.35 and is_instance_valid(norm_melee_s.chest_core_root), "v0.9.8: regular word soldiers mount compact overhead holographic word tag (y=%.2f) + embedded chest word core" % norm_melee_s.shield_area.position.y)
 		for hit_i in 4:
 			game.player.position = norm_melee_s.position - norm_melee_s.global_transform.basis.z * 1.35
 			aim.global_position = game.player.position + Vector3(0, 1.58, 0)
@@ -869,11 +871,13 @@ func run():
 			game.melee_strike(aim)
 			if norm_melee_s.defeated:
 				norm_survived_4 = false
+		var hp_bar_after_4: float = norm_melee_s.hp_fill.scale.x
+		var hp_lbl_vis_4: bool = is_instance_valid(norm_melee_s.hp_text_label) and norm_melee_s.hp_text_label.visible
 		game.player.position = norm_melee_s.position - norm_melee_s.global_transform.basis.z * 1.35
 		aim.global_position = game.player.position + Vector3(0, 1.58, 0)
 		aim.look_at(norm_melee_s.global_position + Vector3(0, 1.15, 0))
 		game.melee_strike(aim)
-		verify(norm_survived_4 and norm_melee_s.defeated and norm_melee_s.melee_hits_taken == 5 and game.player.reserve_ammo == 16, "v0.8.2_dev2 D2-1: Normal melee takes exactly 5 hits on regular soldier and awards +6 reserve ammo")
+		verify(norm_survived_4 and hp_bar_after_4 < hp_bar_before_m - 0.35 and hp_lbl_vis_4 and norm_melee_s.defeated and norm_melee_s.melee_hits_taken == 5 and game.player.reserve_ammo == 16, "v0.9.8: Normal knife slashes visibly shrink 3D HP bar per hit (%.2f->%.2f) & execute on 5th hit (+6 reserve ammo)" % [hp_bar_before_m, hp_bar_after_4])
 	if wrong_melee_s != null and not wrong_melee_s.defeated:
 		wrong_melee_s.set_physics_process(false)
 		game.combat.prompt_locked_after_wrong = false
@@ -1149,6 +1153,40 @@ func run():
 	await frames(2)
 	game.player.use_ranger_skill()
 	verify(game.cave_warden.state != "stunned" and not game.cave_warden.guard_arms and game.cave_warden.arms_forced_open_left >= 0.85, "v0.8.5: [V] '天生神力' briefly jolts Cave Warden arm-shields open for 1.0s without stunning")
+
+	# v0.9.8 Cave Warden Portrait-Faithful Sculpted Rig + 6-Point Curved Patrol + Blind Bull-Rush Wall-Slam + Acoustic Decoy + Knife Melee!
+	game.cave_warden.reset()
+	var cw98 = game.cave_warden
+	verify(
+		cw98.using_v098_model and is_instance_valid(cw98.leg_left_pivot) and is_instance_valid(cw98.leg_right_pivot) and cw98.PATROL_OFFSETS.size() >= 6,
+		"v0.9.8: Cave Warden mounts portrait-faithful v098_cave_warden.glb with articulated legs & 6-point curved cavern circuit"
+	)
+	# Acoustic Bullet Decoy Baiting draws patrol Warden toward rock impact point!
+	var decoy_pt: Vector3 = Vector3(cw98._cave_center().x + 2.4, cw98._cave_floor_y(), cw98._cave_center().z + 1.2)
+	game.player.position = Vector3(cw98._cave_center().x - 2.6, cw98._cave_floor_y(), cw98._cave_center().z + 8.5)
+	var decoy_ok: bool = cw98.on_bullet_impact_sound(decoy_pt)
+	verify(decoy_ok and cw98.decoy_lure_count >= 1 and cw98.state == "investigate", "v0.9.8: shooting distant cave rock wall triggers Acoustic Decoy Baiting drawing blind Warden to investigate")
+	# Blind Bull-Rush Charge + Wall-Slam Core Expose (dodge sideways -> Warden slams cave rock wall -> 2.6s open core!)
+	cw98.reset()
+	cw98.root_node.position = Vector3(cw98._cave_center().x + 1.4, cw98._cave_floor_y(), cw98._cave_center().z + 2.0)
+	game.player.position = Vector3(cw98._cave_center().x - 2.4, cw98._cave_floor_y(), cw98._cave_center().z + 6.5)
+	cw98.state = "hunt"
+	cw98.start_blind_rush(cw98.root_node.position + Vector3(4.0, 0.0, 0.0))
+	for _rf in 18:
+		cw98.update(0.10)
+		if cw98.wall_slam_count >= 1:
+			break
+	verify(cw98.rush_count >= 1 and cw98.wall_slam_count >= 1 and cw98.arms_forced_open_left >= 2.0 and not cw98.guard_arms, "v0.9.8: dodging Blind Bull-Rush slams Warden into cave wall and forces twin stone shields open for 2.6s")
+	# Knife melee slash against Cave Warden deducts HP visibly!
+	var cw_hp_pre_m: int = cw98.hp
+	var cw_mcam := Camera3D.new()
+	game.add_child(cw_mcam)
+	game.player.position = cw98.root_node.position + Vector3(0.0, 0.0, 2.2)
+	cw_mcam.global_position = game.player.position + Vector3(0.0, 1.56, 0.0)
+	cw_mcam.look_at(cw98.root_node.global_position + Vector3(0.0, 1.56, 0.0))
+	var cw_knife_ok: bool = cw98.melee_strike(cw_mcam)
+	cw_mcam.queue_free()
+	verify(cw_knife_ok and cw98.hp < cw_hp_pre_m, "v0.9.8: Tactical Knife slash hits Cave Warden and visibly deducts HP (%d->%d)" % [cw_hp_pre_m, cw98.hp])
 	game._end_run(false)
 
 	game.queue_free()

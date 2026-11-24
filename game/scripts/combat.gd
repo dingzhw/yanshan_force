@@ -2007,6 +2007,7 @@ func melee_strike(camera: Camera3D) -> bool:
 			_on_boss_defeated(best_soldier)
 			_advance_wave_after_kill(zone)
 		else:
+			best_soldier.on_melee_hit_fx(boss_melee_dmg)
 			game.show_hitmarker(false)
 			game._notice("🗡 匕首削甲 -%d HP（首领剩余 %d/%d HP）· 遭到首领重拳反击！建议拉远用枪破词盾！" % [boss_melee_dmg, best_soldier.hp, best_soldier.max_hp], Color("ffd15c"))
 		return true
@@ -2027,17 +2028,17 @@ func melee_strike(camera: Camera3D) -> bool:
 		_advance_wave_after_kill(zone)
 	else:
 		best_soldier.hp = maxi(1, best_soldier.hp - slash_dmg)
-		best_soldier._refresh_hp_bar()
+		best_soldier.on_melee_hit_fx(slash_dmg)
 		best_soldier.begin_tactical_engagement()
 		prompt_timer_left = maxf(prompt_timer_left, 4.0)
-		game.show_hitmarker(false)
+		game.show_hitmarker(true)
 		var counter_tag := ""
 		if best_soldier.melee_hits_taken % 2 == 0:
 			var c_dmg := 18 if game.rules.is_confidential() else 10
 			_apply_melee_knockback(best_soldier, 2.4)
 			apply_player_damage(c_dmg)
 			counter_tag = " · 敌兵贴身反击 -%d" % c_dmg
-		game._notice("🗡 匕首劈砍命中 (%d/%d 刀 · 剩余 %d/%d HP)%s · 用枪打头可 1 枪秒杀！" % [
+		game._notice("🗡 匕首命中 (%d/%d 刀 · 剩 %d/%d HP)%s" % [
 			best_soldier.melee_hits_taken, hits_needed, best_soldier.hp, best_soldier.max_hp, counter_tag
 		], Color("ffe082"))
 	return true

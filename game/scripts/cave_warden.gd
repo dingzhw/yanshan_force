@@ -1,13 +1,17 @@
 extends Node3D
-## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.8.6 Tactical Acoustic Predator).
+## Yanxia Ancient Cave Acoustic Guardian Boss ("古洞循音石卫" · v0.9.8 Portrait-Faithful Overhaul).
 ## Blind karst guardian strictly leashed to Yanxia Ancient Cave in the isolated west bamboo ravine:
-## - Articulated Blender 4.5 hierarchy: warden_body, head_crest, arm_left_pivot, arm_right_pivot (thick青石臂盾)
-## - Compact 0.30m chest energy core hitbox (0.18m glowing cyan crystal)
+## - Portrait-faithful Blender 5.3 sculpted sandstone golem (v098_cave_warden.glb):
+##   warden_body, head_crest (carved stone face + cyan eyes/brow runes), arm_left_pivot & arm_right_pivot
+##   (twin massive faceted carved-stone forearm tower shields), leg_left_pivot & leg_right_pivot (striding legs)
+## - Compact 0.30m diamond chest energy core weakpoint
+## - 6-point curved cavern circuit patrol + periodic Acoustic Listening Pauses (no straight-line pacing!)
 ## - ZERO stun on core hit! Core hit snaps X-brace dual-arm guard + locks firing point via Ballistic Triangulation!
-## - Anti-Crouch-Snipe Mandatory Reposition: after shooting, camping within relocate_dist (2.8m Normal / 4.0m Conf;
-##   2.2m suppressed) freezes the 1.5s stealth timer AND triggers a 22m Focused Sonic Lance straight down the firing line!
-## - 4 Acoustic Moves: 360° Sonic Pulse, 22m Focused Sonic Lance, Cavern Quake Stalactite Rings, and
-##   Confidential-Exclusive Active Echolocation Sweep (evaded ONLY by [Z] prone / [G] smoke / rock cover!) + Enraged Resonance (<45% HP).
+## - 6 Tactical Blind-Hunter Mechanics (Minecraft Warden + RE4 Garrador inspired):
+##   1. 360° Sonic Pulse  2. 22m Focused Anti-Sniper Sonic Lance  3. Cavern Quake Stalactite Rings
+##   4. Blind Bull-Rush Charge & Wall-Slam Core Expose (dodge sideways -> Warden slams cave rock wall -> 2.6s open core!)
+##   5. Acoustic Bullet Decoy Baiting (shoot cave rock wall/pillar to lure the blind Warden away!)
+##   6. Phase-2 (<50% HP) Jumpable Ground Shockwave + Confidential Active Echolocation Sweep & Enraged Resonance
 
 const HIT_LAYER := 32  # Dedicated bit 5 for Cave Warden hitboxes (isolated from player/world masks)
 const HEAR_RADIUS := 15.0
@@ -21,12 +25,17 @@ const STEALTH_DISENGAGE_SECONDS := 1.5
 const RELOCATE_DIST_NORMAL := 2.8
 const RELOCATE_DIST_CONFIDENTIAL := 4.0
 const RELOCATE_DIST_SUPPRESSED := 2.2
+const WARDEN_MODEL_V098 := "res://assets/slice/v098_cave_warden.glb"
+const WARDEN_MODEL_FALLBACK := "res://assets/slice/v082_bosses.glb"
 
+# v0.9.8 6-point curved cavern patrol circuit (sweeps entrance, west flank, inner sanctum & east ledge!)
 const PATROL_OFFSETS := [
 	Vector3(0.0, 0.0, 7.60),
-	Vector3(0.0, 0.0, 4.20),
-	Vector3(1.30, 0.0, 1.80),
-	Vector3(0.0, 0.0, 5.00),
+	Vector3(-2.45, 0.0, 4.90),
+	Vector3(-1.85, 0.0, 0.60),
+	Vector3(1.95, 0.0, -1.60),
+	Vector3(2.55, 0.0, 2.80),
+	Vector3(1.10, 0.0, 6.20),
 ]
 
 var game
@@ -36,7 +45,10 @@ var model_node: Node3D
 var body_mesh: Node3D
 var arm_left_pivot: Node3D
 var arm_right_pivot: Node3D
+var leg_left_pivot: Node3D
+var leg_right_pivot: Node3D
 var head_crest: Node3D
+var using_v098_model := false
 var core_crystal: MeshInstance3D
 var core_crystal_mat: StandardMaterial3D
 var hp_bar_root: Node3D
@@ -48,7 +60,10 @@ var guard_area: Area3D
 var status_label: Label3D
 var lance_beam_node: MeshInstance3D
 var lance_beam_mat: StandardMaterial3D
+var rush_lane_node: MeshInstance3D
+var rush_lane_mat: StandardMaterial3D
 var sonar_rings: Array = []
+var shock_waves: Array = []
 
 var state := "patrol"  # "patrol" | "investigate" | "hunt" | "defeated" (ZERO stunned state!)
 var max_hp := MAX_HP_NORMAL
@@ -65,7 +80,12 @@ var quake_slam_count := 0
 var echo_sweep_count := 0
 var echo_detected_count := 0
 var echo_evaded_count := 0
+var rush_count := 0
+var wall_slam_count := 0
+var decoy_lure_count := 0
+var shockwave_count := 0
 var enraged_resonance := false
+var phase2_triggered := false
 var last_shot_pos := Vector3.ZERO
 var shot_origin_active := false
 var last_shot_suppressed := false
@@ -74,6 +94,14 @@ var lance_timer := 0.0
 var lance_cd := 0.0
 var lance_origin := Vector3.ZERO
 var lance_dir := Vector3.FORWARD
+var rush_state := "idle"  # "idle" | "windup" | "charging"
+var rush_timer := 0.0
+var rush_cd := 5.2
+var rush_dir := Vector3.BACK
+var rush_hit_player := false
+var patrol_listen_left := 0.0
+var stride_phase := 0.0
+var is_moving_now := false
 var quake_cd := 6.0
 var echo_sweep_cd := 5.5
 var echo_charging := false
@@ -141,7 +169,8 @@ func _build_warden():
 	root_node.name = "CaveWardenBoss"
 	add_child(root_node)
 
-	var path := "res://assets/slice/v082_bosses.glb"
+	var path := WARDEN_MODEL_V098 if ResourceLoader.exists(WARDEN_MODEL_V098) else WARDEN_MODEL_FALLBACK
+	using_v098_model = (path == WARDEN_MODEL_V098)
 	if ResourceLoader.exists(path):
 		if not game.scene_cache.has(path):
 			game.scene_cache[path] = load(path)
@@ -159,6 +188,8 @@ func _build_warden():
 			body_mesh = target.find_child("warden_body", true, false) as Node3D
 			arm_left_pivot = target.find_child("arm_left_pivot", true, false) as Node3D
 			arm_right_pivot = target.find_child("arm_right_pivot", true, false) as Node3D
+			leg_left_pivot = target.find_child("leg_left_pivot", true, false) as Node3D
+			leg_right_pivot = target.find_child("leg_right_pivot", true, false) as Node3D
 			head_crest = target.find_child("head_crest", true, false) as Node3D
 		inst.queue_free()
 	if model_node == null:
@@ -205,32 +236,50 @@ func _build_warden():
 
 	core_crystal = MeshInstance3D.new()
 	var c_mesh := SphereMesh.new()
-	c_mesh.radius = CORE_VISUAL_RADIUS
-	c_mesh.height = CORE_VISUAL_RADIUS * 2.0
-	c_mesh.radial_segments = 14
-	c_mesh.rings = 10
+	c_mesh.radius = CORE_VISUAL_RADIUS * (0.76 if using_v098_model else 1.0)
+	c_mesh.height = CORE_VISUAL_RADIUS * (2.45 if using_v098_model else 2.0)
+	c_mesh.radial_segments = 6 if using_v098_model else 14
+	c_mesh.rings = 3 if using_v098_model else 10
 	core_crystal.mesh = c_mesh
-	core_crystal.position = Vector3(0.0, 1.56, 0.34)
+	core_crystal.position = Vector3(0.0, 1.56, 0.37 if using_v098_model else 0.34)
 	core_crystal_mat = StandardMaterial3D.new()
 	core_crystal_mat.albedo_color = Color("5ef2ff")
 	core_crystal_mat.emission_enabled = true
 	core_crystal_mat.emission = Color("3ce6ff")
-	core_crystal_mat.emission_energy_multiplier = 2.0
-	core_crystal_mat.roughness = 0.16
+	core_crystal_mat.emission_energy_multiplier = 2.4
+	core_crystal_mat.roughness = 0.12
 	core_crystal.material_override = core_crystal_mat
 	root_node.add_child(core_crystal)
 
-	# Clear 3D floating HP bar right above shoulders
+	# Clear 3D floating HP bar right above shoulders (cleanly camera-billboarded!)
 	hp_bar_root = Node3D.new()
-	hp_bar_root.position = Vector3(0.0, 2.78, 0.0)
+	hp_bar_root.position = Vector3(0.0, 2.86 if using_v098_model else 2.78, 0.0)
 	root_node.add_child(hp_bar_root)
-	var bg_bar: MeshInstance3D = game._mesh_box(hp_bar_root, Vector3(0.0, 0.0, -0.01), Vector3(1.64, 0.16, 0.04), Color("101b22"), false)
-	(bg_bar.material_override as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hp_fill = game._mesh_box(hp_bar_root, Vector3(0.0, 0.0, 0.02), Vector3(1.56, 0.10, 0.04), Color("56e8ff"), false)
-	hp_fill_mat = hp_fill.material_override as StandardMaterial3D
-	hp_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var bg_bar := MeshInstance3D.new()
+	var bg_q := QuadMesh.new()
+	bg_q.size = Vector2(1.64, 0.16)
+	bg_bar.mesh = bg_q
+	var bg_m := StandardMaterial3D.new()
+	bg_m.albedo_color = Color(0.06, 0.10, 0.13, 0.88)
+	bg_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bg_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bg_m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	bg_bar.material_override = bg_m
+	hp_bar_root.add_child(bg_bar)
 
-	status_label = game._label3d(root_node, "古洞循音石卫 · 听声巡逻", Vector3(0.0, 3.08, 0.0), 26, Color("6cf2ff"))
+	hp_fill = MeshInstance3D.new()
+	var fl_q := QuadMesh.new()
+	fl_q.size = Vector2(1.56, 0.10)
+	hp_fill.mesh = fl_q
+	hp_fill.position = Vector3(0.0, 0.0, 0.012)
+	hp_fill_mat = StandardMaterial3D.new()
+	hp_fill_mat.albedo_color = Color("56e8ff")
+	hp_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hp_fill_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	hp_fill.material_override = hp_fill_mat
+	hp_bar_root.add_child(hp_fill)
+
+	status_label = game._label3d(root_node, "古洞循音石卫 · 听声巡逻", Vector3(0.0, 3.16 if using_v098_model else 3.08, 0.0), 26, Color("6cf2ff"))
 	status_label.pixel_size = 0.0052
 	status_label.visibility_range_end = 26.0
 
@@ -250,6 +299,23 @@ func _build_warden():
 	lance_beam_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	lance_beam_node.hide()
 	add_child(lance_beam_node)
+
+	# v0.9.8 3D Glowing Floor Rush Lane Telegraph for Blind Bull-Rush Charge!
+	rush_lane_node = MeshInstance3D.new()
+	var rl_mesh := BoxMesh.new()
+	rl_mesh.size = Vector3(1.75, 0.05, 1.0)
+	rush_lane_node.mesh = rl_mesh
+	rush_lane_mat = StandardMaterial3D.new()
+	rush_lane_mat.albedo_color = Color(1.0, 0.42, 0.16, 0.52)
+	rush_lane_mat.emission_enabled = true
+	rush_lane_mat.emission = Color("ff6622")
+	rush_lane_mat.emission_energy_multiplier = 2.2
+	rush_lane_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rush_lane_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rush_lane_node.material_override = rush_lane_mat
+	rush_lane_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rush_lane_node.hide()
+	add_child(rush_lane_node)
 
 func _ground_pos(xz: Vector3) -> Vector3:
 	var c := _cave_center()
@@ -299,13 +365,26 @@ func reset():
 	echo_sweep_count = 0
 	echo_detected_count = 0
 	echo_evaded_count = 0
+	rush_count = 0
+	wall_slam_count = 0
+	decoy_lure_count = 0
+	shockwave_count = 0
 	enraged_resonance = false
+	phase2_triggered = false
 	last_shot_pos = Vector3.ZERO
 	shot_origin_active = false
 	last_shot_suppressed = false
 	lance_state = "idle"
 	lance_timer = 0.0
 	lance_cd = 0.0
+	rush_state = "idle"
+	rush_timer = 0.0
+	rush_cd = 5.2
+	rush_dir = Vector3.BACK
+	rush_hit_player = false
+	patrol_listen_left = 0.0
+	stride_phase = 0.0
+	is_moving_now = false
 	quake_cd = 5.8
 	echo_sweep_cd = 5.5
 	echo_charging = false
@@ -323,6 +402,8 @@ func reset():
 		root_node.visible = on
 	if is_instance_valid(lance_beam_node):
 		lance_beam_node.hide()
+	if is_instance_valid(rush_lane_node):
+		rush_lane_node.hide()
 	if is_instance_valid(model_node):
 		model_node.position = Vector3.ZERO
 		model_node.rotation = Vector3.ZERO
@@ -330,6 +411,10 @@ func reset():
 		arm_left_pivot.rotation = Vector3.ZERO
 	if is_instance_valid(arm_right_pivot):
 		arm_right_pivot.rotation = Vector3.ZERO
+	if is_instance_valid(leg_left_pivot):
+		leg_left_pivot.rotation = Vector3.ZERO
+	if is_instance_valid(leg_right_pivot):
+		leg_right_pivot.rotation = Vector3.ZERO
 	if is_instance_valid(head_crest):
 		head_crest.rotation = Vector3.ZERO
 	if is_instance_valid(body_area):
@@ -342,6 +427,10 @@ func reset():
 		if is_instance_valid(r.node):
 			r.node.queue_free()
 	sonar_rings.clear()
+	for sw in shock_waves:
+		if is_instance_valid(sw.node):
+			sw.node.queue_free()
+	shock_waves.clear()
 	_sync_label()
 
 func required_relocate_distance() -> float:
@@ -388,10 +477,16 @@ func _sync_label():
 	status_label.visible = true
 	var pct := clampi(roundi(noise_meter), 0, 100)
 	var camping_now := is_instance_valid(game.player) and is_camping_shot_origin(game.player.position)
-	var rage_tag := "【狂鸣】" if enraged_resonance else ""
+	var rage_tag := "【狂鸣】" if enraged_resonance else ("【裂岩】" if phase2_triggered else "")
 	if arms_forced_open_left > 0.0:
-		status_label.text = "⚡ 古洞循音石卫%s · 双臂震开 %.1fs（速射蓝核！） HP %d/%d" % [rage_tag, arms_forced_open_left, hp, max_hp]
+		status_label.text = "⚡ 古洞循音石卫%s · 双盾破开 %.1fs（速射菱形蓝核！） HP %d/%d" % [rage_tag, arms_forced_open_left, hp, max_hp]
 		status_label.modulate = Color("ffd86b")
+	elif rush_state == "windup":
+		status_label.text = "🐂 古洞循音石卫%s · 蓄力【盲冲撞击】！横向闪避诱其撞壁破防！ HP %d/%d" % [rage_tag, hp, max_hp]
+		status_label.modulate = Color("ff7838")
+	elif rush_state == "charging":
+		status_label.text = "💥 古洞循音石卫%s · 石躯盲冲中！快让开正面直线！ HP %d/%d" % [rage_tag, hp, max_hp]
+		status_label.modulate = Color("ff4c38")
 	elif echo_charging:
 		status_label.text = "📡 古洞循音石卫%s · 主动声呐扫描 %.1fs！速 [Z] 匍匐/进烟！ HP %d/%d" % [rage_tag, echo_charge_left, hp, max_hp]
 		status_label.modulate = Color("ff8a4c")
@@ -407,16 +502,19 @@ func _sync_label():
 			status_label.text = "🛡 古洞循音石卫%s · 护核搜寻中（静默 %.1fs 后放手） HP %d/%d" % [rage_tag, remain_quiet, hp, max_hp]
 			status_label.modulate = Color("ffd166")
 		else:
-			status_label.text = "🛡 古洞循音石卫%s · 双臂护核！潜行移位并静默 1.5s 脱搜 HP %d/%d" % [rage_tag, hp, max_hp]
+			status_label.text = "🛡 古洞循音石卫%s · 双盾护核！潜行移位或诱其撞壁破防 HP %d/%d" % [rage_tag, hp, max_hp]
 			status_label.modulate = Color("ffd166")
 	elif state == "hunt":
 		status_label.text = "⚠ 古洞循音石卫%s · 追击露核！（打胸口蓝核！） HP %d/%d" % [rage_tag, hp, max_hp]
 		status_label.modulate = Color("ff5c5c")
 	elif state == "investigate":
-		status_label.text = "🌀 古洞循音石卫%s · 声波搜寻 (%d%%) HP %d/%d" % [rage_tag, pct, hp, max_hp]
+		status_label.text = "🌀 古洞循音石卫%s · 循声探查 (%d%%) HP %d/%d" % [rage_tag, pct, hp, max_hp]
 		status_label.modulate = Color("ffd15c")
+	elif patrol_listen_left > 0.0:
+		status_label.text = "👂 古洞循音石卫%s · 停步侧耳倾听（蓝核暴露！） HP %d/%d" % [rage_tag, hp, max_hp]
+		status_label.modulate = Color("7ef5e2")
 	else:
-		status_label.text = "古洞循音石卫%s · 听声巡逻（蓝核已暴露） HP %d/%d" % [rage_tag, hp, max_hp]
+		status_label.text = "古洞循音石卫%s · 洞窟巡哨（可射击岩壁声源诱敌） HP %d/%d" % [rage_tag, hp, max_hp]
 		status_label.modulate = Color("6cf2ff")
 
 func spawn_sonar_ring(origin: Vector3, col: Color = Color("54f0ff"), max_r: float = 10.5):
@@ -505,6 +603,252 @@ func on_gunshot(origin: Vector3, suppressed: bool):
 		last_shot_suppressed = suppressed
 		investigate_pos = _ground_pos(_clamp_to_cave(origin))
 	register_noise(origin, 28.0 if suppressed else 68.0, true)
+
+func on_bullet_impact_sound(impact_pos: Vector3) -> bool:
+	## v0.9.8 Acoustic Decoy Baiting (Minecraft Warden / RE4 Garrador inspired):
+	## Shooting a distant cave rock wall/pillar creates an acoustic ripple that draws the blind Warden to investigate,
+	## pulling his facing away and exposing his diamond chest core cleanly!
+	if not is_alive() or rush_state != "idle" or lance_state != "idle":
+		return false
+	if not _player_inside_cave_territory(impact_pos):
+		return false
+	var d_imp := root_node.position.distance_to(impact_pos)
+	if d_imp > HEAR_RADIUS or d_imp < 1.8:
+		return false
+	# Only acts as a decoy if impact point is meaningfully separated from player (>= 2.8m)
+	if is_instance_valid(game.player) and impact_pos.distance_to(game.player.position) < 2.8:
+		return false
+	decoy_lure_count += 1
+	patrol_listen_left = 0.0
+	investigate_pos = _ground_pos(_clamp_to_cave(impact_pos))
+	spawn_sonar_ring(impact_pos, Color("7af5cc"), 4.6)
+	if state == "patrol" or (state == "investigate" and not guard_arms):
+		state = "investigate"
+		noise_meter = maxf(noise_meter, 42.0)
+		game.play_sfx("warden_sonar", -12)
+		game.play_cn_voice("cave_08", d_imp, false)
+		game._notice("🎯 声源诱敌生效！石卫循着岩壁弹响转头探查——趁机绕侧瞄准胸口蓝核！", Color("7af5cc"))
+		_sync_label()
+	elif state == "hunt" and not shot_origin_active:
+		# Distracted mid-search -> briefly lowers guard arms to turn toward the decoy sound!
+		set_guard_arms(false, 0.0)
+		game.play_cn_voice("cave_08", d_imp, false)
+		game._notice("🎯 弹响引开石卫注意！石卫放下双盾转向声源！", Color("7af5cc"))
+		_sync_label()
+	return true
+
+func _place_rush_lane(origin_pt: Vector3, dir_xz: Vector3, length_m: float):
+	if not is_instance_valid(rush_lane_node):
+		return
+	var d := Vector3(dir_xz.x, 0.0, dir_xz.z).normalized()
+	if d.length_squared() < 0.001:
+		d = Vector3.BACK
+	rush_lane_node.show()
+	rush_lane_node.global_position = Vector3(origin_pt.x, _cave_floor_y() + 0.06, origin_pt.z) + d * (length_m * 0.5)
+	rush_lane_node.scale = Vector3(1.0, 1.0, maxf(1.5, length_m))
+	rush_lane_node.look_at(rush_lane_node.global_position + d * 2.0, Vector3.UP)
+
+func start_blind_rush(target_pos: Vector3) -> bool:
+	## v0.9.8 Move 5 · Blind Bull-Rush Charge & Wall-Slam Core Expose (RE4 Garrador inspired!):
+	## Telegraphed 0.85s roar + glowing floor rush corridor -> blind 10.5 m/s charge ->
+	## dodging sideways lets the Warden slam the cavern rock wall, flinging both stone tower shields open for 2.6s!
+	if not is_alive() or rush_state != "idle" or lance_state != "idle":
+		return false
+	var d_vec := Vector3(target_pos.x - root_node.position.x, 0.0, target_pos.z - root_node.position.z)
+	if d_vec.length_squared() < 0.25:
+		d_vec = Vector3.BACK
+	rush_dir = d_vec.normalized()
+	rush_state = "windup"
+	rush_timer = 0.72 if game.rules.is_confidential() else 0.88
+	rush_cd = 6.8 if enraged_resonance else (8.0 if game.rules.is_confidential() else 9.2)
+	rush_hit_player = false
+	rush_count += 1
+	patrol_listen_left = 0.0
+	set_guard_arms(false, 0.0)
+	_place_rush_lane(root_node.position, rush_dir, 9.5)
+	game.play_sfx("warning_lock", -8)
+	game.play_cn_voice("cave_06", root_node.position.distance_to(target_pos), true)
+	game._notice("🐂 石卫蓄力【石躯盲冲】！快横向闪避——诱使其撞上洞壁可震开双盾 2.6 秒！", Color("ff8a48"))
+	_sync_label()
+	return true
+
+func _update_blind_rush(delta: float):
+	if rush_state == "idle":
+		return
+	var is_conf: bool = game.rules.is_confidential()
+	if rush_state == "windup":
+		rush_timer -= delta
+		root_node.rotation.y = lerp_angle(root_node.rotation.y, atan2(rush_dir.x, rush_dir.z), minf(delta * 12.0, 1.0))
+		if is_instance_valid(rush_lane_mat):
+			rush_lane_mat.albedo_color.a = 0.42 + absf(sin(elapsed * 22.0)) * 0.34
+		if rush_timer <= 0.0:
+			rush_state = "charging"
+			rush_timer = 0.95
+			game.play_sfx("boss_slash", -6)
+			spawn_sonar_ring(root_node.position, Color("ff7838"), 7.5)
+			_sync_label()
+	elif rush_state == "charging":
+		rush_timer -= delta
+		var spd := (11.2 if is_conf else 9.8) * (1.15 if enraged_resonance else 1.0)
+		var raw_next := Vector3(root_node.position.x + rush_dir.x * spd * delta, 0.0, root_node.position.z + rush_dir.z * spd * delta)
+		var clamped := _clamp_to_cave(raw_next)
+		var hit_wall: bool = (absf(raw_next.x - clamped.x) > 0.04) or (absf(raw_next.z - clamped.z) > 0.04)
+		root_node.position = _ground_pos(clamped)
+		is_moving_now = true
+		stride_phase += delta * 14.0
+		# Check collision with player during blind charge
+		if not rush_hit_player and is_instance_valid(game.player) and game.rules.combat_mode:
+			var d_p := Vector2(game.player.position.x - root_node.position.x, game.player.position.z - root_node.position.z).length()
+			if d_p <= 2.15 and absf(game.player.position.y - root_node.position.y) < 2.2:
+				rush_hit_player = true
+				var dmg := 30 if is_conf else 22
+				game.player.add_screen_shake(0.50)
+				game.player.apply_knockback(rush_dir * 7.2 + Vector3(0.0, 1.8, 0.0))
+				if is_instance_valid(game.combat):
+					game.combat.apply_player_damage(dmg)
+				game._notice("💥 被石卫【石躯盲冲】正面撞飞（-%d 伤害）！下回横向闪避诱其撞壁！" % dmg, Color("ff5c5c"))
+				rush_state = "idle"
+				if is_instance_valid(rush_lane_node):
+					rush_lane_node.hide()
+				_sync_label()
+				return
+		# High-skill Wall-Slam Stagger! Blind Warden crashes into the cavern rock perimeter -> 2.6s exposed diamond core!
+		if hit_wall:
+			rush_state = "idle"
+			if is_instance_valid(rush_lane_node):
+				rush_lane_node.hide()
+			wall_slam_count += 1
+			arms_forced_open_left = maxf(arms_forced_open_left, 2.6)
+			set_guard_arms(false, 0.0)
+			hit_flash_left = 0.25
+			spawn_sonar_ring(root_node.position, Color("ffd86b"), 11.5)
+			game.play_sfx("boss_phase", -6)
+			game.play_cn_voice("cave_07", root_node.position.distance_to(game.player.position) if is_instance_valid(game.player) else 6.0, true)
+			if is_instance_valid(game.player):
+				game.player.add_screen_shake(0.45)
+			game._notice("★ 诱敌撞壁成功！石卫重撞洞岩震开双盾 2.6 秒——速射发光菱形蓝核！！", Color("ffd86b"))
+			_sync_label()
+			return
+		if rush_timer <= 0.0:
+			rush_state = "idle"
+			if is_instance_valid(rush_lane_node):
+				rush_lane_node.hide()
+			_sync_label()
+
+func _spawn_ground_shockwave():
+	## v0.9.8 Phase-2 (<50% HP) Jumpable Ground-Shatter Shockwave Ring!
+	if not is_alive():
+		return
+	shockwave_count += 1
+	var is_conf: bool = game.rules.is_confidential()
+	var sw_node: MeshInstance3D = null
+	var sw_mat: StandardMaterial3D = null
+	if DisplayServer.get_name() != "headless":
+		sw_node = MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.90
+		tm.outer_radius = 1.0
+		tm.rings = 32
+		tm.ring_segments = 8
+		sw_node.mesh = tm
+		sw_mat = StandardMaterial3D.new()
+		sw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		sw_mat.albedo_color = Color(0.28, 0.95, 1.0, 0.85)
+		sw_mat.emission_enabled = true
+		sw_mat.emission = Color("44eeff")
+		sw_mat.emission_energy_multiplier = 2.6
+		sw_node.material_override = sw_mat
+		sw_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sw_node.position = root_node.position + Vector3(0.0, 0.24, 0.0)
+		sw_node.scale = Vector3(0.8, 0.35, 0.8)
+		add_child(sw_node)
+	shock_waves.append({
+		"node": sw_node,
+		"mat": sw_mat,
+		"origin": root_node.position,
+		"radius": 0.8,
+		"max_r": 12.5 if is_conf else 10.5,
+		"speed": 9.2 if is_conf else 7.8,
+		"dmg": 20 if is_conf else 14,
+		"hit": false,
+	})
+	game.play_sfx("warden_sonar", -6)
+	game._notice("🌊 二阶段【双盾裂地冲击波】！按 [Space] 跳起越过贴地光环！", Color("56e8ff"))
+
+func _update_shock_waves(delta: float):
+	for i in range(shock_waves.size() - 1, -1, -1):
+		var sw: Dictionary = shock_waves[i]
+		sw.radius = float(sw.radius) + float(sw.speed) * delta
+		var nd = sw.node
+		if is_instance_valid(nd):
+			nd.scale = Vector3(float(sw.radius), 0.35, float(sw.radius))
+			if is_instance_valid(sw.mat):
+				(sw.mat as StandardMaterial3D).albedo_color.a = clampf(1.0 - float(sw.radius) / float(sw.max_r), 0.0, 1.0) * 0.85
+		if not bool(sw.hit) and is_instance_valid(game.player) and game.rules.combat_mode:
+			var ppos: Vector3 = game.player.position
+			var orig: Vector3 = sw.origin
+			var d_xz := Vector2(ppos.x - orig.x, ppos.z - orig.z).length()
+			if absf(d_xz - float(sw.radius)) <= 0.72:
+				var jumped_over: bool = (ppos.y - _cave_floor_y()) >= 0.42
+				sw.hit = true
+				if not jumped_over:
+					var d_val: int = int(sw.dmg)
+					game.player.add_screen_shake(0.32)
+					if is_instance_valid(game.combat):
+						game.combat.apply_player_damage(d_val)
+					game._notice("💥 未跳过【双盾裂地冲击波】（-%d 伤害）！贴地光环临近时按 [Space] 起跳！" % d_val, Color("ff7a6b"))
+				else:
+					game._notice("✦ 凌空跃过【双盾裂地冲击波】！", game.MINT)
+		if float(sw.radius) >= float(sw.max_r):
+			if is_instance_valid(nd):
+				nd.queue_free()
+			shock_waves.remove_at(i)
+
+func melee_strike(camera: Camera3D) -> bool:
+	## v0.9.8 Allow Tactical Knife slashes against Cave Warden with immediate visible HP bar deduction!
+	if not is_alive() or not is_instance_valid(camera):
+		return false
+	var cam_pos: Vector3 = game.player.get_eye_world_position() if (is_instance_valid(game.player) and game.player.has_method("get_eye_world_position")) else camera.global_position
+	var cam_fwd := (-camera.global_transform.basis.z).normalized()
+	var tgt_center: Vector3 = root_node.global_position + Vector3(0.0, 1.56, 0.0)
+	var delta_v := tgt_center - cam_pos
+	var d := delta_v.length()
+	if d > 3.75 or cam_fwd.dot(delta_v.normalized()) < 0.38:
+		return false
+	var is_conf: bool = game.rules.is_confidential()
+	var blocked: bool = guard_arms and arms_forced_open_left <= 0.0
+	var dmg: int = (8 if is_conf else 10) if blocked else (28 if is_conf else 36)
+	hp = maxi(0, hp - dmg)
+	hit_flash_left = 0.18
+	if blocked:
+		deflect_flash_left = 0.18
+		game.play_sfx("warden_shield_deflect", -7)
+		game.show_hitmarker(false)
+	else:
+		game.play_sfx("knife_hit", -7)
+		game.show_hitmarker(true)
+	if hp <= 0:
+		_on_defeated()
+	else:
+		state = "hunt"
+		noise_meter = 100.0
+		stealth_quiet_timer = 0.0
+		if not phase2_triggered and hp <= int(max_hp * 0.50):
+			phase2_triggered = true
+			_spawn_ground_shockwave()
+		if is_instance_valid(game.player):
+			var away: Vector3 = game.player.position - root_node.position
+			away.y = 0.0
+			if away.length_squared() < 0.01:
+				away = Vector3.BACK
+			game.player.apply_knockback(away.normalized() * 4.5 + Vector3(0.0, 1.0, 0.0))
+		_sync_label()
+		if blocked:
+			game._notice("🗡 匕首劈在青石臂盾上火花四溅（-%d · 剩 %d/%d HP）！" % [dmg, hp, max_hp], Color("ffd166"))
+		else:
+			game._notice("🗡 匕首斩裂石卫蓝核 -%d HP（剩 %d/%d HP）！小心石卫贴身声波反震！" % [dmg, hp, max_hp], Color("7ceeff"))
+	return true
 
 func on_smoke_emp(origin: Vector3):
 	## v0.8.6: Smoke breaks ballistic tracking + acoustic lock cleanly (NO long stun!).
@@ -704,6 +1048,9 @@ func hit_bullet(collider) -> bool:
 		state = "hunt"
 		noise_meter = 100.0
 		last_shot_suppressed = (game.rules.active_muzzle() == "suppressor")
+		if not phase2_triggered and hp <= int(max_hp * 0.50):
+			phase2_triggered = true
+			_spawn_ground_shockwave()
 		if is_conf and not enraged_resonance and hp <= int(max_hp * 0.45):
 			enraged_resonance = true
 			spawn_sonar_ring(root_node.position, Color("ff3b30"), 15.0)
@@ -756,8 +1103,15 @@ func _on_defeated():
 	shot_origin_active = false
 	echo_charging = false
 	lance_state = "idle"
+	rush_state = "idle"
 	if is_instance_valid(lance_beam_node):
 		lance_beam_node.hide()
+	if is_instance_valid(rush_lane_node):
+		rush_lane_node.hide()
+	for sw in shock_waves:
+		if is_instance_valid(sw.node):
+			sw.node.queue_free()
+	shock_waves.clear()
 	body_area.collision_layer = 0
 	core_area.collision_layer = 0
 	guard_area.collision_layer = 0
@@ -808,6 +1162,16 @@ func _update_articulation(delta: float):
 		target_l = Vector3(0.28, -0.46, -0.52)
 		target_r = Vector3(0.28, 0.46, 0.52)
 		target_h = Vector3(-0.34, sin(elapsed * 9.0) * 0.14, 0.0)
+	elif rush_state == "windup":
+		speed = 14.0
+		target_l = Vector3(-0.42, -0.25, -0.32)
+		target_r = Vector3(-0.42, 0.25, 0.32)
+		target_h = Vector3(0.26, 0.0, 0.0)
+	elif rush_state == "charging":
+		speed = 18.0
+		target_l = Vector3(-0.92, 0.58, 0.14)
+		target_r = Vector3(-0.92, -0.58, -0.14)
+		target_h = Vector3(0.30, 0.0, 0.0)
 	elif guard_arms:
 		speed = 18.0
 		var jolt := 0.14 if deflect_flash_left > 0.0 else 0.0
@@ -817,15 +1181,21 @@ func _update_articulation(delta: float):
 		target_h = Vector3(0.20, 0.0, 0.0)
 	elif state == "hunt":
 		speed = 12.0
-		var stride := sin(elapsed * 7.2)
+		var stride := sin(stride_phase if is_moving_now else elapsed * 6.4)
 		target_l = Vector3(-0.24 + stride * 0.44, -0.34, -0.44)
 		target_r = Vector3(-0.24 - stride * 0.44, 0.34, 0.44)
 		target_h = Vector3(-0.10, sin(elapsed * 4.2) * 0.10, 0.0)
+	elif patrol_listen_left > 0.0:
+		speed = 8.0
+		# Acoustic Listening Pause: shields held slightly wide, stoic stone head sweeps side-to-side listening!
+		target_l = Vector3(0.06, -0.22, -0.24)
+		target_r = Vector3(0.06, 0.22, 0.24)
+		target_h = Vector3(-0.06, sin(elapsed * 3.8) * 0.52, sin(elapsed * 1.9) * 0.08)
 	else:
 		speed = 8.5
-		var sw := sin(elapsed * 2.4)
-		target_l = Vector3(sw * 0.16, -0.10, -0.14)
-		target_r = Vector3(-sw * 0.16, 0.10, 0.14)
+		var sw := sin(stride_phase) if is_moving_now else sin(elapsed * 2.2) * 0.35
+		target_l = Vector3(sw * 0.22, -0.10, -0.14)
+		target_r = Vector3(-sw * 0.22, 0.10, 0.14)
 		target_h = Vector3(0.04, sin(elapsed * (3.6 if state == "investigate" else 1.5)) * (0.36 if state == "investigate" else 0.18), 0.0)
 
 	var w := minf(delta * speed, 1.0)
@@ -833,18 +1203,27 @@ func _update_articulation(delta: float):
 	arm_right_pivot.rotation = arm_right_pivot.rotation.lerp(target_r, w)
 	if is_instance_valid(head_crest):
 		head_crest.rotation = head_crest.rotation.lerp(target_h, w)
+	# v0.9.8 Articulated Stone Pillar Leg Stride (weighty bipedal march instead of sliding statue!)
+	if is_instance_valid(leg_left_pivot) and is_instance_valid(leg_right_pivot):
+		var leg_amp := 0.42 if rush_state == "charging" else (0.32 if state == "hunt" else 0.24)
+		var leg_swing := sin(stride_phase) * leg_amp if is_moving_now else 0.0
+		leg_left_pivot.rotation.x = lerpf(leg_left_pivot.rotation.x, leg_swing, minf(delta * 10.0, 1.0))
+		leg_right_pivot.rotation.x = lerpf(leg_right_pivot.rotation.x, -leg_swing, minf(delta * 10.0, 1.0))
 
 func snap_articulation_for_pose():
 	_update_articulation(1.0)
 
 func update(delta: float):
 	_update_sonar_rings(delta)
+	_update_shock_waves(delta)
 	if not is_alive() or game.paused or not is_instance_valid(game.player):
 		return
 	elapsed += delta
+	is_moving_now = false
 	sonar_cd = maxf(0.0, sonar_cd - delta)
 	attack_cd = maxf(0.0, attack_cd - delta)
 	lance_cd = maxf(0.0, lance_cd - delta)
+	rush_cd = maxf(0.0, rush_cd - delta)
 	quake_cd = maxf(0.0, quake_cd - delta)
 	echo_sweep_cd = maxf(0.0, echo_sweep_cd - delta)
 	hud_ping_cd = maxf(0.0, hud_ping_cd - delta)
@@ -854,6 +1233,14 @@ func update(delta: float):
 		deflect_flash_left = maxf(0.0, deflect_flash_left - delta)
 	if arms_forced_open_left > 0.0:
 		arms_forced_open_left = maxf(0.0, arms_forced_open_left - delta)
+
+	# v0.9.8 Active Blind Bull-Rush Charge overrides normal patrol/chase movement!
+	if rush_state != "idle":
+		_update_blind_rush(delta)
+		if is_instance_valid(model_node):
+			model_node.rotation.x = lerpf(model_node.rotation.x, 0.24 if rush_state == "charging" else 0.14, minf(delta * 12.0, 1.0))
+		_update_articulation(delta)
+		return
 
 	# Focused Anti-Sniper Sonic Lance state machine
 	if lance_state == "charging":
@@ -901,11 +1288,8 @@ func update(delta: float):
 			core_crystal_mat.emission = Color("3ce6ff")
 			core_crystal_mat.emission_energy_multiplier = 2.2 + sin(elapsed * 5.8) * 0.45
 
-	if is_instance_valid(hp_bar_root) and is_instance_valid(game.player.camera):
-		var cam_p: Vector3 = game.player.camera.global_position
-		var to_cam := Vector3(cam_p.x - hp_bar_root.global_position.x, 0.0, cam_p.z - hp_bar_root.global_position.z)
-		if to_cam.length_squared() > 0.04:
-			hp_bar_root.global_rotation.y = atan2(to_cam.x, to_cam.z)
+	if is_instance_valid(hp_bar_root):
+		hp_bar_root.rotation = Vector3.ZERO
 
 	var ppos: Vector3 = game.player.position
 	var dist_p := root_node.position.distance_to(ppos)
@@ -1003,11 +1387,16 @@ func update(delta: float):
 		var blast_range := 10.8 if is_conf_m else 9.5
 		if player_in_cave and player_is_noisy and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode:
 			_deliver_sonic_retaliation(dist_p < 3.8, guard_arms)
-		# Move 3: Cavern Quake Stalactite Rings during hunt
-		if (player_in_cave or dist_p <= BALLISTIC_RANGE) and not in_smoke and quake_cd <= 0.0 and lance_state == "idle" and game.rules.combat_mode:
+		# Move 5 (v0.9.8): Blind Bull-Rush Charge toward noisy/moving mid-range prey (dodge sideways -> Wall-Slam 2.6s Core Expose!)
+		if player_in_cave and player_is_noisy and not camping_shot and dist_p >= 4.4 and dist_p <= 13.5 and rush_state == "idle" and rush_cd <= 0.0 and lance_state == "idle" and not echo_charging and game.rules.combat_mode:
+			start_blind_rush(ppos)
+		# Move 3: Cavern Quake Stalactite Rings (+ Phase-2 Jumpable Shockwave!) during hunt
+		if (player_in_cave or dist_p <= BALLISTIC_RANGE) and not in_smoke and quake_cd <= 0.0 and lance_state == "idle" and rush_state == "idle" and game.rules.combat_mode:
 			_trigger_cavern_quake(ppos if (player_is_noisy or camping_shot) else investigate_pos)
+			if phase2_triggered:
+				_spawn_ground_shockwave()
 		# Move 4: Confidential-Only Active Echolocation Sweep!
-		if is_conf_m and (player_in_cave or dist_p <= BALLISTIC_RANGE) and not echo_charging and echo_sweep_cd <= 0.0 and lance_state == "idle":
+		if is_conf_m and (player_in_cave or dist_p <= BALLISTIC_RANGE) and not echo_charging and echo_sweep_cd <= 0.0 and lance_state == "idle" and rush_state == "idle":
 			echo_charging = true
 			echo_charge_left = 1.15
 			spawn_sonar_ring(root_node.position, Color("ffd15c"), 15.0)
@@ -1015,6 +1404,7 @@ func update(delta: float):
 			game._notice("📡 机密预警：古洞石卫蓄力【主动声呐扫描】（1.15s）！立即按 [Z] 匍匐贴地或躲入 [G] 烟雾！", Color("ffd15c"))
 			_sync_label()
 	elif state == "investigate":
+		patrol_listen_left = 0.0
 		move_target = _ground_pos(_clamp_to_cave(investigate_pos))
 		move_speed = (1.25 if guard_arms else 2.55) * rage_spd_mult
 		if sonar_cd <= 0.0:
@@ -1022,19 +1412,31 @@ func update(delta: float):
 			game.play_sfx("warden_sonar", -12)
 			spawn_sonar_ring(root_node.position, Color("54f0ff"), 9.5)
 	else:
-		var wp := _ground_pos(_patrol_pt(patrol_idx))
-		if Vector2(wp.x - root_node.position.x, wp.z - root_node.position.z).length() < 0.75:
-			patrol_idx = (patrol_idx + 1) % PATROL_OFFSETS.size()
-			wp = _ground_pos(_patrol_pt(patrol_idx))
-		move_target = wp
-		move_speed = 1.65
+		if patrol_listen_left > 0.0:
+			patrol_listen_left = maxf(0.0, patrol_listen_left - delta)
+			move_target = root_node.position
+			move_speed = 0.0
+			if patrol_listen_left <= 0.0:
+				_sync_label()
+		else:
+			var wp := _ground_pos(_patrol_pt(patrol_idx))
+			if Vector2(wp.x - root_node.position.x, wp.z - root_node.position.z).length() < 0.75:
+				patrol_idx = (patrol_idx + 1) % PATROL_OFFSETS.size()
+				patrol_listen_left = 1.65
+				spawn_sonar_ring(root_node.position, Color("54f0ff"), 8.5)
+				_sync_label()
+				wp = root_node.position
+			move_target = wp
+			move_speed = 1.85
 
 	var flat_delta := Vector2(move_target.x - root_node.position.x, move_target.z - root_node.position.z)
 	var stop_dist := 2.4 if state == "hunt" else 0.45
-	if flat_delta.length() > stop_dist and lance_state != "charging":
+	if flat_delta.length() > stop_dist and lance_state != "charging" and move_speed > 0.05:
 		var step := flat_delta.normalized() * minf(move_speed * delta, flat_delta.length() - stop_dist)
 		var next_xz := _clamp_to_cave(Vector3(root_node.position.x + step.x, 0.0, root_node.position.z + step.y))
 		root_node.position = _ground_pos(next_xz)
+		is_moving_now = true
+		stride_phase += delta * (move_speed * 2.45)
 	if state == "hunt" or guard_arms or lance_state == "charging":
 		var face_target := last_shot_pos if (camping_shot or lance_state == "charging") else (ppos if player_is_noisy else investigate_pos)
 		var face_p := Vector2(face_target.x - root_node.position.x, face_target.z - root_node.position.z)

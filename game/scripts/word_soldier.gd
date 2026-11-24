@@ -115,12 +115,15 @@ const OVERLORD_SHIELD_SPECS := [
 
 var visual_root: Node3D
 var shield_area: Area3D
+var chest_core_root: Node3D
+var chest_core_mat: StandardMaterial3D
 var head_area: Area3D
 var core_area: Area3D
 var core_material: StandardMaterial3D
 var hp_bar_root: Node3D
 var hp_fill: MeshInstance3D
 var hp_fill_mat: StandardMaterial3D
+var hp_text_label: Label3D
 var word_label: Label3D
 var tag_label: Label3D
 var base_tag_text: String = ""
@@ -134,6 +137,7 @@ var legs: Array[Node3D] = []
 var rig_anim_player: AnimationPlayer = null
 var rig_anim_state: String = ""
 var defeat_tween: Tween
+var melee_flash_left: float = 0.0
 
 var stride = 0.0
 var hover_clock = 0.0
@@ -371,16 +375,17 @@ func _build_model():
 	hcol.shape = hshape
 	head_area.add_child(hcol)
 
-	# 2. Overhead Compact 3D Health / Shield-Layer Bar
+	# 2. Sleek Compact 3D Health Bar (tucked cleanly beneath the overhead holographic word tag!)
 	hp_bar_root = Node3D.new()
-	hp_bar_root.position = Vector3(0, (4.55 if is_skyfall_overlord else 3.46) if archetype == Archetype.BOSS_WARDEN else 2.26, 0)
+	var hp_y := (4.55 if is_skyfall_overlord else 3.46) if archetype == Archetype.BOSS_WARDEN else (2.18 if archetype == Archetype.SNIPER_GUARD else (2.06 if archetype == Archetype.SCOUT_DRONE else 2.09))
+	hp_bar_root.position = Vector3(0, hp_y, 0)
 	add_child(hp_bar_root)
 	var bg = MeshInstance3D.new()
 	var bg_quad = QuadMesh.new()
-	bg_quad.size = Vector2(1.45 if archetype == Archetype.BOSS_WARDEN else 0.92, 0.14 if archetype == Archetype.BOSS_WARDEN else 0.09)
+	bg_quad.size = Vector2(1.45 if archetype == Archetype.BOSS_WARDEN else 0.96, 0.14 if archetype == Archetype.BOSS_WARDEN else 0.095)
 	bg.mesh = bg_quad
 	var bg_mat = StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.08, 0.11, 0.12, 0.86)
+	bg_mat.albedo_color = Color(0.06, 0.09, 0.11, 0.88)
 	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -390,7 +395,7 @@ func _build_model():
 
 	hp_fill = MeshInstance3D.new()
 	var fill_quad = QuadMesh.new()
-	fill_quad.size = Vector2(1.37 if archetype == Archetype.BOSS_WARDEN else 0.86, 0.09 if archetype == Archetype.BOSS_WARDEN else 0.055)
+	fill_quad.size = Vector2(1.37 if archetype == Archetype.BOSS_WARDEN else 0.90, 0.09 if archetype == Archetype.BOSS_WARDEN else 0.06)
 	hp_fill.mesh = fill_quad
 	hp_fill.position.z = 0.01
 	hp_fill_mat = StandardMaterial3D.new()
@@ -401,12 +406,21 @@ func _build_model():
 	hp_fill.visibility_range_end = 85.0
 	hp_bar_root.add_child(hp_fill)
 
-	# 3. Chest-Mounted Holographic Electronic Word Shield (2 Shots to Break & Kill on Correct Soldier)
+	hp_text_label = game._label3d(hp_bar_root, "", Vector3(0.0, -0.10, 0.02), 18, Color("ffe8b8"))
+	hp_text_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	hp_text_label.pixel_size = 0.0042
+	hp_text_label.outline_size = 3
+	hp_text_label.outline_modulate = Color("081014")
+	hp_text_label.visibility_range_end = 55.0
+	hp_text_label.hide()
+
+	# 3. v0.9.8 Compact Overhead Translucent Holographic Word Tag + Embedded Glowing Chest Word Core!
+	#    Floats cleanly ABOVE the soldier's helmet/head -> ZERO obstruction of sculpted armor, face, head weakpoint, or rifle!
+	#    Shooting EITHER the soldier's chest/body OR the overhead word tag counts as a 2-shot shield hit; unobstructed head = 1-shot headshot!
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
-	var shield_y := 1.70 if archetype == Archetype.BOSS_WARDEN else (1.40 if archetype == Archetype.SNIPER_GUARD else (1.38 if archetype == Archetype.SCOUT_DRONE else 1.34))
-	var shield_z := (0.98 if is_ahsarah_unit else 0.66) if archetype == Archetype.BOSS_WARDEN else (0.58 if is_ahsarah_unit else (0.98 if archetype == Archetype.SNIPER_GUARD else 0.88))
-	shield_area.position = Vector3(0, shield_y, shield_z)
+	var shield_y := 3.02 if archetype == Archetype.BOSS_WARDEN else (2.54 if archetype == Archetype.SNIPER_GUARD else (2.40 if archetype == Archetype.SCOUT_DRONE else 2.44))
+	shield_area.position = Vector3(0, shield_y, 0.0)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
 	shield_area.monitoring = false
@@ -414,29 +428,34 @@ func _build_model():
 	shield_area.hide()
 	add_child(shield_area)
 
-	var bw := 2.24 if archetype == Archetype.BOSS_WARDEN else 2.00
-	var bh := 0.78 if archetype == Archetype.BOSS_WARDEN else 0.70
+	var bw := 1.72 if archetype == Archetype.BOSS_WARDEN else 1.54
+	var bh := 0.56 if archetype == Archetype.BOSS_WARDEN else 0.54
 	var badge_shape = BoxShape3D.new()
-	badge_shape.size = Vector3(bw, bh, 0.16)
+	badge_shape.size = Vector3(bw, bh, 0.18)
 	var badge_hitbox = CollisionShape3D.new()
 	badge_hitbox.shape = badge_shape
 	shield_area.add_child(badge_hitbox)
 
 	base_border_col = Color("ffd15c") if archetype == Archetype.BOSS_WARDEN else (Color("ff9b54") if archetype == Archetype.SCOUT_DRONE else (Color("ff5d6c") if archetype == Archetype.SNIPER_GUARD else Color("5ce0b8")))
-	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.015), Vector3(bw, bh, 0.055), base_border_col)
+	# Slim glowing neon perimeter frame (translucent futuristic tactical plate!)
+	var outer_bezel = game._mesh_box(shield_area, Vector3(0, 0, -0.012), Vector3(bw, bh, 0.022), base_border_col)
 	frame_material = outer_bezel.material_override
 	frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	frame_material.albedo_color = Color(base_border_col.r, base_border_col.g, base_border_col.b, 0.92)
 
-	# Antique-bronze Jiangnan corner brackets framing the tactical word screen
-	var corner_mat := _bronze_trim_mat()
-	for sx in [-1.0, 1.0]:
-		for sy in [-1.0, 1.0]:
-			var brk = game._mesh_box(shield_area, Vector3(sx * (bw * 0.5 - 0.06), sy * (bh * 0.5 - 0.045), 0.022), Vector3(0.16, 0.12, 0.045), Color.WHITE)
-			brk.material_override = corner_mat
-
-	var screen_box = game._mesh_box(shield_area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.12, bh - 0.12, 0.05), Color("edf2e6"))
+	# Sleek high-contrast dark translucent tactical glass backing (crystal-clear bright English text at 50m+!)
+	var screen_box = game._mesh_box(shield_area, Vector3(0, 0.0, 0.004), Vector3(bw - 0.075, bh - 0.075, 0.020), Color(0.05, 0.10, 0.13, 0.84))
 	shield_material = screen_box.material_override
 	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shield_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	# Minimal cyber-tactical corner brackets
+	var corner_mat := _bronze_trim_mat(Color("d6b264"))
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			var brk = game._mesh_box(shield_area, Vector3(sx * (bw * 0.5 - 0.03), sy * (bh * 0.5 - 0.025), 0.014), Vector3(0.085, 0.055, 0.022), Color.WHITE)
+			brk.material_override = corner_mat
 
 	var role_text: String
 	if is_ahsarah_unit:
@@ -449,20 +468,25 @@ func _build_model():
 	else:
 		role_text = ["雾隐突击兵", "雾隐侦察蜂", "雾隐狙击卫", "★ 雾隐机关王·玄铁词尊" if is_skyfall_overlord else "★ 雾隐先锋·铁面词卫"][archetype]
 	base_tag_text = "%s · %s" % [char(65 + (option % 8)), role_text]
-	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.22 if archetype == Archetype.BOSS_WARDEN else 0.20, 0.055), 18, Color("143832"))
+	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.195 if archetype == Archetype.BOSS_WARDEN else 0.188, 0.024), 15, Color("9ef5dc"))
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	tag_label.pixel_size = 0.0044
-	tag_label.outline_size = 0
+	tag_label.pixel_size = 0.0038
+	tag_label.outline_size = 3
+	tag_label.outline_modulate = Color("060e12")
 	tag_label.visibility_range_end = 85.0
 
-	word_label = game._label3d(shield_area, "", Vector3(0, -0.05, 0.058), 58, Color("102620"))
+	word_label = game._label3d(shield_area, "", Vector3(0, -0.048, 0.026), 52, Color("f6fff9"))
 	word_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	word_label.pixel_size = 0.0052
-	word_label.width = 345
+	word_label.pixel_size = 0.0046
+	word_label.width = 305
 	word_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	word_label.outline_size = 2
-	word_label.outline_modulate = Color("f6f9f2")
-	word_label.visibility_range_end = 98.0
+	word_label.outline_size = 5
+	word_label.outline_modulate = Color("050c10")
+	word_label.visibility_range_end = 102.0
+
+	# Embedded Glowing Chest Word Core Crystal (on regular troopers & drones — visible sci-fi word core on armor!)
+	if archetype != Archetype.BOSS_WARDEN:
+		_build_chest_word_core(game)
 
 	# Sniper / Aim Laser Sight Beam
 	laser_beam = MeshInstance3D.new()
@@ -481,6 +505,46 @@ func _build_model():
 	elif archetype == Archetype.BOSS_WARDEN:
 		_build_vanguard_shields(game)
 	_refresh_hp_bar()
+
+func _build_chest_word_core(game):
+	## v0.9.8 Embedded Glowing Hex/Diamond Chest Word Core flush on trooper armor (pairs with compact overhead word tag!)
+	chest_core_root = Node3D.new()
+	chest_core_root.name = "ChestWordCore"
+	var cy := 1.66 if archetype == Archetype.SCOUT_DRONE else (1.32 if archetype == Archetype.SNIPER_GUARD else 1.24)
+	var cz := 0.29 if archetype == Archetype.SCOUT_DRONE else (0.25 if archetype == Archetype.SNIPER_GUARD else 0.23)
+	chest_core_root.position = Vector3(0.0, cy, cz)
+	visual_root.add_child(chest_core_root)
+
+	var socket_mat := _metal_mat(Color("192328"), 0.72, 0.34)
+	var bezel := MeshInstance3D.new()
+	var b_cyl := CylinderMesh.new()
+	b_cyl.top_radius = 0.115
+	b_cyl.bottom_radius = 0.130
+	b_cyl.height = 0.036
+	b_cyl.radial_segments = 6
+	bezel.mesh = b_cyl
+	bezel.rotation.x = PI * 0.5
+	bezel.material_override = socket_mat
+	chest_core_root.add_child(bezel)
+
+	var gem := MeshInstance3D.new()
+	var g_mesh := SphereMesh.new()
+	g_mesh.radius = 0.082
+	g_mesh.height = 0.185
+	g_mesh.radial_segments = 6
+	g_mesh.rings = 2
+	gem.mesh = g_mesh
+	gem.position = Vector3(0.0, 0.0, 0.022)
+	gem.scale = Vector3(1.0, 1.0, 0.55)
+	chest_core_mat = StandardMaterial3D.new()
+	chest_core_mat.albedo_color = base_border_col
+	chest_core_mat.emission_enabled = true
+	chest_core_mat.emission = base_border_col
+	chest_core_mat.emission_energy_multiplier = 2.6
+	chest_core_mat.roughness = 0.14
+	chest_core_mat.metallic = 0.15
+	gem.material_override = chest_core_mat
+	chest_core_root.add_child(gem)
 
 func _build_drone_chassis(game):
 	legs.clear()
@@ -806,26 +870,85 @@ func _build_boss_chassis(game):
 func _refresh_hp_bar():
 	if not is_instance_valid(hp_fill):
 		return
+	var hp_ratio := clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
 	var ratio := 1.0
 	if archetype == Archetype.BOSS_WARDEN:
-		ratio = clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
+		ratio = hp_ratio
 	else:
-		ratio = clampf(float(shield_layers) / float(maxi(1, max_shield_layers)), 0.0, 1.0)
+		# v0.9.8 Fix: Reflect BOTH real HP deduction (knife slashes!) AND 2-shot word-shield cracking!
+		var sh_ratio := clampf(float(shield_layers) / float(maxi(1, max_shield_layers)), 0.0, 1.0)
+		ratio = minf(hp_ratio, sh_ratio)
 	hp_fill.scale.x = maxf(0.02, ratio)
-	var full_w := 1.37 if archetype == Archetype.BOSS_WARDEN else 0.86
+	var full_w := 1.37 if archetype == Archetype.BOSS_WARDEN else 0.90
 	hp_fill.position.x = -full_w * 0.5 * (1.0 - ratio)
 	if is_instance_valid(hp_fill_mat):
 		if knockdown_left > 0.0:
 			hp_fill_mat.albedo_color = Color("ffd86b")
 		elif stun_left > 0:
 			hp_fill_mat.albedo_color = Color("56e8ff")
+		elif melee_flash_left > 0.0:
+			hp_fill_mat.albedo_color = Color("ff4848")
 		elif archetype == Archetype.BOSS_WARDEN:
 			hp_fill_mat.albedo_color = Color("ff5c5c") if exposed_left > 0 else Color("ffb84d")
 		else:
-			hp_fill_mat.albedo_color = Color("5fe3a8") if shield_layers >= 2 else Color("ff9f4a")
+			if ratio <= 0.35:
+				hp_fill_mat.albedo_color = Color("ff4c4c")
+			elif ratio <= 0.72:
+				hp_fill_mat.albedo_color = Color("ff9f4a")
+			else:
+				hp_fill_mat.albedo_color = Color("5fe3a8")
+	if is_instance_valid(hp_text_label):
+		if not defeated and (archetype == Archetype.BOSS_WARDEN or hp < max_hp):
+			hp_text_label.text = "HP %d/%d" % [hp, max_hp]
+			hp_text_label.modulate = Color("ff7866") if hp_ratio <= 0.45 else Color("ffe8b8")
+			hp_text_label.show()
+		else:
+			hp_text_label.hide()
 	if is_instance_valid(tag_label) and knockdown_left <= 0.0 and base_tag_text != "":
-		tag_label.text = base_tag_text
-		tag_label.modulate = Color("ffd15c") if is_nemesis_bounty else Color("d8ebe2")
+		if shield_layers < max_shield_layers and archetype != Archetype.BOSS_WARDEN:
+			tag_label.text = "⚡ 护盾裂损 (1/2) · 补 1 枪击毙!"
+			tag_label.modulate = Color("ffb864")
+		else:
+			tag_label.text = _active_tag_text()
+			tag_label.modulate = _active_tag_col()
+	if is_instance_valid(chest_core_mat):
+		if wrong_flash_left > 0.0 or melee_flash_left > 0.0:
+			chest_core_mat.albedo_color = Color("ff3b30")
+			chest_core_mat.emission = Color("ff3b30")
+			chest_core_mat.emission_energy_multiplier = 4.2
+		elif shield_layers < max_shield_layers:
+			chest_core_mat.albedo_color = Color("ff8c3b")
+			chest_core_mat.emission = Color("ff7820")
+			chest_core_mat.emission_energy_multiplier = 3.2
+		else:
+			var col_c := _active_border_col()
+			chest_core_mat.albedo_color = col_c
+			chest_core_mat.emission = col_c
+			chest_core_mat.emission_energy_multiplier = 2.6
+
+func on_melee_hit_fx(dmg: int):
+	## v0.9.8 Tactile visual feedback + rising floating 3D damage popup on every knife slash!
+	melee_flash_left = 0.24
+	_refresh_hp_bar()
+	if is_instance_valid(visual_root):
+		visual_root.rotation.x = -0.22
+	if DisplayServer.get_name() == "headless" or not is_instance_valid(combat) or not is_instance_valid(combat.arena):
+		return
+	var game = combat.game
+	var pop_y := 2.48 if archetype == Archetype.BOSS_WARDEN else (2.18 + float(melee_hits_taken % 3) * 0.18)
+	var pop_x := (-0.28 + float(melee_hits_taken % 3) * 0.28)
+	var pop: Label3D = game._label3d(combat.arena, "-%d" % dmg, global_position + Vector3(pop_x, pop_y, 0.0), 40, Color("ff6240"))
+	pop.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	pop.shaded = false
+	pop.no_depth_test = true
+	pop.pixel_size = 0.0056
+	pop.outline_size = 4
+	pop.outline_modulate = Color("180606")
+	var tw := pop.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(pop, "position:y", pop.position.y + 0.58, 0.58)
+	tw.tween_property(pop, "modulate:a", 0.0, 0.58)
+	tw.chain().tween_callback(pop.queue_free)
 
 func stun(seconds: float):
 	if defeated:
@@ -864,12 +987,12 @@ func crack_shield_once():
 		return
 	shield_layers = maxi(1, shield_layers - 1)
 	if is_instance_valid(shield_material):
-		shield_material.albedo_color = Color("fff0b3")
+		shield_material.albedo_color = Color(0.22, 0.11, 0.05, 0.88)
 	if is_instance_valid(frame_material):
-		frame_material.albedo_color = Color("ff8c3b")
+		frame_material.albedo_color = Color(1.0, 0.55, 0.23, 0.95)
 	if is_instance_valid(tag_label):
-		tag_label.text = "⚡ 护盾破损 (1/2) · 机动换掩体!"
-		tag_label.modulate = Color("8a2d0a")
+		tag_label.text = "⚡ 护盾裂损 (1/2) · 补 1 枪击毙!"
+		tag_label.modulate = Color("ffb864")
 	stun_left = maxf(stun_left, 0.18)
 	_refresh_hp_bar()
 	# Wounded soldier immediately bounds to a fresh unoccupied cover while firing suppression shots!
@@ -883,9 +1006,10 @@ func on_wrong_hit_flash():
 	# Wrong target takes ZERO HP / shield damage! Flash deflection warning and duck briefly if not aiming.
 	wrong_flash_left = 0.42
 	if is_instance_valid(shield_material):
-		shield_material.albedo_color = Color("f4a69e")
+		shield_material.albedo_color = Color(0.36, 0.07, 0.08, 0.90)
 	if is_instance_valid(frame_material):
-		frame_material.albedo_color = Color("ff3b30")
+		frame_material.albedo_color = Color(1.0, 0.23, 0.19, 0.96)
+	_refresh_hp_bar()
 	if action == Action.ADVANCE and not is_bounding_to_cover and archetype != Archetype.BOSS_WARDEN:
 		take_cover()
 		cover_left = 0.65
@@ -897,7 +1021,7 @@ func _active_tag_text() -> String:
 	return ("★ 宿敌复习 · " + base_tag_text) if is_nemesis_bounty else base_tag_text
 
 func _active_tag_col() -> Color:
-	return Color("8a4200") if is_nemesis_bounty else Color("143832")
+	return Color("ffd86b") if is_nemesis_bounty else Color("9ef5dc")
 
 func set_nemesis_bounty(active: bool):
 	is_nemesis_bounty = active
@@ -949,8 +1073,8 @@ func _build_vanguard_shields(game):
 	vanguard_shields_root = Node3D.new()
 	vanguard_shields_root.name = "VanguardMultiShields"
 	add_child(vanguard_shields_root)
-	var bw := 2.02
-	var bh := 0.72
+	var bw := 1.64
+	var bh := 0.50
 	for idx in VANGUARD_SHIELD_SPECS.size():
 		var sp: Dictionary = VANGUARD_SHIELD_SPECS[idx]
 		var area := Area3D.new()
@@ -971,28 +1095,31 @@ func _build_vanguard_shields(game):
 		bcol.shape = bshp
 		area.add_child(bcol)
 
-		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.02), Vector3(bw, bh, 0.055), Color("5ce0b8"))
+		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.012), Vector3(bw, bh, 0.022), Color(0.36, 0.88, 0.72, 0.92))
 		var fmat: StandardMaterial3D = bezel.material_override
 		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
-		var screen: MeshInstance3D = game._mesh_box(area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.14, bh - 0.14, 0.05), Color("edf6ee"))
+		var screen: MeshInstance3D = game._mesh_box(area, Vector3(0, 0.0, 0.004), Vector3(bw - 0.08, bh - 0.08, 0.020), Color(0.05, 0.10, 0.13, 0.85))
 		var smat: StandardMaterial3D = screen.material_override
 		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
 		var v_prefix := "赤枭" if is_ahsarah_unit else "铁面"
-		var tlbl: Label3D = game._label3d(area, "%s·%s" % [v_prefix, str(sp.part)], Vector3(0, 0.21, 0.058), 17, Color("143832"))
+		var tlbl: Label3D = game._label3d(area, "%s·%s" % [v_prefix, str(sp.part)], Vector3(0, 0.155, 0.024), 16, Color("9ef5dc"))
 		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		tlbl.pixel_size = 0.0044
-		tlbl.outline_size = 0
+		tlbl.pixel_size = 0.0040
+		tlbl.outline_size = 3
+		tlbl.outline_modulate = Color("060e12")
 		tlbl.visibility_range_end = 95.0
 
-		var wlbl: Label3D = game._label3d(area, "", Vector3(0, -0.06, 0.062), 56, Color("102620"))
+		var wlbl: Label3D = game._label3d(area, "", Vector3(0, -0.045, 0.026), 54, Color("f6fff9"))
 		wlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		wlbl.pixel_size = 0.0052
-		wlbl.width = 345
+		wlbl.width = 290
 		wlbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		wlbl.outline_size = 2
-		wlbl.outline_modulate = Color("f6f9f2")
+		wlbl.outline_size = 5
+		wlbl.outline_modulate = Color("050c10")
 		wlbl.visibility_range_end = 100.0
 
 		vanguard_shields.append({
@@ -1036,8 +1163,8 @@ func configure_vanguard_shields(words_list: Array, active_slots: int = 2):
 			area.position = sd.base_pos
 			area.show()
 			area.collision_layer = HIT_LAYER
-			(sd.frame_mat as StandardMaterial3D).albedo_color = col_border
-			(sd.screen_mat as StandardMaterial3D).albedo_color = Color("fff6e4") if n >= 3 else Color("edf6f2")
+			(sd.frame_mat as StandardMaterial3D).albedo_color = Color(col_border.r, col_border.g, col_border.b, 0.94)
+			(sd.screen_mat as StandardMaterial3D).albedo_color = Color(0.14, 0.09, 0.05, 0.86) if n >= 3 else Color(0.05, 0.10, 0.13, 0.85)
 			(sd.tag_label as Label3D).text = "%s·%s" % [phase_tag, str(sd.part)]
 			combat.game._fit_word(sd.word_label, str(sd.word.get("english", "")), 108)
 		else:
@@ -1282,8 +1409,8 @@ func _build_overlord_multi_shields(game):
 		shield_area.hide()
 		shield_area.collision_layer = 0
 
-	var bw := 2.02
-	var bh := 0.72
+	var bw := 1.66
+	var bh := 0.50
 	for idx in OVERLORD_SHIELD_SPECS.size():
 		var sp: Dictionary = OVERLORD_SHIELD_SPECS[idx]
 		var area := Area3D.new()
@@ -1303,28 +1430,31 @@ func _build_overlord_multi_shields(game):
 		bcol.shape = bshp
 		area.add_child(bcol)
 
-		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.02), Vector3(bw, bh, 0.06), Color("ffd15c"))
+		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.012), Vector3(bw, bh, 0.024), Color(1.0, 0.82, 0.36, 0.94))
 		var fmat: StandardMaterial3D = bezel.material_override
 		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
-		var screen: MeshInstance3D = game._mesh_box(area, Vector3(0, -0.02, 0.02), Vector3(bw - 0.14, bh - 0.14, 0.05), Color("fff6e0"))
+		var screen: MeshInstance3D = game._mesh_box(area, Vector3(0, 0.0, 0.004), Vector3(bw - 0.08, bh - 0.08, 0.020), Color(0.11, 0.09, 0.05, 0.86))
 		var smat: StandardMaterial3D = screen.material_override
 		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
 		var ov_prefix := "雷斯" if is_ahsarah_unit else "玄铁"
-		var tlbl: Label3D = game._label3d(area, "%s·%s" % [ov_prefix, str(sp.part)], Vector3(0, 0.21, 0.06), 17, Color("7a3500"))
+		var tlbl: Label3D = game._label3d(area, "%s·%s" % [ov_prefix, str(sp.part)], Vector3(0, 0.155, 0.024), 16, Color("ffd86b"))
 		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		tlbl.pixel_size = 0.0044
-		tlbl.outline_size = 0
+		tlbl.pixel_size = 0.0040
+		tlbl.outline_size = 3
+		tlbl.outline_modulate = Color("0c0804")
 		tlbl.visibility_range_end = 98.0
 
-		var wlbl: Label3D = game._label3d(area, "", Vector3(0, -0.06, 0.064), 56, Color("141a18"))
+		var wlbl: Label3D = game._label3d(area, "", Vector3(0, -0.045, 0.026), 54, Color("fffbf0"))
 		wlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		wlbl.pixel_size = 0.0052
-		wlbl.width = 345
+		wlbl.width = 290
 		wlbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		wlbl.outline_size = 2
-		wlbl.outline_modulate = Color("fffaf0")
+		wlbl.outline_size = 5
+		wlbl.outline_modulate = Color("080604")
 		wlbl.visibility_range_end = 105.0
 
 		multi_shields.append({
@@ -1368,8 +1498,8 @@ func configure_overlord_sequence(five_words: Array):
 		area.rotation = Vector3.ZERO
 		area.visible = active_now
 		area.collision_layer = HIT_LAYER if active_now else 0
-		(sd.frame_mat as StandardMaterial3D).albedo_color = Color("ffd15c")
-		(sd.screen_mat as StandardMaterial3D).albedo_color = Color("fff6e0")
+		(sd.frame_mat as StandardMaterial3D).albedo_color = Color(1.0, 0.82, 0.36, 0.94)
+		(sd.screen_mat as StandardMaterial3D).albedo_color = Color(0.11, 0.09, 0.05, 0.86)
 		(sd.tag_label as Label3D).text = "一轮·%s" % str(sd.part)
 		combat.game._fit_word(sd.word_label, str(sd.word.get("english", "")), 108)
 	if not overlord_seq_words.is_empty():
@@ -1402,8 +1532,8 @@ func configure_overlord_round_two(three_words: Array):
 			sd.word = overlord_seq_words[step_i]
 			area.show()
 			area.collision_layer = HIT_LAYER
-			(sd.frame_mat as StandardMaterial3D).albedo_color = Color("ff9f2e")
-			(sd.screen_mat as StandardMaterial3D).albedo_color = Color("fff0c8")
+			(sd.frame_mat as StandardMaterial3D).albedo_color = Color(1.0, 0.62, 0.18, 0.95)
+			(sd.screen_mat as StandardMaterial3D).albedo_color = Color(0.16, 0.10, 0.04, 0.88)
 			(sd.tag_label as Label3D).text = "二轮金盾·公转"
 			combat.game._fit_word(sd.word_label, str(sd.word.get("english", "")), 108)
 		else:
@@ -1442,7 +1572,7 @@ func _update_overlord_shield_positions(delta: float):
 		var sd: Dictionary = intact_list[k]
 		var area: Area3D = sd.area
 		var ang: float = overlord_orbit_angle + TAU * float(k) / float(n_intact)
-		var ly: float = 2.45 + sin(ang * 2.0 + float(k)) * 0.34
+		var ly: float = 3.35 + sin(ang * 2.0 + float(k)) * 0.24
 		var local_p := Vector3(cos(ang) * orbit_r, ly, sin(ang) * orbit_r)
 		area.position = area.position.lerp(local_p, minf(delta * 8.0, 1.0)) if delta > 0.0 else local_p
 		# Always orient shield face toward player so English word stays crisp & legible while orbiting!
@@ -1947,10 +2077,11 @@ func show_word(word: String, _new_question: bool):
 		shield_area.show()
 		shield_area.collision_layer = HIT_LAYER
 		shield_intact = true
-		combat.game._fit_word(word_label, word, 110)
+		combat.game._fit_word(word_label, word, 92)
 		if shield_layers >= max_shield_layers and wrong_flash_left <= 0:
-			shield_material.albedo_color = Color("fff8e3") if is_nemesis_bounty else Color("edf2e6")
-			frame_material.albedo_color = _active_border_col()
+			shield_material.albedo_color = Color(0.16, 0.12, 0.04, 0.88) if is_nemesis_bounty else Color(0.05, 0.10, 0.13, 0.84)
+			var bc := _active_border_col()
+			frame_material.albedo_color = Color(bc.r, bc.g, bc.b, 0.92)
 			tag_label.text = _active_tag_text()
 			tag_label.modulate = _active_tag_col()
 	else:
@@ -2098,14 +2229,29 @@ func _physics_process(delta: float):
 		laser_beam.hide()
 		return
 
+	if melee_flash_left > 0.0:
+		melee_flash_left = maxf(0.0, melee_flash_left - delta)
+		if melee_flash_left <= 0.0:
+			_refresh_hp_bar()
+
 	if wrong_flash_left > 0.0:
 		wrong_flash_left = maxf(0.0, wrong_flash_left - delta)
 		if wrong_flash_left <= 0.0 and not defeated:
 			if is_instance_valid(shield_material):
-				var idle_bg := Color("fff8e3") if is_nemesis_bounty else Color("edf2e6")
-				shield_material.albedo_color = idle_bg if shield_layers >= max_shield_layers else Color("fff0b3")
+				var idle_bg := Color(0.16, 0.12, 0.04, 0.88) if is_nemesis_bounty else Color(0.05, 0.10, 0.13, 0.84)
+				shield_material.albedo_color = idle_bg if shield_layers >= max_shield_layers else Color(0.22, 0.11, 0.05, 0.88)
 			if is_instance_valid(frame_material):
-				frame_material.albedo_color = _active_border_col() if shield_layers >= max_shield_layers else Color("ff8c3b")
+				var bc_ok := _active_border_col() if shield_layers >= max_shield_layers else Color("ff8c3b")
+				frame_material.albedo_color = Color(bc_ok.r, bc_ok.g, bc_ok.b, 0.92)
+			_refresh_hp_bar()
+
+	# Smoothly orient overhead compact holographic word tag toward player horizontally (360° readability!)
+	if is_instance_valid(shield_area) and shield_area.visible and is_instance_valid(game.player):
+		var to_pl := Vector3(game.player.position.x - global_position.x, 0.0, game.player.position.z - global_position.z)
+		if to_pl.length_squared() > 0.04:
+			shield_area.global_rotation = Vector3(0.0, atan2(to_pl.x, to_pl.z), 0.0)
+	if is_instance_valid(chest_core_mat) and wrong_flash_left <= 0.0 and melee_flash_left <= 0.0:
+		chest_core_mat.emission_energy_multiplier = 2.4 + sin(hover_clock * 5.2 + float(option)) * 0.55
 
 	var player_at: Vector3 = game.player.position
 	var toward_player := player_at - position
