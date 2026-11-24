@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.8" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.8 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1078,6 +1078,18 @@ func run():
 			if is_instance_valid(bot) and bot.find_child("MistboundSkeletalRig", true, false) != null:
 				skel_bots += 1
 	verify(skel_bots >= 6, "v0.9.7: Yanshan Mistbound Assault & Sniper soldiers use sculpted animated skeletal rigs (%d active)" % skel_bots)
+	var judy_rabbits := 0
+	var judy_anim_ok := 0
+	for a_rb in game.wildlife.animals:
+		if str(a_rb.get("kind", "")) == "rabbit":
+			var vis_rb: Node = a_rb.get("visual", null)
+			var anim_rb: AnimationPlayer = a_rb.get("anim", null)
+			var skel_rb := vis_rb.find_child("Skeleton3D", true, false) as Skeleton3D if is_instance_valid(vis_rb) else null
+			if is_instance_valid(vis_rb) and vis_rb.find_child("JudyHoppsMesh", true, false) != null and is_instance_valid(skel_rb) and skel_rb.get_bone_count() >= 25:
+				judy_rabbits += 1
+			if is_instance_valid(anim_rb) and anim_rb.has_animation("Idle") and anim_rb.has_animation("Walk") and anim_rb.has_animation("Run"):
+				judy_anim_ok += 1
+	verify(judy_rabbits >= 11 and judy_anim_ok >= 11, "v0.9.9.1: all %d ground rabbits mount rigged Judy Hopps model (JudyHoppsMesh + 29-bone Skeleton3D + Idle/Walk/Run hopping clips)" % judy_rabbits)
 	game._end_run(false)
 
 	game.queue_free()

@@ -318,6 +318,21 @@ func run():
 			ch98_i.free()
 	var cn_timbre_dict: Dictionary = cn_parsed.get("profile_timbres", {}) if (cn_parsed is Dictionary) else {}
 	verify(v098_warden_ok and v098_chen_ok and cn_entries.size() >= 66 and cn_timbre_dict.size() == 8, "standalone PCK includes v0.9.8 portrait-faithful 6-part Cave Warden GLB, hat-free Chen Guide & 66 multi-cast CN voice clips (8 timbres)")
+	var v0991_judy_ok := false
+	if ResourceLoader.exists("res://assets/slice/wildlife/animal_rabbit.glb"):
+		var jr_p = load("res://assets/slice/wildlife/animal_rabbit.glb")
+		if jr_p is PackedScene:
+			var jr_i: Node = jr_p.instantiate()
+			var jr_mesh = jr_i.find_child("JudyHoppsMesh", true, false)
+			var jr_skel = jr_i.find_child("Skeleton3D", true, false) as Skeleton3D
+			var jr_anim = jr_i.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			v0991_judy_ok = (
+				jr_mesh != null
+				and jr_skel != null and jr_skel.get_bone_count() >= 25
+				and jr_anim != null and jr_anim.has_animation("Idle") and jr_anim.has_animation("Walk") and jr_anim.has_animation("Run")
+			)
+			jr_i.free()
+	verify(v0991_judy_ok, "standalone PCK includes v0.9.9.1 rigged hopping Judy Hopps rabbit GLB (JudyHoppsMesh + 29-bone Skeleton3D + Idle/Walk/Run)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

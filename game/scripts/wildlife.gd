@@ -255,6 +255,7 @@ func setup(g):
 func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 	if node == null:
 		return
+	var preserve_pbr := cache_key.contains("animal_rabbit")
 	var targets: Array = []
 	if node is MeshInstance3D:
 		targets.append(node)
@@ -262,29 +263,30 @@ func _polish_critter_materials(node: Node3D, cache_key: String = ""):
 	for t in targets:
 		var mi := t as MeshInstance3D
 		if mi and mi.mesh:
-			for s in mi.mesh.get_surface_count():
-				var mkey := "%s::%d" % [cache_key if cache_key != "" else str(mi.mesh.get_rid()), s]
-				var bmat: BaseMaterial3D = critter_mat_cache.get(mkey, null)
-				if bmat == null:
-					var fmt: int = int(mi.mesh.surface_get_format(s))
-					var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
-					var mat: Material = mi.mesh.surface_get_material(s)
-					if mat is BaseMaterial3D:
-						bmat = mat.duplicate() as BaseMaterial3D
-					elif has_vcol:
-						bmat = StandardMaterial3D.new()
-						bmat.roughness = 0.84
+			if not preserve_pbr:
+				for s in mi.mesh.get_surface_count():
+					var mkey := "%s::%d" % [cache_key if cache_key != "" else str(mi.mesh.get_rid()), s]
+					var bmat: BaseMaterial3D = critter_mat_cache.get(mkey, null)
+					if bmat == null:
+						var fmt: int = int(mi.mesh.surface_get_format(s))
+						var has_vcol: bool = (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
+						var mat: Material = mi.mesh.surface_get_material(s)
+						if mat is BaseMaterial3D:
+							bmat = mat.duplicate() as BaseMaterial3D
+						elif has_vcol:
+							bmat = StandardMaterial3D.new()
+							bmat.roughness = 0.84
+						if bmat != null:
+							if has_vcol:
+								bmat.vertex_color_use_as_albedo = true
+							bmat.metallic = 0.0
+							bmat.metallic_specular = 0.12
+							critter_mat_cache[mkey] = bmat
 					if bmat != null:
-						if has_vcol:
-							bmat.vertex_color_use_as_albedo = true
-						bmat.metallic = 0.0
-						bmat.metallic_specular = 0.12
-						critter_mat_cache[mkey] = bmat
-				if bmat != null:
-					mi.set_surface_override_material(s, bmat)
+						mi.set_surface_override_material(s, bmat)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.extra_cull_margin = 1.2
-			mi.visibility_range_end = 54.0
+			mi.extra_cull_margin = 1.6 if preserve_pbr else 1.2
+			mi.visibility_range_end = 68.0 if preserve_pbr else 54.0
 
 func _configure_anim_loops(anim: AnimationPlayer):
 	if anim == null:
@@ -364,7 +366,7 @@ func _instantiate_eco_mesh(mesh_name: String) -> Node3D:
 
 func _species_scale(kind: String, mesh_name: String) -> float:
 	match kind:
-		"rabbit": return 1.08
+		"rabbit": return 1.00
 		"squirrel": return 0.98
 		"boar": return 1.15
 		"fox": return 1.12
@@ -410,13 +412,13 @@ func _spawn_wildlife():
 		area.set_meta("critter_index", idx)
 		var shp := CollisionShape3D.new()
 		var sph := SphereShape3D.new()
-		sph.radius = 0.85 if kind == "deer" else (0.78 if kind in ["bird", "pheasant"] else (0.62 if kind in ["boar", "fox"] else 0.48))
+		sph.radius = 0.85 if kind == "deer" else (0.78 if kind in ["bird", "pheasant"] else (0.62 if kind in ["boar", "fox"] else (0.56 if kind == "rabbit" else 0.48)))
 		shp.shape = sph
-		shp.position.y = 0.0 if kind in ["fish", "shrimp", "butterfly"] else (0.68 if kind == "deer" else 0.28)
+		shp.position.y = 0.0 if kind in ["fish", "shrimp", "butterfly"] else (0.68 if kind == "deer" else (0.48 if kind == "rabbit" else 0.28))
 		area.add_child(shp)
 		root.add_child(area)
 
-		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab", "turtle", "butterfly"] else (1.58 if kind == "deer" else (0.94 if kind == "boar" else 0.76))
+		var tag_y := 0.54 if kind in ["fish", "shrimp", "crab", "turtle", "butterfly"] else (1.58 if kind == "deer" else (1.16 if kind == "rabbit" else (0.94 if kind == "boar" else 0.76)))
 		var lbl: Label3D = game._label3d(root, "%s · %s" % [spec.en, spec.zh], Vector3(0, tag_y, 0), 20, Color("f2f7d4"))
 		lbl.visibility_range_end = 11.5
 		lbl.visible = false
@@ -1283,7 +1285,7 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 			"deer": speed = 1.90
 			"boar": speed = 1.75
 			"fox": speed = 2.05
-			"rabbit": speed = 1.35
+			"rabbit": speed = 1.55
 			_: speed = 1.55
 
 	if a.state == "idle":
@@ -1329,10 +1331,11 @@ func _move_land_critter(a: Dictionary, delta: float, ppos: Vector3):
 	a.root.position = nxt
 	a.root.rotation.y = atan2(-a.dir.x, -a.dir.z)
 	a.visual.position = Vector3.ZERO
-	a.visual.rotation = Vector3(slope_pitch, 0.0, 0.0)
+	var eff_pitch := slope_pitch * 0.18 if kind == "rabbit" else slope_pitch
+	a.visual.rotation = Vector3(eff_pitch, 0.0, 0.0)
 
 	if a.state == "flee":
-		_play_critter_anim(a.anim, ["Run"], 1.75 if kind in ["boar", "fox"] else 1.65)
+		_play_critter_anim(a.anim, ["Run"], 1.45 if kind == "rabbit" else (1.75 if kind in ["boar", "fox"] else 1.65))
 	else:
 		_play_critter_anim(a.anim, ["Walk", "Run"], 1.15)
 

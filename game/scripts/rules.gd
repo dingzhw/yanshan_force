@@ -375,7 +375,7 @@ var loot_rng := RandomNumberGenerator.new()
 
 var profile = {
 	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.9.8",
+	"saved_by_version": "0.9.9.1",
 	"coins": 0,
 	"xp": 0,
 	"points": 0,
