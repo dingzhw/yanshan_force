@@ -293,13 +293,18 @@ func run():
 		var w98_p = load("res://assets/slice/v098_cave_warden.glb")
 		if w98_p is PackedScene:
 			var w98_i: Node = w98_p.instantiate()
+			var w_sk := w98_i.find_child("Skeleton3D", true, false) as Skeleton3D
+			var w_ap := w98_i.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			v098_warden_ok = (
-				w98_i.find_child("warden_body", true, false) != null
-				and w98_i.find_child("head_crest", true, false) != null
-				and w98_i.find_child("arm_left_pivot", true, false) != null
-				and w98_i.find_child("arm_right_pivot", true, false) != null
-				and w98_i.find_child("leg_left_pivot", true, false) != null
-				and w98_i.find_child("leg_right_pivot", true, false) != null
+				w98_i.find_child("Warden_Body", true, false) != null
+				and w_sk != null and w_sk.get_bone_count() >= 60
+				and w_ap != null
+				and w_ap.has_animation("Idle_Patrol")
+				and w_ap.has_animation("Walk_Stalk")
+				and w_ap.has_animation("Guard_X")
+				and w_ap.has_animation("Exposed_Stagger")
+				and w_ap.has_animation("Rush_Charge")
+				and w_ap.has_animation("Sonic_Roar")
 			)
 			w98_i.free()
 	var v098_chen_ok := false
@@ -310,7 +315,7 @@ func run():
 			v098_chen_ok = (ch98_i.find_child("Chen_VeteranHair", true, false) != null and ch98_i.find_child("Chen_ScoutHat", true, false) == null)
 			ch98_i.free()
 	var cn_timbre_dict: Dictionary = cn_parsed.get("profile_timbres", {}) if (cn_parsed is Dictionary) else {}
-	verify(v098_warden_ok and v098_chen_ok and cn_entries.size() >= 66 and cn_timbre_dict.size() == 8, "standalone PCK includes v0.9.8 portrait-faithful 6-part Cave Warden GLB, hat-free Chen Guide & 66 multi-cast CN voice clips (8 timbres)")
+	verify(v098_warden_ok and v098_chen_ok and cn_entries.size() >= 66 and cn_timbre_dict.size() == 8, "standalone PCK includes v0.9.9.5_dev1 65-bone skeletal Cave Warden v2 GLB (7 anims), hat-free Chen Guide & 66 multi-cast CN voice clips (8 timbres)")
 	var v0991_judy_ok := false
 	if ResourceLoader.exists("res://assets/slice/wildlife/animal_rabbit.glb"):
 		var jr_p = load("res://assets/slice/wildlife/animal_rabbit.glb")
@@ -370,6 +375,20 @@ func run():
 		and sw_cls != null and sw_cls.new().has_method("set_combat_label_declutter")
 	)
 	verify(v0995_ok, "standalone PCK includes v0.9.9.5 bamboo-hat Mistbound rigs, overhead tag anti-overlap, dynamic Cave Warden glow & combat label declutter")
+	var v0995_dev1_cave_ok := false
+	if ResourceLoader.exists("res://assets/slice/v0995_yanxia_grand_cave.glb"):
+		var gc_p = load("res://assets/slice/v0995_yanxia_grand_cave.glb")
+		if gc_p is PackedScene:
+			var gc_i: Node = gc_p.instantiate()
+			v0995_dev1_cave_ok = (
+				gc_i.find_child("Cave_Interior_Rock", true, false) != null
+				and gc_i.find_child("Cave_Exterior_Mountain", true, false) != null
+				and gc_i.find_child("Cave_Pillars", true, false) != null
+				and gc_i.find_child("Cave_Glow_Flora", true, false) != null
+				and gc_i.find_child("Cave_Skylight_Beams", true, false) != null
+			)
+			gc_i.free()
+	verify(v0995_dev1_cave_ok, "standalone PCK includes v0.9.9.5_dev1 3.5x mountain-hidden Yanxia Grand Cave GLB with exterior mountain peak & bioluminescent wall flora")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

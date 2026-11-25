@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.5" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.5_dev1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5_dev1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -655,9 +655,10 @@ func run():
 	game.player.clear_movement_input()
 	await frames(6)
 	verify(game.player.position.z < -62.50 + cdz and game.player.is_on_floor() and absf(game.player.position.y - cave_fy) < 0.18, "player walks seamlessly through Yanxia Cave portal onto wet limestone floor (pos=%s)" % str(game.player.position))
-	game.player.position = Vector3(-40.25 + cdx, cave_fy, -65.25 + cdz)
+	var c5_pos: Vector3 = game.crate_nodes[5].position
+	game.player.position = Vector3(c5_pos.x - 1.35, cave_fy, c5_pos.z + 1.35)
 	await frames(4)
-	verify(game._can_interact(game.crate_nodes[5]), "Yanxia Cavern Tier-3 vault crate has unobstructed interaction line-of-sight inside Inner Sanctum")
+	verify(game._can_interact(game.crate_nodes[5]), "Yanxia Cavern Tier-3 vault crate has unobstructed interaction line-of-sight inside Grand Cavern Hall")
 
 	# 3) All 3 Heritage discoveries ("竹石清音", "耕读图", "寒潭茶灶与古竹简") + minimap reveal + HP/Shield heal + Legendary Bamboo Slips
 	game.player.position = game.Layout.on_ground(game.Layout.SPAWN)
@@ -1164,6 +1165,56 @@ func run():
 	verify(
 		lbl_count_pre >= 10 and not any_lbl_vis_combat and all_lbl_restored,
 		"v0.9.9.5: non-combat landmark labels (%d tracked) hide cleanly during active combat and restore outside combat" % lbl_count_pre
+	)
+
+	# 12) v0.9.9.5_dev1 Minecraft-Warden 65-Bone Skeletal Boss + 3.5x Mountain-Embedded Grand Yanxia Cave & Bioluminescent Flora!
+	var cw_dev1 = game.cave_warden
+	var cw_anims_ok: bool = (
+		bool(cw_dev1.using_v2_skeletal)
+		and is_instance_valid(cw_dev1.warden_skel)
+		and cw_dev1.warden_skel.get_bone_count() >= 60
+		and is_instance_valid(cw_dev1.warden_anim)
+		and cw_dev1.warden_anim.has_animation("Idle_Patrol")
+		and cw_dev1.warden_anim.has_animation("Walk_Stalk")
+		and cw_dev1.warden_anim.has_animation("Listen_Sniff")
+		and cw_dev1.warden_anim.has_animation("Guard_X")
+		and cw_dev1.warden_anim.has_animation("Exposed_Stagger")
+		and cw_dev1.warden_anim.has_animation("Rush_Charge")
+		and cw_dev1.warden_anim.has_animation("Sonic_Roar")
+	)
+	verify(cw_anims_ok, "v0.9.9.5_dev1: Cave Warden mounts rigged 65-bone Minecraft-Warden v2 GLB with all 7 skeletal animations")
+
+	var gc_vis: Node = cave_node.get_node_or_null("YanxiaGrandCaveVisual") if cave_node != null else null
+	var gc_parts_ok := (
+		gc_vis != null
+		and gc_vis.find_child("Cave_Interior_Rock", true, false) != null
+		and gc_vis.find_child("Cave_Exterior_Mountain", true, false) != null
+		and gc_vis.find_child("Cave_Pillars", true, false) != null
+		and gc_vis.find_child("Cave_Glow_Flora", true, false) != null
+		and gc_vis.find_child("Cave_Skylight_Beams", true, false) != null
+	)
+	var sp_dev1: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var hall_c: Vector3 = game.Layout.YANXIA_CAVE_HALL
+	var mtn_roof_hit := sp_dev1.intersect_ray(PhysicsRayQueryParameters3D.create(
+		Vector3(hall_c.x, float(game.Layout.CAVE_FLOOR_Y) + 36.0, hall_c.z),
+		Vector3(hall_c.x, float(game.Layout.CAVE_FLOOR_Y) + 2.0, hall_c.z), 1
+	))
+	var hall_floor_hit := sp_dev1.intersect_ray(PhysicsRayQueryParameters3D.create(
+		Vector3(hall_c.x, float(game.Layout.CAVE_FLOOR_Y) + 3.0, hall_c.z),
+		Vector3(hall_c.x, float(game.Layout.CAVE_FLOOR_Y) - 2.0, hall_c.z), 1
+	))
+	var throat_hw: float = game.Layout.cave_spine_at_z(-98.0).y
+	var hall_hw: float = game.Layout.cave_spine_at_z(-123.5).y
+	var cave_depth_m: float = absf(game.Layout.YANXIA_CAVE_MOUTH.z - game.Layout.YANXIA_CAVE_SANCTUM.z)
+	verify(
+		gc_parts_ok
+		and not mtn_roof_hit.is_empty() and mtn_roof_hit.position.y >= float(game.Layout.CAVE_FLOOR_Y) + 14.0
+		and not hall_floor_hit.is_empty() and absf(hall_floor_hit.position.y - cave_fy) < 0.15
+		and cave_depth_m >= 38.0 and throat_hw <= 2.6 and hall_hw >= 11.0,
+		"v0.9.9.5_dev1: 3.5x Yanxia Cave (%.1fm deep, throat %.1fm -> hall %.1fm wide) sits hidden under %.1fm solid mountain peak with glowing wall flora" % [
+			cave_depth_m, throat_hw * 2.0, hall_hw * 2.0,
+			(mtn_roof_hit.position.y - float(game.Layout.CAVE_FLOOR_Y)) if not mtn_roof_hit.is_empty() else 0.0
+		]
 	)
 	game._end_run(false)
 

@@ -453,12 +453,14 @@ func _ground_vis_y(x: float, z: float) -> float:
 	var sd := float(game.Layout.stream_distance(x, z))
 	if sd < 2.22 and z >= game.Layout.STREAM_Z_MIN - 1.2:
 		h -= 0.055 * (1.0 - smoothstep(1.48, 2.22, sd))
-	var cx_c := float(game.Layout.YANXIA_CAVE_CENTER.x)
-	var cz_c := float(game.Layout.YANXIA_CAVE_CENTER.z)
-	if x > cx_c - 4.6 and x < cx_c + 4.6 and z > cz_c - 6.1 and z < cz_c + 6.4:
-		var wx := 1.0 - smoothstep(3.6, 4.5, absf(x - cx_c))
-		var wz := (1.0 - smoothstep(cz_c + 5.7, cz_c + 6.4, z)) * (1.0 - smoothstep(cz_c - 5.2, cz_c - 6.1, z))
-		h -= 0.50 * wx * wz
+	if z >= -139.0 and z <= -93.0 and x >= -96.0 and x <= -54.0:
+		var sp_g: Vector2 = game.Layout.cave_spine_at_z(z)
+		var wx := 1.0 - smoothstep(sp_g.y + 1.8, sp_g.y + 4.8, absf(x - sp_g.x))
+		var wz := smoothstep(-138.6, -135.4, z) * (1.0 - smoothstep(-94.2, -93.1, z))
+		var dep_w := wx * wz
+		if dep_w > 0.001:
+			# Pull terrain strictly beneath wet cave floor across full cavern width so ZERO grass pokes inside!
+			h = lerpf(h, minf(h, float(game.Layout.CAVE_FLOOR_Y) - 1.45), dep_w)
 	return h
 
 func _smooth_vis_normal(x: float, z: float) -> Vector3:
@@ -509,10 +511,11 @@ func _ground():
 			var sd := float(game.Layout.stream_distance(x, z))
 			if sd < 2.22 and z >= s_zmin - 1.2:
 				vh -= 0.055 * (1.0 - smoothstep(1.48, 2.22, sd))
-			if x > cx_c - 4.6 and x < cx_c + 4.6 and z > cz_c - 6.1 and z < cz_c + 6.4:
-				var wx := 1.0 - smoothstep(3.6, 4.5, absf(x - cx_c))
-				var wz := (1.0 - smoothstep(cz_c + 5.7, cz_c + 6.4, z)) * (1.0 - smoothstep(cz_c - 5.2, cz_c - 6.1, z))
-				vh -= 0.50 * wx * wz
+			if z >= -137.0 and z <= -93.0 and x >= -93.0 and x <= -57.0:
+				var sp_g2: Vector2 = game.Layout.cave_spine_at_z(z)
+				var wx := 1.0 - smoothstep(sp_g2.y + 0.25, sp_g2.y + 1.85, absf(x - sp_g2.x))
+				var wz := smoothstep(-136.6, -134.8, z) * (1.0 - smoothstep(-94.2, -93.1, z))
+				vh -= 0.72 * wx * wz
 			vis_y[idx] = vh
 			verts[idx] = Vector3(x, vh, z)
 			uvs[idx] = Vector2(x, z) * 0.24
@@ -1901,7 +1904,7 @@ func _landmarks():
 	var crate_container = game._make_crate("西岭货柜暗箱", 2, container_yard.top_deck + Vector3(0.45, 0.0, 0.0))
 	crate_container.set_meta("secret_key", "parkour_containers")
 	var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
-	var crate_yanxia = game._make_crate("烟霞古洞秘藏石匣", 3, Vector3(cave_c.x + 2.55, float(game.Layout.CAVE_FLOOR_Y) + 0.026, cave_c.z - 1.45))
+	var crate_yanxia = game._make_crate("烟霞古洞秘藏石匣", 3, Vector3(cave_c.x + 4.80, float(game.Layout.CAVE_FLOOR_Y) + 0.026, cave_c.z - 25.50))
 	crate_yanxia.set_meta("secret_key", "yanxia_cave")
 	for crate in game.crate_nodes:
 		TacticalProps.build_tiered_vault_crate(game, crate, int(crate.get_meta("tier")))
@@ -3321,63 +3324,100 @@ func _build_bamboo_maze_and_yanxia_cave():
 		l_shp.height = 1.48
 		game.Props.shape_body(l_node, l_shp, Vector3(0.0, 0.74, 0.0)).add_to_group("solid_props")
 
-	# 2) "烟霞古洞" — Walk-in 2-Chamber Limestone Cavern rigidly translated to isolated West Bamboo Ravine!
+	# 2) "烟霞古洞 · 山腹巨窟" (v0.9.9.5_dev1) — 3.5x Expanded 41.3m Mountain-Embedded Cavern
+	#    Hidden 100% inside a towering 48m x 56m x 22.5m forested karst mountain peak;
+	#    narrow cliff portal -> winding throat -> skylight mid-gallery -> 23.6m Grand Hall -> '一线天' Sanctum!
 	var cave_root := Node3D.new()
 	cave_root.name = "YanxiaAncientCave"
 	cave_root.position = Vector3(-41.60 + cdx, cave_y, -64.00 + cdz)
 	add_child(cave_root)
 
-	var cave_vis := _instantiate_v062_mesh("yanxia_cave_complex")
-	if cave_vis:
-		cave_root.add_child(cave_vis)
+	var grand_cave_path := "res://assets/slice/v0995_yanxia_grand_cave.glb"
+	var grand_loaded := false
+	if ResourceLoader.exists(grand_cave_path):
+		if not game.scene_cache.has(grand_cave_path):
+			game.scene_cache[grand_cave_path] = load(grand_cave_path)
+		var gc_inst: Node3D = game.scene_cache[grand_cave_path].instantiate()
+		gc_inst.name = "YanxiaGrandCaveVisual"
+		cave_root.add_child(gc_inst)
+		grand_loaded = true
+		# Generate exact watertight solid trimesh collisions on interior rock, exterior mountain & 4 hall pillars!
+		for mi_node in gc_inst.find_children("*", "MeshInstance3D", true, false):
+			var mi := mi_node as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			var m_n := String(mi.name)
+			if m_n.contains("Beams") or m_n.contains("Flora"):
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				continue
+			if m_n.contains("Interior") or m_n.contains("Exterior") or m_n.contains("Pillars"):
+				if m_n.contains("Interior") or m_n.contains("Exterior"):
+					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+				var trishp := mi.mesh.create_trimesh_shape()
+				if trishp != null:
+					trishp.backface_collision = true
+					var sb := StaticBody3D.new()
+					sb.name = m_n + "_SolidCol"
+					sb.collision_layer = 1
+					sb.collision_mask = 0
+					sb.add_to_group("solid_props")
+					var cs := CollisionShape3D.new()
+					cs.shape = trishp
+					sb.add_child(cs)
+					mi.add_child(sb)
+	else:
+		var cave_vis := _instantiate_v062_mesh("yanxia_cave_complex")
+		if cave_vis:
+			cave_root.add_child(cave_vis)
 
+	# Ancestral Stone Tea Hearth & Bamboo Slips beside the Grand Hall Jade Spring Pool!
 	var hearth_vis := _instantiate_v062_mesh("ancestral_hearth_relics")
 	if hearth_vis:
-		hearth_vis.position = Vector3(0.55, 0.026, -3.35)
+		hearth_vis.position = Vector3(-5.65, 0.026, -28.05)
 		cave_root.add_child(hearth_vis)
 
-	# Analytical cavern physics colliders (v0.8.2 V81-6: watertight exterior rock envelope covering FULL visual karst bluff mass
-	# x_local = [-6.85..+6.85], z_local = [-7.35..+6.85], leaving ONLY the intentional central 3.24m x 3.25m South portal open!)
-	var cave_boxes := [
-		[Vector3(0.0, -0.174, 0.25), Vector3(7.60, 0.40, 12.30)],   # Walkable wet limestone floor slab (top = +0.026m = 6.526m world)
-		[Vector3(-2.05, 0.70, -2.85), Vector3(2.08, 1.35, 3.08)],   # Sunken Jade Spring Pool rim guard
-		[Vector3(-4.24, 2.75, 5.95), Vector3(5.24, 6.10, 2.25)],    # South portal West cliff buttress (inner edge x=-1.62, outer x=-6.86, z=+4.82..+7.08)
-		[Vector3(4.24, 2.75, 5.95), Vector3(5.24, 6.10, 2.25)],     # South portal East cliff buttress (inner edge x=+1.62, outer x=+6.86, z=+4.82..+7.08)
-		[Vector3(0.0, 4.60, 5.95), Vector3(3.60, 2.70, 2.25)],      # South portal over-arch brow (bottom = 3.25m)
-		[Vector3(-5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)],  # West cavern cliff mass (inner face = -3.25, outer = -6.85 -> zero exterior clip!)
-		[Vector3(5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)],   # East cavern cliff mass (inner face = +3.25, outer = +6.85 -> zero exterior clip!)
-		[Vector3(0.0, 2.85, -6.25), Vector3(13.80, 6.20, 2.20)],    # North cavern back cliff mass (inner face = -5.15, outer = -7.35)
-		[Vector3(0.0, 4.95, 0.0), Vector3(13.60, 2.00, 14.20)],     # Vaulted mountain roof cap (bottom = 3.95m)
-		[Vector3(-0.33, 0.46, -3.70), Vector3(1.04, 0.88, 0.94)]    # Ancestral stone tea hearth
+	# Smooth analytical walkable wet-limestone floor slabs covering Throat + Mid-Gallery + Grand Hall + Sanctum
+	# PLUS watertight South Portal flank/seam seals matching BambooStoneMaze row-6 forecourt!
+	var cave_floor_boxes := [
+		[Vector3(-0.75, -0.174, 0.80), Vector3(8.50, 0.40, 14.50)],     # Entrance mouth & narrow throat floor (top = +0.026m)
+		[Vector3(-2.80, -0.174, -10.50), Vector3(17.50, 0.40, 12.50)],  # Mid-gallery floor
+		[Vector3(-3.50, -0.174, -24.50), Vector3(26.50, 0.40, 22.50)],  # Grand Cavern Hall + '一线天' sanctum floor
+		[Vector3(-9.20, 0.42, -28.40), Vector3(6.20, 0.82, 5.10)],      # Grand Hall Jade Spring Pool rim guard
+		[Vector3(-6.53, 0.46, -28.40), Vector3(1.04, 0.88, 0.94)],      # Ancestral stone tea hearth collider
 	]
-	for cb in cave_boxes:
+	if not grand_loaded:
+		cave_floor_boxes.append([Vector3(-5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)])
+		cave_floor_boxes.append([Vector3(5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)])
+	for cb in cave_floor_boxes:
 		var c_shp := BoxShape3D.new()
 		c_shp.size = cb[1]
 		game.Props.shape_body(cave_root, c_shp, cb[0]).add_to_group("solid_props")
 
-	# Seal BambooStoneMaze row-6 forecourt corners rigidly translated by (cdx, cdz)
+	# Seal BambooStoneMaze row-6 forecourt corners rigidly translated by (cdx, cdz) flush into the mountain south cliff!
 	for side_sgn in [-1.0, 1.0]:
 		var sgn_f := float(side_sgn)
 		var seal_x := -41.60 + cdx + sgn_f * 5.65
 		var seal_z := -57.65 + cdz
 		var seal_gy := float(game.terrain_height(seal_x, seal_z))
 		var seal_shp := BoxShape3D.new()
-		seal_shp.size = Vector3(2.80, 5.20, 3.20)
-		game.Props.shape_body(maze_root, seal_shp, Vector3(seal_x, seal_gy + 2.30, seal_z)).add_to_group("solid_props")
+		seal_shp.size = Vector3(3.20, 6.40, 3.60)
+		game.Props.shape_body(maze_root, seal_shp, Vector3(seal_x, seal_gy + 2.80, seal_z)).add_to_group("solid_props")
 		karst_a_tx.append(Transform3D(Basis(Vector3.UP, sgn_f * 0.42).scaled(Vector3(1.22, 1.34, 1.18)), Vector3(seal_x, seal_gy - 0.25, seal_z + 0.15)))
 		karst_b_tx.append(Transform3D(Basis(Vector3.UP, sgn_f * 1.15).scaled(Vector3(1.14, 1.24, 1.12)), Vector3(-41.60 + cdx + sgn_f * 6.45, seal_gy - 0.25, seal_z - 1.15)))
 
 	var tbl_shp := CylinderShape3D.new()
 	tbl_shp.radius = 0.68
 	tbl_shp.height = 0.82
-	game.Props.shape_body(cave_root, tbl_shp, Vector3(0.93, 0.44, -3.25)).add_to_group("solid_props")
+	game.Props.shape_body(cave_root, tbl_shp, Vector3(-5.27, 0.44, -27.95)).add_to_group("solid_props")
 
-	# Distance-faded shadowless cavern lights (0ms cost beyond 32m; steep raking torchlight grazes chiseled rock walls!)
+	# 6 distance-faded shadowless cavern lights (0.0ms outside mountain; combines daylight shafts + glowing cave wall flora!)
 	var light_specs := [
-		[Vector3(-2.32, 3.04, 3.42), Color("ffd094"), 1.06, 5.8],
-		[Vector3(2.32, 2.98, 2.30), Color("ffd094"), 1.02, 5.6],
-		[Vector3(-1.65, 2.65, -2.85), Color("8ef2df"), 1.38, 6.2],
-		[Vector3(0.45, 1.45, -3.30), Color("ffb25e"), 1.22, 5.4]
+		[Vector3(-0.55, 2.85, 1.20), Color("5eead8"), 1.35, 10.5],      # Narrow throat bioluminescent wall moss/vines
+		[Vector3(-2.65, 6.80, -10.50), Color("c4f2ff"), 2.45, 18.0],    # Mid-Gallery Skylight ('洞顶空窗') daylight pool
+		[Vector3(-6.20, 2.75, -10.20), Color("ffd49c"), 1.65, 9.5],     # Warm raking light on '烟山耕读' wall mural
+		[Vector3(-3.50, 7.80, -23.00), Color("4ce4d8"), 2.55, 24.0],    # Grand Cavern Hall bioluminescent wall flora ambient
+		[Vector3(-7.60, 2.60, -28.10), Color("7cf2dc"), 1.85, 12.5],    # Jade Spring Pool & warm hearth alcove glow
+		[Vector3(-3.50, 7.60, -32.20), Color("caf6ff"), 2.75, 16.0],    # Deepest '一线天' vertical fissure sunbeam glow
 	]
 	for ls in light_specs:
 		var ol := OmniLight3D.new()
@@ -3387,22 +3427,25 @@ func _build_bamboo_maze_and_yanxia_cave():
 		ol.omni_range = ls[3]
 		ol.shadow_enabled = false
 		ol.distance_fade_enabled = true
-		ol.distance_fade_begin = 24.0
-		ol.distance_fade_length = 8.0
+		ol.distance_fade_begin = 38.0
+		ol.distance_fade_length = 12.0
 		cave_root.add_child(ol)
 
-	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.86, 2.82, 2.85), 20, Color("e8dec2"))
-	chron_lbl.pixel_size = 0.0034
-	chron_lbl.visibility_range_end = 11.0
-	var pool_lbl: Label3D = game._label3d(cave_root, "一线天光 · 洞中寒潭", Vector3(-1.95, 1.52, -2.85), 20, Color("9ef5e2"))
-	pool_lbl.pixel_size = 0.0034
-	pool_lbl.visibility_range_end = 11.5
+	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.65, 3.05, -9.80), 20, Color("e8dec2"))
+	chron_lbl.pixel_size = 0.0036
+	chron_lbl.visibility_range_end = 13.0
+	var pool_lbl: Label3D = game._label3d(cave_root, "洞中寒潭 · 荧光清泉", Vector3(-9.20, 1.65, -28.40), 20, Color("9ef5e2"))
+	pool_lbl.pixel_size = 0.0036
+	pool_lbl.visibility_range_end = 15.0
+	var rift_sky_lbl: Label3D = game._label3d(cave_root, "一线天光 · 深窟圣坛", Vector3(-3.50, 4.10, -32.20), 22, Color("b8f6ff"))
+	rift_sky_lbl.pixel_size = 0.0038
+	rift_sky_lbl.visibility_range_end = 18.0
 
-	# v0.9.0 "次元石壁" (Dimensional Rift Wall) embedded flush against the north cavern back cliff directly behind the skylight beam!
+	# v0.9.0 / v0.9.9.5_dev1 "次元石壁" (Dimensional Rift Wall) embedded flush into deepest north cliff directly beneath '一线天'!
 	var rift_mesh: Mesh = _extract_mesh("res://assets/slice/v090_ahsarah_architecture.glb", "dimensional_rift_wall")
 	dimensional_rift_node = Node3D.new()
 	dimensional_rift_node.name = "DimensionalRiftWall"
-	dimensional_rift_node.position = Vector3(-0.95, 0.026, -4.92)
+	dimensional_rift_node.position = Vector3(-3.50, 0.026, -34.15)
 	cave_root.add_child(dimensional_rift_node)
 	if rift_mesh != null:
 		var rmi := MeshInstance3D.new()
@@ -3410,33 +3453,37 @@ func _build_bamboo_maze_and_yanxia_cave():
 		rmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		dimensional_rift_node.add_child(rmi)
 	dimensional_rift_light = OmniLight3D.new()
-	dimensional_rift_light.position = Vector3(0.0, 1.65, 0.65)
+	dimensional_rift_light.position = Vector3(0.0, 1.85, 0.85)
 	dimensional_rift_light.light_color = Color("f0b85c")
-	dimensional_rift_light.light_energy = 0.65
-	dimensional_rift_light.omni_range = 4.6
+	dimensional_rift_light.light_energy = 0.95
+	dimensional_rift_light.omni_range = 6.2
 	dimensional_rift_light.shadow_enabled = false
 	dimensional_rift_light.distance_fade_enabled = true
-	dimensional_rift_light.distance_fade_begin = 22.0
-	dimensional_rift_light.distance_fade_length = 8.0
+	dimensional_rift_light.distance_fade_begin = 34.0
+	dimensional_rift_light.distance_fade_length = 10.0
 	dimensional_rift_node.add_child(dimensional_rift_light)
-	dimensional_rift_label = game._label3d(dimensional_rift_node, "次元石壁 · 封印中", Vector3(0.0, 3.22, 0.35), 22, Color("f0c988"))
-	dimensional_rift_label.pixel_size = 0.0036
-	dimensional_rift_label.visibility_range_end = 13.5
+	dimensional_rift_label = game._label3d(dimensional_rift_node, "次元石壁 · 封印中", Vector3(0.0, 3.35, 0.45), 22, Color("f0c988"))
+	dimensional_rift_label.pixel_size = 0.0038
+	dimensional_rift_label.visibility_range_end = 16.5
 	refresh_dimensional_rift_visual(false, is_instance_valid(game) and is_instance_valid(game.rules) and game.rules.is_ahsarah_permanently_unlocked())
 
-	# Natural Moso bamboo & woodland ferns crowning the exterior karst mountain bluff atop Yanxia Cave
-	var bluff_dy := cave_y - 6.50
-	var bluff_bamboo := [
-		Vector3(-44.6 + cdx, 12.15 + bluff_dy, -60.5 + cdz), Vector3(-38.5 + cdx, 12.25 + bluff_dy, -60.8 + cdz),
-		Vector3(-45.2 + cdx, 12.10 + bluff_dy, -65.2 + cdz), Vector3(-38.8 + cdx, 12.35 + bluff_dy, -65.6 + cdz),
-		Vector3(-42.8 + cdx, 12.20 + bluff_dy, -69.0 + cdz), Vector3(-39.6 + cdx, 12.25 + bluff_dy, -68.6 + cdz)
+	# Lush bamboo groves & ferns grounded cleanly into the exterior mountain peak slopes!
+	var peak_bamboo_local := [
+		Vector3(-6.2, 10.6, 4.2), Vector3(5.6, 10.4, 3.8),
+		Vector3(-12.5, 14.2, -5.5), Vector3(6.8, 13.6, -6.2),
+		Vector3(-14.2, 16.5, -16.5), Vector3(7.4, 15.6, -18.0),
+		Vector3(-11.8, 19.2, -23.5), Vector3(4.2, 18.8, -24.0),
+		Vector3(-11.2, 16.8, -31.5), Vector3(4.5, 16.4, -32.0),
+		Vector3(-6.5, 13.8, -38.0), Vector3(-0.5, 13.4, -37.5),
 	]
-	for bb in bluff_bamboo:
-		maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * 0.78), bb))
-	for bf_i in 8:
-		var bfx := -41.6 + cdx + cos(float(bf_i) * 0.78) * 3.4
-		var bfz := -64.0 + cdz + sin(float(bf_i) * 0.78) * 4.6
-		maze_fern_tx.append(Transform3D(Basis(Vector3.UP, float(bf_i) * 1.1).scaled(Vector3.ONE * 1.12), Vector3(bfx, 12.05 + bluff_dy, bfz)))
+	for pbl in peak_bamboo_local:
+		var wp: Vector3 = cave_root.position + pbl
+		maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * m_rng.randf_range(0.95, 1.35)), wp))
+	for pf_i in 16:
+		var pang := float(pf_i) * (TAU / 16.0)
+		var pfx := cave_root.position.x - 3.5 + cos(pang) * 10.5
+		var pfz := cave_root.position.z - 22.0 + sin(pang) * 12.5
+		maze_fern_tx.append(Transform3D(Basis(Vector3.UP, pang).scaled(Vector3.ONE * 1.35), Vector3(pfx, cave_y + 17.6, pfz)))
 
 	_batch_direct(karst_a_mesh, karst_a_tx, true, "MazeKarstMonolithsA", 96.0)
 	_batch_direct(karst_b_mesh, karst_b_tx, true, "MazeKarstMonolithsB", 96.0)

@@ -14,9 +14,9 @@ extends Node3D
 ##   6. Phase-2 (<50% HP) Jumpable Ground Shockwave + Confidential Active Echolocation Sweep & Enraged Resonance
 
 const HIT_LAYER := 32  # Dedicated bit 5 for Cave Warden hitboxes (isolated from player/world masks)
-const HEAR_RADIUS := 15.0
-const BALLISTIC_RANGE := 22.0
-const TERRITORY_RADIUS := 15.0
+const HEAR_RADIUS := 19.0
+const BALLISTIC_RANGE := 26.0
+const TERRITORY_RADIUS := 28.0
 const MAX_HP_NORMAL := 280
 const MAX_HP_CONFIDENTIAL := 360
 const CORE_HIT_RADIUS := 0.30
@@ -28,20 +28,25 @@ const RELOCATE_DIST_SUPPRESSED := 2.2
 const WARDEN_MODEL_V098 := "res://assets/slice/v098_cave_warden.glb"
 const WARDEN_MODEL_FALLBACK := "res://assets/slice/v082_bosses.glb"
 
-# v0.9.8 6-point curved cavern patrol circuit (sweeps entrance, west flank, inner sanctum & east ledge!)
+# v0.9.9.5_dev1 6-point grand subterranean cavern circuit sweeping the 23.6m x 18.5m Grand Hall!
+# Offsets relative to YANXIA_CAVE_HALL (-75.5, 0.0, -123.0)
 const PATROL_OFFSETS := [
-	Vector3(0.0, 0.0, 7.60),
-	Vector3(-2.45, 0.0, 4.90),
-	Vector3(-1.85, 0.0, 0.60),
-	Vector3(1.95, 0.0, -1.60),
-	Vector3(2.55, 0.0, 2.80),
-	Vector3(1.10, 0.0, 6.20),
+	Vector3(0.0, 0.0, 6.20),
+	Vector3(-5.80, 0.0, 3.20),
+	Vector3(-5.20, 0.0, -4.40),
+	Vector3(0.40, 0.0, -6.80),
+	Vector3(6.00, 0.0, -3.20),
+	Vector3(5.40, 0.0, 3.80),
 ]
 
 var game
 var rng := RandomNumberGenerator.new()
 var root_node: Node3D
 var model_node: Node3D
+var warden_skel: Skeleton3D
+var warden_anim: AnimationPlayer
+var current_anim := ""
+var using_v2_skeletal := false
 var body_mesh: Node3D
 var arm_left_pivot: Node3D
 var arm_right_pivot: Node3D
@@ -132,29 +137,29 @@ func set_map_enabled(on: bool):
 
 func _cave_center() -> Vector3:
 	if is_instance_valid(game) and game.Layout != null:
-		return game.Layout.YANXIA_CAVE_CENTER
-	return Vector3(-72.0, 0.0, -100.0)
+		return game.Layout.YANXIA_CAVE_HALL
+	return Vector3(-75.5, 0.0, -123.0)
 
 func _cave_floor_y() -> float:
 	if is_instance_valid(game) and game.Layout != null:
 		return float(game.Layout.CAVE_FLOOR_Y) + 0.03
-	return 8.63
+	return 10.63
 
 func territory_center() -> Vector3:
 	var c := _cave_center()
-	return Vector3(c.x, _cave_floor_y(), c.z + 2.5)
+	return Vector3(c.x, _cave_floor_y(), c.z + 5.0)
 
 func cave_min_x() -> float:
-	return _cave_center().x - 3.2
+	return _cave_center().x - 9.8
 
 func cave_max_x() -> float:
-	return _cave_center().x + 3.2
+	return _cave_center().x + 9.8
 
 func cave_min_z() -> float:
-	return _cave_center().z - 3.8
+	return _cave_center().z - 9.2
 
 func cave_max_z() -> float:
-	return _cave_center().z + 10.8
+	return _cave_center().z + 11.5
 
 func _patrol_pt(idx: int) -> Vector3:
 	var c := _cave_center()
@@ -180,26 +185,58 @@ func _build_warden():
 		var inst: Node3D = game.scene_cache[path].instantiate()
 		var target = inst.find_child("cave_warden", true, false)
 		if is_instance_valid(target) and target is Node3D:
+			var ap_found := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			if target.get_parent() != null:
 				target.get_parent().remove_child(target)
 			target.owner = null
-			target.name = "CaveWardenRig"
+			# Preserve exact glTF child name ('cave_warden') so AnimationPlayer tracks
+			# ('cave_warden/Warden_Armature/Skeleton3D:mixamorig_*') resolve 100% cleanly!
+			target.name = "cave_warden"
 			target.position = Vector3.ZERO
 			target.rotation = Vector3.ZERO
 			model_node = target
 			root_node.add_child(target)
-			body_mesh = target.find_child("warden_body", true, false) as Node3D
-			arm_left_pivot = target.find_child("arm_left_pivot", true, false) as Node3D
-			arm_right_pivot = target.find_child("arm_right_pivot", true, false) as Node3D
-			leg_left_pivot = target.find_child("leg_left_pivot", true, false) as Node3D
-			leg_right_pivot = target.find_child("leg_right_pivot", true, false) as Node3D
-			head_crest = target.find_child("head_crest", true, false) as Node3D
+			warden_skel = target.find_child("Skeleton3D", true, false) as Skeleton3D
+			warden_anim = target.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if warden_anim == null and is_instance_valid(ap_found):
+				# glTF importer mounts AnimationPlayer as sibling of 'cave_warden' under GLB root;
+				# parenting under root_node with root_node = NodePath("..") preserves exact track paths!
+				if ap_found.get_parent() != null:
+					ap_found.get_parent().remove_child(ap_found)
+				ap_found.owner = null
+				root_node.add_child(ap_found)
+				ap_found.root_node = NodePath("..")
+				warden_anim = ap_found
+			using_v2_skeletal = is_instance_valid(warden_skel) and is_instance_valid(warden_anim)
+			if using_v2_skeletal:
+				# Configure looping cleanly on all 7 baked Minecraft-Warden clips
+				for aname in warden_anim.get_animation_list():
+					var anim_res: Animation = warden_anim.get_animation(aname)
+					if anim_res != null:
+						anim_res.loop_mode = Animation.LOOP_LINEAR
+				body_mesh = target.find_child("Warden_Body", true, false) as Node3D
+				if body_mesh == null:
+					body_mesh = warden_skel
+				# Virtual synchronized pivot trackers preserve full articulation API & test parity!
+				arm_left_pivot = Node3D.new(); arm_left_pivot.name = "arm_left_pivot"; target.add_child(arm_left_pivot)
+				arm_right_pivot = Node3D.new(); arm_right_pivot.name = "arm_right_pivot"; target.add_child(arm_right_pivot)
+				leg_left_pivot = Node3D.new(); leg_left_pivot.name = "leg_left_pivot"; target.add_child(leg_left_pivot)
+				leg_right_pivot = Node3D.new(); leg_right_pivot.name = "leg_right_pivot"; target.add_child(leg_right_pivot)
+				head_crest = Node3D.new(); head_crest.name = "head_crest"; target.add_child(head_crest)
+			else:
+				body_mesh = target.find_child("warden_body", true, false) as Node3D
+				arm_left_pivot = target.find_child("arm_left_pivot", true, false) as Node3D
+				arm_right_pivot = target.find_child("arm_right_pivot", true, false) as Node3D
+				leg_left_pivot = target.find_child("leg_left_pivot", true, false) as Node3D
+				leg_right_pivot = target.find_child("leg_right_pivot", true, false) as Node3D
+				head_crest = target.find_child("head_crest", true, false) as Node3D
 		inst.queue_free()
 	if model_node == null:
 		model_node = game._mesh_box(root_node, Vector3(0, 1.35, 0), Vector3(1.2, 2.5, 0.8), Color("284852"))
 
-	# v0.9.9.5 Cache unique duplicated emissive rune & diamond-core materials on the sculpted GLB
-	# so emission hierarchy is dynamically driven by gameplay state (calm stone patrol vs blazing exposed core)!
+	# v0.9.9.5 / dev1 Cache unique duplicated emissive materials on the sculpted GLB:
+	# - On v2 skeletal Minecraft Warden, Mat_Warden_PBR uses an Emissive mask painting ONLY the
+	#   ribcage soul-heart, sculk mineral flecks & twin acoustic tendrils!
 	rune_mats.clear()
 	glb_core_mats.clear()
 	if is_instance_valid(model_node):
@@ -211,14 +248,21 @@ func _build_warden():
 				var smat := mi.mesh.surface_get_material(s_i)
 				if smat is StandardMaterial3D:
 					var mname := String(smat.resource_name)
-					if "Rune" in mname or "DiamondCore" in mname:
+					if "Warden_PBR" in mname or smat.emission_texture != null:
 						var dup := smat.duplicate() as StandardMaterial3D
 						dup.emission_enabled = true
+						dup.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
+						dup.emission = Color("8ef8ff")
 						mi.set_surface_override_material(s_i, dup)
+						rune_mats.append(dup)
+					elif "Rune" in mname or "DiamondCore" in mname:
+						var dup2 := smat.duplicate() as StandardMaterial3D
+						dup2.emission_enabled = true
+						mi.set_surface_override_material(s_i, dup2)
 						if "DiamondCore" in mname:
-							glb_core_mats.append(dup)
+							glb_core_mats.append(dup2)
 						else:
-							rune_mats.append(dup)
+							rune_mats.append(dup2)
 
 	# Body hitbox (layer 32) sitting behind core so accurate chest shots hit core (or guard_area when guarding)
 	body_area = Area3D.new()
@@ -227,13 +271,13 @@ func _build_warden():
 	body_area.set_meta("cave_warden_part", "body")
 	var b_col := CollisionShape3D.new()
 	var b_shp := BoxShape3D.new()
-	b_shp.size = Vector3(1.52, 2.48, 0.82)
+	b_shp.size = Vector3(1.68, 2.78, 0.92) if using_v2_skeletal else Vector3(1.52, 2.48, 0.82)
 	b_col.shape = b_shp
-	b_col.position = Vector3(0.0, 1.30, -0.08)
+	b_col.position = Vector3(0.0, 1.42, -0.06) if using_v2_skeletal else Vector3(0.0, 1.30, -0.08)
 	body_area.add_child(b_col)
 	root_node.add_child(body_area)
 
-	# Compact 0.30m glowing cyan sonar chest core weakpoint
+	# Compact 0.30m glowing cyan sonar chest core weakpoint aligned dead-center on ribcage soul-heart!
 	core_area = Area3D.new()
 	core_area.collision_layer = HIT_LAYER
 	core_area.collision_mask = 0
@@ -242,7 +286,7 @@ func _build_warden():
 	var c_shp := SphereShape3D.new()
 	c_shp.radius = CORE_HIT_RADIUS
 	c_col.shape = c_shp
-	c_col.position = Vector3(0.0, 1.56, 0.38)
+	c_col.position = Vector3(0.0, 1.66, 0.44) if using_v2_skeletal else Vector3(0.0, 1.56, 0.38)
 	core_area.add_child(c_col)
 	root_node.add_child(core_area)
 
@@ -253,9 +297,9 @@ func _build_warden():
 	guard_area.set_meta("cave_warden_part", "guard")
 	var g_col := CollisionShape3D.new()
 	var g_shp := BoxShape3D.new()
-	g_shp.size = Vector3(1.18, 0.94, 0.36)
+	g_shp.size = Vector3(1.28, 1.08, 0.40) if using_v2_skeletal else Vector3(1.18, 0.94, 0.36)
 	g_col.shape = g_shp
-	g_col.position = Vector3(0.0, 1.54, 0.62)
+	g_col.position = Vector3(0.0, 1.66, 0.72) if using_v2_skeletal else Vector3(0.0, 1.54, 0.62)
 	guard_area.add_child(g_col)
 	root_node.add_child(guard_area)
 
@@ -266,7 +310,7 @@ func _build_warden():
 	c_mesh.radial_segments = 6 if using_v098_model else 14
 	c_mesh.rings = 3 if using_v098_model else 10
 	core_crystal.mesh = c_mesh
-	core_crystal.position = Vector3(0.0, 1.56, 0.37 if using_v098_model else 0.34)
+	core_crystal.position = Vector3(0.0, 1.66, 0.40) if using_v2_skeletal else Vector3(0.0, 1.56, 0.37 if using_v098_model else 0.34)
 	core_crystal_mat = StandardMaterial3D.new()
 	core_crystal_mat.albedo_color = Color("5ef2ff")
 	core_crystal_mat.emission_enabled = true
@@ -274,11 +318,13 @@ func _build_warden():
 	core_crystal_mat.emission_energy_multiplier = 2.4
 	core_crystal_mat.roughness = 0.12
 	core_crystal.material_override = core_crystal_mat
+	# v2 skeletal Minecraft Warden already has its sculpted glowing ribcage soul-heart!
+	core_crystal.visible = not using_v2_skeletal
 	root_node.add_child(core_crystal)
 
-	# Clear 3D floating HP bar right above shoulders (cleanly camera-billboarded!)
+	# Clear 3D floating HP bar right above acoustic tendrils (cleanly camera-billboarded!)
 	hp_bar_root = Node3D.new()
-	hp_bar_root.position = Vector3(0.0, 2.86 if using_v098_model else 2.78, 0.0)
+	hp_bar_root.position = Vector3(0.0, 3.22 if using_v2_skeletal else (2.86 if using_v098_model else 2.78), 0.0)
 	root_node.add_child(hp_bar_root)
 	var bg_bar := MeshInstance3D.new()
 	var bg_q := QuadMesh.new()
@@ -304,9 +350,9 @@ func _build_warden():
 	hp_fill.material_override = hp_fill_mat
 	hp_bar_root.add_child(hp_fill)
 
-	status_label = game._label3d(root_node, "古洞循音石卫 · 听声巡逻", Vector3(0.0, 3.16 if using_v098_model else 3.08, 0.0), 26, Color("6cf2ff"))
+	status_label = game._label3d(root_node, "古洞循音石卫 · 听声巡逻", Vector3(0.0, 3.56 if using_v2_skeletal else (3.16 if using_v098_model else 3.08), 0.0), 26, Color("6cf2ff"))
 	status_label.pixel_size = 0.0052
-	status_label.visibility_range_end = 26.0
+	status_label.visibility_range_end = 30.0
 
 	# 3D Focused Anti-Sniper Sonic Lance Telegraph & Fire Beam
 	lance_beam_node = MeshInstance3D.new()
@@ -343,8 +389,7 @@ func _build_warden():
 	add_child(rush_lane_node)
 
 func _ground_pos(xz: Vector3) -> Vector3:
-	var c := _cave_center()
-	if xz.z <= c.z + 5.8 and xz.x >= cave_min_x() and xz.x <= cave_max_x():
+	if xz.z >= -135.5 and xz.z <= -92.5 and xz.x >= -90.0 and xz.x <= -58.0:
 		return Vector3(xz.x, _cave_floor_y(), xz.z)
 	return Vector3(xz.x, float(game.terrain_height(xz.x, xz.z)), xz.z)
 
@@ -584,8 +629,7 @@ func _update_sonar_rings(delta: float):
 		(sr.mat as StandardMaterial3D).albedo_color.a = (1.0 - u) * 0.58
 
 func _player_inside_cave_territory(pos: Vector3) -> bool:
-	var tc := territory_center()
-	return Vector2(pos.x - tc.x, pos.z - tc.z).length() <= TERRITORY_RADIUS and pos.z <= _cave_center().z + 12.5
+	return pos.x >= -91.0 and pos.x <= -56.0 and pos.z >= -136.5 and pos.z <= -87.5
 
 func register_noise(source_pos: Vector3, intensity: float, immediate_ping: bool = false):
 	if not is_alive():
@@ -693,7 +737,7 @@ func start_blind_rush(target_pos: Vector3) -> bool:
 	rush_count += 1
 	patrol_listen_left = 0.0
 	set_guard_arms(false, 0.0)
-	_place_rush_lane(root_node.position, rush_dir, 9.5)
+	_place_rush_lane(root_node.position, rush_dir, 13.5)
 	game.play_sfx("warning_lock", -8)
 	game.play_cn_voice("cave_06", root_node.position.distance_to(target_pos), true)
 	game._notice("🐂 石卫蓄力【石躯盲冲】！快横向闪避——诱使其撞上洞壁可震开双盾 2.6 秒！", Color("ff8a48"))
@@ -711,7 +755,7 @@ func _update_blind_rush(delta: float):
 			rush_lane_mat.albedo_color.a = 0.42 + absf(sin(elapsed * 22.0)) * 0.34
 		if rush_timer <= 0.0:
 			rush_state = "charging"
-			rush_timer = 0.95
+			rush_timer = 1.45
 			game.play_sfx("boss_slash", -6)
 			spawn_sonar_ring(root_node.position, Color("ff7838"), 7.5)
 			_sync_label()
@@ -1225,6 +1269,40 @@ func _update_articulation(delta: float):
 		target_l = Vector3(sw * 0.22, -0.10, -0.14)
 		target_r = Vector3(-sw * 0.22, 0.10, 0.14)
 		target_h = Vector3(0.04, sin(elapsed * (3.6 if state == "investigate" else 1.5)) * (0.36 if state == "investigate" else 0.18), 0.0)
+
+	# v0.9.9.5_dev1 Drive 65-bone Minecraft-Warden Skeletal AnimationPlayer when available!
+	if using_v2_skeletal and is_instance_valid(warden_anim):
+		var want_clip := "Idle_Patrol"
+		var spd_scale := 1.0
+		if arms_forced_open_left > 0.0:
+			want_clip = "Exposed_Stagger"
+			spd_scale = 1.15
+		elif rush_state != "idle":
+			want_clip = "Rush_Charge"
+			spd_scale = 1.45 if rush_state == "charging" else 0.75
+		elif lance_state == "charging" or echo_charging:
+			want_clip = "Sonic_Roar"
+			spd_scale = 1.25
+		elif guard_arms:
+			want_clip = "Guard_X"
+			spd_scale = 1.0
+		elif patrol_listen_left > 0.0:
+			want_clip = "Listen_Sniff"
+			spd_scale = 0.90
+		elif is_moving_now:
+			want_clip = "Walk_Stalk"
+			spd_scale = 1.35 if state == "hunt" else 0.92
+		if warden_anim.has_animation(want_clip):
+			if current_anim != want_clip or not warden_anim.is_playing():
+				warden_anim.play(want_clip, 0.0 if delta >= 0.9 else 0.18, spd_scale)
+				current_anim = want_clip
+			else:
+				warden_anim.speed_scale = spd_scale
+			if delta >= 0.9:
+				var anim_r: Animation = warden_anim.get_animation(want_clip)
+				if anim_r != null:
+					warden_anim.seek(anim_r.length * 0.45, true)
+					warden_anim.advance(0.0)
 
 	var w := minf(delta * speed, 1.0)
 	arm_left_pivot.rotation = arm_left_pivot.rotation.lerp(target_l, w)

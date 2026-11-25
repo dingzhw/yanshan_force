@@ -146,10 +146,10 @@ func rebuild_for_map():
 		_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
 		var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
 		_mark("cliff_inscription", game.Layout.BAMBOO_MAZE_MOYA + Vector3(-0.05, 0, 0.0), "摩崖石刻《竹石清音》", Color("e8b878"))
-		_mark("cave_mural", Vector3(cave_c.x - 2.45, 0, cave_c.z + 2.85), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
-		_mark("cave_hearth", Vector3(cave_c.x + 0.55, 0, cave_c.z - 2.35), "寒潭茶灶与古竹简", Color("ffd15c"))
-		# v0.9.0 Dimensional Rift Wall interaction anchor directly behind the skylight ("一线天光") in Yanxia Cave!
-		_mark("dimensional_rift", Vector3(cave_c.x - 0.95, 0, cave_c.z - 4.42), "次元石壁 · 跨界裂隙", Color("5ef5e8"))
+		# v0.9.9.5_dev1 Grand Mountain Cavern placements: Mid-Gallery Mural, Grand Hall Jade Spring Tea Hearth, Deep '一线天' Rift Wall!
+		_mark("cave_mural", Vector3(cave_c.x - 7.75, 0, cave_c.z - 10.20), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
+		_mark("cave_hearth", Vector3(cave_c.x - 5.65, 0, cave_c.z - 27.30), "寒潭茶灶与古竹简", Color("ffd15c"))
+		_mark("dimensional_rift", Vector3(cave_c.x - 3.50, 0, cave_c.z - 33.40), "次元石壁 · 跨界裂隙", Color("5ef5e8"))
 		_build_shortcut_stockade()
 	reset()
 
@@ -291,7 +291,7 @@ func _build_shortcut_stockade():
 
 func _mark(id: String, at: Vector3, label: String, color: Color):
 	var node = Node3D.new()
-	if id == "dimensional_rift":
+	if id in ["dimensional_rift", "cave_mural", "cave_hearth"]:
 		node.position = Vector3(at.x, float(game.Layout.CAVE_FLOOR_Y) + 0.026, at.z)
 	else:
 		node.position = game.active_layout.on_ground(at)

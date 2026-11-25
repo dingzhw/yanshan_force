@@ -141,10 +141,15 @@ const WANGDAO_PAVILION = EXIT
 const EAST_OVERLOOK = BAZAAR_ARCH
 const YANXIA_CAVE_CENTER = Vector3(999.0, 0.0, 999.0)
 const YANXIA_CAVE_MOUTH = Vector3(999.0, 0.0, 999.0)
+const YANXIA_CAVE_GALLERY = Vector3(999.0, 0.0, 999.0)
+const YANXIA_CAVE_HALL = Vector3(999.0, 0.0, 999.0)
 const YANXIA_CAVE_SANCTUM = Vector3(999.0, 0.0, 999.0)
 const CAVE_DX = 0.0
 const CAVE_DZ = 0.0
 const CAVE_FLOOR_Y = 0.0
+
+static func is_in_yanxia_cave_interior(_x: float, _z: float, _padding: float = 0.0) -> bool:
+	return false
 
 const ROUTE = [
 	SPAWN,

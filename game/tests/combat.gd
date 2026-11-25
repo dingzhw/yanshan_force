@@ -923,7 +923,7 @@ func run():
 	verify(cw.state == "patrol" and cw.root_node.position.x >= cw.cave_min_x() and cw.root_node.position.x <= cw.cave_max_x() and cw.root_node.position.z >= cw.cave_min_z() and cw.root_node.position.z <= cw.cave_max_z(), "v0.8.6: leaving Yanxia Cave immediately drops hunt and strictly confines Warden inside cave")
 	# v0.8.6 Anti-Crouch-Snipe Redesign: core hit NEVER stuns, locks firing spot, raises X-guard, AND fires Focused Anti-Sniper Sonic Lance!
 	cw.reset()
-	var c_cen: Vector3 = game.Layout.YANXIA_CAVE_CENTER
+	var c_cen: Vector3 = game.Layout.YANXIA_CAVE_HALL
 	var c_fy: float = float(game.Layout.CAVE_FLOOR_Y) + 0.03
 	cw.root_node.position = Vector3(c_cen.x, c_fy, c_cen.z + 2.2)
 	cw.root_node.rotation = Vector3.ZERO
@@ -1181,11 +1181,11 @@ func run():
 	verify(decoy_ok and cw98.decoy_lure_count >= 1 and cw98.state == "investigate", "v0.9.8: shooting distant cave rock wall triggers Acoustic Decoy Baiting drawing blind Warden to investigate")
 	# Blind Bull-Rush Charge + Wall-Slam Core Expose (dodge sideways -> Warden slams cave rock wall -> 2.6s open core!)
 	cw98.reset()
-	cw98.root_node.position = Vector3(cw98._cave_center().x + 1.4, cw98._cave_floor_y(), cw98._cave_center().z + 2.0)
+	cw98.root_node.position = Vector3(cw98._cave_center().x + 4.8, cw98._cave_floor_y(), cw98._cave_center().z + 2.0)
 	game.player.position = Vector3(cw98._cave_center().x - 2.4, cw98._cave_floor_y(), cw98._cave_center().z + 6.5)
 	cw98.state = "hunt"
-	cw98.start_blind_rush(cw98.root_node.position + Vector3(4.0, 0.0, 0.0))
-	for _rf in 18:
+	cw98.start_blind_rush(cw98.root_node.position + Vector3(6.5, 0.0, 0.0))
+	for _rf in 22:
 		cw98.update(0.10)
 		if cw98.wall_slam_count >= 1:
 			break

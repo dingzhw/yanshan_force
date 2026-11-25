@@ -105,7 +105,47 @@ const BAMBOO_MAZE_SUNDIAL = Vector3(-77.2, 0.0, -83.0)
 const BAMBOO_MAZE_MOYA = Vector3(-66.8, 0.0, -86.0)
 const YANXIA_CAVE_MOUTH = Vector3(-72.0, 0.0, -93.5)
 const YANXIA_CAVE_CENTER = Vector3(-72.0, 0.0, -100.0)
-const YANXIA_CAVE_SANCTUM = Vector3(-71.25, 0.0, -102.55)
+const YANXIA_CAVE_GALLERY = Vector3(-74.6, 0.0, -110.0)
+const YANXIA_CAVE_HALL = Vector3(-75.5, 0.0, -123.0)
+const YANXIA_CAVE_SANCTUM = Vector3(-75.5, 0.0, -133.2)
+
+static func cave_spine_at_z(z: float) -> Vector2:
+	## Returns Vector2(center_x_world, half_width_m) along the 41.3m Grand Yanxia Cave (z in [-135.0..-93.5]).
+	var y_b: float = YANXIA_CAVE_CENTER.z - z  # -6.5 at mouth (-93.5), +34.8 at back cliff (-134.8)
+	var pts := [
+		[-6.50,  0.00,  2.15],
+		[-3.20, -0.18,  2.02],
+		[ 0.50, -0.55,  2.18],
+		[ 4.50, -1.40,  3.20],
+		[ 8.20, -2.25,  5.40],
+		[10.50, -2.65,  6.65],
+		[14.50, -3.25,  9.20],
+		[19.00, -3.50, 11.45],
+		[23.50, -3.50, 11.85],
+		[28.00, -3.50, 10.40],
+		[31.50, -3.50,  6.90],
+		[34.80, -3.50,  4.35],
+	]
+	if y_b <= pts[0][0]:
+		return Vector2(YANXIA_CAVE_CENTER.x + pts[0][1], pts[0][2])
+	if y_b >= pts[-1][0]:
+		return Vector2(YANXIA_CAVE_CENTER.x + pts[-1][1], pts[-1][2])
+	for i in range(pts.size() - 1):
+		var y0: float = pts[i][0]
+		var y1: float = pts[i + 1][0]
+		if y_b >= y0 and y_b <= y1:
+			var t := (y_b - y0) / maxf(0.0001, y1 - y0)
+			var s := t * t * (3.0 - 2.0 * t)
+			var cx: float = lerpf(pts[i][1], pts[i + 1][1], s)
+			var hw: float = lerpf(pts[i][2], pts[i + 1][2], s)
+			return Vector2(YANXIA_CAVE_CENTER.x + cx, hw)
+	return Vector2(YANXIA_CAVE_CENTER.x - 3.5, 4.35)
+
+static func is_in_yanxia_cave_interior(x: float, z: float, padding: float = 0.0) -> bool:
+	if z < -135.2 - padding or z > -93.3 + padding:
+		return false
+	var sp := cave_spine_at_z(z)
+	return absf(x - sp.x) <= (sp.y + padding)
 
 const BRANCHES = [
 	# West Poem Pavilion & West Ridge Camp link
@@ -247,12 +287,17 @@ static func _land_height(x: float, z: float) -> float:
 	if arena_d < CLOUD_ARENA_RADIUS + 8.0:
 		var arena_w := 1.0 - smoothstep(CLOUD_ARENA_RADIUS - 0.5, CLOUD_ARENA_RADIUS + 8.0, arena_d)
 		result = lerpf(result, CLOUD_ARENA_Y, arena_w)
-	# Smoothly graded terrace for isolated West Ravine «迷踪竹石阵» (9.95m -> 10.60m) & flat 10.60m floor across «烟霞古洞»
+	# Smoothly graded terrace for isolated West Ravine «迷踪竹石阵» (9.95m -> 10.60m) & flat 10.60m floor across 3.5x «烟霞古洞»
 	if x > (-51.8 + CAVE_DX) and x < (-31.6 + CAVE_DX) and z > (-74.5 + CAVE_DZ) and z < (-32.0 + CAVE_DZ):
 		var maze_wx := 1.0 - smoothstep(7.0, 9.7, absf(x - (-41.7 + CAVE_DX)))
 		var maze_wz := 1.0 - smoothstep(17.15, 20.8, absf(z - (-53.35 + CAVE_DZ)))
 		var terrace_y := lerpf(CAVE_FLOOR_Y - 0.65, CAVE_FLOOR_Y, smoothstep(36.5 - CAVE_DZ, 55.8 - CAVE_DZ, -z))
 		result = lerpf(result, terrace_y, maze_wx * maze_wz)
+	if z >= -139.0 and z <= -93.0 and x >= -94.0 and x <= -56.0:
+		var sp_c := cave_spine_at_z(z)
+		var cwx := 1.0 - smoothstep(sp_c.y + 0.5, sp_c.y + 4.5, absf(x - sp_c.x))
+		var cwz := smoothstep(-139.0, -134.5, z) * (1.0 - smoothstep(-95.0, -93.0, z))
+		result = lerpf(result, CAVE_FLOOR_Y, cwx * cwz)
 	for bz in STREAM_BRIDGES:
 		if absf(z - float(bz)) >= 9.0:
 			continue
@@ -390,12 +435,19 @@ static func road_distance(x: float, z: float, limit := INF) -> float:
 	return result
 
 static func is_in_bamboo_cave_zone(x: float, z: float, padding: float = 0.0) -> bool:
-	return (
+	var in_maze := (
 		x >= (-49.2 + CAVE_DX - padding)
 		and x <= (-34.3 + CAVE_DX + padding)
 		and z >= (-71.6 + CAVE_DZ - padding)
 		and z <= (-35.6 + CAVE_DZ + padding)
 	)
+	var in_mountain_cave := (
+		x >= (-100.0 - padding)
+		and x <= (-52.0 + padding)
+		and z >= (-148.0 - padding)
+		and z <= (-93.0 + padding)
+	)
+	return in_maze or in_mountain_cave
 
 static func is_in_cloud_arena(x: float, z: float, padding: float = 0.0) -> bool:
 	return Vector2(x - CLOUD_ARENA_CENTER.x, z - CLOUD_ARENA_CENTER.z).length() < (CLOUD_ARENA_RADIUS + 2.5 + padding)
