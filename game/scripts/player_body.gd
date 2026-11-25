@@ -16,13 +16,17 @@ const RIFLE_WORLD_SCALE := 0.78
 const UPPER_BODY_BONES := [
 	"Abdomen", "Torso", "Chest", "Neck", "Head",
 	"Shoulder.L", "UpperArm.L", "LowerArm.L", "Hand.L",
-	"Index2.L", "Index3.L", "Index4.L", "Middle2.L", "Middle3.L", "Middle4.L",
-	"Ring2.L", "Ring3.L", "Ring4.L", "Pinky2.L", "Pinky3.L", "Pinky4.L",
-	"Thumb2.L", "Thumb3.L",
+	"Index1.L", "Index2.L", "Index3.L", "Index4.L",
+	"Middle1.L", "Middle2.L", "Middle3.L", "Middle4.L",
+	"Ring1.L", "Ring2.L", "Ring3.L", "Ring4.L",
+	"Pinky1.L", "Pinky2.L", "Pinky3.L", "Pinky4.L",
+	"Thumb1.L", "Thumb2.L", "Thumb3.L", "Thumb4.L",
 	"Shoulder.R", "UpperArm.R", "LowerArm.R", "Hand.R",
-	"Index2.R", "Index3.R", "Index4.R", "Middle2.R", "Middle3.R", "Middle4.R",
-	"Ring2.R", "Ring3.R", "Ring4.R", "Pinky2.R", "Pinky3.R", "Pinky4.R",
-	"Thumb2.R", "Thumb3.R",
+	"Index1.R", "Index2.R", "Index3.R", "Index4.R",
+	"Middle1.R", "Middle2.R", "Middle3.R", "Middle4.R",
+	"Ring1.R", "Ring2.R", "Ring3.R", "Ring4.R",
+	"Pinky1.R", "Pinky2.R", "Pinky3.R", "Pinky4.R",
+	"Thumb1.R", "Thumb2.R", "Thumb3.R", "Thumb4.R",
 	"Weapon_R", "Weapon_Back",
 ]
 
@@ -461,20 +465,26 @@ func refresh_weapon_visuals():
 		left_arm_ik.set_pole_node(0, left_arm_ik.get_path_to(left_elbow_pole))
 
 	# 2. World-scale Sculpted Tactical Combat Knife (uses real tactical_knife.glb!)
+	# In tactical_knife.glb: blade extends along -X and handle center sits at (+0.045, +0.078, -0.020) in Godot space.
+	# Wrapping in KnifeAlign rotated -90 deg Y centers the handle at Weapon_R origin & aims the blade cleanly along -Z (-> Weapon_R +Y)!
 	world_knife_root = Node3D.new()
 	world_knife_root.name = "WorldKnifeRoot"
 	weapon_r_attach.add_child(world_knife_root)
 	if ResourceLoader.exists(KNIFE_GLB):
 		var kp = load(KNIFE_GLB)
 		if kp is PackedScene:
+			var knife_align := Node3D.new()
+			knife_align.name = "KnifeAlign"
+			knife_align.rotation = Vector3(0.0, -PI * 0.5, 0.0)
+			world_knife_root.add_child(knife_align)
 			var ki: Node3D = kp.instantiate()
 			ki.scale = Vector3.ONE * 0.92
-			ki.position = Vector3(0.0, 0.0, -0.04)
+			ki.position = Vector3(-0.045, -0.078, 0.020) * 0.92
 			for m in ki.find_children("*", "MeshInstance3D", true, false):
 				var mi := m as MeshInstance3D
 				if mi != null:
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			world_knife_root.add_child(ki)
+			knife_align.add_child(ki)
 	else:
 		var blade := MeshInstance3D.new()
 		var bbox := BoxMesh.new()
@@ -511,12 +521,12 @@ func _sync_weapon_mount(slot: int, force_holster: bool):
 		if world_rifle_root.get_parent() != weapon_back_attach:
 			world_rifle_root.get_parent().remove_child(world_rifle_root)
 			weapon_back_attach.add_child(world_rifle_root)
-		# Sleek diagonal holster flush behind Shaoyu's compact mountain daypack!
-		world_rifle_root.position = Vector3(0.0, 0.02, -0.04)
-		world_rifle_root.rotation = Vector3(PI * 0.5, 0.0, PI * 0.5)
-		world_rifle_root.scale = Vector3.ONE * 0.94
+		# Sleek diagonal holster flush across Shaoyu's upper back (matched to Weapon_Back socket!)
+		world_rifle_root.position = Vector3.ZERO
+		world_rifle_root.rotation = Vector3(PI * 0.5, 0.0, 0.0)
+		world_rifle_root.scale = Vector3.ONE * 0.92
 		world_knife_root.visible = (not is_first_person) and (slot == 1) and (not force_holster)
-		world_knife_root.position = Vector3(0.0, 0.03, 0.0)
+		world_knife_root.position = Vector3.ZERO
 		world_knife_root.rotation = Vector3(PI * 0.5, 0.0, 0.0)
 
 	# Keep TwoBoneIK3D target path valid if rifle reparented
@@ -600,15 +610,19 @@ func update_pose(
 	if is_instance_valid(world_muzzle_flash):
 		world_muzzle_flash.visible = (not is_first_person) and flash_left > 0.0 and weapon_slot == 0 and (not slamming)
 
-	# 1P natural backward & subtle downward offset so looking straight down shows full cargo-pant legs, kneepads & boots (zero cut-off pelvis/belly!)
+	# 1P natural backward offset so looking straight down shows ONLY clean cargo-pant legs, kneepads & boots (ZERO hands/arms/torso!).
+	# In 1P Prone (stance == 2), hide lower body to prevent any thigh cut-plane clipping near low prone eye height.
+	var show_lower_now: bool = (not is_first_person) or (stance != 2)
+	for m in lower_meshes:
+		if is_instance_valid(m) and m.visible != show_lower_now:
+			m.visible = show_lower_now
+
 	var target_body_z: float = 0.0
 	var target_body_y: float = 0.0
 	if is_first_person:
-		target_body_z = 0.34 if stance == 2 else (0.30 if stance == 1 else 0.27)
-		target_body_y = -0.04 if stance == 0 else 0.0
-	elif stance == 2:
-		# Micro prone lift (2cm) lets Shaoyu v2 chest, kneepads & boots rest flush on grass/sand without floating or sinking!
-		target_body_y = 0.02
+		target_body_z = 0.34 if stance == 1 else 0.31
+		target_body_y = -0.03 if stance == 0 else 0.0
+	# In 3P, all grounded Mixamo mocap clips (Stand, Crouch, Prone) are deformed-mesh calibrated to Z=0.000m (zero hovering!)
 	hero_root.position.z = lerpf(hero_root.position.z, target_body_z, minf(delta * 14.0, 1.0))
 	hero_root.position.y = lerpf(hero_root.position.y, target_body_y, minf(delta * 14.0, 1.0))
 
@@ -668,12 +682,19 @@ func update_pose(
 		anim_tree.set("parameters/UpperCombat/transition_request", target_upper)
 		cur_upper_state = target_upper
 
-	# Upper-body blend weight: 1.0 during combat locomotion, 0.0 during full-body prone crawl / prone idle / airborne jump!
+	# Upper-body blend weight:
+	# - Full-body Mixamo clips (Prone, Crouch Rifle, Standing Knife Idle, Rifle Walk/Run/Back) play cohesively at 0.0
+	#   unless actively firing, reloading, aiming (while moving), strafing, or slashing with knife!
 	var want_upper_w := 1.0
+	var active_combat_override := (reload_progress > 0.001) or (fire_anim_left > 0.0) or (slash_anim_left > 0.0)
 	if stance == 2:
-		want_upper_w = 0.0  # Prone_Idle and Prone_Crawl already animate the full body cleanly!
-	elif stance == 1 and horiz_speed < 0.22 and weapon_slot == 0 and not aiming and reload_progress <= 0.001 and fire_anim_left <= 0.0:
-		want_upper_w = 0.0  # Rifle_Crouch_Aim already poses the whole body cohesively!
+		want_upper_w = 0.0  # Real Mixamo Prone_Idle / Prone_Crawl animate the entire body flat on ground!
+	elif stance == 1 and weapon_slot == 0 and (not active_combat_override) and (not aiming or horiz_speed < 0.22):
+		want_upper_w = 0.0  # Real Mixamo Idle_Crouching_Aiming & Crouch_Walking already hold the rifle cohesively!
+	elif stance == 0 and on_floor and weapon_slot == 1 and horiz_speed < 0.25 and not active_combat_override:
+		want_upper_w = 0.0  # Real Mixamo Knife_Idle martial-arts stance!
+	elif stance == 0 and on_floor and weapon_slot == 0 and (not active_combat_override) and (not aiming) and (target_lower in ["rifle_idle", "walk_fwd", "jog_fwd", "sprint_fwd", "walk_back"]):
+		want_upper_w = 0.0  # Real Mixamo Rifle_Idle_2 / Walk_With_Rifle_3 / Rifle_Run / Backwards_Rifle_Walk!
 	elif not on_floor and weapon_slot == 1 and slash_anim_left <= 0.0:
 		want_upper_w = 0.35
 	cur_upper_weight = lerpf(cur_upper_weight, want_upper_w, minf(delta * 14.0, 1.0))

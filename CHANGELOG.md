@@ -4,6 +4,18 @@
 
 ---
 
+## [v0.9.9.3] - 2026-11-25
+
+交付 **「主角『游侠·少羽』1P/3P 彻底统一 · 24 套标准 Mixamo 真实动捕全面换绑（持枪/握刀/蹲伏/俯卧零扭曲）」**，彻底根治 `v0.9.9.2` 实机试玩反馈的全部动作与视角穿帮问题：
+- **彻底根治第一人称（1P）低头露出手与半个身体，并实现 1P/3P 视觉统一（`tools/build_v0993_shaoyu_mocap.py` / `player_body.gd` / `weapon.gd`）**：
+  - 修复 `v0.9.9.2` 按未缩放局部坐标切分网格导致胸挂/手臂/手掌误入 `Shaoyu_LowerLegs` 的严重 Bug；改用 **世界空间坐标 + 骨骼权重双锁切分**（严格仅允许 `UpperLeg/LowerLeg/Foot/Toe` 主导且低于腰线 `world_Z < 0.80m` 的面片进入下半身网格），并为 `Shaoyu_LowerLegs` 顶部切口构建**显式法线朝上三角扇实心封口**，1P 低头只见干爽实心工装裤、护膝与战靴（1P 卧倒自动隐去下半身防镜头穿切）；
+  - 新增少羽专属深青黛防撕裂面料贴图 `game/assets/slice/arm_sleeve_shaoyu.jpg` 并校准 `fp_arms` 护腕与露指战术手套色调，令第一人称手臂与第三人称少羽外观 100% 视觉统一。
+- **接入 24 套标准 65 骨 `mixamorig:*` 真实动作捕捉（Mocap）战术动作库（`tools/build_v0993_shaoyu_mocap.py` → `game/assets/slice/player_shaoyu.glb`）**：
+  - 彻底告别旧版跨骨架手工近似动作导致的蹲伏扭脚、握刀飘肩与俯卧悬空：基于同源 65 骨标准 Mixamo 动捕资产（`Rifle_Idle_2`、`Rifle_Aiming_Idle`、`Firing_Rifle_4`、`Reloading_2`、`Walk_With_Rifle_3`、`Rifle_Run`、`Backwards_Rifle_Walk`、`Left/Right_Strafe_Walk`、`Idle_Crouching_Aiming`、`Crouch_Walking`、`Prone_Idle`、`Prone_Forward`、`Knife_Idle`、`Stabbing_2/3`、`Smash` 等），完整实施四肢/足部/脚趾全链 A-pose→T-pose 对齐、骨架 `1.76×` 缩放位移精确补偿、移动循环原地去漂移与全接地动作变形网格贴地校准（`min_vertex_z == 0.000m`）；
+  - **第三人称精准双持步枪与真手握刀**：步枪采用“右掌握把 → 左掌护木”双掌向量 + `-9.1°` 握把-护木倾角补偿锁定，确保枪托稳抵右肩、右手紧握握把、左手稳托前护木；修复 `tactical_knife.glb` 刀身 `-X` 朝向偏移并将匕首刚性锁入右拳掌心、切刀自动斜背步枪；蹲姿呈现标准单膝战术跪瞄零扭脚，俯卧呈现胸腹/双肘/双腿 100% 贴地战术卧姿。
+
+---
+
 ## [v0.9.9.2] - 2026-11-25
 
 交付 **「主角『游侠·少羽』v2 精雕 PBR 角色全面换装 · 烟山写实林间雄鹿 20 骨骨骼动画替换」**：

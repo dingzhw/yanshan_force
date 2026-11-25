@@ -1,0 +1,26 @@
+{
+  "version": "0.9.9.3",
+  "engine": "Godot 4.7.2.stable",
+  "export_preset": "Windows Desktop",
+  "git_base": "825843b",
+  "working_tree_dirty_entries": 28,
+  "game_tree_sha256": "8c86848b964a7f526964d2affb2418a4d4e294394e82e660c52c57bd32fddb24",
+  "clean_whitelist_stage": true,
+  "files": [
+    {
+      "path": "playtest\\windows-v0.9.9.3\\YanshanBase.exe",
+      "bytes": 109268480,
+      "sha256": "d34d36f3be1a6c49c56525ae86469b92e4f417ddf0b43cf00dd80c385c4b0562"
+    },
+    {
+      "path": "playtest\\windows-v0.9.9.3\\YanshanBase.pck",
+      "bytes": 251409684,
+      "sha256": "17fc1bc8fc3efe0206e3b775aee7015105ce02b895739ec72d359c3ecb87c5c1"
+    },
+    {
+      "path": "playtest\\烟山基地试玩_v0.9.9.3_Windows.zip",
+      "bytes": 286809890,
+      "sha256": "a168899d02246eb76fcc8e55537de244cafa57a5e5f1615a0a5972a3463512ce"
+    }
+  ]
+}

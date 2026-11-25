@@ -252,7 +252,7 @@ func run():
 					and hi.find_child("Shaoyu_LowerBoots", true, false) != null
 				)
 			hi.free()
-	verify(hero_ok, "standalone PCK includes v0.9.9.2 sculpted PBR Shaoyu v2 player_shaoyu.glb (%d bones, %d anims, 1P/3P split meshes)" % [hero_bones, hero_anims])
+	verify(hero_ok and ResourceLoader.exists("res://assets/slice/arm_sleeve_shaoyu.jpg"), "standalone PCK includes v0.9.9.3 Mixamo-mocap Shaoyu v2 player_shaoyu.glb (%d bones, %d anims, capped 1P/3P split + unified 1P bamboo-teal sleeve)" % [hero_bones, hero_anims])
 	var portrait_ids := ["shaoyu", "chen_guide", "tingfeng", "qinghe", "zhuying", "mistbound_soldier", "vanguard_boss", "skyfall_overlord", "cave_warden", "ahsarah_guard", "saeed_fiery_owl", "reis_warlord", "haavk_trooper", "mandel_protocol", "locked_mystery"]
 	var portraits_loaded := 0
 	for pid in portrait_ids:

@@ -688,7 +688,8 @@ func _setup_skinned_arms(has_skin: bool):
 		if arms_mesh == null:
 			arms_mesh = mi
 
-	if is_instance_valid(arms_mesh) and arms_mesh.mesh != null and has_skin:
+	# v0.9.9.3: Unify 1P viewmodel arms visually with 3P Shaoyu v2 (bamboo-teal tactical sleeve + slate-charcoal bracer cuff + matte fingerless gloves!)
+	if is_instance_valid(arms_mesh) and arms_mesh.mesh != null:
 		for surf_idx in arms_mesh.mesh.get_surface_count():
 			var base_mat: Material = arms_mesh.mesh.surface_get_material(surf_idx)
 			if base_mat is BaseMaterial3D:
@@ -696,7 +697,25 @@ func _setup_skinned_arms(has_skin: bool):
 				var mname: String = bm.resource_name
 				if mname.begins_with("Mat_Sleeve"):
 					var dup := bm.duplicate() as BaseMaterial3D
-					dup.albedo_texture = load("res://assets/slice/arm_sleeve_forest.jpg")
+					if has_skin and ResourceLoader.exists("res://assets/slice/arm_sleeve_forest.jpg"):
+						dup.albedo_texture = load("res://assets/slice/arm_sleeve_forest.jpg")
+						dup.albedo_color = Color(1.0, 1.0, 1.0)
+					elif ResourceLoader.exists("res://assets/slice/arm_sleeve_shaoyu.jpg"):
+						dup.albedo_texture = load("res://assets/slice/arm_sleeve_shaoyu.jpg")
+						dup.albedo_color = Color(1.0, 1.0, 1.0)
+					else:
+						dup.albedo_color = Color("468490")
+					dup.roughness = 0.78
+					arms_mesh.set_surface_override_material(surf_idx, dup)
+				elif mname.begins_with("Mat_Cuff"):
+					var dup := bm.duplicate() as BaseMaterial3D
+					dup.albedo_color = Color("2d343d")
+					dup.roughness = 0.68
+					arms_mesh.set_surface_override_material(surf_idx, dup)
+				elif mname.begins_with("Mat_Glove"):
+					var dup := bm.duplicate() as BaseMaterial3D
+					dup.albedo_color = Color("282e36")
+					dup.roughness = 0.72
 					arms_mesh.set_surface_override_material(surf_idx, dup)
 
 	pose_cache.clear()
