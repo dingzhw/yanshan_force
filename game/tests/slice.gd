@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.5_dev1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5_dev1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.5_dev2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5_dev2 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1216,6 +1216,15 @@ func run():
 			(mtn_roof_hit.position.y - float(game.Layout.CAVE_FLOOR_Y)) if not mtn_roof_hit.is_empty() else 0.0
 		]
 	)
+	var chen_dev2_rig: Node = game.rangers.camp_npc_node.find_child("ChenGuideRig", true, false)
+	var chen_dev2_arm: Node = chen_dev2_rig.find_child("Chen_Armature", true, false) if chen_dev2_rig != null else null
+	var chen_dev2_ap := chen_dev2_rig.find_child("AnimationPlayer", true, false) as AnimationPlayer if chen_dev2_rig != null else null
+	var chen_dev2_ok: bool = (
+		chen_dev2_arm != null
+		and chen_dev2_rig.find_child("Chen_VeteranHair", true, false) != null
+		and chen_dev2_ap != null and chen_dev2_ap.has_animation("Idle_Camp")
+	)
+	verify(chen_dev2_ok, "v0.9.9.5_dev2: Camp Liaison Chen Guide mounts unmodified high-fidelity skeletal model (Chen_Armature + Chen_VeteranHair + Idle_Camp)")
 	game._end_run(false)
 
 	game.queue_free()

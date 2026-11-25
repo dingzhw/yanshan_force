@@ -5,16 +5,16 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.9.9.5__dev1-amber.svg)
+![Version](https://img.shields.io/badge/Version-v0.9.9.5__dev2-amber.svg)
 
-## v0.9.9.5_dev1 试玩（65 骨《我的世界》还原风循声守卫 v2 + 1:1 立绘 · 3.5 倍山腹巨窟烟霞古洞与洞壁荧光植物）
+## v0.9.9.5_dev2 试玩（未改动高精度原数模营地联络官「陈向导」+ 1:1 匹配官方立绘与角色小传同步）
 
-双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版基于 `v0.9.9.5` 进一步完成烟霞古洞与古洞首领的沉浸式全面升级：
-- **65 骨《我的世界》还原风「古洞循音石卫」v2 + 1:1 官方立绘（`v098_cave_warden.glb` / `cave_warden.gd` / `cave_warden.png`）**：还原无眼幽匿巨岩体魄、青光耳角触须、镂空骨质胸肋与脉动旋涡魂核（`2.86m`、`22,358` 面、`1024px` 4 通道无损 PBR），驱动 65 骨骨架与 7 套专属骨骼动画（巡哨、沉步、倾听、双臂紧交叉 X 护核、破防仰吼露核、盲冲蓄力与声波怒嚎），角色小传同步换装 1:1 一致的新立绘。
-- **3.5 倍山腹巨窟重构「烟霞古洞」（`v0995_yanxia_grand_cave.glb` / `layout.gd` / `slice_world.gd`）**：整条 `41.3m` 古洞 100% 隐藏于 `48m × 56m × 22.5m` 覆竹青苔山峰之内，外部仅在「迷踪竹石阵」前庭敞开自然山崖洞口；洞内由 `4.1m` 窄口曲喉逐步展宽至天窗中廊（洞顶空窗 + 《烟山耕读》壁画），再豁然开朗为 `23.6m × 18.5m × 12.9m` 地下巨殿（4 根喀斯特掩体石柱、荧光寒潭与先民茶灶、东台三级秘匣）直至最深处「一线天」与次元石壁；洞壁与天窗缘自然生长荧光蓝青壁菌、金青浆果荧光垂藤与幽荧石藓。
-- **全量回归与性能验收**：10 套源码回归 **719 项断言 0 失败**，独立包四层验真（`48/48` PCK 核验 + GL Compat / Forward+ 双后端）一次全过，新古洞入口 GL Compatibility 实测 **`145.82 FPS`**（总均帧 `176.67 FPS`，RX 6600）。
+双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版基于 `v0.9.9.5_dev1` 进一步完成营地联络官外观与图鉴的全面统一：
+- **未改动高精度原数模「陈向导」（`npc_chen_guide.glb`）**：完整保留高精度原数模的俊朗五官、偏分短发、深蓝战术执勤服、炭灰防弹背心、肩挂无线对讲机、露指手套、护膝与作战靴（`87,772` 面、`14` 网格、10 张无损 PNG 贴图、`Alpha Mask` 发丝眉睫、19 骨解剖骨架与自然松弛 `Idle_Camp` 站姿），普通行动山脚营地与单人序章「烟山初行」同步生效。
+- **角色小传官方立绘 1:1 一致（`chen_guide.png` / `lore_codex_ui.gd`）**：由新版陈向导 3D 实体直接影棚渲染并合成江南晨光营地虚化背景（`512×640`），实现「图鉴立绘 = 实机 3D 模型」1:1 严格一致，并同步更新档案着装文案与非商用试玩资产边界标注。
+- **全量回归与四层成品验收**：核心回归（`smoke` 42/0、`slice` 229/0、`ahsarah` 108/0，累计 10 套 720 断言 0 失败）、Forward+ / GL Compatibility 双后端 8 图核验与独立包四层验真（`49/49` PCK 核验 + GL Compat 总均帧 **`171.02 FPS`** / 烟霞古洞口 **`152.46 FPS`**，RX 6600 + Forward+ 启动通过）全部完成。
 
-[游戏发展路线图](docs/游戏发展路线图.md) · [v0.9.9.5_dev1 试玩说明](docs/v0.9.9.5_dev1-试玩说明.txt) · [v0.9.9.5_dev1 验收记录](docs/v0.9.9.5_dev1-验收记录.md) · [v0.9.9.5 验收记录](docs/v0.9.9.5-验收记录.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
+[游戏发展路线图](docs/游戏发展路线图.md) · [v0.9.9.5_dev2 试玩说明](docs/v0.9.9.5_dev2-试玩说明.txt) · [v0.9.9.5_dev2 验收记录](docs/v0.9.9.5_dev2-验收记录.md) · [v0.9.9.5_dev1 验收记录](docs/v0.9.9.5_dev1-验收记录.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
 
 ---
 
@@ -28,19 +28,27 @@
 
 ---
 
-## 实机画面 · Screenshots (`v0.9.9.5_dev1` & `v0.9.9.5` & `v0.9.9.4`)
+## 实机画面 · Screenshots (`v0.9.9.5_dev2` & `v0.9.9.5_dev1` & `v0.9.9.5`)
 
-| 整座 41.3m 烟霞古洞完全掩藏于 22.5m 覆竹青苔山峰内部（航拍，`v0.9.9.5_dev1`） | 迷踪竹石阵前庭正望山崖洞口与「烟霞古洞」石匾（`v0.9.9.5_dev1`） |
+| 营地联络官「陈向导」未改动原数模近景（Vulkan Forward+，`v0.9.9.5_dev2`） | 营地联络官「陈向导」同机位近景对照（GL Compatibility，`v0.9.9.5_dev2`） |
 | :---: | :---: |
-| ![v0995dev1山腹巨窟航拍](docs/media/v0995_dev1_01_mountain_exterior_aerial.png) | ![v0995dev1竹林山崖洞口](docs/media/v0995_dev1_02_bamboo_forecourt_mouth.png) |
+| ![v0995dev2陈向导近景FP](docs/media/v0995_dev2_01_camp_chen_closeup_fp.png) | ![v0995dev2陈向导近景GL](docs/media/v0995_dev2_01_camp_chen_closeup_gl.png) |
 
-| 窄口曲喉渐宽至天窗中廊：洞壁发光蓝青壁菌与垂藤浆果（`v0.9.9.5_dev1`） | 23.6m 宏阔地下大殿：4 根喀斯特石柱、荧光生态与 2.86m 新循声守卫（Forward+，`v0.9.9.5_dev1`） |
+| 山脚营地全身站姿与主角少羽 v2 同框比例核验（`v0.9.9.5_dev2`） | 序章「烟山初行」陈向导外观 100% 统一（背景可见新烟霞古洞覆竹山峰，`v0.9.9.5_dev2`） |
 | :---: | :---: |
-| ![v0995dev1窄口渐宽荧光廊道](docs/media/v0995_dev1_03_cave_throat_to_gallery.png) | ![v0995dev1宏阔大殿循声守卫FP](docs/media/v0995_dev1_05_grand_hall_warden_patrol_fp.png) |
+| ![v0995dev2陈向导少羽同框](docs/media/v0995_dev2_02_camp_chen_shaoyu.png) | ![v0995dev2序章陈向导](docs/media/v0995_dev2_03_prologue_chen_guide.png) |
 
-| 65 骨《我的世界》还原风循声守卫：双臂紧交叉 X 护核特写（`v0.9.9.5_dev1`） | 65 骨循声守卫破防仰头怒吼：双臂大张、胸肋青蓝魂核爆发强光（`v0.9.9.5_dev1`） |
+| 角色小传 1:1 匹配官方立绘与同步档案卡片（`v0.9.9.5_dev2`） | 整座 41.3m 烟霞古洞完全掩藏于 22.5m 覆竹青苔山峰内部（航拍，`v0.9.9.5_dev1`） |
 | :---: | :---: |
-| ![v0995dev1循声守卫X护核](docs/media/v0995_dev1_06_warden_v2_xguard.png) | ![v0995dev1循声守卫破防怒吼](docs/media/v0995_dev1_07_warden_v2_exposed_roar.png) |
+| ![v0995dev2陈向导小传立绘](docs/media/v0995_dev2_04_codex_chen_portrait.png) | ![v0995dev1山腹巨窟航拍](docs/media/v0995_dev1_01_mountain_exterior_aerial.png) |
+
+| 迷踪竹石阵前庭正望山崖洞口与「烟霞古洞」石匾（`v0.9.9.5_dev1`） | 窄口曲喉渐宽至天窗中廊：洞壁发光蓝青壁菌与垂藤浆果（`v0.9.9.5_dev1`） |
+| :---: | :---: |
+| ![v0995dev1竹林山崖洞口](docs/media/v0995_dev1_02_bamboo_forecourt_mouth.png) | ![v0995dev1窄口渐宽荧光廊道](docs/media/v0995_dev1_03_cave_throat_to_gallery.png) |
+
+| 23.6m 宏阔地下大殿：4 根喀斯特石柱、荧光生态与 2.86m 新循声守卫（Forward+，`v0.9.9.5_dev1`） | 65 骨《我的世界》还原风循声守卫：双臂紧交叉 X 护核特写（`v0.9.9.5_dev1`） |
+| :---: | :---: |
+| ![v0995dev1宏阔大殿循声守卫FP](docs/media/v0995_dev1_05_grand_hall_warden_patrol_fp.png) | ![v0995dev1循声守卫X护核](docs/media/v0995_dev1_06_warden_v2_xguard.png) |
 
 | 最深处「一线天」垂直光幕、次元石壁与荧光寒潭先民茶灶（`v0.9.9.5_dev1`） | 角色小传重绘官方立绘：1:1 匹配实机 65 骨循声守卫（`v0.9.9.5_dev1`） |
 | :---: | :---: |

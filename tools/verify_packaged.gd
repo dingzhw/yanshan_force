@@ -389,6 +389,19 @@ func run():
 			)
 			gc_i.free()
 	verify(v0995_dev1_cave_ok, "standalone PCK includes v0.9.9.5_dev1 3.5x mountain-hidden Yanxia Grand Cave GLB with exterior mountain peak & bioluminescent wall flora")
+	var v0995_dev2_chen_ok := false
+	if ResourceLoader.exists("res://assets/slice/npc_chen_guide.glb"):
+		var ch2_p = load("res://assets/slice/npc_chen_guide.glb")
+		if ch2_p is PackedScene:
+			var ch2_i: Node = ch2_p.instantiate()
+			var ch2_ap := ch2_i.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			v0995_dev2_chen_ok = (
+				ch2_i.find_child("Chen_Armature", true, false) != null
+				and ch2_i.find_child("Chen_VeteranHair", true, false) != null
+				and ch2_ap != null and ch2_ap.has_animation("Idle_Camp")
+			)
+			ch2_i.free()
+	verify(v0995_dev2_chen_ok, "standalone PCK includes v0.9.9.5_dev2 unmodified high-fidelity Chen Guide GLB (Chen_Armature + Chen_VeteranHair + Idle_Camp)")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

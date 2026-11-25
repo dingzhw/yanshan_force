@@ -1,6 +1,6 @@
 {
-  "recorded_date": "2026-11-25",
-  "stage": "v0.9.9.5_dev1 · 65 骨《我的世界》还原风循声守卫 v2 + 1:1 立绘 · 3.5 倍山腹巨窟烟霞古洞（藏山/窄口扩殿/天窗一线天/洞壁发光植物）",
+  "recorded_date": "2026-11-26",
+  "stage": "v0.9.9.5_dev2 · 未改动高精度原数模营地联络官「陈向导」+ 1:1 匹配官方立绘与角色小传同步（承接 v0.9.9.5_dev1 65 骨循声守卫 v2 与 3.5 倍山腹烟霞古洞）",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -101,9 +101,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 66 条 8 音色阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，当前开发里程碑 v0.9.9.5_dev1"
+    "version_control": "Git，当前开发里程碑 v0.9.9.5_dev2"
   },
-  "playtest": "playtest/windows-v0.9.9.5_dev1/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.5_dev2/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",
