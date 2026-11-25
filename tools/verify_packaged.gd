@@ -341,6 +341,18 @@ func run():
 			)
 			dr_i.free()
 	verify(v0992_deer_ok, "standalone PCK includes v0.9.9.2 rigged Realistic Deer GLB (RealisticDeerMesh + 20-bone Skeleton3D + Idle/Walk/Run)")
+	var rules_cls = load("res://scripts/rules.gd")
+	var learn_cls = load("res://scripts/learning_store.gd")
+	var pro_script = load("res://scripts/prologue.gd")
+	var v0994_ok: bool = (
+		rules_cls != null
+		and not bool(rules_cls.DEFAULT_SETTINGS.get("auto_speak_on_switch", true))
+		and rules_cls.DEFAULT_SETTINGS.has("last_nav_tab")
+		and learn_cls != null and learn_cls.new({}).has_method("record_story_clue")
+		and pro_script != null and String(pro_script.CHEN_GUIDE_GLB) == "res://assets/slice/npc_chen_guide.glb"
+		and String(pro_script.MISTBOUND_ASSAULT_GLB) == "res://assets/slice/v097_mistbound_assault.glb"
+	)
+	verify(v0994_ok, "standalone PCK includes v0.9.9.4 unified formal Prologue rigs, story_clue separation & honest auto_speak default")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.3" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.3 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.4 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -918,14 +918,30 @@ func run():
 	verify(game.loot_ui.busy_compendium and game.loot_ui.comp_grid.get_child_count() == game.achievements.CATALOG.size(), "v0.8.2 V81-10/11: Compendium exposes Achievements & Weapon Charms Hall with all 24 achievement cards")
 	game.loot_ui.close_compendium()
 
-	# 7) v0.8.2_dev1 C1/C6: Editable Prologue Scene E2E, Comfort Settings & Dual-Layer Cultural Specimen Card!
+	# 7) v0.8.2_dev1 C1/C6 + v0.9.9.4 Unified Formal Prologue Models, Shuffled Story Clue & Direct Post-Prologue Deploy!
 	var pro_packed = load("res://scenes/prologue_chapter.tscn")
 	verify(pro_packed is PackedScene and is_instance_valid(game.prologue), "v0.8.2_dev1 C1: editable prologue_chapter.tscn loads cleanly and mounts Prologue controller")
 	game.rules.profile["prologue_completed"] = false
+	game.rules.profile["runs"] = 0
+	game._apply_initial_menu_selection()
+	game._refresh_menu()
+	verify(game.selected_nav_tab == "story" and game.prologue_button.visible, "v0.9.9.4: clean fresh save opens main menu directly on Story Mode with one-click Prologue button visible")
 	var coins_before_pro: int = int(game.rules.profile.coins)
 	game.start_prologue_chapter(true)
 	await frames(4)
 	verify(game.rules.prologue_mode and game.prologue.active and game.prologue.busy and game.prologue.stage == "skirmish", "v0.8.2_dev1 C1: Prologue opens Camp Guide briefing modal cleanly")
+	# Verify formal Chen Guide & formal Mistbound scouts with compact overhead tags (ZERO primitive box/sphere dummies!)
+	var pro_chen_rig = game.prologue.npc_node.find_child("ChenGuideRig", true, false)
+	var pro_has_sphere_head := false
+	for mi in game.prologue.npc_node.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).mesh is SphereMesh:
+			pro_has_sphere_head = true
+	var scouts_formal: bool = (game.prologue.scouts.size() == 3)
+	for sc_chk in game.prologue.scouts:
+		var snode: Node3D = sc_chk.node
+		if not bool(snode.get_meta("uses_formal_model", false)) or snode.find_child("MistboundSkeletalRig", true, false) == null or snode.find_child("OverheadWordTag", true, false) == null or sc_chk.area.position.y < 2.30:
+			scouts_formal = false
+	verify(bool(game.prologue.npc_node.get_meta("uses_formal_model", false)) and pro_chen_rig != null and not pro_has_sphere_head and scouts_formal, "v0.9.9.4: Prologue Chen Guide & all 3 scouts unify onto formal skeletal PBR models + compact overhead holographic tags")
 	game.prologue.close_modal()
 	# Wrong scout hit gives friendly hint (no wipe), then clearing all 3 scouts advances to Wangdao Beacon clue!
 	var wrong_sc_idx: int = (game.prologue.active_scout_idx + 1) % game.prologue.scouts.size()
@@ -935,20 +951,33 @@ func run():
 		var t_idx: int = game.prologue.active_scout_idx
 		game.prologue.hit_bullet(game.prologue.scouts[t_idx].area)
 	verify(game.prologue.scouts_cleared == 3 and game.prologue.stage == "beacon_clue", "v0.8.2_dev1 C1: clearing 3 East Ridge scouts unlocks Wangdao Beacon investigation")
-	# Wangdao Beacon bilingual clue: gentle retry on wrong choice -> records non-first-try honestly -> solve -> Yanxia Cave cliffhanger!
+	# Wangdao Beacon story clue: randomized option order + story_clue telemetry (NEVER pollutes mastery/review_due/listening!)
+	var seen_clue_positions := {}
+	for _sh in 24:
+		game.prologue.open_beacon_clue()
+		seen_clue_positions[game.prologue.clue_correct_idx] = true
+		game.prologue.close_modal()
+	verify(seen_clue_positions.size() >= 2, "v0.9.9.4: Wangdao Beacon clue options randomize across openings instead of hardcoding A (%d distinct slots)" % seen_clue_positions.size())
+	var pre_listen_tot: int = int(game.rules.profile.get("learning_stats", {}).get("mod_listening", {}).get("total", 0))
 	game.prologue.open_beacon_clue()
-	game.prologue.modal_choice_btns[1].pressed.emit()
-	verify(not game.prologue.clue_solved and game.prologue.modal_choice_btns[1].disabled, "v0.8.2_dev1 C1: wrong prologue clue choice grants hint and allows gentle retry (no hard lock)")
-	game.prologue.modal_choice_btns[0].pressed.emit()
+	var clue_right_idx: int = game.prologue.clue_correct_idx
+	var clue_wrong_idx: int = (clue_right_idx + 1) % 3
+	game.prologue.modal_choice_btns[clue_wrong_idx].pressed.emit()
+	verify(not game.prologue.clue_solved and game.prologue.modal_choice_btns[clue_wrong_idx].disabled, "v0.8.2_dev1 C1: wrong prologue clue choice grants hint and allows gentle retry (no hard lock)")
+	game.prologue.modal_choice_btns[clue_right_idx].pressed.emit()
+	var post_listen_tot: int = int(game.rules.profile.get("learning_stats", {}).get("mod_listening", {}).get("total", 0))
+	var story_clue_stat: Dictionary = game.rules.profile.get("learning_stats", {}).get("mod_story_clue", {})
 	verify(game.prologue.clue_solved and not game.prologue.clue_first_try_correct and game.prologue.stage == "return_camp" and game.prologue.modal_body.text.contains("器物考据"), "v0.8.2_dev1 C1/C6: solving Wangdao clue shows dual-layer celadon lore, Yanxia Cave lead & advances to camp hand-in")
+	verify(post_listen_tot == pre_listen_tot and not game.rules.profile.mastery.has("prologue-wangdao-clue") and not game.rules.profile.review_due.has("prologue-wangdao-clue") and int(story_clue_stat.get("total", 0)) >= 2, "v0.9.9.4: Wangdao celadon clue logs cleanly as story_clue without polluting listening stats, mastery, or SRS review_due")
 	game.prologue.close_modal()
 	# Task Log [J] re-read check
 	game.prologue.open_task_log()
 	verify(game.prologue.busy and game.prologue.modal_body.text.contains("烟霞古洞"), "v0.8.2_dev1 C1: Prologue Task Log allows re-reading dialogue and clues anytime")
 	game.prologue.close_modal()
-	# Return to Camp NPC to hand in beacon & trigger settlement
+	# Return to Camp NPC to hand in beacon & trigger settlement -> lands directly on Yanshan Base with Normal Deploy visible!
 	game.prologue.open_npc_dialogue()
 	verify(bool(game.rules.profile.get("prologue_completed", false)) and int(game.rules.profile.coins) >= coins_before_pro + 120 and game.menu_summary.text.contains("烟霞古洞"), "v0.8.2_dev1 C1: Camp NPC hand-in completes Prologue, awards starter coins & sets up Yanxia Cave hook")
+	verify(game.selected_nav_tab == "yanshan" and game.start_button.visible, "v0.9.9.4: Prologue completion lands directly on Yanshan Base deployment console with Normal Action button immediately clickable")
 
 	# Comfort & Accessibility Settings (reduce_screen_shake, audio sliders, sensitivity)
 	game.rules.set_setting("reduce_screen_shake", true)

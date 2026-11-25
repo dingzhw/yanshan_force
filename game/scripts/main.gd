@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.9.3"
+const VERSION = "0.9.9.4"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -82,6 +82,7 @@ var last_voice_key: String = ""
 var tts_voice_id = ""
 var listening_mode = false
 var question_help_used := false
+var question_audio_assisted := false
 var run_started_ms := -1
 var profile_read_failed := false
 var last_save_error := ""
@@ -100,6 +101,7 @@ var menu_status: Label
 var start_button: Button
 var confidential_button: Button
 var prologue_button: Button
+var story_deploy_normal_btn: Button
 var map_yanshan_btn: Button
 var map_ahsarah_btn: Button
 var settings_button: Button
@@ -299,6 +301,7 @@ func _ready():
 	_build_camp_display_stand()
 	refresh_camp_display_stand()
 	_sync_settings_ui()
+	_apply_initial_menu_selection()
 	_refresh_menu()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	startup_ms["loot_and_menu"] = Time.get_ticks_msec() - step_begin
@@ -437,8 +440,10 @@ func play_cn_voice(line_id: String, distance_m: float = 12.0, force_priority: bo
 		cn_voice_player = AudioStreamPlayer.new()
 		add_child(cn_voice_player)
 	var atten_db := clampf(-maxf(0.0, distance_m - 10.0) * 0.28, -11.0, 0.0)
-	var duck_db := -9.0 if en_busy else 0.0
-	cn_voice_player.volume_db = -2.0 + linear_to_db(gain) + atten_db + duck_db
+	var en_gain: float = float(rules.setting("voice_volume", 1.0))
+	var en_db := (-1.5 + linear_to_db(maxf(0.01, en_gain))) if en_gain > 0.005 else -60.0
+	var base_cn_db := -2.0 + linear_to_db(gain) + atten_db
+	cn_voice_player.volume_db = minf(base_cn_db - 9.0, en_db - 12.0) if (en_busy and en_gain > 0.005) else base_cn_db
 	cn_voice_player.stop()
 	cn_voice_player.stream = stream
 	cn_voice_player.play()
@@ -501,6 +506,20 @@ func load_voice_stream(text: String) -> AudioStream:
 		return stream
 	return null
 
+func is_english_voice_audible() -> bool:
+	return float(rules.setting("voice_volume", 1.0)) > 0.005
+
+func clear_question_help():
+	question_help_used = false
+	question_audio_assisted = false
+
+func recognition_modality() -> String:
+	if listening_mode:
+		return "listening"
+	if question_audio_assisted:
+		return "assisted_audio"
+	return "recognition"
+
 func speak_english(text: String) -> bool:
 	var key := normalize_voice_key(text)
 	last_voice_key = key
@@ -508,29 +527,30 @@ func speak_english(text: String) -> bool:
 		last_voice_backend = "none"
 		return false
 	var voice_gain: float = float(rules.setting("voice_volume", 1.0))
+	if voice_gain <= 0.005:
+		last_voice_backend = "muted"
+		return false
 	var stream := load_voice_stream(text)
 	if stream != null:
 		last_voice_backend = "ogg"
-		if qa_mode or DisplayServer.get_name() == "headless" or voice_gain <= 0.005:
+		if qa_mode or DisplayServer.get_name() == "headless":
 			return true
 		DisplayServer.tts_stop()
 		if not is_instance_valid(voice_player):
 			voice_player = AudioStreamPlayer.new()
 			add_child(voice_player)
-		voice_player.volume_db = -1.5 + linear_to_db(voice_gain)
+		var en_db := -1.5 + linear_to_db(voice_gain)
+		voice_player.volume_db = en_db
 		voice_player.stop()
 		voice_player.stream = stream
 		voice_player.play()
-		# Gently duck any active Chinese enemy bark so English pronunciation stays crystal clear!
+		# Keep English pronunciation >=12 dB above overlapping Chinese enemy barks even at low voice volume!
 		if is_instance_valid(cn_voice_player) and cn_voice_player.playing:
-			cn_voice_player.volume_db = minf(cn_voice_player.volume_db, -13.0)
+			cn_voice_player.volume_db = minf(cn_voice_player.volume_db, minf(-13.0, en_db - 12.0))
 		return true
 	if qa_mode or DisplayServer.get_name() == "headless":
 		last_voice_backend = "tts" if tts_voice_id != "" else "none"
 		return tts_voice_id != ""
-	if voice_gain <= 0.005:
-		last_voice_backend = "tts" if tts_voice_id != "" else "none"
-		return true
 	if tts_voice_id == "":
 		_init_tts()
 	if tts_voice_id == "":
@@ -544,15 +564,37 @@ func speak_english(text: String) -> bool:
 	last_voice_backend = "tts"
 	return true
 
+func trigger_question_audio(is_auto_switch: bool = false) -> bool:
+	## v0.9.9.4: Single source of truth for pre-answer question audio!
+	## - Muted (voice_volume <= 0): plays nothing and NEVER falsely penalizes independent credit.
+	## - Normal recognition (listening_mode == false): auto-speak only fires if player enabled auto_speak_on_switch;
+	##   whenever audio DOES play before answering (auto or manual [X]), strictly flags question_help_used & assisted_audio!
+	## - Listening challenge (listening_mode == true): audio IS the prompt (no help penalty).
+	if question.is_empty():
+		return false
+	var en_text := str(question.get("english", ""))
+	if en_text == "" or not has_english_voice(en_text):
+		return false
+	if not is_english_voice_audible():
+		return false
+	if is_auto_switch and not listening_mode and not bool(rules.setting("auto_speak_on_switch", false)):
+		return false
+	var spoke := speak_english(en_text)
+	if spoke and not listening_mode:
+		question_help_used = true
+		question_audio_assisted = true
+	return spoke
+
 func replay_question_audio():
 	if question.is_empty():
 		return
 	var en_text := str(question.get("english", ""))
+	if not is_english_voice_audible():
+		_notice("🔇 英语语音音量为 0%，请在 ⚙ 设置中调高音量后再试听（本次未计入助听）", GOLD)
+		return
 	if has_english_voice(en_text):
-		if not listening_mode:
-			question_help_used = true
-		if speak_english(en_text):
-			_notice("🔊 正在朗读英文发音", MINT)
+		if trigger_question_audio(false):
+			_notice("🔊 正在朗读英文发音" if listening_mode else "🔊 正在朗读英文发音（助听提示）", MINT)
 			return
 	_notice("提示：当前环境未检测到可用英文语音（离线语音与系统语音均未命中）", GOLD)
 
@@ -1728,6 +1770,18 @@ func _build_ui():
 	prologue_button.add_theme_font_size_override("font_size", 15)
 	_style_mech_button(prologue_button, Color("164a3e"), Color("48c9a0"), Color("f6fffb"), Color("5ff5c4"), 5)
 
+	story_deploy_normal_btn = _button(deploy_drawer, "▶ 直接部署：烟山普通行动 [15分·3营]", Rect2(492, 96, 336, 44), func():
+		selected_nav_tab = "yanshan"
+		selected_landmark_id = "yanshan_base"
+		rules.set_setting("last_nav_tab", "yanshan")
+		if active_map_id != "yanshan":
+			switch_map("yanshan")
+		try_menu_deploy(true, "normal")
+	)
+	story_deploy_normal_btn.add_theme_font_size_override("font_size", 14)
+	_style_mech_button(story_deploy_normal_btn, Color("155644"), Color("3ef0b4"), Color("f4fffa"), Color("5ff8c6"), 5)
+	story_deploy_normal_btn.hide()
+
 	start_button = _button(deploy_drawer, "▶ 部署：普通行动 [15分·3营]", Rect2(20, 96, 304, 44), func():
 		var in_active: bool = rules.phase in ["active", "extracting"]
 		try_menu_deploy(rules.combat_mode if in_active else true, rules.operation_tier if in_active else "normal")
@@ -1872,7 +1926,7 @@ func _build_ui():
 	settings_panel.add_child(setting_strict_cb)
 
 	setting_autospeak_cb = CheckBox.new()
-	setting_autospeak_cb.text = "切换新词时立即自动朗读英文读音（听音索敌，不扣独立答对）"
+	setting_autospeak_cb.text = "切换新词时自动播报英文助听（开启记为助听认词；关闭则答对后自动朗读）"
 	setting_autospeak_cb.position = Vector2(662, 466)
 	setting_autospeak_cb.size = Vector2(506, 28)
 	setting_autospeak_cb.add_theme_font_size_override("font_size", 14)
@@ -1979,7 +2033,7 @@ func _sync_settings_ui():
 	if is_instance_valid(setting_strict_cb):
 		setting_strict_cb.set_pressed_no_signal(bool(st.get("strict_daily_review", true)))
 	if is_instance_valid(setting_autospeak_cb):
-		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", true)))
+		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", false)))
 	if is_instance_valid(setting_ahsarah_unlock_cb):
 		setting_ahsarah_unlock_cb.set_pressed_no_signal(bool(st.get("unlock_ahsarah_preview", false)))
 	if is_instance_valid(setting_tp_cb):
@@ -2045,12 +2099,39 @@ func _open_retest():
 		if not todo.is_empty():
 			cipher_terminal.open_retest(todo)
 
+func _apply_initial_menu_selection():
+	## v0.9.9.4: Clean new saves open straight onto '00 // 剧情模式' with one-click Prologue deploy;
+	## returning players automatically resume their last chosen theater!
+	var is_fresh: bool = (not bool(rules.profile.get("prologue_completed", false))) and int(rules.profile.get("runs", 0)) == 0
+	if is_fresh:
+		selected_nav_tab = "story"
+		selected_landmark_id = "story_ch1"
+	else:
+		var saved_tab := str(rules.setting("last_nav_tab", ""))
+		if saved_tab == "ahsarah" and rules.is_map_unlocked("ahsarah"):
+			selected_nav_tab = "ahsarah"
+			selected_landmark_id = "ahsarah_fortress"
+			if active_map_id != "ahsarah":
+				switch_map("ahsarah")
+		elif saved_tab == "story":
+			selected_nav_tab = "story"
+			selected_landmark_id = "story_ch1"
+		else:
+			selected_nav_tab = "yanshan"
+			selected_landmark_id = "yanshan_base"
+	if is_instance_valid(war_map):
+		war_map.set_theater(selected_nav_tab, false)
+		war_map.select_landmark(selected_landmark_id)
+
 func _select_nav_theater(tab: String):
 	if rules.phase in ["active", "extracting"]:
 		return
 	armory_panel.hide()
 	settings_panel.hide()
 	selected_nav_tab = tab
+	rules.set_setting("last_nav_tab", tab)
+	if not (qa_mode and profile_path_override == ""):
+		_save()
 	if tab == "story":
 		selected_landmark_id = "story_ch1"
 		if is_instance_valid(war_map):
@@ -2267,6 +2348,11 @@ func _refresh_menu(result = ""):
 	practice_button.visible = show_combat_deploy and (not in_run)
 	if is_instance_valid(prologue_button):
 		prologue_button.visible = show_story_play
+	if is_instance_valid(story_deploy_normal_btn):
+		var show_story_next: bool = show_story_play and bool(rules.profile.get("prologue_completed", false))
+		story_deploy_normal_btn.visible = show_story_next
+		if show_story_next:
+			story_deploy_normal_btn.text = ("🔒 先完成今日复习 → 解锁普通行动" if daily_review_required() else "▶ 直接部署：烟山普通行动 [15分·3营]")
 	if is_instance_valid(deploy_back_btn):
 		deploy_back_btn.visible = show_locked_back
 		if ah_locked_preview:
@@ -2566,7 +2652,7 @@ func flash_word_switch_banner():
 			st.set_border_width_all(2)
 
 func _next_question():
-	question_help_used = false
+	clear_question_help()
 	if question_queue.is_empty():
 		question_queue = _build_weighted_queue()
 	question = question_queue.pop_back()
@@ -2578,7 +2664,7 @@ func _next_question():
 	for i in choices.size():
 		if choices[i].id == question.id:
 			answer_index = i
-	listening_mode = (has_english_voice(str(question.get("english", ""))) and rules.answered >= 4 and rules.answered % 5 == 0)
+	listening_mode = (is_english_voice_audible() and has_english_voice(str(question.get("english", ""))) and rules.answered >= 4 and rules.answered % 5 == 0)
 	rules.open_question()
 	next_question_left = 0.0
 	station_prompt_timer_max = 10.0
@@ -2586,10 +2672,10 @@ func _next_question():
 	_sync_question()
 	if active_station >= 0:
 		flash_word_switch_banner()
-		if (listening_mode or bool(rules.setting("auto_speak_on_switch", true))) and not paused:
-			speak_english(str(question.get("english", "")))
+		if not paused:
+			trigger_question_audio(true)
 	elif listening_mode and not paused and not (combat.in_field() and combat.zone < 0):
-		speak_english(str(question.get("english", "")))
+		trigger_question_audio(true)
 
 func _sync_question():
 	if combat.in_field() and combat.zone >= 0:
@@ -2659,8 +2745,8 @@ func _activate_station(index: int):
 	_sync_question()
 	if not rolled_fresh and not question.is_empty():
 		flash_word_switch_banner()
-		if (listening_mode or bool(rules.setting("auto_speak_on_switch", true))) and not paused:
-			speak_english(str(question.get("english", "")))
+		if not paused:
+			trigger_question_audio(true)
 	_notice(stations[index].title + " · 看中文或听读音射击对应英文靶牌（按 X 重听发音）", MINT)
 
 func _leave_station():
@@ -2802,10 +2888,10 @@ func resolve_answer(index: int, mobile = false):
 		rules.question_open = false
 		var wid_w := str(question.get("id", ""))
 		if wid_w != "":
-			rules.learning.record_recognition(wid_w, correct, choices.size(), question_help_used, -1, "camp_warmup", "listening" if listening_mode else "recognition")
+			rules.learning.record_recognition(wid_w, correct, choices.size(), question_help_used, -1, "camp_warmup", recognition_modality())
 	else:
 		var rec_scene := "combat_word" if mobile else "practice_station"
-		var rec_mod := "listening" if listening_mode else "recognition"
+		var rec_mod := recognition_modality()
 		if not rules.answer(correct, str(question.get("id", "")), choices.size(), question_help_used, rec_scene, rec_mod):
 			return
 	var gained = rules.score - prev_score

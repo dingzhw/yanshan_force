@@ -6,6 +6,8 @@ extends Node3D
 ## recover the silenced beacon (pointing to Yanxia Ancient Cave), and hand it in at Camp.
 
 const HIT_LAYER := 64  # Dedicated bit 6 for Prologue Scout targets
+const CHEN_GUIDE_GLB := "res://assets/slice/npc_chen_guide.glb"
+const MISTBOUND_ASSAULT_GLB := "res://assets/slice/v097_mistbound_assault.glb"
 const BRIEFING_CLUE_EN := "Cross the bridge and climb the stone steps to the pavilion."
 const BEACON_CLUE_EN := "Look beside the green celadon cup. The signal points north to the misty cave."
 
@@ -22,11 +24,13 @@ var beacon_label: Label3D
 var beacon_pulse_mesh: MeshInstance3D
 var wayfinder_nodes: Array = []
 
-var scouts: Array = []          # Array of Dictionaries: {node, area, word, label, frame_mat, defeated}
+var scouts: Array = []          # Array of Dictionaries: {node, area, body_area, word, label, frame_mat, core_mat, defeated}
 var active_scout_idx: int = -1
 var scouts_cleared: int = 0
 var scout_wrong_attempts: int = 0
 
+var clue_rng := RandomNumberGenerator.new()
+var clue_correct_idx: int = 0
 var clue_attempts: int = 0
 var clue_first_try_correct: bool = false
 var clue_solved: bool = false
@@ -45,6 +49,7 @@ var current_modal_kind: String = ""
 
 func setup(g):
 	game = g
+	clue_rng.randomize()
 	_build_world_props()
 	_build_modal_ui()
 	set_active(false)
@@ -55,7 +60,7 @@ func _marker_ground(marker_name: String, fallback: Vector3) -> Vector3:
 	return Vector3(xz.x, float(game.terrain_height(xz.x, xz.z)), xz.z)
 
 func _build_world_props():
-	# 1) Camp Liaison NPC ("陈向导 · 烟山联络员") standing warmly beside Camp briefing area
+	# 1) Camp Liaison NPC ("陈向导 · 烟山联络员") — v0.9.9.4 unified to formal skeletal PBR npc_chen_guide.glb!
 	var npc_pos := _marker_ground("CampGuideAnchor", game.Layout.SPAWN + Vector3(-2.8, 0.0, 0.8))
 	npc_node = Node3D.new()
 	npc_node.name = "CampGuideNPC"
@@ -64,63 +69,41 @@ func _build_world_props():
 	npc_node.set_meta("prologue_interact", "npc")
 	add_child(npc_node)
 
-	# Stylized Jiangnan ranger silhouette: boots, teal scout tunic, collar scarf, head, woven bamboo hat, glowing hand lantern
-	var coat_mat := StandardMaterial3D.new()
-	coat_mat.albedo_color = Color("1f4f52")
-	coat_mat.roughness = 0.78
-	var skin_mat := StandardMaterial3D.new()
-	skin_mat.albedo_color = Color("e8c4a2")
-	skin_mat.roughness = 0.72
-	var hat_mat := StandardMaterial3D.new()
-	hat_mat.albedo_color = Color("bfa065")
-	hat_mat.roughness = 0.85
-	var lantern_mat := StandardMaterial3D.new()
-	lantern_mat.albedo_color = Color("ffe082")
-	lantern_mat.emission_enabled = true
-	lantern_mat.emission = Color("ffb84d")
-	lantern_mat.emission_energy_multiplier = 2.0
+	var rig_loaded := false
+	if ResourceLoader.exists(CHEN_GUIDE_GLB):
+		if not game.scene_cache.has(CHEN_GUIDE_GLB):
+			game.scene_cache[CHEN_GUIDE_GLB] = load(CHEN_GUIDE_GLB)
+		var packed = game.scene_cache.get(CHEN_GUIDE_GLB)
+		if packed is PackedScene:
+			var chen_rig: Node3D = packed.instantiate()
+			chen_rig.name = "ChenGuideRig"
+			chen_rig.position = Vector3(0.0, 0.05, 0.0)
+			npc_node.add_child(chen_rig)
+			var ap := chen_rig.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if is_instance_valid(ap):
+				for aname in ap.get_animation_list():
+					var anim := ap.get_animation(aname)
+					if anim != null:
+						anim.loop_mode = Animation.LOOP_LINEAR
+				if ap.has_animation("Idle_Camp"):
+					ap.play("Idle_Camp")
+				elif not ap.get_animation_list().is_empty():
+					ap.play(ap.get_animation_list()[0])
+			rig_loaded = true
+	npc_node.set_meta("uses_formal_model", rig_loaded)
 
-	var legs: MeshInstance3D = game._mesh_box(npc_node, Vector3(0, 0.42, 0), Vector3(0.42, 0.84, 0.28), Color("263238"), false)
-	legs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var torso := MeshInstance3D.new()
-	var t_cyl := CylinderMesh.new()
-	t_cyl.top_radius = 0.22
-	t_cyl.bottom_radius = 0.27
-	t_cyl.height = 0.74
-	torso.mesh = t_cyl
-	torso.position = Vector3(0, 1.14, 0)
-	torso.material_override = coat_mat
-	npc_node.add_child(torso)
-
-	var scarf: MeshInstance3D = game._mesh_box(npc_node, Vector3(0, 1.48, 0.03), Vector3(0.32, 0.11, 0.30), Color("d96b43"), false)
-	scarf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-	var head := MeshInstance3D.new()
-	var h_sph := SphereMesh.new()
-	h_sph.radius = 0.17
-	h_sph.height = 0.34
-	head.mesh = h_sph
-	head.position = Vector3(0, 1.66, 0)
-	head.material_override = skin_mat
-	npc_node.add_child(head)
-
-	var hat := MeshInstance3D.new()
-	var hat_cone := CylinderMesh.new()
-	hat_cone.top_radius = 0.04
-	hat_cone.bottom_radius = 0.44
-	hat_cone.height = 0.18
-	hat.mesh = hat_cone
-	hat.position = Vector3(0, 1.84, 0)
-	hat.material_override = hat_mat
-	npc_node.add_child(hat)
-
-	var lantern := MeshInstance3D.new()
-	var l_box := BoxMesh.new()
-	l_box.size = Vector3(0.16, 0.24, 0.16)
-	lantern.mesh = l_box
-	lantern.position = Vector3(0.34, 1.12, 0.22)
-	lantern.material_override = lantern_mat
-	npc_node.add_child(lantern)
+	# Solid collider matching formal Camp Liaison Chen Guide
+	var npc_body := StaticBody3D.new()
+	npc_body.name = "ChenGuideCollider"
+	npc_body.add_to_group("solid_props")
+	npc_node.add_child(npc_body)
+	var npc_col := CollisionShape3D.new()
+	var npc_cyl := CylinderShape3D.new()
+	npc_cyl.radius = 0.36
+	npc_cyl.height = 1.82
+	npc_col.shape = npc_cyl
+	npc_col.position = Vector3(0.0, 0.91, 0.0)
+	npc_body.add_child(npc_col)
 
 	# Glowing ground ring around Camp Guide when awaiting briefing or hand-in
 	npc_beacon_ring = MeshInstance3D.new()
@@ -137,7 +120,7 @@ func _build_world_props():
 	npc_beacon_ring.material_override = ring_mat
 	npc_node.add_child(npc_beacon_ring)
 
-	npc_label = game._label3d(npc_node, "陈向导 · 烟山联络员 [F]", Vector3(0, 2.24, 0), 34, Color("ffe39c"))
+	npc_label = game._label3d(npc_node, "陈向导 · 烟山联络员 [F]", Vector3(0, 2.26, 0), 32, Color("ffe39c"))
 	npc_label.pixel_size = 0.0052
 	npc_label.visibility_range_end = 42.0
 
@@ -275,6 +258,11 @@ func _spawn_prologue_scouts():
 		["ScoutAnchor_2", Vector3(27.8, 0.0, 13.6)],
 		["ScoutAnchor_3", Vector3(30.2, 0.0, 15.8)]
 	]
+	var corner_mat := StandardMaterial3D.new()
+	corner_mat.albedo_color = Color("d6b264")
+	corner_mat.metallic = 0.76
+	corner_mat.roughness = 0.34
+
 	for i in mini(3, pwords.size()):
 		var pos := _marker_ground(anchors[i][0], anchors[i][1])
 		var root := Node3D.new()
@@ -282,14 +270,76 @@ func _spawn_prologue_scouts():
 		root.position = pos
 		add_child(root)
 
-		# Compact Mistbound Recon Scout Dummy with elevated readable English word shield
-		game._mesh_box(root, Vector3(0, 0.55, 0), Vector3(0.46, 1.10, 0.34), Color("283842"), false)
-		game._mesh_box(root, Vector3(0, 1.24, 0), Vector3(0.32, 0.28, 0.30), Color("3c525e"), false)
-		var visor: MeshInstance3D = game._mesh_box(root, Vector3(0, 1.26, 0.16), Vector3(0.24, 0.07, 0.04), Color("ffb84d"), false)
-		(visor.material_override as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# v0.9.9.4 Unified Formal Mistbound Skeletal Rig (ZERO primitive gray-blue boxes!)
+		var rig_ok := false
+		if ResourceLoader.exists(MISTBOUND_ASSAULT_GLB):
+			if not game.scene_cache.has(MISTBOUND_ASSAULT_GLB):
+				game.scene_cache[MISTBOUND_ASSAULT_GLB] = load(MISTBOUND_ASSAULT_GLB)
+			var packed = game.scene_cache.get(MISTBOUND_ASSAULT_GLB)
+			if packed is PackedScene:
+				var inst: Node3D = packed.instantiate()
+				inst.name = "MistboundSkeletalRig"
+				inst.position = Vector3.ZERO
+				inst.scale = Vector3.ONE * 1.04
+				root.add_child(inst)
+				var ap := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+				if is_instance_valid(ap):
+					for aname in ap.get_animation_list():
+						var anim := ap.get_animation(aname)
+						if anim != null:
+							anim.loop_mode = Animation.LOOP_LINEAR
+					if ap.has_animation("Idle_Aim"):
+						ap.play("Idle_Aim")
+					elif not ap.get_animation_list().is_empty():
+						ap.play(ap.get_animation_list()[0])
+				rig_ok = true
+		root.set_meta("uses_formal_model", rig_ok)
 
+		# Embedded glowing hex chest word core matching formal combat troopers
+		var core_root := Node3D.new()
+		core_root.name = "ChestWordCore"
+		core_root.position = Vector3(0.0, 1.24, 0.23)
+		root.add_child(core_root)
+		var gem := MeshInstance3D.new()
+		var g_mesh := SphereMesh.new()
+		g_mesh.radius = 0.082
+		g_mesh.height = 0.185
+		g_mesh.radial_segments = 6
+		g_mesh.rings = 2
+		gem.mesh = g_mesh
+		gem.scale = Vector3(1.0, 1.0, 0.55)
+		var core_mat := StandardMaterial3D.new()
+		core_mat.albedo_color = Color("5ce0b8")
+		core_mat.emission_enabled = true
+		core_mat.emission = Color("5ce0b8")
+		core_mat.emission_energy_multiplier = 1.35
+		core_mat.roughness = 0.16
+		gem.material_override = core_mat
+		core_root.add_child(gem)
+
+		# Body Area3D so shooting the scout's torso/head ALSO registers cleanly alongside the overhead tag
+		var body_area := Area3D.new()
+		body_area.name = "ScoutBodyHit"
+		body_area.position = Vector3(0.0, 1.05, 0.0)
+		body_area.collision_layer = HIT_LAYER
+		body_area.collision_mask = 0
+		body_area.monitoring = false
+		body_area.monitorable = false
+		body_area.set_meta("prologue_scout_idx", i)
+		root.add_child(body_area)
+		var b_shp := CapsuleShape3D.new()
+		b_shp.radius = 0.38
+		b_shp.height = 1.65
+		var b_col := CollisionShape3D.new()
+		b_col.shape = b_shp
+		body_area.add_child(b_col)
+
+		# v0.9.8 / v0.9.9.4 Compact Overhead Translucent Holographic Word Tag (identical visual language to Formal Combat!)
+		var bw := 1.54
+		var bh := 0.54
 		var area := Area3D.new()
-		area.position = Vector3(0, 1.88, 0)
+		area.name = "OverheadWordTag"
+		area.position = Vector3(0, 2.44, 0)
 		area.collision_layer = HIT_LAYER
 		area.collision_mask = 0
 		area.monitoring = false
@@ -297,32 +347,52 @@ func _spawn_prologue_scouts():
 		area.set_meta("prologue_scout_idx", i)
 		root.add_child(area)
 		var shp := BoxShape3D.new()
-		shp.size = Vector3(1.88, 0.72, 0.24)
+		shp.size = Vector3(bw, bh, 0.20)
 		var col := CollisionShape3D.new()
 		col.shape = shp
 		area.add_child(col)
 
-		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.02), Vector3(1.86, 0.70, 0.06), Color("ffd166"), false)
+		var bezel: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, -0.012), Vector3(bw, bh, 0.022), Color("5ce0b8"), false)
 		var fmat: StandardMaterial3D = bezel.material_override
 		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var board: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, 0.02), Vector3(1.74, 0.58, 0.05), Color("faf7ec"), false)
-		(board.material_override as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		fmat.albedo_color = Color(0.36, 0.88, 0.72, 0.92)
 
-		var wlbl: Label3D = game._label3d(area, str(pwords[i].get("english", "")), Vector3(0, -0.02, 0.065), 54, Color("142228"))
+		var board: MeshInstance3D = game._mesh_box(area, Vector3(0, 0, 0.004), Vector3(bw - 0.075, bh - 0.075, 0.020), Color(0.05, 0.10, 0.13, 0.88), false)
+		var smat: StandardMaterial3D = board.material_override
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+		for sx in [-1.0, 1.0]:
+			for sy in [-1.0, 1.0]:
+				var brk: MeshInstance3D = game._mesh_box(area, Vector3(sx * (bw * 0.5 - 0.03), sy * (bh * 0.5 - 0.025), 0.014), Vector3(0.085, 0.055, 0.022), Color.WHITE, false)
+				brk.material_override = corner_mat
+
+		var tlbl: Label3D = game._label3d(area, "%s · 雾隐斥候" % char(65 + i), Vector3(0, 0.188, 0.024), 15, Color("9ef5dc"))
+		tlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		tlbl.pixel_size = 0.0038
+		tlbl.outline_size = 3
+		tlbl.outline_modulate = Color("060e12")
+		tlbl.visibility_range_end = 85.0
+
+		var wlbl: Label3D = game._label3d(area, str(pwords[i].get("english", "")), Vector3(0, -0.048, 0.026), 52, Color("f6fff9"))
 		wlbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		wlbl.pixel_size = 0.0054
-		wlbl.width = 310
-		wlbl.outline_size = 2
-		wlbl.outline_modulate = Color("ffffff")
-		wlbl.visibility_range_end = 78.0
+		wlbl.pixel_size = 0.0046
+		wlbl.width = 305
+		wlbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wlbl.outline_size = 5
+		wlbl.outline_modulate = Color("050c10")
+		wlbl.visibility_range_end = 98.0
 
 		scouts.append({
 			"idx": i,
 			"node": root,
 			"area": area,
+			"body_area": body_area,
 			"word": pwords[i],
 			"label": wlbl,
 			"frame_mat": fmat,
+			"core_mat": core_mat,
 			"defeated": false
 		})
 	active_scout_idx = 0 if not scouts.is_empty() else -1
@@ -334,9 +404,20 @@ func _sync_active_scout_question():
 		if not scouts[i].defeated:
 			active_scout_idx = i
 			break
+	for i in scouts.size():
+		var sc: Dictionary = scouts[i]
+		if sc.defeated:
+			continue
+		var is_cur := (i == active_scout_idx)
+		var col := Color("ffd15c") if is_cur else Color("5ce0b8")
+		if sc.has("frame_mat") and sc.frame_mat is StandardMaterial3D:
+			sc.frame_mat.albedo_color = Color(col.r, col.g, col.b, 0.94)
+		if sc.has("core_mat") and sc.core_mat is StandardMaterial3D:
+			sc.core_mat.albedo_color = col
+			sc.core_mat.emission = col
 	if active_scout_idx >= 0:
 		game.question = scouts[active_scout_idx].word
-		game.question_help_used = false
+		game.clear_question_help()
 		game.listening_mode = false
 
 func start_prologue(auto_open_briefing: bool = true):
@@ -410,16 +491,26 @@ func open_beacon_clue():
 		+ "  \"" + BEACON_CLUE_EN + "\"\n\n"
 		+ "请根据上方英文线索判断：信标旁发现的器物，以及异常信号指向的下一处地点分别是？"
 	)
-	var opts := [
-		"A. 一只绿色青瓷盏（green celadon cup），信号指向北方的烟霞古洞（misty cave）",
-		"B. 一把红漆纸伞（red umbrella），信号指向南方的山下稻田",
-		"C. 一块白色大理石（white stone），信号指向东侧的山顶铁塔"
+	var raw_opts := [
+		{"text": "一只绿色青瓷盏（green celadon cup），信号指向北方的烟霞古洞（misty cave）", "correct": true},
+		{"text": "一把红漆纸伞（red umbrella），信号指向南方的山下稻田", "correct": false},
+		{"text": "一块白色大理石（white stone），信号指向东侧的山顶铁塔", "correct": false}
 	]
+	# v0.9.9.4 Fisher-Yates shuffle so the correct option is NEVER hardcoded to A!
+	for k in range(raw_opts.size() - 1, 0, -1):
+		var j := clue_rng.randi_range(0, k)
+		var tmp = raw_opts[k]
+		raw_opts[k] = raw_opts[j]
+		raw_opts[j] = tmp
+	var prefixes := ["A. ", "B. ", "C. "]
+	clue_correct_idx = 0
 	for i in 3:
-		modal_choice_btns[i].text = opts[i]
+		if bool(raw_opts[i].correct):
+			clue_correct_idx = i
+		modal_choice_btns[i].text = prefixes[i] + str(raw_opts[i].text)
 		modal_choice_btns[i].disabled = false
 		modal_choice_btns[i].show()
-	modal_feedback.text = "提示：答错也可重听英文线索继续尝试；系统会单独记录你是否首次独立答对。"
+	modal_feedback.text = "提示：本题为剧情线索理解题（不计入词库独立听力统计），答错也可重听英文线索继续尝试。"
 	modal_close_btn.text = "暂缓查验 [Esc]"
 	game.speak_english(BEACON_CLUE_EN)
 
@@ -452,19 +543,11 @@ func _on_choice_pressed(idx: int):
 	if current_modal_kind != "beacon_clue" or clue_solved:
 		return
 	clue_attempts += 1
-	var is_right := (idx == 0)
+	var is_right := (idx == clue_correct_idx)
 	if is_right:
 		clue_solved = true
 		clue_first_try_correct = (clue_attempts == 1)
-		game.rules.learning.record_recognition(
-			"prologue-wangdao-clue",
-			true,
-			3,
-			not clue_first_try_correct,
-			-1,
-			"prologue",
-			"listening"
-		)
+		game.rules.learning.record_story_clue("prologue-wangdao-clue", true, clue_first_try_correct, "prologue_clue")
 		game.play_sfx("cipher_unlock", -10)
 		var celadon_note: Dictionary = game.Rules.CULTURAL_NOTES.get("越窑秘色青瓷盏", {})
 		modal_body.text = (
@@ -484,7 +567,7 @@ func _on_choice_pressed(idx: int):
 		if is_instance_valid(npc_label):
 			npc_label.text = "★ 陈向导 · 按 [F] 交付失联信标"
 	else:
-		game.rules.learning.record_recognition("prologue-wangdao-clue", false, 3, false, -1, "prologue", "listening")
+		game.rules.learning.record_story_clue("prologue-wangdao-clue", false, false, "prologue_clue")
 		game.play_sfx("hit_wrong", -12)
 		modal_choice_btns[idx].disabled = true
 		modal_feedback.text = "提示：green celadon cup = 青瓷盏，north to the misty cave = 向北指向烟霞古洞。再听一次线索试试！"
@@ -534,6 +617,8 @@ func hit_bullet(collider: Object) -> bool:
 	if is_right:
 		scouts[idx].defeated = true
 		scouts[idx].area.collision_layer = 0
+		if scouts[idx].has("body_area") and is_instance_valid(scouts[idx].body_area):
+			scouts[idx].body_area.collision_layer = 0
 		scouts[idx].node.hide()
 		scouts_cleared += 1
 		game.rules.learning.record_recognition(
@@ -543,7 +628,7 @@ func hit_bullet(collider: Object) -> bool:
 			game.question_help_used,
 			-1,
 			"prologue",
-			"recognition"
+			game.recognition_modality()
 		)
 		game.rules.score += 20
 		game.rules.answered += 1
@@ -597,23 +682,37 @@ func complete_prologue():
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	game.menu.show()
 	game.hud.hide()
+	# v0.9.9.4: Immediately focus Yanshan Base deployment console so '▶ 部署：普通行动' (or Review Gate button) is visible right on the completion screen!
+	game.selected_nav_tab = "yanshan"
+	game.selected_landmark_id = "yanshan_base"
+	game.rules.set_setting("last_nav_tab", "yanshan")
+	if is_instance_valid(game.war_map):
+		game.war_map.set_theater("yanshan", false)
+		game.war_map.select_landmark("yanshan_base")
 	game._refresh_menu("★ 烟山初行 · 序章完成！")
 	var ind: int = int(game.rules.learning.run_independent)
 	var ast: int = int(game.rules.learning.run_assisted)
 	var due_now: int = game._pending_retest().size()
 	var reward_str := "+120 战备币 · +60 XP（首通奖励）" if first_clear else "+40 战备币 · +25 XP（重温奖励）"
-	var clue_tag := "首次独立辨认 ✓" if clue_first_try_correct else "提示后完成辨认"
+	var clue_tag := "首次辨认 ✓（剧情线索题）" if clue_first_try_correct else "提示后辨认（剧情线索题）"
+	var next_step_str := (
+		"下一章伏笔：信标已锁定北方「烟霞古洞」异常声呐脉冲——今日有 %d 题到期复习，点击下方「🔒 普通行动」先完成复习后即刻启程！" % due_now
+		if due_now > 0 else
+		"下一章伏笔：信标已锁定北方「烟霞古洞」异常声呐脉冲——直接点击下方「▶ 部署：普通行动」正式启程！"
+	)
 	game.menu_summary.text = (
 		"【陈向导已接收望稻亭失联信标匣】 %s\n" % reward_str
 		+ "实测用时：%d 分 %02d 秒 · 望稻亭线索：%s\n" % [elapsed_sec / 60, elapsed_sec % 60, clue_tag]
-		+ "学习证据：本次独立答对 %d · 看提示/练习完成 %d · 下次待练 %d\n" % [ind, ast, due_now]
-		+ "下一章伏笔：信标已锁定北方「烟霞古洞」异常声呐脉冲——现可点击「开始普通行动」正式启程！"
+		+ "学习证据：本次独立认词 %d · 助听/提示完成 %d · 下次待练 %d\n" % [ind, ast, due_now]
+		+ next_step_str
 	)
 	if not saved:
 		game.menu_summary.text = "⚠ 存档写入失败，请检查磁盘与权限！\n" + game.menu_summary.text
 		game.menu_status.text = "存档写入失败（" + game.last_save_error + "）。"
+	elif due_now > 0:
+		game.menu_status.text = "序章进度已存档！点击下方按钮先完成 %d 题今日到期复习即可出击。" % due_now
 	else:
-		game.menu_status.text = "序章进度已存档！现在可以点击「开始普通行动」体验完整搜打撤。"
+		game.menu_status.text = "序章进度已存档！点击下方「▶ 部署：普通行动」即可立即启程。"
 
 func current_objective_text() -> String:
 	if not active:

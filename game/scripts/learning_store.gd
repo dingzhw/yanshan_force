@@ -146,6 +146,18 @@ func record_recognition(id: String, is_correct: bool, choice_count: int, used_he
 			SrsScheduler.apply_outcome(entry, HINTED, false, now_ts)
 	profile.mastery[id] = entry
 
+func record_story_clue(id: String, is_correct: bool, first_try: bool, scene := "prologue_clue"):
+	## v0.9.9.4: Story comprehension clues (with on-screen English/Chinese context) are tracked strictly as
+	## 'story_clue' telemetry and NEVER pollute independent listening/recognition mastery or the SRS review pool!
+	if id.is_empty():
+		return
+	var bucket := "incorrect"
+	if is_correct:
+		bucket = "independent" if first_try else "assisted"
+	_bump_scene_stat(scene if scene != "" else "prologue_clue", "story_clue", bucket)
+	if profile.has("review_due") and profile["review_due"] is Dictionary and profile["review_due"].has(id):
+		profile["review_due"].erase(id)
+
 func record_spelling(id: String, outcome: String, is_retest := false, now_ts := -1, count_encounter := true, scene := ""):
 	if id.is_empty():
 		return

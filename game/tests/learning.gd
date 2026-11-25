@@ -336,6 +336,86 @@ func run():
 	)
 	game.cipher_terminal.close()
 
+	# v0.9.9.4: 4-Path Recognition Audio-Assist Accounting Matrix (No Audio / Auto-Speak / Manual [X] / Muted) + Legacy Migration!
+	var test_w: Dictionary = game.words[5]
+	var tid: String = str(test_w.id)
+	game.rules.profile.mastery.erase(tid)
+	game.rules.profile.review_due.erase(tid)
+	game.rules.profile.learning_stats.clear()
+	game.question = test_w
+	game.listening_mode = false
+
+	# Case 1: Default (auto_speak_on_switch = false, voice_volume = 1.0, no [X]) -> silent pre-answer -> pure independent recognition!
+	game.rules.set_setting("auto_speak_on_switch", false)
+	game.rules.set_setting("voice_volume", 1.0)
+	game.clear_question_help()
+	var spoke_c1: bool = game.trigger_question_audio(true)
+	learning.record_recognition(tid, true, 4, game.question_help_used, day0, "combat_word", game.recognition_modality())
+	var m_c1: Dictionary = game.rules.profile.mastery.get(tid, {})
+	verify(
+		not spoke_c1 and not game.question_help_used and game.recognition_modality() == "recognition" and int(m_c1.get("independent_correct", 0)) == 1 and int(game.rules.profile.learning_stats.get("mod_recognition", {}).get("independent", 0)) == 1,
+		"v0.9.9.4 Case 1 (no pre-answer audio): credits independent recognition and advances SRS honestly"
+	)
+
+	# Case 2: Auto-speak explicitly enabled (auto_speak_on_switch = true, voice_volume = 1.0) -> speaks AND flags assisted_audio (NO independent credit!)
+	game.rules.set_setting("auto_speak_on_switch", true)
+	game.clear_question_help()
+	var spoke_c2: bool = game.trigger_question_audio(true)
+	learning.record_recognition(tid, true, 4, game.question_help_used, day0 + 30, "combat_word", game.recognition_modality())
+	var m_c2: Dictionary = game.rules.profile.mastery.get(tid, {})
+	verify(
+		spoke_c2 and game.question_help_used and game.question_audio_assisted and game.recognition_modality() == "assisted_audio" and int(m_c2.get("independent_correct", 0)) == 1 and int(game.rules.profile.learning_stats.get("mod_assisted_audio", {}).get("assisted", 0)) == 1,
+		"v0.9.9.4 Case 2 (auto-speak enabled): marks assisted_audio without inflating independent_correct"
+	)
+
+	# Case 3: Manual [X] replay (auto_speak_on_switch = false, voice_volume = 1.0) -> speaks AND flags assisted_audio!
+	game.rules.set_setting("auto_speak_on_switch", false)
+	game.clear_question_help()
+	game.replay_question_audio()
+	learning.record_recognition(tid, true, 4, game.question_help_used, day0 + 60, "combat_word", game.recognition_modality())
+	var m_c3: Dictionary = game.rules.profile.mastery.get(tid, {})
+	verify(
+		game.question_help_used and game.question_audio_assisted and game.recognition_modality() == "assisted_audio" and int(m_c3.get("independent_correct", 0)) == 1 and int(game.rules.profile.learning_stats.get("mod_assisted_audio", {}).get("assisted", 0)) == 2,
+		"v0.9.9.4 Case 3 (manual [X] replay): marks assisted_audio without inflating independent_correct"
+	)
+
+	# Case 4: Muted voice (voice_volume = 0.0, even with auto_speak=true AND [X] pressed) -> NO audio heard -> still honest independent recognition!
+	game.rules.set_setting("auto_speak_on_switch", true)
+	game.rules.set_setting("voice_volume", 0.0)
+	game.clear_question_help()
+	var spoke_c4: bool = game.trigger_question_audio(true)
+	game.replay_question_audio()
+	learning.record_recognition(tid, true, 4, game.question_help_used, day0 + Srs.DAY_SECONDS, "combat_word", game.recognition_modality())
+	var m_c4: Dictionary = game.rules.profile.mastery.get(tid, {})
+	verify(
+		not spoke_c4 and not game.question_help_used and not game.question_audio_assisted and game.recognition_modality() == "recognition" and int(m_c4.get("independent_correct", 0)) == 2,
+		"v0.9.9.4 Case 4 (muted voice_volume=0): plays nothing and never falsely penalizes independent recognition"
+	)
+	game.rules.set_setting("auto_speak_on_switch", false)
+	game.rules.set_setting("voice_volume", 1.0)
+
+	# Legacy v0.9.8 profile migration: auto_speak_on_switch resets once to false & stranded prologue-wangdao-clue clears from review_due
+	var v098_path := "user://qa-v098-autospeak-mig.json"
+	var v098_file := FileAccess.open(v098_path, FileAccess.WRITE)
+	v098_file.store_string(JSON.stringify({
+		"schema_version": 3,
+		"saved_by_version": "0.9.8",
+		"prologue_completed": true,
+		"runs": 3,
+		"settings": {"auto_speak_on_switch": true, "last_nav_tab": "yanshan"},
+		"review_due": {"prologue-wangdao-clue": "incorrect", "js5a2026-003": "incorrect"}
+	}, "\t"))
+	v098_file.close()
+	var m_old = load("res://scripts/main.gd").new()
+	m_old.profile_path_override = v098_path
+	m_old._load_profile()
+	var old_st: Dictionary = m_old.rules.ensure_settings()
+	verify(
+		not bool(old_st.get("auto_speak_on_switch", true)) and not m_old.rules.profile.review_due.has("prologue-wangdao-clue") and m_old.rules.profile.review_due.has("js5a2026-003"),
+		"v0.9.9.4: legacy v0.9.8 save migrates implicit auto_speak_on_switch->false once and cleans stranded prologue-wangdao-clue while keeping real vocab due items"
+	)
+	m_old.free()
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

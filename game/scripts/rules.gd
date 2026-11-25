@@ -31,10 +31,11 @@ const PROFILE_SCHEMA_VERSION = 3
 
 const DEFAULT_SETTINGS = {
 	"strict_daily_review": true,
-	"auto_speak_on_switch": true,
+	"auto_speak_on_switch": false,
 	"reduce_screen_shake": false,
 	"unlock_ahsarah_preview": false,
 	"default_third_person": false,
+	"last_nav_tab": "",
 	"sfx_volume": 1.0,
 	"voice_volume": 1.0,
 	"cn_voice_volume": 1.0,
@@ -647,12 +648,23 @@ func ensure_settings() -> Dictionary:
 	for k in DEFAULT_SETTINGS:
 		if not st.has(k):
 			st[k] = DEFAULT_SETTINGS[k]
+	# v0.9.9.4 one-time migration: old builds defaulted auto_speak_on_switch=true without audio-assist marking.
+	# Reset legacy implicit true once so normal combat recognition stays unassisted unless explicitly re-enabled.
+	if not bool(profile.get("v0994_autospeak_migrated", false)):
+		var sbv := str(profile.get("saved_by_version", ""))
+		if sbv != "" and not sbv.begins_with("0.9.9.4") and not sbv.begins_with("0.9.9.5") and not sbv.begins_with("0.9.9.6") and not sbv.begins_with("0.10") and not sbv.begins_with("1."):
+			st["auto_speak_on_switch"] = false
+		profile["v0994_autospeak_migrated"] = true
+	if profile.has("review_due") and profile["review_due"] is Dictionary and profile["review_due"].has("prologue-wangdao-clue"):
+		profile["review_due"].erase("prologue-wangdao-clue")
 	st["strict_daily_review"] = bool(st.get("strict_daily_review", true))
-	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", true))
+	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", false))
 	st["reduce_screen_shake"] = bool(st.get("reduce_screen_shake", false))
 	st["unlock_ahsarah_preview"] = bool(st.get("unlock_ahsarah_preview", false))
+	st["last_nav_tab"] = str(st.get("last_nav_tab", ""))
 	st["sfx_volume"] = clampf(float(st.get("sfx_volume", 1.0)), 0.0, 1.0)
 	st["voice_volume"] = clampf(float(st.get("voice_volume", 1.0)), 0.0, 1.0)
+	st["cn_voice_volume"] = clampf(float(st.get("cn_voice_volume", 1.0)), 0.0, 1.0)
 	st["mouse_sensitivity"] = clampf(float(st.get("mouse_sensitivity", 1.0)), 0.4, 2.2)
 	return st
 

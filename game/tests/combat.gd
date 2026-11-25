@@ -128,12 +128,13 @@ func run():
 	game.player.yaw = atan2(-d_patrol.x, -d_patrol.z)
 	game.player.pitch = atan2(d_patrol.y, Vector2(d_patrol.x, d_patrol.z).length())
 	await frames(2)
+	game.rules.set_setting("auto_speak_on_switch", true)
 	game.last_voice_key = ""
 	game.player.aiming = true
 	await frames(6)
 	verify(
-		game.combat.preview_zone == 0 and game.unit_label.text.contains("开镜狙词") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible and game.last_voice_key != "",
-		"v0.8.3 ADS-gated sniping: right-click ADS within 3x aggro previews target Chinese prompt, countdown bar, and speaks English"
+		game.combat.preview_zone == 0 and game.unit_label.text.contains("开镜狙词") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible and game.last_voice_key != "" and game.question_help_used,
+		"v0.8.3 / v0.9.9.4 ADS-gated sniping: right-click ADS within 3x aggro previews target Chinese prompt, countdown bar, and (when opt-in auto-speak is enabled) speaks English with assisted_audio flag"
 	)
 	# (d) Releasing ADS clears distant preview immediately; rapid re-ADS within 1.2s debounce does not spam audio!
 	game.player.aiming = false
@@ -150,9 +151,10 @@ func run():
 		"v0.8.3 ADS-gated sniping: rapid re-ADS on same camp within 1.2s debounce does not spam duplicate audio"
 	)
 	game.player.aiming = false
+	game.rules.set_setting("auto_speak_on_switch", false)
 	await frames(4)
 
-	# Stepping into Camp 0's spawn aggro radius (~15.8m) WITHOUT ADS pulls aggro & auto-speaks target English word!
+	# Stepping into Camp 0's spawn aggro radius (~15.8m) WITHOUT ADS pulls aggro without leaking pre-answer English audio!
 	game.last_voice_key = ""
 	game.player.position = game.Layout.on_ground(center0 + Vector3(0, 0, 13.5)) + Vector3(0, 0.08, 0)
 	game.player.velocity = Vector3.ZERO
@@ -166,8 +168,8 @@ func run():
 			claimed_slots[s0_check.claimed_cover_idx] = true
 	var prompted_soldier = game.combat.troops[0][game.answer_index]
 	verify(
-		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and game.last_voice_key != "" and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
-		"entering camp aggro radius without ADS engages 3-4 bot wave, auto-speaks word, and assigns distinct words & cover slots"
+		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and game.last_voice_key == "" and not game.question_help_used and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
+		"v0.9.9.4: entering camp aggro radius engages 3-4 bot wave without pre-answer English spoiler and assigns distinct words & cover slots"
 	)
 
 	var all_words_fit = true
@@ -796,13 +798,23 @@ func run():
 	# 11. v0.8.6 Normal Mode Boss 3-Phase Multi-Shield Tactical Duel + Anti-Crouch-Snipe Cave Warden (Normal & Confidential)!
 	var norm_boss = game.combat.boss_unit
 	verify(is_instance_valid(norm_boss) and not norm_boss.is_skyfall_overlord and norm_boss.hp == 600 and norm_boss.vanguard_shields.size() == 3, "v0.8.6: Normal Mode Boss '雾隐先锋·铁面词卫' spawns with 600 HP and 3-slot Vanguard Word-Shield Matrix")
-	# Engage Zone 2 in Normal mode and verify Boss mortar barrage spawns a red danger ring + D2-5 auto-speak on prompt switch
+	# Engage Zone 2 in Normal mode and verify Boss mortar barrage spawns a red danger ring + v0.9.9.4 honest audio-assist separation!
+	game.rules.set_setting("auto_speak_on_switch", false)
+	game.last_voice_key = ""
 	game.combat.engage_camp(2)
 	var switched_en: String = str(game.question.get("english", ""))
 	verify(
-		game.last_voice_key == game.normalize_voice_key(switched_en) and not game.question_help_used and game.word_switch_flash > 0.0,
-		"v0.8.2_dev2 D2-5: switching to a new combat word auto-speaks English with visual flash and ZERO help penalty"
+		game.last_voice_key == "" and not game.question_help_used and game.word_switch_flash > 0.0,
+		"v0.9.9.4: default combat word switch flashes visually without leaking pre-answer English audio or help penalty"
 	)
+	game.rules.set_setting("auto_speak_on_switch", true)
+	var auto_spoke_z2: bool = game.trigger_question_audio(true)
+	verify(
+		auto_spoke_z2 and game.last_voice_key == game.normalize_voice_key(switched_en) and game.question_help_used and game.question_audio_assisted,
+		"v0.9.9.4: opt-in auto_speak_on_switch speaks English on switch AND honestly flags assisted_audio help"
+	)
+	game.rules.set_setting("auto_speak_on_switch", false)
+	game.clear_question_help()
 	var pre_rings: int = game.combat.danger_rings.size()
 	game.combat.boss_barrage_cd = 0.02
 	game.combat.update(0.05)

@@ -660,7 +660,7 @@ func _sync_active_prompt_from_zone(z_idx: int, reset_timer: bool = false) -> boo
 		wrong_attempts_on_current = 0
 		first_choice_recorded = false
 		first_choice_independent = false
-		game.question_help_used = false
+		game.clear_question_help()
 		prompt_locked_after_wrong = false
 		game.rules.open_question()
 	return true
@@ -693,17 +693,16 @@ func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_exist
 	prompt_reveal_zone = -1
 	prompt_timer_max = prompt_timeout_limit()
 	prompt_timer_left = prompt_timer_max
-	game.question_help_used = false
-	game.listening_mode = (game.has_english_voice(str(game.question.get("english", ""))) and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
+	game.clear_question_help()
+	game.listening_mode = (game.is_english_voice_audible() and game.has_english_voice(str(game.question.get("english", ""))) and game.rules.answered >= 4 and game.rules.answered % 5 == 0)
 	game.rules.open_question()
 	game.next_question_left = 0.0
 	show_question()
 	if game.has_method("flash_word_switch_banner"):
 		game.flash_word_switch_banner()
-	var auto_speak: bool = bool(game.rules.setting("auto_speak_on_switch", true))
 	var should_speak_zone: bool = (zone == z_idx and is_zone_engaged(z_idx)) or (preview_zone == z_idx and is_instance_valid(game.player) and game.player.aiming)
-	if should_speak_zone and (game.listening_mode or auto_speak) and not game.paused:
-		game.speak_english(str(game.question.get("english", "")))
+	if should_speak_zone and not game.paused:
+		game.trigger_question_audio(true)
 	return true
 
 func _rotate_prompt_after_wrong(z_idx: int):
@@ -1263,11 +1262,11 @@ func update(delta: float):
 				game.flash_word_switch_banner()
 			var cur_en := str(game.question.get("english", ""))
 			var allow_speak := preview_speak_cd <= 0.0 or preview_zone != last_preview_speak_zone or cur_en != last_preview_speak_word
-			if allow_speak and bool(game.rules.setting("auto_speak_on_switch", true)) and not game.paused and cur_en != "":
-				game.speak_english(cur_en)
-				last_preview_speak_zone = preview_zone
-				last_preview_speak_word = cur_en
-				preview_speak_cd = PREVIEW_SPEAK_DEBOUNCE
+			if allow_speak and not game.paused and cur_en != "":
+				if game.trigger_question_audio(true):
+					last_preview_speak_zone = preview_zone
+					last_preview_speak_word = cur_en
+					preview_speak_cd = PREVIEW_SPEAK_DEBOUNCE
 		elif preview_zone < 0:
 			prompt_timer_left = 0.0
 		show_question()
@@ -1451,7 +1450,7 @@ func _record_first_choice(is_correct: bool):
 		return
 	first_choice_recorded = true
 	first_choice_independent = is_correct and prompt_choice_count >= 2 and not game.question_help_used
-	game.rules.learning.record_recognition(str(game.question.id), is_correct, prompt_choice_count, game.question_help_used, -1, "combat_word", "listening" if game.listening_mode else "recognition")
+	game.rules.learning.record_recognition(str(game.question.id), is_correct, prompt_choice_count, game.question_help_used, -1, "combat_word", game.recognition_modality())
 	if (not is_correct or game.question_help_used) and game.question not in game.wrong_words:
 		game.wrong_words.append(game.question)
 
@@ -1719,8 +1718,8 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				game.rules.open_question()
 			game.rules.answer(true)
 			game.rules.score += 5
-			game.rules.learning.record_recognition(str(exp_word.get("id", "")), true, rem_choices, used_audio_help, -1, "boss_overlord", "listening" if game.listening_mode else "recognition")
-			game.question_help_used = false
+			game.rules.learning.record_recognition(str(exp_word.get("id", "")), true, rem_choices, used_audio_help, -1, "boss_overlord", game.recognition_modality())
+			game.clear_question_help()
 			game.show_hitmarker(true)
 			game.play_sfx("hit_correct", -9)
 			game.speak_english(str(exp_word.get("english", "")))
@@ -1750,8 +1749,9 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				show_question()
 				if game.has_method("flash_word_switch_banner"):
 					game.flash_word_switch_banner()
-				if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not r2_nxt.is_empty():
-					game.speak_english(str(r2_nxt.get("english", "")))
+				if not game.paused and not r2_nxt.is_empty():
+					game.question = r2_nxt
+					game.trigger_question_audio(true)
 			else:
 				var nxt: Dictionary = soldier.expected_overlord_word()
 				var tot_cur: int = maxi(1, soldier.overlord_seq_words.size())
@@ -1765,18 +1765,19 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				show_question()
 				if game.has_method("flash_word_switch_banner"):
 					game.flash_word_switch_banner()
-				if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not nxt.is_empty():
-					game.speak_english(str(nxt.get("english", "")))
+				if not game.paused and not nxt.is_empty():
+					game.question = nxt
+					game.trigger_question_audio(true)
 		else:
 			consecutive_wrong_hits += 1
 			field_answers += 1
 			game.rules.answered += 1
 			game.rules.streak = 0
 			if not exp_word.is_empty():
-				game.rules.learning.record_recognition(str(exp_word.get("id", "")), false, rem_choices, used_audio_help, -1, "boss_overlord", "listening" if game.listening_mode else "recognition")
+				game.rules.learning.record_recognition(str(exp_word.get("id", "")), false, rem_choices, used_audio_help, -1, "boss_overlord", game.recognition_modality())
 				if exp_word not in game.wrong_words:
 					game.wrong_words.append(exp_word)
-			game.question_help_used = false
+			game.clear_question_help()
 			game.show_hitmarker(false)
 			game.play_sfx("boss_phase", -7)
 			game.play_sfx("hit_wrong", -10)
@@ -2793,8 +2794,10 @@ func rearm_overlord_round_two():
 		game._notice("🔥 玄铁词尊重振第二轮！3 面公转金盾重启——10 秒内按 1→3 顺序破盾斩杀！", Color("ffd15c"))
 	show_question()
 	var nxt: Dictionary = boss_unit.expected_overlord_word()
-	if (game.listening_mode or bool(game.rules.setting("auto_speak_on_switch", true))) and not game.paused and not nxt.is_empty():
-		game.speak_english(str(nxt.get("english", "")))
+	if not game.paused and not nxt.is_empty():
+		game.question = nxt
+		game.clear_question_help()
+		game.trigger_question_audio(true)
 
 func blocked(from: Vector3, to: Vector3) -> bool:
 	var ray = PhysicsRayQueryParameters3D.create(from, to, 1)
