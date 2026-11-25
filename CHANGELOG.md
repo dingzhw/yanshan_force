@@ -4,6 +4,27 @@
 
 ---
 
+## [v0.9.9.5] - 2026-11-25
+
+交付 **「多目标词牌防遮挡与沙漠强对比 · 陈向导中年精雕/雾隐斗笠兵与官方立绘 1:1 统一/古洞循音石卫雕塑体量与分级发光 · 烟山营地至望稻亭光影与标签收束」**（`v0.9` 品质收官闭环第二阶段）：
+- **多目标头顶词牌屏幕空间防遮挡与高对比沙漠读词（`game/scripts/combat.gd`、`word_soldier.gd`）**：
+  - 新增 `resolve_overhead_tag_overlaps()`，按相机投影将当前提示目标锚定基位，屏幕空间相交的重叠邻近长词牌（如 `Mid-Autumn Festival` / `Spring Festival` / `Christmas Eve`）按精细阶梯平滑纵向抬升（上限 `3.8m`）并渲染阵营色半透明垂直归属引线，侧移错开后自动回落；
+  - 加深头顶暗钢玻璃底板（`alpha=0.93`）与粗体文字外描边（`outline_size=6`），并压稳胸甲词核发光强度防止 GL Compatibility 泛白，确保在阿萨拉亮沙日光与烟山强光下均清晰锐利。
+- **陈向导中年重塑与零缺 UV 精修（`tools/build_v0995_characters.py` → `game/assets/slice/npc_chen_guide.glb`）**：
+  - 彻底告别复用少年头模的做法，重雕符合 `chen_guide.png` 气质的中年山地向导宽厚头肩比例、512px 手绘皱纹/下巴胡茬 UV 与深褐沉稳眼神；配备服帖背梳灰黑短发与银鬓（`Chen_VeteranHair`，无奇异帽、零悬空发片）、自然褶皱橄榄绿风衣（彻底清除外部底模全部徽章）、金黄围巾、双筒望远镜、肩挂对讲机与黄铜口哨，绑定 Mixamo `Idle_Camp`，全 14 组图元 `missing_uv=0`；序章与普通行动同步生效。
+- **雾隐斗笠兵精雕升级 + 官方立绘 1:1 重绘统一（`tools/build_v0995_characters.py` → `v097_mistbound_assault.glb` / `sniper.glb` + `game/assets/portraits/mistbound_soldier.png`）**：
+  - 保留极具江南辨识度的青绿编织斗笠（`Mistbound_BambooHat`），依托褶皱战术步兵底模与腰挂弹匣包（彻底抹除原底模徽章），重构贴头编织斗笠、内凹发光青/赤弯弧目镜、贴身胸甲与肩甲、统一哑光枪钢步枪（狙击型配消音器与高倍镜）及 3 套 Mixamo 战术持枪动捕（`Idle_Aim`/`Walk_Patrol`/`Run_Advance`），全部 15/16 组图元 `missing_uv=0`；
+  - 严格对照精修 3D 造型重绘并换装角色小传官方立绘 `mistbound_soldier.png`（`512×640`），彻底结束“图鉴装甲盔 vs 实机绿斗笠”的身份割裂。
+- **古洞循音石卫雕塑体量、统一 UV 与玩法驱动分级发光（`tools/build_v098_cave_warden.py`、`cave_warden.gd`）**：
+  - 放大头部占比（`1.22×`）、加粗双腿（`+26%`），新增咬合式石雕锁骨桥、护腰束带与深色玄武岩肩/髋关节球，彻底消除巡哨、X 护核与盲冲转动时的关节断层；
+  - 统一分件合并前的 `UVMap` 通道（解决部分新增胸甲/腿部石块出现双 UV 通道呈平涂褐色的问题，全 19 组图元仅含 `TEXCOORD_0`、`missing_uv=0`）；
+  - 实装玩法驱动分级发光（`sync_emission_hierarchy()`）：常态巡哨与格挡时压低符文与晶核发光突出风化砂岩雕刻肌理，仅在破防露核、盲冲蓄力与声波束预警时刻爆发醒目强光（严格匹配 `Rune`/`DiamondCore` 材质不误照石甲）。
+- **烟山营地 → 望稻亭光影和谐化与战斗地标去干扰（`game/scripts/slice_world.gd`、`combat.gd`）**：
+  - 收束草地饱和度、树冠反差与 GL Compatibility 亮部伽马（`pow(..., 0.95)`），拉近 Forward+ 与 GL Compatibility 画面一致性，让 3P 越肩视角下的角色剪影与望稻亭远景层次更清晰；
+  - 全部 44 处非急迫世界地标标签加入按距离平滑淡出（`VISIBILITY_RANGE_FADE_SELF`），并在进入敌营交火时自动隐匿非战斗地标标签（`set_combat_label_declutter`），脱战后自动恢复。
+
+---
+
 ## [v0.9.9.4] - 2026-11-25
 
 交付 **「序章第一印象与正式模型统一 · 新档首屏与通关动线闭环 · 学习计账纠偏（助听分账 + 剧情线索题解耦）· 双后端真机验收升级」**（`v0.9` 品质收官闭环第一阶段）：

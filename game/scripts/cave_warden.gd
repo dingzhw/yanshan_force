@@ -51,6 +51,9 @@ var head_crest: Node3D
 var using_v098_model := false
 var core_crystal: MeshInstance3D
 var core_crystal_mat: StandardMaterial3D
+var rune_mats: Array = []
+var glb_core_mats: Array = []
+var last_rune_emission: float = 0.35
 var hp_bar_root: Node3D
 var hp_fill: MeshInstance3D
 var hp_fill_mat: StandardMaterial3D
@@ -195,6 +198,28 @@ func _build_warden():
 	if model_node == null:
 		model_node = game._mesh_box(root_node, Vector3(0, 1.35, 0), Vector3(1.2, 2.5, 0.8), Color("284852"))
 
+	# v0.9.9.5 Cache unique duplicated emissive rune & diamond-core materials on the sculpted GLB
+	# so emission hierarchy is dynamically driven by gameplay state (calm stone patrol vs blazing exposed core)!
+	rune_mats.clear()
+	glb_core_mats.clear()
+	if is_instance_valid(model_node):
+		for mi_n in model_node.find_children("*", "MeshInstance3D", true, false):
+			var mi := mi_n as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			for s_i in mi.mesh.get_surface_count():
+				var smat := mi.mesh.surface_get_material(s_i)
+				if smat is StandardMaterial3D:
+					var mname := String(smat.resource_name)
+					if "Rune" in mname or "DiamondCore" in mname:
+						var dup := smat.duplicate() as StandardMaterial3D
+						dup.emission_enabled = true
+						mi.set_surface_override_material(s_i, dup)
+						if "DiamondCore" in mname:
+							glb_core_mats.append(dup)
+						else:
+							rune_mats.append(dup)
+
 	# Body hitbox (layer 32) sitting behind core so accurate chest shots hit core (or guard_area when guarding)
 	body_area = Area3D.new()
 	body_area.collision_layer = HIT_LAYER
@@ -338,6 +363,7 @@ func set_guard_arms(enabled: bool, duration: float = 4.2):
 	if is_instance_valid(guard_area):
 		guard_area.collision_layer = HIT_LAYER if guard_arms else 0
 	_sync_label()
+	sync_emission_hierarchy()
 
 func force_open_arms(duration: float = 1.0):
 	## v0.8.5: Shaoyu [V] Slam briefly jolts arm-shields apart for 1.0s WITHOUT stunning the Warden!
@@ -348,6 +374,7 @@ func force_open_arms(duration: float = 1.0):
 	spawn_sonar_ring(root_node.position, Color("ffd86b"), 8.0)
 	game._notice("⚡ 少羽震开石卫双臂 %.1f 秒！趁空档速射 0.30m 胸口蓝核！" % duration, Color("ffd86b"))
 	_sync_label()
+	sync_emission_hierarchy()
 
 func reset():
 	state = "patrol"
@@ -432,6 +459,7 @@ func reset():
 			sw.node.queue_free()
 	shock_waves.clear()
 	_sync_label()
+	sync_emission_hierarchy()
 
 func required_relocate_distance() -> float:
 	if last_shot_suppressed:
@@ -1212,6 +1240,79 @@ func _update_articulation(delta: float):
 
 func snap_articulation_for_pose():
 	_update_articulation(1.0)
+	sync_emission_hierarchy()
+
+func get_current_rune_emission() -> float:
+	return last_rune_emission
+
+func sync_emission_hierarchy():
+	## v0.9.9.5 Gameplay-driven Cave Warden emission hierarchy:
+	## Calm patrol stays restrained sandstone-led (low rune glow); attack telegraphs & exposed core flare unmistakably!
+	var core_albedo := Color("4ad6eb")
+	var core_em := Color("2cc2dc")
+	var core_e := 0.72 + sin(elapsed * 2.6) * 0.12
+	var rune_em := Color("24acc6")
+	var rune_e := 0.34 + sin(elapsed * 2.2) * 0.08
+
+	if hit_flash_left > 0.0 and deflect_flash_left <= 0.0:
+		core_albedo = Color("fff2c4")
+		core_em = Color("ffc848")
+		core_e = 3.2
+		rune_em = Color("ffd45c")
+		rune_e = 2.4
+	elif arms_forced_open_left > 0.0:
+		core_albedo = Color("ffd45e")
+		core_em = Color("ff9e24")
+		core_e = 2.75 + sin(elapsed * 14.0) * 0.35
+		rune_em = Color("ffb838")
+		rune_e = 2.40 + sin(elapsed * 14.0) * 0.25
+	elif rush_state != "idle" or enraged_resonance:
+		core_albedo = Color("ff7648")
+		core_em = Color("ff4824")
+		core_e = 3.0 + sin(elapsed * 12.0) * 0.65
+		rune_em = Color("ff6434")
+		rune_e = 2.35 + sin(elapsed * 12.0) * 0.45
+	elif lance_state == "charging" or echo_charging:
+		core_albedo = Color("86f8ff")
+		core_em = Color("44f2ff")
+		core_e = 3.1 + sin(elapsed * 16.0) * 0.60
+		rune_em = Color("4eeeff")
+		rune_e = 2.45 + sin(elapsed * 16.0) * 0.45
+	elif guard_arms:
+		core_albedo = Color("349eb2")
+		core_em = Color("24829c")
+		core_e = 0.78
+		rune_em = Color("288ba6")
+		rune_e = 0.48
+	elif state == "hunt":
+		core_albedo = Color("5ef2ff")
+		core_em = Color("3ce6ff")
+		core_e = 1.95 + sin(elapsed * 6.5) * 0.35
+		rune_em = Color("3adcf5")
+		rune_e = 1.25 + sin(elapsed * 6.5) * 0.22
+	elif state == "investigate":
+		core_albedo = Color("54e6f5")
+		core_em = Color("34d2e8")
+		core_e = 1.35 + sin(elapsed * 4.4) * 0.24
+		rune_em = Color("2ec2dc")
+		rune_e = 0.85 + sin(elapsed * 4.4) * 0.16
+
+	last_rune_emission = rune_e
+	if is_instance_valid(core_crystal_mat):
+		core_crystal_mat.albedo_color = core_albedo
+		core_crystal_mat.emission = core_em
+		core_crystal_mat.emission_energy_multiplier = core_e
+	for cm in glb_core_mats:
+		var m_c := cm as StandardMaterial3D
+		if is_instance_valid(m_c):
+			m_c.albedo_color = core_albedo
+			m_c.emission = core_em
+			m_c.emission_energy_multiplier = core_e
+	for rm in rune_mats:
+		var m_r := rm as StandardMaterial3D
+		if is_instance_valid(m_r):
+			m_r.emission = rune_em
+			m_r.emission_energy_multiplier = rune_e
 
 func update(delta: float):
 	_update_sonar_rings(delta)
@@ -1265,28 +1366,8 @@ func update(delta: float):
 		else:
 			_sync_label()
 
-	# Compact 0.30m cyan chest crystal visual feedback
-	if is_instance_valid(core_crystal_mat):
-		if hit_flash_left > 0.0 and deflect_flash_left <= 0.0:
-			core_crystal_mat.albedo_color = Color("ffffff")
-			core_crystal_mat.emission = Color("ffd86b")
-			core_crystal_mat.emission_energy_multiplier = 4.2
-		elif arms_forced_open_left > 0.0:
-			core_crystal_mat.albedo_color = Color("ffd86b")
-			core_crystal_mat.emission = Color("ffae34")
-			core_crystal_mat.emission_energy_multiplier = 3.2 + sin(elapsed * 14.0) * 0.8
-		elif enraged_resonance:
-			core_crystal_mat.albedo_color = Color("ff6248")
-			core_crystal_mat.emission = Color("ff3b28")
-			core_crystal_mat.emission_energy_multiplier = 2.8 + sin(elapsed * 10.0) * 0.7
-		elif guard_arms:
-			core_crystal_mat.albedo_color = Color("36b8cc")
-			core_crystal_mat.emission = Color("2894b0")
-			core_crystal_mat.emission_energy_multiplier = 1.15
-		else:
-			core_crystal_mat.albedo_color = Color("5ef2ff")
-			core_crystal_mat.emission = Color("3ce6ff")
-			core_crystal_mat.emission_energy_multiplier = 2.2 + sin(elapsed * 5.8) * 0.45
+	# v0.9.9.5 Compact 0.30m chest crystal + sculpted rune dynamic emission hierarchy
+	sync_emission_hierarchy()
 
 	if is_instance_valid(hp_bar_root):
 		hp_bar_root.rotation = Vector3.ZERO

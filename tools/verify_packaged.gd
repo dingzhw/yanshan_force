@@ -353,6 +353,23 @@ func run():
 		and String(pro_script.MISTBOUND_ASSAULT_GLB) == "res://assets/slice/v097_mistbound_assault.glb"
 	)
 	verify(v0994_ok, "standalone PCK includes v0.9.9.4 unified formal Prologue rigs, story_clue separation & honest auto_speak default")
+	var v0995_assault_hat := false
+	if ResourceLoader.exists("res://assets/slice/v097_mistbound_assault.glb"):
+		var ma_p = load("res://assets/slice/v097_mistbound_assault.glb")
+		if ma_p is PackedScene:
+			var ma_i: Node = ma_p.instantiate()
+			v0995_assault_hat = (ma_i.find_child("Mistbound_BambooHat", true, false) != null and ma_i.find_child("Mistbound_Helmet", true, false) != null)
+			ma_i.free()
+	var combat_cls = load("res://scripts/combat.gd")
+	var cw_cls = load("res://scripts/cave_warden.gd")
+	var sw_cls = load("res://scripts/slice_world.gd")
+	var v0995_ok: bool = (
+		v0995_assault_hat
+		and combat_cls != null and combat_cls.new().has_method("resolve_overhead_tag_overlaps")
+		and cw_cls != null and cw_cls.new().has_method("sync_emission_hierarchy")
+		and sw_cls != null and sw_cls.new().has_method("set_combat_label_declutter")
+	)
+	verify(v0995_ok, "standalone PCK includes v0.9.9.5 bamboo-hat Mistbound rigs, overhead tag anti-overlap, dynamic Cave Warden glow & combat label declutter")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")
 	print("PACKAGED_RESOURCE_CHECKS=", checks, " FAILURES=", failures)

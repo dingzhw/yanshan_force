@@ -115,6 +115,11 @@ const OVERLORD_SHIELD_SPECS := [
 
 var visual_root: Node3D
 var shield_area: Area3D
+var base_shield_y: float = 2.44
+var tag_lift_y: float = 0.0
+var tag_target_lift_y: float = 0.0
+var tag_tether: MeshInstance3D = null
+var tag_tether_mat: StandardMaterial3D = null
 var chest_core_root: Node3D
 var chest_core_mat: StandardMaterial3D
 var head_area: Area3D
@@ -420,6 +425,9 @@ func _build_model():
 	shield_area = Area3D.new()
 	shield_area.set_meta("hit_zone", "shield")
 	var shield_y := 3.02 if archetype == Archetype.BOSS_WARDEN else (2.54 if archetype == Archetype.SNIPER_GUARD else (2.40 if archetype == Archetype.SCOUT_DRONE else 2.44))
+	base_shield_y = shield_y
+	tag_lift_y = 0.0
+	tag_target_lift_y = 0.0
 	shield_area.position = Vector3(0, shield_y, 0.0)
 	shield_area.collision_layer = 0
 	shield_area.collision_mask = 0
@@ -442,10 +450,10 @@ func _build_model():
 	frame_material = outer_bezel.material_override
 	frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	frame_material.albedo_color = Color(base_border_col.r, base_border_col.g, base_border_col.b, 0.92)
+	frame_material.albedo_color = Color(base_border_col.r, base_border_col.g, base_border_col.b, 0.94)
 
-	# Sleek high-contrast dark translucent tactical glass backing (crystal-clear bright English text at 50m+!)
-	var screen_box = game._mesh_box(shield_area, Vector3(0, 0.0, 0.004), Vector3(bw - 0.075, bh - 0.075, 0.020), Color(0.05, 0.10, 0.13, 0.84))
+	# v0.9.9.5 Deep high-contrast tactical glass backing (crystal-clear English legibility even over sunlit desert dunes!)
+	var screen_box = game._mesh_box(shield_area, Vector3(0, 0.0, 0.004), Vector3(bw - 0.075, bh - 0.075, 0.020), Color(0.025, 0.055, 0.078, 0.93))
 	shield_material = screen_box.material_override
 	shield_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	shield_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -456,6 +464,20 @@ func _build_model():
 		for sy in [-1.0, 1.0]:
 			var brk = game._mesh_box(shield_area, Vector3(sx * (bw * 0.5 - 0.03), sy * (bh * 0.5 - 0.025), 0.014), Vector3(0.085, 0.055, 0.022), Color.WHITE)
 			brk.material_override = corner_mat
+
+	# v0.9.9.5 Slim vertical glowing guide tether (shown ONLY when anti-overlap lifts this word tag above neighbors!)
+	tag_tether = MeshInstance3D.new()
+	var t_box := BoxMesh.new()
+	t_box.size = Vector3(0.036, 1.0, 0.036)
+	tag_tether.mesh = t_box
+	tag_tether_mat = StandardMaterial3D.new()
+	tag_tether_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tag_tether_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tag_tether_mat.albedo_color = Color(base_border_col.r, base_border_col.g, base_border_col.b, 0.78)
+	tag_tether.material_override = tag_tether_mat
+	tag_tether.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tag_tether.hide()
+	add_child(tag_tether)
 
 	var role_text: String
 	if is_ahsarah_unit:
@@ -471,17 +493,17 @@ func _build_model():
 	tag_label = game._label3d(shield_area, base_tag_text, Vector3(0, 0.195 if archetype == Archetype.BOSS_WARDEN else 0.188, 0.024), 15, Color("9ef5dc"))
 	tag_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	tag_label.pixel_size = 0.0038
-	tag_label.outline_size = 3
-	tag_label.outline_modulate = Color("060e12")
+	tag_label.outline_size = 4
+	tag_label.outline_modulate = Color("04090d")
 	tag_label.visibility_range_end = 85.0
 
-	word_label = game._label3d(shield_area, "", Vector3(0, -0.048, 0.026), 52, Color("f6fff9"))
+	word_label = game._label3d(shield_area, "", Vector3(0, -0.048, 0.026), 52, Color("f8fffb"))
 	word_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	word_label.pixel_size = 0.0046
 	word_label.width = 305
 	word_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	word_label.outline_size = 5
-	word_label.outline_modulate = Color("050c10")
+	word_label.outline_size = 6
+	word_label.outline_modulate = Color("03080b")
 	word_label.visibility_range_end = 102.0
 
 	# Embedded Glowing Chest Word Core Crystal (on regular troopers & drones — visible sci-fi word core on armor!)
@@ -540,7 +562,7 @@ func _build_chest_word_core(game):
 	chest_core_mat.albedo_color = base_border_col
 	chest_core_mat.emission_enabled = true
 	chest_core_mat.emission = base_border_col
-	chest_core_mat.emission_energy_multiplier = 2.6
+	chest_core_mat.emission_energy_multiplier = 1.35
 	chest_core_mat.roughness = 0.14
 	chest_core_mat.metallic = 0.15
 	gem.material_override = chest_core_mat
@@ -2079,15 +2101,40 @@ func show_word(word: String, _new_question: bool):
 		shield_intact = true
 		combat.game._fit_word(word_label, word, 92)
 		if shield_layers >= max_shield_layers and wrong_flash_left <= 0:
-			shield_material.albedo_color = Color(0.16, 0.12, 0.04, 0.88) if is_nemesis_bounty else Color(0.05, 0.10, 0.13, 0.84)
+			shield_material.albedo_color = Color(0.14, 0.10, 0.03, 0.94) if is_nemesis_bounty else Color(0.025, 0.055, 0.078, 0.93)
 			var bc := _active_border_col()
-			frame_material.albedo_color = Color(bc.r, bc.g, bc.b, 0.92)
+			frame_material.albedo_color = Color(bc.r, bc.g, bc.b, 0.94)
 			tag_label.text = _active_tag_text()
 			tag_label.modulate = _active_tag_col()
 	else:
 		shield_area.hide()
 		shield_area.collision_layer = 0
+		if is_instance_valid(tag_tether):
+			tag_tether.hide()
 	_refresh_hp_bar()
+
+func set_tag_lift_offset(target_lift: float, delta: float = 0.0):
+	## v0.9.9.5 Multi-target screen-space anti-overlap vertical lift + glowing owner tether line.
+	tag_target_lift_y = clampf(target_lift, 0.0, 3.8)
+	if delta > 0.0:
+		tag_lift_y = lerpf(tag_lift_y, tag_target_lift_y, minf(delta * 14.0, 1.0))
+	else:
+		tag_lift_y = tag_target_lift_y
+	if is_instance_valid(shield_area):
+		shield_area.position.y = base_shield_y + tag_lift_y
+	if is_instance_valid(tag_tether):
+		if is_instance_valid(shield_area) and shield_area.visible and not defeated and tag_lift_y >= 0.08:
+			var y_bot := base_shield_y - 0.34
+			var y_top := (base_shield_y + tag_lift_y) - 0.27
+			var h := maxf(0.06, y_top - y_bot)
+			tag_tether.position = Vector3(0.0, 0.5 * (y_bot + y_top), 0.0)
+			tag_tether.scale = Vector3(1.0, h, 1.0)
+			if is_instance_valid(tag_tether_mat):
+				var bc := _active_border_col()
+				tag_tether_mat.albedo_color = Color(bc.r, bc.g, bc.b, 0.78)
+			tag_tether.show()
+		else:
+			tag_tether.hide()
 
 func neutralize():
 	if defeated:
@@ -2117,6 +2164,8 @@ func neutralize():
 	action = Action.PATROL
 	laser_beam.hide()
 	shield_area.hide()
+	if is_instance_valid(tag_tether):
+		tag_tether.hide()
 	hp_bar_root.hide()
 	_spawn_shatter_fx()
 	if defeat_tween and defeat_tween.is_valid():
@@ -2238,11 +2287,11 @@ func _physics_process(delta: float):
 		wrong_flash_left = maxf(0.0, wrong_flash_left - delta)
 		if wrong_flash_left <= 0.0 and not defeated:
 			if is_instance_valid(shield_material):
-				var idle_bg := Color(0.16, 0.12, 0.04, 0.88) if is_nemesis_bounty else Color(0.05, 0.10, 0.13, 0.84)
-				shield_material.albedo_color = idle_bg if shield_layers >= max_shield_layers else Color(0.22, 0.11, 0.05, 0.88)
+				var idle_bg := Color(0.14, 0.10, 0.03, 0.94) if is_nemesis_bounty else Color(0.025, 0.055, 0.078, 0.93)
+				shield_material.albedo_color = idle_bg if shield_layers >= max_shield_layers else Color(0.22, 0.10, 0.04, 0.94)
 			if is_instance_valid(frame_material):
 				var bc_ok := _active_border_col() if shield_layers >= max_shield_layers else Color("ff8c3b")
-				frame_material.albedo_color = Color(bc_ok.r, bc_ok.g, bc_ok.b, 0.92)
+				frame_material.albedo_color = Color(bc_ok.r, bc_ok.g, bc_ok.b, 0.94)
 			_refresh_hp_bar()
 
 	# Smoothly orient overhead compact holographic word tag toward player horizontally (360° readability!)
@@ -2251,7 +2300,7 @@ func _physics_process(delta: float):
 		if to_pl.length_squared() > 0.04:
 			shield_area.global_rotation = Vector3(0.0, atan2(to_pl.x, to_pl.z), 0.0)
 	if is_instance_valid(chest_core_mat) and wrong_flash_left <= 0.0 and melee_flash_left <= 0.0:
-		chest_core_mat.emission_energy_multiplier = 2.4 + sin(hover_clock * 5.2 + float(option)) * 0.55
+		chest_core_mat.emission_energy_multiplier = 1.25 + sin(hover_clock * 5.2 + float(option)) * 0.30
 
 	var player_at: Vector3 = game.player.position
 	var toward_player := player_at - position

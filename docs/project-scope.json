@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-25",
-  "stage": "v0.9.9.4 · 序章第一印象与正式模型统一 · 新档首屏直达序章 · 学习计账纠偏（助听分账 + 剧情线索题解耦）· 双后端/越肩真机验收",
+  "stage": "v0.9.9.5 · 多目标词牌防遮挡与沙漠强对比 · 陈向导/雾隐斗笠兵与立绘/石卫雕塑级精修 · 烟山光影与标签收束",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -101,9 +101,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 66 条 8 音色阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，当前开发里程碑 v0.9.9.3"
+    "version_control": "Git，当前开发里程碑 v0.9.9.5"
   },
-  "playtest": "playtest/windows-v0.9.9.3/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.5/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

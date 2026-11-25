@@ -929,6 +929,7 @@ func run():
 	cw.root_node.rotation = Vector3.ZERO
 	game.player.position = Vector3(c_cen.x, c_fy, c_cen.z + 9.2) # 7.0m crouch-snipe range (>5.5m)
 	game.player.velocity = Vector3.ZERO
+	game.player.knockback_vel = Vector3.ZERO
 	game.player.stance = game.player.STANCE_CROUCH
 	game.combat.health = 100
 	game.combat.shield = 30
@@ -1199,6 +1200,37 @@ func run():
 	var cw_knife_ok: bool = cw98.melee_strike(cw_mcam)
 	cw_mcam.queue_free()
 	verify(cw_knife_ok and cw98.hp < cw_hp_pre_m, "v0.9.8: Tactical Knife slash hits Cave Warden and visibly deducts HP (%d->%d)" % [cw_hp_pre_m, cw98.hp])
+	game._end_run(false)
+
+	# 14. v0.9.9.5 Multi-target overhead word-tag anti-overlap (4 mixed long/short phrases + tether + prompted-target anchor)
+	game.start_action(true, "normal")
+	await frames(4)
+	game.combat.engage_camp(0)
+	var ov_troops: Array = game.combat.troops.get(0, [])
+	if ov_troops.size() >= 3:
+		var test_phrases := ["Mid-Autumn Festival", "Spring Festival", "Christmas Eve", "apple"]
+		var base_c: Vector3 = game.Layout.on_ground(Vector3(0.0, 0.0, -34.0))
+		game.player.position = game.Layout.on_ground(Vector3(0.0, 0.0, -24.0)) + Vector3(0.0, 0.1, 0.0)
+		game.player.yaw = 0.0
+		game.player.pitch = 0.0
+		for ti in ov_troops.size():
+			var ts = ov_troops[ti]
+			ts.set_physics_process(false)
+			ts.position = game.Layout.on_ground(base_c + Vector3(float(ti) * 0.35 - 0.50, 0.0, -float(ti) * 1.6))
+			ts.show_word(test_phrases[ti % test_phrases.size()], false)
+		game.answer_index = int(ov_troops[0].option)
+		await frames(2)
+		var lifted_cnt: int = game.combat.resolve_overhead_tag_overlaps(0.0)
+		var prompt_anchored: bool = float(ov_troops[0].tag_lift_y) < 0.05
+		var any_lifted_with_tether: bool = false
+		for ti in range(1, ov_troops.size()):
+			if float(ov_troops[ti].tag_lift_y) >= 0.50 and is_instance_valid(ov_troops[ti].tag_tether) and ov_troops[ti].tag_tether.visible:
+				any_lifted_with_tether = true
+				break
+		verify(
+			lifted_cnt >= 1 and prompt_anchored and any_lifted_with_tether,
+			"v0.9.9.5: stacked multi-target long-phrase overhead tags keep prompted target anchored and lift overlapping neighbors with visible vertical tethers (lifted=%d)" % lifted_cnt
+		)
 	game._end_run(false)
 
 	game.queue_free()

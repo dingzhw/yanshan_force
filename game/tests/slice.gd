@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.4" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.4 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.5" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1131,6 +1131,40 @@ func run():
 			if is_instance_valid(anim_dr) and anim_dr.has_animation("Idle") and anim_dr.has_animation("Walk") and anim_dr.has_animation("Run"):
 				deer_anim_ok += 1
 	verify(real_deers >= 8 and deer_anim_ok >= 8, "v0.9.9.2: all %d woodland deer mount rigged Realistic Deer model (RealisticDeerMesh + 20-bone Skeleton3D + Idle/Walk/Run clips)" % real_deers)
+
+	# 11) v0.9.9.5 Upgraded Chen/Mistbound/Cave Warden Art Rigging, Dynamic Glow Hierarchy & Combat Label Declutter
+	var mb_hat_bots := 0
+	for zid_m in game.combat.troops.keys():
+		for bot_m in game.combat.troops[zid_m]:
+			if is_instance_valid(bot_m) and bot_m.find_child("Mistbound_BambooHat", true, false) != null:
+				mb_hat_bots += 1
+	verify(mb_hat_bots >= 6, "v0.9.9.5: Mistbound troopers mount upgraded bamboo-hat ('斗笠') skeletal infantry rigs (%d active)" % mb_hat_bots)
+	var cw95 = game.cave_warden
+	cw95.reset()
+	var patrol_em: float = cw95.get_current_rune_emission()
+	cw95.force_open_arms(2.0)
+	var exposed_em: float = cw95.get_current_rune_emission()
+	verify(
+		cw95.rune_mats.size() >= 1 and patrol_em < 0.65 and exposed_em > 2.0,
+		"v0.9.9.5: Cave Warden emission hierarchy stays restrained in calm patrol (%.2f) and flares bright when core is exposed (%.2f)" % [patrol_em, exposed_em]
+	)
+	var lbl_count_pre: int = game.landscape.world_landmark_labels.size()
+	game.landscape.set_combat_label_declutter(true)
+	var any_lbl_vis_combat := false
+	for wl in game.landscape.world_landmark_labels:
+		if is_instance_valid(wl) and (wl as Label3D).visible:
+			any_lbl_vis_combat = true
+			break
+	game.landscape.set_combat_label_declutter(false)
+	var all_lbl_restored := true
+	for wl2 in game.landscape.world_landmark_labels:
+		if is_instance_valid(wl2) and not (wl2 as Label3D).visible:
+			all_lbl_restored = false
+			break
+	verify(
+		lbl_count_pre >= 10 and not any_lbl_vis_combat and all_lbl_restored,
+		"v0.9.9.5: non-combat landmark labels (%d tracked) hide cleanly during active combat and restore outside combat" % lbl_count_pre
+	)
 	game._end_run(false)
 
 	game.queue_free()

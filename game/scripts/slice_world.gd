@@ -40,6 +40,23 @@ var dimensional_rift_light: OmniLight3D = null
 var dimensional_rift_label: Label3D = null
 var scenery_collider_body: StaticBody3D = null
 var scenery_collider_count: int = 0
+var world_landmark_labels: Array = []
+
+func _configure_landmark_label(lbl: Label3D, max_dist: float, fade_margin: float = 5.0, hide_in_combat: bool = true):
+	if not is_instance_valid(lbl):
+		return
+	lbl.visibility_range_end = max_dist
+	lbl.visibility_range_end_margin = fade_margin
+	lbl.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	if hide_in_combat:
+		world_landmark_labels.append(lbl)
+
+func set_combat_label_declutter(in_combat: bool):
+	## v0.9.9.5 Hide non-urgent camp/landmark labels during active firefight so word tags command visual priority!
+	for lbl_v in world_landmark_labels:
+		var lbl := lbl_v as Label3D
+		if is_instance_valid(lbl):
+			lbl.visible = not in_combat
 
 func _ensure_scenery_collider_body() -> StaticBody3D:
 	if not is_instance_valid(scenery_collider_body):
@@ -585,8 +602,8 @@ void fragment(){
  float wash2 = 0.5 + 0.5 * cos(pos.z * 0.27 - cos(pos.x * 0.23) * 1.7);
  float ink_wash = smoothstep(0.25, 0.78, wash1 * 0.65 + wash2 * 0.35);
 
- vec3 damp_moss = mix(vec3(0.13, 0.28, 0.15), vec3(0.28, 0.41, 0.15), ink_wash) * tex_tone;
- damp_moss = mix(damp_moss, grass_tex * vec3(0.86, 1.04, 0.76), 0.34);
+ vec3 damp_moss = mix(vec3(0.14, 0.24, 0.14), vec3(0.26, 0.35, 0.16), ink_wash) * tex_tone;
+ damp_moss = mix(damp_moss, grass_tex * vec3(0.84, 0.94, 0.74), 0.36);
 
  // World-space triplanar CC0 mossy granite outcrops blended smoothly onto steep mountain hillsides
  vec3 tb = pow(abs(wnrm), vec3(4.0));
@@ -601,7 +618,7 @@ void fragment(){
  vec3 stone_albedo = texture(trail_stone, flag_uv).rgb;
  vec3 stone_nrm = texture(trail_stone_nrm, flag_uv).rgb;
  float trail_core = 1.0 - smoothstep(0.18, 0.68, COLOR.r);
- vec3 trail_earth = mix(vec3(0.34, 0.31, 0.25) * tex_tone, stone_albedo * vec3(0.96, 0.98, 0.95), trail_core * 0.86);
+ vec3 trail_earth = mix(vec3(0.34, 0.31, 0.25) * tex_tone, stone_albedo * vec3(0.94, 0.96, 0.93), trail_core * 0.86);
  vec3 slope_col = mix(trail_earth, hill_surf, road_edge);
 
  // v0.9.7 Softened natural mossy cobble feathering along creek banks (eliminates dark harsh trench walls!)
@@ -612,7 +629,7 @@ void fragment(){
 
  ALBEDO = mix(slope_col, wet_bank, stream_bank * 0.68);
  #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-  ALBEDO = pow(ALBEDO, vec3(0.88));
+  ALBEDO = pow(ALBEDO, vec3(0.95));
  #endif
  vec3 hill_nrm = mix(texture(soil_normal, uv_near).rgb, rock_n, slope_rock * 0.82);
  vec3 base_nrm = mix(stone_nrm, hill_nrm, smoothstep(0.24, 0.72, COLOR.r));
@@ -710,9 +727,9 @@ void fragment() {
 	float crown_h = clamp(v_vcol.g, 0.0, 1.0);
 	float vol_t = smoothstep(0.18, 0.94, core_ao * 0.70 + crown_h * 0.30);
 
-	vec3 shadow_tint = mix(vec3(0.56, 0.78, 0.82), vec3(0.72, 0.70, 0.68), warm_autumn);
-	vec3 crown_tint = mix(vec3(1.06, 1.10, 0.86), vec3(1.12, 1.02, 0.88), warm_autumn);
-	vec3 var_tint = mix(vec3(0.94, 0.99, 0.96), vec3(1.06, 1.02, 0.90), v_instance_var);
+	vec3 shadow_tint = mix(vec3(0.50, 0.68, 0.72), vec3(0.68, 0.65, 0.64), warm_autumn);
+	vec3 crown_tint = mix(vec3(0.96, 1.00, 0.82), vec3(1.06, 0.98, 0.84), warm_autumn);
+	vec3 var_tint = mix(vec3(0.94, 0.98, 0.95), vec3(1.04, 1.00, 0.89), v_instance_var);
 
 	ALBEDO = tex.rgb * mix(shadow_tint, crown_tint, vol_t) * var_tint;
 	ROUGHNESS = 1.0;
@@ -1760,7 +1777,7 @@ func signpost(at: Vector3, text: String, yaw: float = 0.0, y_override: float = N
 	var label = game._label3d(root, text, Vector3(0, 1.86, 0.12), 30, Color("f0edd2"))
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	label.pixel_size = 0.0066
-	label.visibility_range_end = 34.0
+	_configure_landmark_label(label, 22.0, 5.0, true)
 	return root
 
 var container_yard: Dictionary = {}
@@ -1803,7 +1820,7 @@ func shelter(at: Vector3, title: String, with_parkour := false) -> Dictionary:
 			leg.material_override = wood_post_mat
 	var l = game._label3d(root, title, Vector3(0, 2.68, 2.02), 32, Color("f0e8c4"))
 	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	l.visibility_range_end = 38.0
+	_configure_landmark_label(l, 24.0, 5.0, true)
 	if with_parkour:
 		# Route B: 5-step timber scaffolding climbing up the East/NE flank onto the solid roof deck (all dy <= 0.58m)
 		var stairs := [
@@ -1946,7 +1963,7 @@ func _landmarks():
 		TacticalProps.build_supply_box(game, pickup)
 		var sup_hint := "深藏物资箱 · 单词解锁 [F]" if spot.secret_key != "" else "常规物资箱 · 单词解锁 [F]"
 		var sup_lbl = game._label3d(pickup, sup_hint, Vector3(0, 0.96, 0), 26, Color("8ef0c8") if spot.secret_key != "" else game.GOLD)
-		sup_lbl.visibility_range_end = 22.0
+		_configure_landmark_label(sup_lbl, 16.0, 4.0, true)
 		game.pickup_nodes.append(pickup)
 
 	# Tactical Field Ammo Crates & Consumable Pouches (tactical_pickups.glb)
@@ -2021,7 +2038,7 @@ func _attach_tactical_mesh(parent: Node3D, mesh_name: String, glow_col: Color):
 	parent.add_child(ring)
 	var tag = "[F] %s" % parent.get_meta("title", "战术补给")
 	var tac_lbl = game._label3d(parent, tag, Vector3(0, 0.72, 0), 22, glow_col)
-	tac_lbl.visibility_range_end = 20.0
+	_configure_landmark_label(tac_lbl, 15.0, 4.0, true)
 
 func _is_near_bridge(z: float, margin: float = 3.4) -> bool:
 	for bz in game.Layout.STREAM_BRIDGES:
@@ -2607,7 +2624,7 @@ func _build_v085_landmarks():
 
 	var arena_lbl: Label3D = game._label3d(arena_root, "☁ 云顶青石演武坛 · B区总坛", Vector3(0.0, 6.2, -16.5), 34, Color("ffe29c"))
 	arena_lbl.pixel_size = 0.0060
-	arena_lbl.visibility_range_end = 56.0
+	_configure_landmark_label(arena_lbl, 44.0, 8.0, true)
 
 	# 2) East Ridge Tea-Hill Rest Pavilion ("东岭茶亭") at EAST_OVERLOOK
 	var tea_at: Vector3 = game.Layout.on_ground(game.Layout.EAST_OVERLOOK)
@@ -2636,7 +2653,7 @@ func _build_v085_landmarks():
 		game.Props.shape_body(tea_root, col_s, Vector3(cos(ang) * 2.35, 1.80, sin(ang) * 2.35)).add_to_group("solid_props")
 	var tea_lbl: Label3D = game._label3d(tea_root, "东岭茶亭 · 观溪歇脚处", Vector3(0.0, 3.45, 0.0), 24, Color("f3ead0"))
 	tea_lbl.pixel_size = 0.0038
-	tea_lbl.visibility_range_end = 26.0
+	_configure_landmark_label(tea_lbl, 20.0, 4.5, true)
 
 	# 3) Yanshan Mountain Inscribed Stele ("烟山摩崖石碑") overlooking the mid-west ridge
 	var st_at: Vector3 = game.Layout.on_ground(game.Layout.CLIFF_STELE_AT)
@@ -2653,7 +2670,7 @@ func _build_v085_landmarks():
 	game.Props.shape_body(st_root, st_shp, Vector3(0.0, 1.80, 0.0)).add_to_group("solid_props")
 	var st_lbl: Label3D = game._label3d(st_root, "烟山古碑 · 西北高岭界", Vector3(0.0, 4.18, 0.0), 24, Color("f0deb0"))
 	st_lbl.pixel_size = 0.0040
-	st_lbl.visibility_range_end = 28.0
+	_configure_landmark_label(st_lbl, 22.0, 4.5, true)
 
 func _build_v086_scenery():
 	## v0.8.6 Jiangnan Mountain-Forest Micro-Scenery Layer:

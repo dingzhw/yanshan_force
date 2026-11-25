@@ -971,9 +971,105 @@ func _update_proximity_voice_barks(delta: float):
 		else:
 			proximity_bark_cd[best_z] = 5.5
 
+func resolve_overhead_tag_overlaps(delta: float = 0.016) -> int:
+	## v0.9.9.5 Multi-target screen-space anti-overlap for overhead holographic word tags:
+	## Prompted target stays anchored cleanly at base height; overlapping rear/side neighbors lift smoothly
+	## into staggered vertical tiers with a slim glowing tether pointing down to their soldier!
+	if not in_field() or not is_instance_valid(game) or not is_instance_valid(game.player):
+		return 0
+	var cam: Camera3D = game.player.camera if is_instance_valid(game.player.camera) else get_viewport().get_camera_3d()
+	if not is_instance_valid(cam):
+		return 0
+	var vp_sz: Vector2 = get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1280.0, 720.0)
+	if vp_sz.x < 10.0 or vp_sz.y < 10.0:
+		vp_sz = Vector2(1280.0, 720.0)
+	var cam_pos: Vector3 = cam.global_position
+	var cam_right: Vector3 = cam.global_basis.x.normalized()
+	var active_z: int = zone if (zone >= 0 and is_zone_engaged(zone)) else preview_zone
+	var candidates: Array = []
+
+	for z_k in troops.keys():
+		if zone_cleared.get(z_k, false):
+			continue
+		for s in troops[z_k]:
+			if not is_instance_valid(s) or s.defeated:
+				continue
+			if not is_instance_valid(s.shield_area) or not s.shield_area.visible:
+				s.set_tag_lift_offset(0.0, delta)
+				continue
+			var base_w: Vector3 = s.global_position + Vector3(0.0, float(s.base_shield_y), 0.0)
+			var dist: float = cam_pos.distance_to(base_w)
+			if dist > 62.0 or dist < 0.8 or cam.is_position_behind(base_w):
+				s.set_tag_lift_offset(0.0, delta)
+				continue
+			var p2: Vector2 = cam.unproject_position(base_w)
+			if p2.x < -220.0 or p2.x > vp_sz.x + 220.0 or p2.y < -180.0 or p2.y > vp_sz.y + 180.0:
+				s.set_tag_lift_offset(0.0, delta)
+				continue
+			var bw_half: float = 1.02 if s.archetype == Soldier.Archetype.BOSS_WARDEN else 0.90
+			var bh_half: float = 0.30
+			var pr: Vector2 = cam.unproject_position(base_w + cam_right * bw_half)
+			var pu: Vector2 = cam.unproject_position(base_w + Vector3.UP * bh_half)
+			var hw: float = clampf(absf(pr.x - p2.x), 44.0, 270.0)
+			var hh: float = clampf(absf(p2.y - pu.y), 18.0, 96.0)
+			var is_prompt: bool = (int(s.zone) == active_z and int(s.option) == int(game.answer_index))
+			candidates.append({
+				"soldier": s,
+				"base_w": base_w,
+				"dist": dist,
+				"p2": p2,
+				"hw": hw,
+				"hh": hh,
+				"is_prompt": is_prompt,
+			})
+
+	if candidates.size() <= 1:
+		for c in candidates:
+			c.soldier.set_tag_lift_offset(0.0, delta)
+		return 0
+
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if bool(a.is_prompt) != bool(b.is_prompt):
+			return bool(a.is_prompt)
+		if absf(float(a.dist) - float(b.dist)) > 0.35:
+			return float(a.dist) < float(b.dist)
+		return float(a.p2.x) < float(b.p2.x)
+	)
+
+	var placed: Array = []
+	var lifted_count: int = 0
+	for c in candidates:
+		var base_w: Vector3 = c.base_w
+		var dist: float = float(c.dist)
+		var hw: float = float(c.hw)
+		var hh: float = float(c.hh)
+		var best_lift: float = 0.0
+		var best_p2: Vector2 = c.p2
+		var step_m: float = maxf(0.42, dist * 0.028)
+		for tier in 10:
+			var try_lift: float = minf(float(tier) * step_m, 3.8)
+			var try_p2: Vector2 = c.p2 if tier == 0 else cam.unproject_position(base_w + Vector3.UP * try_lift)
+			var overlaps: bool = false
+			for r in placed:
+				var dx: float = absf(try_p2.x - float(r.x))
+				var dy: float = absf(try_p2.y - float(r.y))
+				if dx < (hw + float(r.hw) + 12.0) and dy < (hh + float(r.hh) + 8.0):
+					overlaps = true
+					break
+			best_lift = try_lift
+			best_p2 = try_p2
+			if not overlaps:
+				break
+		if best_lift > 0.05:
+			lifted_count += 1
+		c.soldier.set_tag_lift_offset(best_lift, delta)
+		placed.append({"x": best_p2.x, "y": best_p2.y, "hw": hw, "hh": hh})
+	return lifted_count
+
 func update(delta: float):
 	if not in_field():
 		return
+	resolve_overhead_tag_overlaps(delta)
 	_update_proximity_voice_barks(delta)
 	attack_lock = maxf(0.0, attack_lock - delta)
 	suppress_lock = maxf(0.0, suppress_lock - delta)
@@ -1282,6 +1378,8 @@ func update(delta: float):
 
 func show_question():
 	var fighting := zone >= 0 and is_zone_engaged(zone)
+	if is_instance_valid(game) and is_instance_valid(game.landscape) and game.landscape.has_method("set_combat_label_declutter"):
+		game.landscape.set_combat_label_declutter(fighting)
 	for station in game.stations:
 		station.terminal_label.visible = not fighting
 	if not fighting:

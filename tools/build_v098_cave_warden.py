@@ -335,6 +335,13 @@ def join_under_pivot(root_empty, part_name: str, pivot_gd: tuple[float, float, f
     for o in mesh_parts:
         if o is not None and o not in non_empty:
             bpy.data.objects.remove(o, do_unlink=True)
+    # Unify EVERY part's active UV layer name to "UVMap" BEFORE joining so Blender NEVER creates
+    # a second empty TEXCOORD_1 or zeros out TEXCOORD_0 on added stone plates!
+    for o in non_empty:
+        while len(o.data.uv_layers) > 1:
+            o.data.uv_layers.remove(o.data.uv_layers[-1])
+        if len(o.data.uv_layers) == 1:
+            o.data.uv_layers[0].name = "UVMap"
     bpy.ops.object.select_all(action="DESELECT")
     for o in non_empty:
         o.select_set(True)
@@ -377,18 +384,18 @@ def build_v098_cave_warden():
     )
     m_cyan = make_emissive_mat(
         "Mat_WardenCyanRune",
-        srgb=(0.12, 0.88, 1.0),
-        em_srgb=(0.10, 0.86, 1.0),
-        em_str=2.8,
-        rough=0.14,
-        metal=0.12,
+        srgb=(0.14, 0.66, 0.78),
+        em_srgb=(0.10, 0.78, 0.94),
+        em_str=0.48,
+        rough=0.24,
+        metal=0.14,
     )
     m_crystal = make_emissive_mat(
         "Mat_WardenDiamondCore",
-        srgb=(0.45, 0.96, 1.0),
-        em_srgb=(0.22, 0.92, 1.0),
-        em_str=4.2,
-        rough=0.08,
+        srgb=(0.30, 0.80, 0.90),
+        em_srgb=(0.16, 0.86, 0.98),
+        em_str=0.72,
+        rough=0.14,
         metal=0.18,
     )
 
@@ -424,21 +431,20 @@ def build_v098_cave_warden():
         lx = (wp.x - mid_x) * s_all
         ly = (wp.y - mid_y_src) * s_all
         lz = (wp.z - min_z_src) * s_all
-        # Broaden heroic shoulders, chest & muscular build smoothly while keeping natural waist & seated head!
-        if 1.15 < lz < 2.08:
-            # Heroic V-taper chest/shoulders expansion (+28% width, +22% depth across upper chest!)
-            chest_w = math.sin(max(0.0, min(1.0, (lz - 1.15) / 0.93)) * math.pi)
-            lx *= (1.0 + 0.28 * chest_w)
-            ly *= (1.0 + 0.22 * chest_w)
-        elif lz <= 1.15:
-            # Athletic heroic sturdy stone pillar legs (+14% thickness)
-            lx *= 1.14
-            ly *= 1.16
+        # Broaden heroic shoulders, chest & muscular build smoothly while giving head & legs heavy sculptural mass!
+        if 1.12 < lz < 2.06:
+            chest_w = math.sin(max(0.0, min(1.0, (lz - 1.12) / 0.94)) * math.pi)
+            lx *= (1.0 + 0.30 * chest_w)
+            ly *= (1.0 + 0.26 * chest_w)
+        elif lz <= 1.12:
+            # Heavy monolithic carved-stone pillar legs (+26% thickness -> eliminates thin hip/knee gaps!)
+            lx *= 1.26
+            ly *= 1.28
         else:
-            # Head slightly heroic broad & seated cleanly into muscular trapezius neck (NO giraffe neck!)
-            lx *= 1.06
-            ly *= 1.06
-            lz -= 0.035 * min(1.0, (lz - 2.08) / 0.16)
+            # Enlarged sculptural sentinel head (1.22x proportion) seated firmly into muscular trapezius neck!
+            lx *= 1.22
+            ly *= 1.22
+            lz = 2.06 + (lz - 2.06) * 1.14 - 0.032 * min(1.0, (lz - 2.06) / 0.16)
         return Vector((lx, ly, lz))
 
     # Measure transformed eye centers for exact glowing cyan eye & forehead rune placement
@@ -454,42 +460,63 @@ def build_v098_cave_warden():
     root_empty.empty_display_type = "PLAIN_AXES"
     bpy.context.collection.objects.link(root_empty)
 
+    def add_joint_sphere_gd(bm: bmesh.types.BMesh, center_gd, radii_gd):
+        c = gd_to_bl(Vector(center_gd))
+        tmp = bmesh.new()
+        bmesh.ops.create_uvsphere(tmp, u_segments=14, v_segments=10, radius=1.0)
+        rx, ry, rz = radii_gd
+        for v in tmp.verts:
+            v.co = Vector((v.co.x * rx, v.co.y * rz, v.co.z * ry)) + c
+        tmp.normal_update()
+        me = bpy.data.meshes.new("_tmp_jsph")
+        tmp.to_mesh(me)
+        tmp.free()
+        bm.from_mesh(me)
+        bpy.data.meshes.remove(me)
+
     # ------------------------------------------------------------------
-    # 1) warden_body — Full Sculpted Heroic Stone Torso + Engraved Collar/Belt/Tassets + Cyan Veins + Diamond Core!
+    # 1) warden_body — Monolithic Sculpted Heroic Stone Torso + Interlocking Shoulder/Hip Sockets + Subtle Carved Runes!
     # ------------------------------------------------------------------
     torso_sculpt = slice_body_region(
         src_body, mw_b, xform_body,
-        lambda c: (c.z >= 1.02 and c.z <= 2.12 and abs(c.x) <= 0.44),
+        lambda c: (c.z >= 0.96 and c.z <= 2.14 and abs(c.x) <= 0.52),
         dec_ratio=0.18, mat_stone=m_stone, name="WardenTorsoSculpt",
     )
     bm_st, bm_dk, bm_cy, bm_cr = (bmesh.new() for _ in range(4))
 
-    # Sculpted stone collarbone/trapezius armor collar bridging shoulders & neck cleanly (eliminates any neck gap!)
+    # Solid carved stone neck base & trapezius yoke (eliminates any gap under head_crest!)
+    add_joint_sphere_gd(bm_st, (0.0, 2.04, 0.01), (0.24, 0.16, 0.24))
+    # Interlocking stone clavicle bridge plates + recessed dark basalt shoulder ball sockets (zero floating arm gap in ALL poses!)
     for sx in (-1.0, 1.0):
-        add_beveled_box_gd(bm_st, (sx * 0.30, 1.98, 0.04), (0.40, 0.16, 0.34), (0.0, sx * 12.0, -sx * 16.0), bevel_w=0.036)
-        add_beveled_box_gd(bm_cy, (sx * 0.30, 1.95, 0.21), (0.28, 0.026, 0.024), (0.0, sx * 12.0, -sx * 16.0), bevel_w=0.004)
-        # Carved sandstone pectoral armor bevel plates hugging the sculpted chest
-        add_beveled_box_gd(bm_st, (sx * 0.27, 1.72, 0.15), (0.34, 0.28, 0.22), (-4.0, sx * 16.0, -sx * 6.0), bevel_w=0.042)
-        # Sleek contoured stone hip tasset plates hugging the heroic thighs cleanly
-        add_beveled_box_gd(bm_st, (sx * 0.25, 0.99, 0.03), (0.14, 0.26, 0.26), (0.0, sx * 10.0, sx * 10.0), bevel_w=0.026)
+        add_beveled_box_gd(bm_st, (sx * 0.34, 1.97, 0.03), (0.48, 0.20, 0.38), (0.0, sx * 10.0, -sx * 14.0), bevel_w=0.042)
+        add_joint_sphere_gd(bm_dk, (sx * 0.54, 1.84, 0.00), (0.21, 0.21, 0.21))
+        add_beveled_box_gd(bm_cy, (sx * 0.32, 1.96, 0.22), (0.24, 0.018, 0.016), (0.0, sx * 10.0, -sx * 14.0), bevel_w=0.003)
+        # Massive interlocked sandstone pectoral plates hugging the sculpted torso seamlessly
+        add_beveled_box_gd(bm_st, (sx * 0.28, 1.72, 0.14), (0.40, 0.34, 0.28), (-4.0, sx * 14.0, -sx * 5.0), bevel_w=0.048)
+        # Side ribcage/oblique carved stone armor blocks locking torso into waist girdle
+        add_beveled_box_gd(bm_st, (sx * 0.32, 1.34, 0.02), (0.24, 0.42, 0.34), (0.0, sx * 8.0, 0.0), bevel_w=0.040)
+        # Heavy interlocking pelvis hip joint sockets + thick hip tasset plates bridging torso cleanly into thighs!
+        add_joint_sphere_gd(bm_dk, (sx * 0.23, 1.04, 0.01), (0.20, 0.20, 0.21))
+        add_beveled_box_gd(bm_st, (sx * 0.29, 0.98, 0.04), (0.22, 0.34, 0.34), (0.0, sx * 10.0, sx * 8.0), bevel_w=0.034)
 
-    # Dark basalt warrior belt + central carved stone loin guard with slim cyan rune line
-    add_beveled_box_gd(bm_dk, (0.0, 1.08, 0.03), (0.60, 0.12, 0.42), (0.0, 0.0, 0.0), bevel_w=0.022)
-    add_beveled_box_gd(bm_st, (0.0, 0.94, 0.21), (0.22, 0.30, 0.09), (-6.0, 0.0, 0.0), bevel_w=0.022)
-    add_beveled_box_gd(bm_cy, (0.0, 0.96, 0.26), (0.026, 0.18, 0.018), (-6.0, 0.0, 0.0), bevel_w=0.004)
+    # Heavy sculpted stone pelvis girdle + dark basalt warrior belt + central carved stone loin guard
+    add_beveled_box_gd(bm_st, (0.0, 1.06, 0.02), (0.68, 0.28, 0.48), (0.0, 0.0, 0.0), bevel_w=0.040)
+    add_beveled_box_gd(bm_dk, (0.0, 1.12, 0.03), (0.66, 0.13, 0.46), (0.0, 0.0, 0.0), bevel_w=0.024)
+    add_beveled_box_gd(bm_st, (0.0, 0.92, 0.22), (0.26, 0.34, 0.12), (-5.0, 0.0, 0.0), bevel_w=0.026)
+    add_beveled_box_gd(bm_cy, (0.0, 0.94, 0.28), (0.018, 0.16, 0.014), (-5.0, 0.0, 0.0), bevel_w=0.003)
 
-    # Sleek recessed dark channels + vibrant cyan energy veins radiating across chest & abs from diamond core!
-    add_beveled_box_gd(bm_dk, (0.0, 1.28, 0.22), (0.068, 0.32, 0.036), (0.0, 0.0, 0.0), bevel_w=0.008)
-    add_beveled_box_gd(bm_cy, (0.0, 1.28, 0.236), (0.026, 0.30, 0.020), (0.0, 0.0, 0.0), bevel_w=0.004)
-    for ay in (1.35, 1.21):
-        add_beveled_box_gd(bm_dk, (0.0, ay, 0.21), (0.44, 0.052, 0.034), (0.0, 0.0, 0.0), bevel_w=0.006)
-        add_beveled_box_gd(bm_cy, (0.0, ay, 0.228), (0.40, 0.022, 0.018), (0.0, 0.0, 0.0), bevel_w=0.004)
-    # Rear spine cyan power conduit
-    add_beveled_box_gd(bm_cy, (0.0, 1.62, -0.26), (0.038, 0.56, 0.032), (0.0, 0.0, 0.0), bevel_w=0.006)
+    # Subtle recessed basalt channels + slim inlaid cyan rune grooves (carved rock dominates over lines!)
+    add_beveled_box_gd(bm_dk, (0.0, 1.28, 0.23), (0.064, 0.30, 0.034), (0.0, 0.0, 0.0), bevel_w=0.008)
+    add_beveled_box_gd(bm_cy, (0.0, 1.28, 0.244), (0.016, 0.26, 0.014), (0.0, 0.0, 0.0), bevel_w=0.003)
+    for ay in (1.36, 1.22):
+        add_beveled_box_gd(bm_dk, (0.0, ay, 0.22), (0.42, 0.048, 0.032), (0.0, 0.0, 0.0), bevel_w=0.006)
+        add_beveled_box_gd(bm_cy, (0.0, ay, 0.234), (0.34, 0.015, 0.014), (0.0, 0.0, 0.0), bevel_w=0.003)
+    # Rear spine recessed conduit
+    add_beveled_box_gd(bm_cy, (0.0, 1.62, -0.27), (0.026, 0.52, 0.024), (0.0, 0.0, 0.0), bevel_w=0.005)
 
-    # Recessed dark basalt diamond bezel + radiant faceted diamond cyan crystal right at gd(0, 1.56, 0.33)!
-    add_beveled_box_gd(bm_dk, (0.0, 1.56, 0.25), (0.30, 0.38, 0.14), (0.0, 0.0, 45.0), bevel_w=0.028)
-    add_diamond_crystal_gd(bm_cr, (0.0, 1.56, 0.33), 0.145, 0.215, 0.115)
+    # Recessed dark basalt diamond bezel + faceted diamond cyan crystal right at gd(0, 1.56, 0.33)!
+    add_beveled_box_gd(bm_dk, (0.0, 1.56, 0.25), (0.30, 0.38, 0.15), (0.0, 0.0, 45.0), bevel_w=0.028)
+    add_diamond_crystal_gd(bm_cr, (0.0, 1.56, 0.33), 0.135, 0.205, 0.108)
 
     join_under_pivot(root_empty, "warden_body", (0.0, 0.0, 0.0), [
         torso_sculpt,
@@ -500,26 +527,24 @@ def build_v098_cave_warden():
     ])
 
     # ------------------------------------------------------------------
-    # 2) head_crest (pivoted at neck gd(0.0, 2.02, 0.02)) — Sculpted stoic stone head + glowing cyan eyes & forehead runes!
+    # 2) head_crest (pivoted at neck gd(0.0, 2.04, 0.02)) — Larger Sculpted Stoic Stone Head + Cyan Eyes & Brow Runes!
     # ------------------------------------------------------------------
     head_sculpt = slice_body_region(
         src_body, mw_b, xform_body,
-        lambda c: (c.z >= 2.04 and abs(c.x) <= 0.24),
-        dec_ratio=0.22, mat_stone=m_stone, name="WardenHeadSculpt",
+        lambda c: (c.z >= 2.00 and abs(c.x) <= 0.30),
+        dec_ratio=0.26, mat_stone=m_stone, name="WardenHeadSculpt",
     )
     bm_hs, bm_hd, bm_hc = (bmesh.new() for _ in range(3))
-    # Subtle sculpted angular brow crown & temple cheek plates (NO boxy helmet!)
-    add_beveled_box_gd(bm_hs, (0.0, eye_z_gd + 0.17, eye_front_gd - 0.13), (0.28, 0.09, 0.30), (-8.0, 0.0, 0.0), bevel_w=0.028)
+    # Solid carved stone brow ridge & temple cheek armor adding weighty sentinel presence
+    add_beveled_box_gd(bm_hs, (0.0, eye_z_gd + 0.18, eye_front_gd - 0.14), (0.32, 0.11, 0.34), (-8.0, 0.0, 0.0), bevel_w=0.032)
     for sx in (-1.0, 1.0):
         ex_gd = el_c.x if sx > 0 else er_c.x
-        # Recessed dark eye sockets + intense sleek glowing cyan eyes!
-        add_beveled_box_gd(bm_hd, (ex_gd, eye_z_gd, eye_front_gd + 0.004), (0.064, 0.030, 0.026), (0.0, sx * 12.0, 0.0), bevel_w=0.005)
-        add_beveled_box_gd(bm_hc, (ex_gd, eye_z_gd, eye_front_gd + 0.016), (0.048, 0.017, 0.018), (0.0, sx * 12.0, 0.0), bevel_w=0.004)
-        # Sleek twin vertical forehead glowing cyan rune channels (portrait signature!)
-        add_beveled_box_gd(bm_hc, (sx * 0.048, eye_z_gd + 0.108, eye_front_gd + 0.010), (0.013, 0.115, 0.016), (-12.0, sx * 10.0, 0.0), bevel_w=0.003)
-    add_diamond_crystal_gd(bm_hc, (0.0, eye_z_gd + 0.098, eye_front_gd + 0.020), 0.022, 0.040, 0.015)
+        add_beveled_box_gd(bm_hd, (ex_gd, eye_z_gd, eye_front_gd + 0.005), (0.072, 0.034, 0.028), (0.0, sx * 12.0, 0.0), bevel_w=0.006)
+        add_beveled_box_gd(bm_hc, (ex_gd, eye_z_gd, eye_front_gd + 0.017), (0.052, 0.018, 0.018), (0.0, sx * 12.0, 0.0), bevel_w=0.004)
+        add_beveled_box_gd(bm_hc, (sx * 0.056, eye_z_gd + 0.115, eye_front_gd + 0.012), (0.013, 0.120, 0.016), (-12.0, sx * 10.0, 0.0), bevel_w=0.003)
+    add_diamond_crystal_gd(bm_hc, (0.0, eye_z_gd + 0.104, eye_front_gd + 0.022), 0.024, 0.044, 0.016)
 
-    join_under_pivot(root_empty, "head_crest", (0.0, 2.02, 0.02), [
+    join_under_pivot(root_empty, "head_crest", (0.0, 2.04, 0.02), [
         head_sculpt,
         part_obj("HeadCrown", bm_hs, m_stone, smooth=False),
         part_obj("HeadDark", bm_hd, m_dark, smooth=False),
@@ -527,22 +552,24 @@ def build_v098_cave_warden():
     ])
 
     # ------------------------------------------------------------------
-    # 3) arm_left_pivot (-X) & arm_right_pivot (+X) — Sculpted faceted shoulders/arms + Twin Kite Stone Tower Shields!
+    # 3) arm_left_pivot (-X) & arm_right_pivot (+X) — Snug Interlocking Shoulders/Biceps + Twin Kite Stone Tower Shields!
     # ------------------------------------------------------------------
     for arm_name, sx in (("arm_left_pivot", -1.0), ("arm_right_pivot", 1.0)):
         as_st, as_dk, as_cy = (bmesh.new() for _ in range(3))
-        piv = (sx * 0.62, 1.86, 0.00)
+        piv = (sx * 0.56, 1.84, 0.00)
 
-        # Layered chamfered hexagonal stone shoulder pauldron (broad heroic deltoid silhouette matching portrait!)
-        add_beveled_box_gd(as_st, (sx * 0.66, 1.90, 0.02), (0.38, 0.32, 0.38), (0.0, sx * 12.0, -sx * 20.0), bevel_w=0.058)
-        add_beveled_box_gd(as_st, (sx * 0.74, 1.72, 0.04), (0.30, 0.24, 0.32), (0.0, sx * 10.0, -sx * 14.0), bevel_w=0.045)
-        add_beveled_box_gd(as_cy, (sx * 0.68, 1.88, 0.21), (0.24, 0.028, 0.024), (0.0, sx * 12.0, -sx * 20.0), bevel_w=0.004)
-        # Muscular carved stone bicep & dark basalt elbow/forearm core
-        add_beveled_box_gd(as_st, (sx * 0.73, 1.50, 0.05), (0.24, 0.34, 0.26), (0.0, sx * 8.0, -sx * 8.0), bevel_w=0.048)
-        add_beveled_box_gd(as_dk, (sx * 0.75, 1.24, 0.09), (0.20, 0.36, 0.22), (8.0, 0.0, 0.0), bevel_w=0.036)
-        # Heavy chiseled stone fist + glowing cyan knuckles
-        add_beveled_box_gd(as_st, (sx * 0.76, 0.76, 0.16), (0.22, 0.24, 0.24), (8.0, 0.0, 0.0), bevel_w=0.042)
-        add_beveled_box_gd(as_cy, (sx * 0.76, 0.70, 0.27), (0.15, 0.040, 0.028), (8.0, 0.0, 0.0), bevel_w=0.006)
+        # Interlocking inner basalt shoulder cap + heavy wrap-around chamfered stone pauldrons (ZERO shoulder air gap!)
+        add_joint_sphere_gd(as_dk, (sx * 0.56, 1.84, 0.00), (0.20, 0.20, 0.20))
+        add_beveled_box_gd(as_st, (sx * 0.60, 1.90, 0.02), (0.44, 0.36, 0.42), (0.0, sx * 10.0, -sx * 18.0), bevel_w=0.062)
+        add_beveled_box_gd(as_st, (sx * 0.69, 1.70, 0.04), (0.34, 0.28, 0.36), (0.0, sx * 10.0, -sx * 12.0), bevel_w=0.048)
+        add_beveled_box_gd(as_cy, (sx * 0.62, 1.89, 0.22), (0.22, 0.018, 0.018), (0.0, sx * 10.0, -sx * 18.0), bevel_w=0.003)
+        # Thick monolithic carved stone bicep, interlocking basalt elbow drum & solid forearm
+        add_beveled_box_gd(as_st, (sx * 0.70, 1.48, 0.05), (0.30, 0.38, 0.30), (0.0, sx * 8.0, -sx * 6.0), bevel_w=0.052)
+        add_joint_sphere_gd(as_dk, (sx * 0.72, 1.28, 0.07), (0.16, 0.16, 0.16))
+        add_beveled_box_gd(as_dk, (sx * 0.73, 1.16, 0.10), (0.24, 0.40, 0.26), (8.0, 0.0, 0.0), bevel_w=0.040)
+        # Heavy chiseled stone fist + subtle cyan knuckles
+        add_beveled_box_gd(as_st, (sx * 0.75, 0.76, 0.16), (0.24, 0.26, 0.26), (8.0, 0.0, 0.0), bevel_w=0.044)
+        add_beveled_box_gd(as_cy, (sx * 0.75, 0.70, 0.28), (0.13, 0.026, 0.020), (8.0, 0.0, 0.0), bevel_w=0.004)
 
         # Monumental sculpted kite-tapered carved sandstone forearm tower shield!
         add_sculpted_kite_shield_gd(as_st, as_dk, as_cy, sx)
@@ -554,22 +581,26 @@ def build_v098_cave_warden():
         ])
 
     # ------------------------------------------------------------------
-    # 4) leg_left_pivot (-X) & leg_right_pivot (+X) — Real Sculpted Athletic Stone Legs from GEO-body_male_stylized!
+    # 4) leg_left_pivot (-X) & leg_right_pivot (+X) — Solid Interlocking Hip/Thigh/Knee/Greave Stone Pillars!
     # ------------------------------------------------------------------
     for leg_name, sx in (("leg_left_pivot", -1.0), ("leg_right_pivot", 1.0)):
-        piv = (sx * 0.24, 1.06, 0.00)
+        piv = (sx * 0.23, 1.04, 0.00)
         leg_sculpt = slice_body_region(
             src_body, mw_b, xform_body,
-            lambda c, s=sx: (c.z <= 1.06 and (c.x * s >= -0.02)),
-            dec_ratio=0.20, mat_stone=m_stone, name=f"Warden_{leg_name}_Sculpt",
+            lambda c, s=sx: (c.z <= 1.10 and (c.x * s >= -0.02)),
+            dec_ratio=0.22, mat_stone=m_stone, name=f"Warden_{leg_name}_Sculpt",
         )
         ls_st, ls_dk, ls_cy = (bmesh.new() for _ in range(3))
-        # Sculpted angular stone knee plate + sleek glowing cyan knee/shin rune accents!
-        add_beveled_box_gd(ls_st, (sx * 0.21, 0.62, 0.15), (0.21, 0.20, 0.14), (0.0, sx * 8.0, 0.0), bevel_w=0.036)
-        add_beveled_box_gd(ls_cy, (sx * 0.21, 0.62, 0.22), (0.11, 0.024, 0.018), (0.0, sx * 8.0, 0.0), bevel_w=0.004)
-        add_beveled_box_gd(ls_cy, (sx * 0.21, 0.36, 0.15), (0.024, 0.22, 0.018), (-4.0, sx * 8.0, 0.0), bevel_w=0.004)
+        # Interlocking hip-cap drum + heavy armored thigh cuisse + basalt knee joint drum + carved shin greave (ZERO leg gap!)
+        add_joint_sphere_gd(ls_dk, (sx * 0.23, 1.02, 0.01), (0.19, 0.19, 0.20))
+        add_beveled_box_gd(ls_st, (sx * 0.23, 0.84, 0.05), (0.28, 0.38, 0.30), (0.0, sx * 6.0, 0.0), bevel_w=0.048)
+        add_joint_sphere_gd(ls_dk, (sx * 0.22, 0.60, 0.03), (0.15, 0.15, 0.16))
+        add_beveled_box_gd(ls_st, (sx * 0.22, 0.60, 0.15), (0.24, 0.24, 0.16), (0.0, sx * 8.0, 0.0), bevel_w=0.040)
+        add_beveled_box_gd(ls_st, (sx * 0.22, 0.32, 0.04), (0.25, 0.44, 0.28), (-2.0, sx * 6.0, 0.0), bevel_w=0.042)
+        add_beveled_box_gd(ls_cy, (sx * 0.22, 0.60, 0.23), (0.09, 0.016, 0.014), (0.0, sx * 8.0, 0.0), bevel_w=0.003)
+        add_beveled_box_gd(ls_cy, (sx * 0.22, 0.34, 0.18), (0.016, 0.20, 0.014), (-4.0, sx * 8.0, 0.0), bevel_w=0.003)
         # Sturdy dark basalt boot sole grounding feet cleanly at y = 0.0
-        add_beveled_box_gd(ls_dk, (sx * 0.22, 0.045, 0.06), (0.26, 0.09, 0.40), (0.0, sx * 6.0, 0.0), bevel_w=0.018)
+        add_beveled_box_gd(ls_dk, (sx * 0.22, 0.05, 0.06), (0.29, 0.10, 0.42), (0.0, sx * 6.0, 0.0), bevel_w=0.020)
 
         join_under_pivot(root_empty, leg_name, piv, [
             leg_sculpt,
