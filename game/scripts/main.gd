@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.9.6_dev1"
+const VERSION = "0.9.9.6_dev2"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -83,6 +83,7 @@ var tts_voice_id = ""
 var listening_mode = false
 var question_help_used := false
 var question_audio_assisted := false
+var question_audiovisual_played := false
 var run_started_ms := -1
 var profile_read_failed := false
 var last_save_error := ""
@@ -512,12 +513,15 @@ func is_english_voice_audible() -> bool:
 func clear_question_help():
 	question_help_used = false
 	question_audio_assisted = false
+	question_audiovisual_played = false
 
 func recognition_modality() -> String:
 	if listening_mode:
 		return "listening"
 	if question_audio_assisted:
 		return "assisted_audio"
+	if question_audiovisual_played:
+		return "audiovisual"
 	return "recognition"
 
 func speak_english(text: String) -> bool:
@@ -565,10 +569,12 @@ func speak_english(text: String) -> bool:
 	return true
 
 func trigger_question_audio(is_auto_switch: bool = false) -> bool:
-	## v0.9.9.4: Single source of truth for pre-answer question audio!
+	## v0.9.9.6_dev2: Single source of truth for pre-answer question audio!
 	## - Muted (voice_volume <= 0): plays nothing and NEVER falsely penalizes independent credit.
-	## - Normal recognition (listening_mode == false): auto-speak only fires if player enabled auto_speak_on_switch;
-	##   whenever audio DOES play before answering (auto or manual [X]), strictly flags question_help_used & assisted_audio!
+	## - Default audiovisual mode (auto_speak_on_switch == true): auto-speaks English on ADS aim / encounter / target switch,
+	##   logging modality="audiovisual" while crediting independent word-spelling mastery cleanly (no false review_due debt!).
+	## - Silent blind-reading mode (auto_speak_on_switch == false): stays silent pre-answer (modality="recognition");
+	##   manual [X] audio request in silent mode flags question_help_used & modality="assisted_audio".
 	## - Listening challenge (listening_mode == true): audio IS the prompt (no help penalty).
 	if question.is_empty():
 		return false
@@ -577,12 +583,16 @@ func trigger_question_audio(is_auto_switch: bool = false) -> bool:
 		return false
 	if not is_english_voice_audible():
 		return false
-	if is_auto_switch and not listening_mode and not bool(rules.setting("auto_speak_on_switch", false)):
+	var auto_on := bool(rules.setting("auto_speak_on_switch", true))
+	if is_auto_switch and not listening_mode and not auto_on:
 		return false
 	var spoke := speak_english(en_text)
 	if spoke and not listening_mode:
-		question_help_used = true
-		question_audio_assisted = true
+		if is_auto_switch or auto_on:
+			question_audiovisual_played = true
+		else:
+			question_help_used = true
+			question_audio_assisted = true
 	return spoke
 
 func replay_question_audio():
@@ -593,8 +603,9 @@ func replay_question_audio():
 		_notice("🔇 英语语音音量为 0%，请在 ⚙ 设置中调高音量后再试听（本次未计入助听）", GOLD)
 		return
 	if has_english_voice(en_text):
+		var auto_on := bool(rules.setting("auto_speak_on_switch", true))
 		if trigger_question_audio(false):
-			_notice("🔊 正在朗读英文发音" if listening_mode else "🔊 正在朗读英文发音（助听提示）", MINT)
+			_notice("🔊 正在朗读英文发音" if (listening_mode or auto_on) else "🔊 正在朗读英文发音（助听提示）", MINT)
 			return
 	_notice("提示：当前环境未检测到可用英文语音（离线语音与系统语音均未命中）", GOLD)
 
@@ -1926,7 +1937,7 @@ func _build_ui():
 	settings_panel.add_child(setting_strict_cb)
 
 	setting_autospeak_cb = CheckBox.new()
-	setting_autospeak_cb.text = "切换新词时自动播报英文助听（开启记为助听认词；关闭则答对后自动朗读）"
+	setting_autospeak_cb.text = "开镜瞄准与遇敌切题时自动先播报英文读音（推荐开启 · 音形义联动）"
 	setting_autospeak_cb.position = Vector2(662, 466)
 	setting_autospeak_cb.size = Vector2(506, 28)
 	setting_autospeak_cb.add_theme_font_size_override("font_size", 14)
@@ -2033,7 +2044,7 @@ func _sync_settings_ui():
 	if is_instance_valid(setting_strict_cb):
 		setting_strict_cb.set_pressed_no_signal(bool(st.get("strict_daily_review", true)))
 	if is_instance_valid(setting_autospeak_cb):
-		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", false)))
+		setting_autospeak_cb.set_pressed_no_signal(bool(st.get("auto_speak_on_switch", true)))
 	if is_instance_valid(setting_ahsarah_unlock_cb):
 		setting_ahsarah_unlock_cb.set_pressed_no_signal(bool(st.get("unlock_ahsarah_preview", false)))
 	if is_instance_valid(setting_tp_cb):

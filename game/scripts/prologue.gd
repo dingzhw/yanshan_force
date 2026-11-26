@@ -419,6 +419,8 @@ func _sync_active_scout_question():
 		game.question = scouts[active_scout_idx].word
 		game.clear_question_help()
 		game.listening_mode = false
+		if stage == "skirmish" and not game.paused:
+			game.trigger_question_audio(true)
 
 func start_prologue(auto_open_briefing: bool = true):
 	set_active(true)

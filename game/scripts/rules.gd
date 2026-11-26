@@ -31,7 +31,7 @@ const PROFILE_SCHEMA_VERSION = 3
 
 const DEFAULT_SETTINGS = {
 	"strict_daily_review": true,
-	"auto_speak_on_switch": false,
+	"auto_speak_on_switch": true,
 	"reduce_screen_shake": false,
 	"unlock_ahsarah_preview": false,
 	"default_third_person": false,
@@ -648,17 +648,18 @@ func ensure_settings() -> Dictionary:
 	for k in DEFAULT_SETTINGS:
 		if not st.has(k):
 			st[k] = DEFAULT_SETTINGS[k]
-	# v0.9.9.4 one-time migration: old builds defaulted auto_speak_on_switch=true without audio-assist marking.
-	# Reset legacy implicit true once so normal combat recognition stays unassisted unless explicitly re-enabled.
-	if not bool(profile.get("v0994_autospeak_migrated", false)):
+	# v0.9.9.6_dev2 one-time restoration: re-enable audiovisual pre-shot English pronunciation by default
+	# for profiles that were flipped to false by v0.9.9.4, while honoring manual toggle afterwards.
+	if not bool(profile.get("v0996_autospeak_restored", false)):
 		var sbv := str(profile.get("saved_by_version", ""))
-		if sbv != "" and not sbv.begins_with("0.9.9.4") and not sbv.begins_with("0.9.9.5") and not sbv.begins_with("0.9.9.6") and not sbv.begins_with("0.10") and not sbv.begins_with("1."):
-			st["auto_speak_on_switch"] = false
+		if bool(profile.get("v0994_autospeak_migrated", false)) or sbv.begins_with("0.9.9.4") or sbv.begins_with("0.9.9.5") or sbv == "0.9.9.6_dev1":
+			st["auto_speak_on_switch"] = true
 		profile["v0994_autospeak_migrated"] = true
+		profile["v0996_autospeak_restored"] = true
 	if profile.has("review_due") and profile["review_due"] is Dictionary and profile["review_due"].has("prologue-wangdao-clue"):
 		profile["review_due"].erase("prologue-wangdao-clue")
 	st["strict_daily_review"] = bool(st.get("strict_daily_review", true))
-	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", false))
+	st["auto_speak_on_switch"] = bool(st.get("auto_speak_on_switch", true))
 	st["reduce_screen_shake"] = bool(st.get("reduce_screen_shake", false))
 	st["unlock_ahsarah_preview"] = bool(st.get("unlock_ahsarah_preview", false))
 	st["last_nav_tab"] = str(st.get("last_nav_tab", ""))

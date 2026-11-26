@@ -15,7 +15,7 @@ const LOOSE_SPOTS = [
 	{"id": "loose_forest", "title": "古道掩体补给台", "at": Vector3(-11.5, 0.0, -52.0), "y_off": 0.44, "pedestal": true, "high": false},
 	{"id": "loose_radio", "title": "东岭电台检修台", "at": Vector3(49.5, 0.0, -93.0), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_maze", "title": "竹石阵秘境石台", "at": Vector3(-77.0, 0.0, -88.2), "y_off": 0.44, "pedestal": true, "high": true},
-	{"id": "loose_cave", "title": "烟霞古洞东壁石案", "at": Vector3(-69.2, 0.0, -97.2), "y_off": 0.44, "pedestal": true, "high": true},
+	{"id": "loose_cave", "title": "烟霞古洞深窟东壁石案", "at": Vector3(-68.6, 0.0, -120.2), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_shelter", "title": "竹林木棚工具台", "at": Vector3(20.0, 0.0, -151.0), "y_off": 0.44, "pedestal": true, "high": true},
 	{"id": "loose_airdrop", "title": "北脊信标物资垫", "at": Vector3(52.5, 0.0, -172.0), "y_off": 0.44, "pedestal": true, "high": true}
 ]
@@ -34,13 +34,13 @@ const NEST_SPOTS = [
 	{"id": "nest_west_thicket", "title": "西岭红花坡矮灌丛", "at": Vector3(-51.0, 0.0, -19.0), "kind": "nest"},
 	{"id": "nest_mid_bridge_reeds", "title": "中溪桥头鹅卵石暗缝", "at": Vector3(24.0, 0.0, -76.5), "kind": "crevice"},
 	{"id": "nest_maze_deadend", "title": "竹石迷阵西壁石隙", "at": Vector3(-78.8, 0.0, -86.6), "kind": "crevice"},
-	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-74.0, 0.0, -97.8), "kind": "crevice"},
+	{"id": "nest_cave_shadow", "title": "烟霞古洞寒潭石影", "at": Vector3(-78.0, 0.0, -125.6), "kind": "crevice"},
 	{"id": "nest_north_bridge_bamboo", "title": "北溪桥畔竹根暗囊", "at": Vector3(38.2, 0.0, -161.5), "kind": "nest"},
 	{"id": "nest_tea_pavilion_rock", "title": "观茶亭北侧苔石暗缝", "at": Vector3(62.4, 0.0, -46.8), "kind": "crevice"},
 	{"id": "nest_cloud_arena_pillar", "title": "云顶演武坛西侧石柱角", "at": Vector3(-68.5, 0.0, -155.0), "kind": "crevice"},
 	{"id": "nest_west_ravine_bamboo", "title": "西涧竹壑幽谷鸟巢", "at": Vector3(-56.0, 0.0, -118.5), "kind": "nest"},
 	{"id": "nest_nw_tower_boulder", "title": "西北望楼脚下青岩缝", "at": Vector3(-28.0, 0.0, -158.0), "kind": "crevice"},
-	{"id": "nest_east_tea_terrace", "title": "东岭茶垄深处金枝窝", "at": Vector3(68.0, 0.0, -12.0), "kind": "nest"},
+	{"id": "nest_east_tea_terrace", "title": "东岭茶垄深处金枝窝", "at": Vector3(64.5, 0.0, -15.5), "kind": "nest"},
 	{"id": "nest_north_creek_willow", "title": "北岭源头老柳根暗匣", "at": Vector3(12.0, 0.0, -182.0), "kind": "nest"}
 ]
 
@@ -121,6 +121,8 @@ func _build_static_anchors():
 		elif spec.id == "ah_loose_helipad":
 			# Sit flush atop the v0.9.7 solid concrete helipad deck (+0.33m above plateau terrain)!
 			gp.y += 0.33
+		elif not is_ah and game.active_layout.is_in_yanxia_cave_interior(gp.x, gp.z, 0.5):
+			gp.y = float(game.active_layout.CAVE_FLOOR_Y) + 0.026
 		root.position = gp
 		root.set_meta("world_loot_kind", "loose")
 		root.set_meta("spot_id", spec.id)
@@ -151,7 +153,10 @@ func _build_static_anchors():
 	for idx_n in active_nests.size():
 		var nspec: Dictionary = active_nests[idx_n]
 		var nroot := Node3D.new()
-		nroot.position = game.active_layout.on_ground(nspec.at)
+		var ngp: Vector3 = game.active_layout.on_ground(nspec.at)
+		if not is_ah and game.active_layout.is_in_yanxia_cave_interior(ngp.x, ngp.z, 0.5):
+			ngp.y = float(game.active_layout.CAVE_FLOOR_Y) + 0.026
+		nroot.position = ngp
 		nroot.set_meta("world_loot_kind", "nest")
 		nroot.set_meta("nest_id", nspec.id)
 		nroot.set_meta("title", nspec.title)

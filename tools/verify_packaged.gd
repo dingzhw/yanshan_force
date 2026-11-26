@@ -351,13 +351,13 @@ func run():
 	var pro_script = load("res://scripts/prologue.gd")
 	var v0994_ok: bool = (
 		rules_cls != null
-		and not bool(rules_cls.DEFAULT_SETTINGS.get("auto_speak_on_switch", true))
+		and bool(rules_cls.DEFAULT_SETTINGS.get("auto_speak_on_switch", false))
 		and rules_cls.DEFAULT_SETTINGS.has("last_nav_tab")
 		and learn_cls != null and learn_cls.new({}).has_method("record_story_clue")
 		and pro_script != null and String(pro_script.CHEN_GUIDE_GLB) == "res://assets/slice/npc_chen_guide.glb"
 		and String(pro_script.MISTBOUND_ASSAULT_GLB) == "res://assets/slice/v097_mistbound_assault.glb"
 	)
-	verify(v0994_ok, "standalone PCK includes v0.9.9.4 unified formal Prologue rigs, story_clue separation & honest auto_speak default")
+	verify(v0994_ok, "standalone PCK includes unified formal Prologue rigs, story_clue separation & v0.9.9.6_dev2 pre-shot audiovisual auto_speak default")
 	var v0995_assault_hat := false
 	if ResourceLoader.exists("res://assets/slice/v097_mistbound_assault.glb"):
 		var ma_p = load("res://assets/slice/v097_mistbound_assault.glb")
@@ -431,6 +431,14 @@ func run():
 			v0996_dev1_ok = false
 			break
 	verify(v0996_dev1_ok, "standalone PCK includes all 6 v0.9.9.6_dev1 PBR skeletal character/boss GLBs (HAAVK/Vanguard/Overlord/Ahsarah/Saeed/Reis) with Idle_Aim/Walk_Patrol/Run_Advance")
+	var cw_inst_p = cw_cls.new() if cw_cls != null else null
+	var v0996_dev2_ok: bool = (
+		cw_inst_p != null
+		and is_equal_approx(float(cw_inst_p.PROXIMITY_SENSE_RADIUS), 6.0)
+	)
+	if cw_inst_p != null:
+		cw_inst_p.free()
+	verify(v0996_dev2_ok, "standalone PCK includes v0.9.9.6_dev2 Cave Warden 6.0m (~1/3 hall) proximity sensing radius")
 	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "standalone PCK pins threading/worker_pool/max_threads=1 to prevent Chinese-Windows CP936 glslang msvcrt setlocale 0xc0000374 startup crash")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")

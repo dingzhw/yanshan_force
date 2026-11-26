@@ -58,6 +58,8 @@ var preview_zone: int = -1
 var last_preview_speak_zone: int = -1
 var last_preview_speak_word: String = ""
 var preview_speak_cd: float = 0.0
+var was_aiming_engaged: bool = false
+var engaged_ads_speak_cd: float = 0.0
 var prompt_timer_left: float = 0.0
 var prompt_timer_max: float = PROMPT_TIMEOUT_NORMAL
 var prompt_reveal_left: float = 0.0
@@ -121,6 +123,8 @@ func begin():
 	last_preview_speak_zone = -1
 	last_preview_speak_word = ""
 	preview_speak_cd = 0.0
+	was_aiming_engaged = false
+	engaged_ads_speak_cd = 0.0
 	prompt_timer_left = 0.0
 	prompt_timer_max = prompt_timeout_limit()
 	prompt_reveal_left = 0.0
@@ -166,6 +170,8 @@ func stop():
 	last_preview_speak_zone = -1
 	last_preview_speak_word = ""
 	preview_speak_cd = 0.0
+	was_aiming_engaged = false
+	engaged_ads_speak_cd = 0.0
 	prompt_timer_left = 0.0
 	prompt_timer_max = prompt_timeout_limit()
 	prompt_reveal_left = 0.0
@@ -702,7 +708,8 @@ func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_exist
 		game.flash_word_switch_banner()
 	var should_speak_zone: bool = (zone == z_idx and is_zone_engaged(z_idx)) or (preview_zone == z_idx and is_instance_valid(game.player) and game.player.aiming)
 	if should_speak_zone and not game.paused:
-		game.trigger_question_audio(true)
+		if game.trigger_question_audio(true):
+			engaged_ads_speak_cd = 1.8
 	return true
 
 func _rotate_prompt_after_wrong(z_idx: int):
@@ -1075,6 +1082,7 @@ func update(delta: float):
 	suppress_lock = maxf(0.0, suppress_lock - delta)
 	miss_left = maxf(0.0, miss_left - delta)
 	preview_speak_cd = maxf(0.0, preview_speak_cd - delta)
+	engaged_ads_speak_cd = maxf(0.0, engaged_ads_speak_cd - delta)
 
 	# v0.8.1 #8: Rage Hunt countdown
 	if rage_hunt_left > 0.0:
@@ -1272,6 +1280,13 @@ func update(delta: float):
 		return
 
 	if zone >= 0 and is_zone_engaged(zone):
+		# v0.9.9.6_dev2: Raising ADS right-click mid-firefight also speaks the active target English word (debounced 2.0s)!
+		var aiming_now: bool = is_instance_valid(game.player) and game.player.aiming and game.player.weapon_slot == 0
+		if aiming_now and not was_aiming_engaged and engaged_ads_speak_cd <= 0.0 and prompt_reveal_left <= 0.0 and not game.paused:
+			var voice_busy: bool = is_instance_valid(game.voice_player) and game.voice_player.playing
+			if not voice_busy and game.trigger_question_audio(true):
+				engaged_ads_speak_cd = 2.0
+		was_aiming_engaged = aiming_now
 		# v0.8.6: Stepping physically onto Cloud-Top Martial Arena (<=22m) ALWAYS hands priority to Confidential Skyfall Overlord!
 		if zone != 2 and not zone_cleared.get(2, false) and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord and boss_unit.skyfall_state == "idle":
 			var arena_c_ov: Vector3 = game.active_layout.CLOUD_ARENA_CENTER
@@ -1321,6 +1336,7 @@ func update(delta: float):
 			disengage_active_camp(true)
 		return
 
+	was_aiming_engaged = false
 	# Standby aggro detection: player must walk into an un-cleared camp's spawn area to pull aggro!
 	var pull_idx := -1
 	var nearest := INF

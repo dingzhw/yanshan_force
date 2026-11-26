@@ -133,8 +133,8 @@ func run():
 	game.player.aiming = true
 	await frames(6)
 	verify(
-		game.combat.preview_zone == 0 and game.unit_label.text.contains("开镜狙词") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible and game.last_voice_key != "" and game.question_help_used,
-		"v0.8.3 / v0.9.9.4 ADS-gated sniping: right-click ADS within 3x aggro previews target Chinese prompt, countdown bar, and (when opt-in auto-speak is enabled) speaks English with assisted_audio flag"
+		game.combat.preview_zone == 0 and game.unit_label.text.contains("开镜狙词") and game.question_label.text == str(game.question.get("chinese", "")) and game.prompt_timer_fill.visible and game.last_voice_key != "" and not game.question_help_used and game.recognition_modality() == "audiovisual",
+		"v0.9.9.6_dev2 ADS-gated sniping: right-click ADS within 3x aggro previews target Chinese prompt, countdown bar, and speaks English pre-shot in audiovisual mode without false help penalty"
 	)
 	# (d) Releasing ADS clears distant preview immediately; rapid re-ADS within 1.2s debounce does not spam audio!
 	game.player.aiming = false
@@ -151,10 +151,9 @@ func run():
 		"v0.8.3 ADS-gated sniping: rapid re-ADS on same camp within 1.2s debounce does not spam duplicate audio"
 	)
 	game.player.aiming = false
-	game.rules.set_setting("auto_speak_on_switch", false)
 	await frames(4)
 
-	# Stepping into Camp 0's spawn aggro radius (~15.8m) WITHOUT ADS pulls aggro without leaking pre-answer English audio!
+	# Stepping into Camp 0's spawn aggro radius (~15.8m) pulls aggro AND speaks target English word pre-shot by default!
 	game.last_voice_key = ""
 	game.player.position = game.Layout.on_ground(center0 + Vector3(0, 0, 13.5)) + Vector3(0, 0.08, 0)
 	game.player.velocity = Vector3.ZERO
@@ -168,9 +167,21 @@ func run():
 			claimed_slots[s0_check.claimed_cover_idx] = true
 	var prompted_soldier = game.combat.troops[0][game.answer_index]
 	verify(
-		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and game.last_voice_key == "" and not game.question_help_used and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
-		"v0.9.9.4: entering camp aggro radius engages 3-4 bot wave without pre-answer English spoiler and assigns distinct words & cover slots"
+		game.combat.zone == 0 and game.combat.is_zone_engaged(0) and game.last_voice_key == game.normalize_voice_key(prompted_soldier.assigned_word.english) and not game.question_help_used and game.recognition_modality() == "audiovisual" and wave0_words.size() == squad0_n and claimed_slots.size() == squad0_n and patrol.word_label.text != "" and game.question.english == prompted_soldier.assigned_word.english,
+		"v0.9.9.6_dev2: entering camp aggro radius engages 3-4 bot wave, speaks target English word pre-shot (audiovisual), and assigns distinct words & cover slots"
 	)
+	# Mid-combat ADS raise after debounce replays target English word cleanly!
+	game.combat.engaged_ads_speak_cd = 0.0
+	game.combat.was_aiming_engaged = false
+	game.last_voice_key = ""
+	game.player.aiming = true
+	await frames(3)
+	verify(
+		game.last_voice_key == game.normalize_voice_key(str(game.question.get("english", ""))),
+		"v0.9.9.6_dev2: raising ADS mid-firefight speaks active target English word pre-shot"
+	)
+	game.player.aiming = false
+	await frames(2)
 
 	var all_words_fit = true
 	for entry in game.words:
@@ -798,22 +809,21 @@ func run():
 	# 11. v0.8.6 Normal Mode Boss 3-Phase Multi-Shield Tactical Duel + Anti-Crouch-Snipe Cave Warden (Normal & Confidential)!
 	var norm_boss = game.combat.boss_unit
 	verify(is_instance_valid(norm_boss) and not norm_boss.is_skyfall_overlord and norm_boss.hp == 600 and norm_boss.vanguard_shields.size() == 3, "v0.8.6: Normal Mode Boss '雾隐先锋·铁面词卫' spawns with 600 HP and 3-slot Vanguard Word-Shield Matrix")
-	# Engage Zone 2 in Normal mode and verify Boss mortar barrage spawns a red danger ring + v0.9.9.4 honest audio-assist separation!
+	# Engage Zone 2 in Normal mode and verify Boss mortar barrage + v0.9.9.6_dev2 audiovisual auto-speak & opt-out silent mode!
 	game.rules.set_setting("auto_speak_on_switch", false)
 	game.last_voice_key = ""
 	game.combat.engage_camp(2)
 	var switched_en: String = str(game.question.get("english", ""))
 	verify(
 		game.last_voice_key == "" and not game.question_help_used and game.word_switch_flash > 0.0,
-		"v0.9.9.4: default combat word switch flashes visually without leaking pre-answer English audio or help penalty"
+		"v0.9.9.6_dev2: opt-out silent mode flashes visually without pre-answer English audio or help penalty"
 	)
 	game.rules.set_setting("auto_speak_on_switch", true)
 	var auto_spoke_z2: bool = game.trigger_question_audio(true)
 	verify(
-		auto_spoke_z2 and game.last_voice_key == game.normalize_voice_key(switched_en) and game.question_help_used and game.question_audio_assisted,
-		"v0.9.9.4: opt-in auto_speak_on_switch speaks English on switch AND honestly flags assisted_audio help"
+		auto_spoke_z2 and game.last_voice_key == game.normalize_voice_key(switched_en) and not game.question_help_used and game.recognition_modality() == "audiovisual",
+		"v0.9.9.6_dev2: default audiovisual auto_speak_on_switch speaks English pre-shot and logs audiovisual modality without false help penalty"
 	)
-	game.rules.set_setting("auto_speak_on_switch", false)
 	game.clear_question_help()
 	var pre_rings: int = game.combat.danger_rings.size()
 	game.combat.boss_barrage_cd = 0.02
@@ -1206,6 +1216,31 @@ func run():
 	var cw_knife_ok: bool = cw98.melee_strike(cw_mcam)
 	cw_mcam.queue_free()
 	verify(cw_knife_ok and cw98.hp < cw_hp_pre_m, "v0.9.8: Tactical Knife slash hits Cave Warden and visibly deducts HP (%d->%d)" % [cw_hp_pre_m, cw98.hp])
+	# v0.9.9.6_dev2 Cave Warden 6.0m Proximity Sensing Aura (~1/3 of Grand Hall area):
+	# Crouched/prone player outside 6.0m stays undetected; entering <=6.0m alerts Warden EVEN while crouched/prone & stationary!
+	cw98.reset()
+	var cw_cc: Vector3 = cw98._cave_center()
+	var cw_fy: float = cw98._cave_floor_y()
+	cw98.root_node.position = Vector3(cw_cc.x, cw_fy, cw_cc.z)
+	game.player.stance = game.player.STANCE_CROUCH
+	game.player.velocity = Vector3.ZERO
+	game.player.position = Vector3(cw_cc.x, cw_fy, cw_cc.z + 7.5)
+	for _p_out in 6:
+		cw98.update(0.10)
+	var safe_outside: bool = (cw98.state == "patrol" and cw98.noise_meter <= 0.1)
+	game.player.stance = game.player.STANCE_PRONE
+	game.player.position = Vector3(cw_cc.x, cw_fy, cw_cc.z + 4.4)
+	for _p_in in 18:
+		cw98.update(0.10)
+	var detected_inside: bool = (cw98.state in ["investigate", "hunt"] and cw98.proximity_sense_count >= 1)
+	game.player.position = Vector3(cw98.root_node.position.x, cw_fy, cw98.root_node.position.z + 8.0)
+	for _p_esc in 18:
+		cw98.update(0.10)
+	var disengaged_outside: bool = (cw98.state == "patrol")
+	verify(
+		is_instance_valid(cw98.proximity_ring_node) and is_equal_approx(cw98.PROXIMITY_SENSE_RADIUS, 6.0) and safe_outside and detected_inside and disengaged_outside,
+		"v0.9.9.6_dev2: Cave Warden 6.0m proximity aura (~1/3 hall) leaves crouched player safe at 7.5m, detects prone player at 4.4m, and disengages cleanly after retreating outside 6m"
+	)
 	game._end_run(false)
 
 	# 14. v0.9.9.5 Multi-target overhead word-tag anti-overlap (4 mixed long/short phrases + tether + prompted-target anchor)

@@ -378,7 +378,7 @@ func _build_model():
 	head_area.collision_mask = 0
 	head_area.monitoring = false
 	head_area.monitorable = false
-	var head_y := (3.42 if is_skyfall_overlord else 2.30) if archetype == Archetype.BOSS_WARDEN else (1.88 if archetype == Archetype.SNIPER_GUARD else (1.88 if archetype == Archetype.SCOUT_DRONE else 1.78))
+	var head_y := (2.95 if is_skyfall_overlord else (2.08 if is_ahsarah_unit else 2.30)) if archetype == Archetype.BOSS_WARDEN else (1.88 if archetype == Archetype.SNIPER_GUARD else (1.88 if archetype == Archetype.SCOUT_DRONE else 1.78))
 	head_area.position = Vector3(0, head_y, 0.14)
 	add_child(head_area)
 	var hshape = SphereShape3D.new()
@@ -389,7 +389,7 @@ func _build_model():
 
 	# 2. Sleek Compact 3D Health Bar (tucked cleanly beneath the overhead holographic word tag!)
 	hp_bar_root = Node3D.new()
-	var hp_y := (4.55 if is_skyfall_overlord else 3.46) if archetype == Archetype.BOSS_WARDEN else (2.18 if archetype == Archetype.SNIPER_GUARD else (2.06 if archetype == Archetype.SCOUT_DRONE else 2.09))
+	var hp_y := (3.92 if is_skyfall_overlord else 3.46) if archetype == Archetype.BOSS_WARDEN else (2.18 if archetype == Archetype.SNIPER_GUARD else (2.06 if archetype == Archetype.SCOUT_DRONE else 2.09))
 	hp_bar_root.position = Vector3(0, hp_y, 0)
 	add_child(hp_bar_root)
 	var bg = MeshInstance3D.new()
@@ -630,7 +630,8 @@ func _attach_skeletal_unit_rig(
 	default_visor_col: Color,
 	bind_core_mat: bool = false,
 	default_core_col: Color = Color("ff9d3b"),
-	create_visor_box_if_missing: bool = false
+	create_visor_box_if_missing: bool = false,
+	y_offset: float = 0.0
 ) -> Node3D:
 	if not ResourceLoader.exists(glb_path):
 		return null
@@ -641,7 +642,7 @@ func _attach_skeletal_unit_rig(
 		return null
 	var inst: Node3D = packed.instantiate()
 	inst.name = rig_node_name
-	inst.position = Vector3.ZERO
+	inst.position = Vector3(0.0, y_offset, 0.0)
 	inst.scale = Vector3.ONE * sc
 	visual_root.add_child(inst)
 
@@ -706,7 +707,8 @@ func _build_assault_chassis(game):
 		var v96_path := HAAVK_TROOPER_GLB if is_haavk else AHSARAH_GUARD_GLB
 		var rig_name := "HaavkTrooperRig" if is_haavk else "AhsarahGuardRig"
 		var vcol := Color("36e8ff") if is_haavk else Color("ffaa33")
-		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.03, vcol, false, Color("ff9d3b"), false) != null:
+		var y_off := -0.11 if is_haavk else 0.0
+		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.03, vcol, false, Color("ff9d3b"), false, y_off) != null:
 			return
 		var rig_nm := "haavk_trooper" if is_haavk else "ahsarah_guard"
 		var rig := _attach_ahsarah_rig(game, rig_nm, 1.04)
@@ -756,7 +758,8 @@ func _build_sniper_chassis(game):
 		var is_haavk := (ahsarah_faction == "haavk")
 		var v96_path := HAAVK_TROOPER_GLB if is_haavk else AHSARAH_GUARD_GLB
 		var rig_name := "HaavkTrooperRig" if is_haavk else "AhsarahGuardRig"
-		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.07, Color("ff4d6d"), false, Color("ff9d3b"), false) != null:
+		var y_off_sn := -0.11 if is_haavk else 0.0
+		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.07, Color("ff4d6d"), false, Color("ff9d3b"), false, y_off_sn) != null:
 			return
 		var rig_nm := "haavk_trooper" if is_haavk else "ahsarah_guard"
 		var rig := _attach_ahsarah_rig(game, rig_nm, 1.12)
@@ -867,7 +870,7 @@ func _build_boss_chassis(game):
 		ov_arm_r = null
 		ov_head = null
 		ov_halo = null
-		var ov_v96 := _attach_skeletal_unit_rig(game, SKYFALL_OVERLORD_GLB, "SkyfallOverlordRig", 1.0, Color("ff2838"), true, Color("ff6c24"), false)
+		var ov_v96 := _attach_skeletal_unit_rig(game, SKYFALL_OVERLORD_GLB, "SkyfallOverlordRig", 1.0, Color("ff2838"), true, Color("ff6c24"), false, -0.16)
 		var loaded_mesh := (ov_v96 != null)
 		if ov_v96 != null:
 			ov_halo = ov_v96.find_child("overlord_halo_ring", true, false) as Node3D
@@ -911,7 +914,7 @@ func _build_boss_chassis(game):
 		if loaded_mesh:
 			return
 	# Normal Mode Yanshan B-Zone Boss: 「铁面词卫 · 雾隐先锋」 (v0.9.9.6_dev1 high-fidelity PBR skeletal GLB!)
-	var vb_v96 := _attach_skeletal_unit_rig(game, VANGUARD_BOSS_GLB, "VanguardBossRig", 1.0, Color("ff4f4f"), true, Color("ff9d3b"), false)
+	var vb_v96 := _attach_skeletal_unit_rig(game, VANGUARD_BOSS_GLB, "VanguardBossRig", 1.0, Color("ff4f4f"), true, Color("ff9d3b"), false, -0.15)
 	if vb_v96 != null:
 		core_area = Area3D.new()
 		core_area.set_meta("hit_zone", "core")

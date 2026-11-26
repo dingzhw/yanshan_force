@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.9.6_dev1" and game.active_map_id == "yanshan", "v0.9.9.6_dev1 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.9.6_dev2" and game.active_map_id == "yanshan", "v0.9.9.6_dev2 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")

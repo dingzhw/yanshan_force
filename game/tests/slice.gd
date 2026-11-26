@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.6_dev1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.6_dev1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.6_dev2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.6_dev2 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1239,6 +1239,16 @@ func run():
 			if is_instance_valid(bot_ov) and bot_ov.is_skyfall_overlord and bot_ov.find_child("SkyfallOverlordRig", true, false) != null and is_instance_valid(bot_ov.ov_halo) and is_instance_valid(bot_ov.rig_anim_player) and bot_ov.rig_anim_player.has_animation("Idle_Aim"):
 				ov_found = true
 	verify(vb_found and ov_found, "v0.9.9.6_dev1: Yanshan Vanguard Boss (VanguardBossRig) & Skyfall Overlord (SkyfallOverlordRig + overlord_halo_ring) mount PBR skeletal GLBs with animations")
+	# 14) v0.9.9.6_dev2 Yanxia Cave Loot Relocated Inside Grand Hall + Embedded Cave Panels + Grounded Bosses
+	var loose_cave_ok := false
+	for ln in game.world_loot.loose_nodes:
+		if str(ln.get_meta("spot_id", "")) == "loose_cave":
+			loose_cave_ok = game.Layout.is_in_yanxia_cave_interior(ln.global_position.x, ln.global_position.z, 0.0) and absf(ln.global_position.y - (float(game.Layout.CAVE_FLOOR_Y) + 0.026)) < 0.02
+	var nest_cave_ok := false
+	for nn in game.world_loot.nest_nodes:
+		if str(nn.get_meta("nest_id", "")) == "nest_cave_shadow":
+			nest_cave_ok = game.Layout.is_in_yanxia_cave_interior(nn.global_position.x, nn.global_position.z, 0.0) and nn.global_position.z < -120.0 and absf(nn.global_position.y - (float(game.Layout.CAVE_FLOOR_Y) + 0.026)) < 0.02
+	verify(loose_cave_ok and nest_cave_ok, "v0.9.9.6_dev2: Yanxia Cave loose_cave pedestal & nest_cave_shadow sit cleanly inside Grand Hall floor (zero rock-wall burial)")
 	game._end_run(false)
 
 	game.queue_free()

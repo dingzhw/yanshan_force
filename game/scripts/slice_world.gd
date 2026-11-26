@@ -3414,7 +3414,7 @@ func _build_bamboo_maze_and_yanxia_cave():
 	var light_specs := [
 		[Vector3(-0.55, 2.85, 1.20), Color("5eead8"), 1.35, 10.5],      # Narrow throat bioluminescent wall moss/vines
 		[Vector3(-2.65, 6.80, -10.50), Color("c4f2ff"), 2.45, 18.0],    # Mid-Gallery Skylight ('洞顶空窗') daylight pool
-		[Vector3(-6.20, 2.75, -10.20), Color("ffd49c"), 1.65, 9.5],     # Warm raking light on '烟山耕读' wall mural
+		[Vector3(-5.10, 2.65, -8.10), Color("ffd49c"), 1.75, 10.5],     # Warm raking light illuminating '烟山耕读' & '烟霞古洞志' wall carvings
 		[Vector3(-3.50, 7.80, -23.00), Color("4ce4d8"), 2.55, 24.0],    # Grand Cavern Hall bioluminescent wall flora ambient
 		[Vector3(-7.60, 2.60, -28.10), Color("7cf2dc"), 1.85, 12.5],    # Jade Spring Pool & warm hearth alcove glow
 		[Vector3(-3.50, 7.60, -32.20), Color("caf6ff"), 2.75, 16.0],    # Deepest '一线天' vertical fissure sunbeam glow
@@ -3431,7 +3431,7 @@ func _build_bamboo_maze_and_yanxia_cave():
 		ol.distance_fade_length = 12.0
 		cave_root.add_child(ol)
 
-	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.65, 3.05, -9.80), 20, Color("e8dec2"))
+	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.45, 3.25, -7.90), 20, Color("e8dec2"))
 	chron_lbl.pixel_size = 0.0036
 	chron_lbl.visibility_range_end = 13.0
 	var pool_lbl: Label3D = game._label3d(cave_root, "洞中寒潭 · 荧光清泉", Vector3(-9.20, 1.65, -28.40), 20, Color("9ef5e2"))
@@ -3467,23 +3467,32 @@ func _build_bamboo_maze_and_yanxia_cave():
 	dimensional_rift_label.visibility_range_end = 16.5
 	refresh_dimensional_rift_visual(false, is_instance_valid(game) and is_instance_valid(game.rules) and game.rules.is_ahsarah_permanently_unlocked())
 
-	# Lush bamboo groves & ferns grounded cleanly into the exterior mountain peak slopes!
+	# Lush bamboo groves & ferns grounded cleanly (-0.22m root seat) onto exact mountain_surface_z slopes (ZERO floating!)
 	var peak_bamboo_local := [
-		Vector3(-6.2, 10.6, 4.2), Vector3(5.6, 10.4, 3.8),
-		Vector3(-12.5, 14.2, -5.5), Vector3(6.8, 13.6, -6.2),
-		Vector3(-14.2, 16.5, -16.5), Vector3(7.4, 15.6, -18.0),
-		Vector3(-11.8, 19.2, -23.5), Vector3(4.2, 18.8, -24.0),
-		Vector3(-11.2, 16.8, -31.5), Vector3(4.5, 16.4, -32.0),
-		Vector3(-6.5, 13.8, -38.0), Vector3(-0.5, 13.4, -37.5),
+		Vector3(-6.2, 8.24, 4.2), Vector3(5.6, 7.73, 3.8),
+		Vector3(-12.5, 14.44, -5.5), Vector3(6.8, 11.10, -6.2),
+		Vector3(-14.2, 17.96, -16.5), Vector3(7.4, 18.28, -18.0),
+		Vector3(-11.8, 19.93, -23.5), Vector3(4.2, 19.80, -24.0),
+		Vector3(-11.2, 17.54, -31.5), Vector3(4.5, 16.46, -32.0),
+		Vector3(-6.5, 16.02, -38.0), Vector3(-0.5, 15.47, -37.5),
 	]
 	for pbl in peak_bamboo_local:
 		var wp: Vector3 = cave_root.position + pbl
 		maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * m_rng.randf_range(0.95, 1.35)), wp))
-	for pf_i in 16:
+	var peak_ferns_local := [
+		Vector3(7.00, 18.85, -22.00), Vector3(6.20, 18.24, -17.22),
+		Vector3(3.92, 17.44, -13.16), Vector3(0.52, 17.93, -10.45),
+		Vector3(-3.50, 17.46, -9.50), Vector3(-7.52, 18.57, -10.45),
+		Vector3(-10.92, 18.10, -13.16), Vector3(-13.20, 19.57, -17.22),
+		Vector3(-14.00, 18.57, -22.00), Vector3(-13.20, 17.55, -26.78),
+		Vector3(-10.92, 17.36, -30.84), Vector3(-7.52, 18.55, -33.55),
+		Vector3(-3.50, 19.08, -34.50), Vector3(0.52, 18.59, -33.55),
+		Vector3(3.92, 17.23, -30.84), Vector3(6.20, 18.53, -26.78),
+	]
+	for pf_i in peak_ferns_local.size():
+		var pfl: Vector3 = peak_ferns_local[pf_i]
 		var pang := float(pf_i) * (TAU / 16.0)
-		var pfx := cave_root.position.x - 3.5 + cos(pang) * 10.5
-		var pfz := cave_root.position.z - 22.0 + sin(pang) * 12.5
-		maze_fern_tx.append(Transform3D(Basis(Vector3.UP, pang).scaled(Vector3.ONE * 1.35), Vector3(pfx, cave_y + 17.6, pfz)))
+		maze_fern_tx.append(Transform3D(Basis(Vector3.UP, pang).scaled(Vector3.ONE * 1.35), cave_root.position + pfl))
 
 	_batch_direct(karst_a_mesh, karst_a_tx, true, "MazeKarstMonolithsA", 96.0)
 	_batch_direct(karst_b_mesh, karst_b_tx, true, "MazeKarstMonolithsB", 96.0)

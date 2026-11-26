@@ -34,6 +34,7 @@ from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SLICE_DIR = REPO_ROOT / "game" / "assets" / "slice"
@@ -579,7 +580,9 @@ def build_interior_cavern(parent: bpy.types.Object, mat_wall, mat_floor, mat_sta
             except ValueError:
                 pass
 
-    # Add sculpted hanging limestone stalactites along high vault ceilings (always > 5.0m above floor!)
+    # Add sculpted hanging limestone stalactites along high vault ceilings (BVH-snapped directly into displaced roof rock!)
+    bm.faces.ensure_lookup_table()
+    bvh_ceiling = BVHTree.FromBMesh(bm)
     rng = random.Random(20260995)
     for _ in range(36):
         sy = rng.uniform(5.5, 31.0)
@@ -587,13 +590,15 @@ def build_interior_cavern(parent: bpy.types.Object, mat_wall, mat_floor, mat_sta
         sx = cx + rng.uniform(-hw * 0.68, hw * 0.68)
         if in_any_skylight(sx, sy, pad=1.2):
             continue
-        frac_x = abs(sx - cx) / max(0.5, hw)
-        roof_z = FLOOR_Z + ch * (max(0.15, 1.0 - frac_x * frac_x) ** 0.42)
+        hit_loc, _, _, _ = bvh_ceiling.ray_cast(Vector((sx, sy, FLOOR_Z + 1.2)), Vector((0.0, 0.0, 1.0)), 22.0)
+        if hit_loc is None:
+            continue
+        roof_z = hit_loc.z + 0.22  # Embed top 22cm firmly inside solid ceiling rock!
         slen = rng.uniform(1.1, 2.7)
         if roof_z - slen < 5.0:
             continue
         rad = rng.uniform(0.16, 0.38)
-        m = Matrix.Translation((sx, sy, roof_z - slen * 0.45))
+        m = Matrix.Translation((sx, sy, roof_z - slen * 0.50))
         res = bmesh.ops.create_cone(
             bm, cap_ends=True, cap_tris=True, segments=7,
             radius1=0.03, radius2=rad, depth=slen, matrix=m,
@@ -835,6 +840,7 @@ def build_jade_spring_pool(parent: bpy.types.Object, mat_water, mat_rim) -> bpy.
 def build_bioluminescent_flora(
     parent: bpy.types.Object,
     anchors: list[tuple[Vector, Vector]],
+    interior_bvh: BVHTree,
     mat_vine,
     mat_berry_gold,
     mat_berry_cyan,
@@ -946,8 +952,8 @@ def build_bioluminescent_flora(
 
     # 1) Populate wall & pillar flora anchors with tasteful sculptural mushroom clusters & luminous moss/ferns
     for idx, (pos, inward) in enumerate(anchors):
-        # Keep mural & chronicle panels unobstructed on Mid-Gallery walls!
-        if 7.5 <= pos.y <= 13.0 and (pos.x < -6.2 or pos.x > 1.5) and 1.0 <= pos.z <= 3.8:
+        # Keep mural & chronicle panels + carved limestone frames 100% unobstructed on Mid-Gallery walls!
+        if 5.5 <= pos.y <= 13.0 and (pos.x < -4.8 or pos.x > 1.0) and 0.4 <= pos.z <= 4.6:
             continue
         sc = rng.uniform(0.55, 0.92) if pos.y > 12.0 else rng.uniform(0.45, 0.72)
         if idx % 3 == 0:
@@ -959,14 +965,21 @@ def build_bioluminescent_flora(
         else:
             add_shelf_cluster(pos, inward, sc * 0.95, use_teal=(idx % 4 != 0))
 
-    # 2) Drape 26 lush hanging glow-vines around Mid-Gallery Skylight, Throat Arch, Grand Hall perimeter & '一线天'!
+    # 2) Drape 26 lush hanging glow-vines around Mid-Gallery Skylight, Throat Arch, Grand Hall perimeter & '一线天'
+    #    Every vine root is BVH-snapped straight up into the ACTUAL displaced ceiling rock (+0.20m embedded -> ZERO floating vines!)
+    def snap_ceiling_z(x_q: float, y_q: float, fallback_z: float) -> float:
+        hit_loc, _, _, _ = interior_bvh.ray_cast(Vector((x_q, y_q, FLOOR_Z + 1.0)), Vector((0.0, 0.0, 1.0)), 22.0)
+        if hit_loc is not None:
+            return hit_loc.z + 0.20
+        return fallback_z
+
     # Around Mid-Gallery Skylight rim (warm golden glow berries catching daylight!)
     for k in range(10):
         ang = (k / 10.0) * math.tau + 0.18
-        vx = SKY_WINDOW_CTR[0] + math.cos(ang) * (SKY_WINDOW_RAD[0] + 0.35)
-        vy = SKY_WINDOW_CTR[1] + math.sin(ang) * (SKY_WINDOW_RAD[1] + 0.35)
+        vx = SKY_WINDOW_CTR[0] + math.cos(ang) * (SKY_WINDOW_RAD[0] + 0.55)
+        vy = SKY_WINDOW_CTR[1] + math.sin(ang) * (SKY_WINDOW_RAD[1] + 0.55)
         cx, hw, ch = sample_spine(vy)
-        vz = FLOOR_Z + ch * 0.90
+        vz = snap_ceiling_z(vx, vy, FLOOR_Z + ch * 0.94)
         add_hanging_glow_vine(Vector((vx, vy, vz)), rng.uniform(1.8, 3.4), gold_berries=(k % 3 != 0))
 
     # Along Grand Cavern Hall high walls & outer vault (mix of aqua & gold glow-vines!)
@@ -974,9 +987,8 @@ def build_bioluminescent_flora(
         vy = rng.uniform(14.5, 31.8)
         cx, hw, ch = sample_spine(vy)
         side = -1.0 if (k % 2 == 0) else 1.0
-        vx = cx + side * rng.uniform(hw * 0.58, hw * 0.84)
-        frac_x = abs(vx - cx) / max(1.0, hw)
-        vz = FLOOR_Z + ch * (max(0.25, 1.0 - frac_x * frac_x) ** 0.42)
+        vx = cx + side * rng.uniform(hw * 0.56, hw * 0.80)
+        vz = snap_ceiling_z(vx, vy, FLOOR_Z + ch * 0.78)
         vlen = rng.uniform(2.0, 4.2)
         if vz - vlen > 3.6:
             add_hanging_glow_vine(Vector((vx, vy, vz)), vlen, gold_berries=(k % 3 == 0))
@@ -984,8 +996,8 @@ def build_bioluminescent_flora(
     # Subtle glowing vines framing the Entrance Throat ceiling arch (inviting players deeper!)
     for vy, side in [(-3.8, -1.0), (-1.2, 1.0), (2.4, -1.0), (5.4, 1.0)]:
         cx, hw, ch = sample_spine(vy)
-        vx = cx + side * (hw * 0.65)
-        vz = FLOOR_Z + ch * 0.84
+        vx = cx + side * (hw * 0.62)
+        vz = snap_ceiling_z(vx, vy, FLOOR_Z + ch * 0.88)
         add_hanging_glow_vine(Vector((vx, vy, vz)), rng.uniform(0.95, 1.45), gold_berries=False)
 
     # Extra dense bioluminescent mushrooms & jade moss around the Jade Spring Pool & '一线天' sanctum!
@@ -1002,39 +1014,136 @@ def build_bioluminescent_flora(
     return bm_to_object("Cave_Glow_Flora", bm, mats, parent, uv_scale=1.6, smooth=True)
 
 
-def build_textured_panel(name: str, center: Vector, size_wh: tuple[float, float], yaw_deg: float, mat: bpy.types.Material, parent: bpy.types.Object) -> bpy.types.Object:
-    """Create a recessed carved stone tablet/mural panel with clean [0..1] planar UVs facing normal."""
+def build_wall_embedded_panel(
+    name: str,
+    bvh_target: BVHTree,
+    ray_origin: Vector,
+    ray_dir_to_wall: Vector,
+    size_wh: tuple[float, float],
+    mat_art: bpy.types.Material,
+    mat_frame_rock: bpy.types.Material,
+    parent: bpy.types.Object,
+    wall_tangent_hint: Vector | None = None,
+    embed_depth: float = 1.90,
+    proud_clearance: float = 0.08,
+) -> tuple[bpy.types.Object, Vector, Vector]:
+    """Build a rock-carved mural/chronicle/plaque monolith 100% flush & deeply embedded into the actual cave rock wall!
+
+    1) Raycasts across the panel's footprint (center + 4 corners + 4 mid-edges) onto `bvh_target`
+       to find the EXACT innermost rock bump along `inward_normal` so ZERO rock pokes through the art face
+       and ZERO air gap can EVER exist behind the slab!
+    2) Surrounds the recessed carved art face with a sculpted tapered limestone rock frame extending
+       `embed_depth` (~1.9m) straight INTO the solid cavern/cliff rock wall (textured with mat_frame_rock).
+    Returns (panel_obj, front_center_world, inward_normal).
+    """
+    d_wall = ray_dir_to_wall.normalized()
+    hit_c, hit_n, _, _ = bvh_target.ray_cast(ray_origin, d_wall, 24.0)
+    assert hit_c is not None, f"Panel {name} raycast missed cave rock surface!"
+
+    # Horizontal inward normal (pointing from wall into gallery/forecourt) so panel hangs plumb vertically!
+    if wall_tangent_hint is not None:
+        t_h = Vector((wall_tangent_hint.x, wall_tangent_hint.y, 0.0)).normalized()
+        in_n = Vector((-t_h.y, t_h.x, 0.0))
+        if in_n.dot(-d_wall) < 0.0:
+            in_n = -in_n
+    else:
+        in_n = Vector((hit_n.x, hit_n.y, 0.0))
+        if in_n.length < 0.1:
+            in_n = Vector((-d_wall.x, -d_wall.y, 0.0))
+        in_n.normalize()
+        if in_n.dot(-d_wall) < 0.0:
+            in_n = -in_n
+
+    up_v = Vector((0.0, 0.0, 1.0))
+    # Right vector when viewer stands in front of panel looking toward wall (-in_n): right = (-in_n) x up = up x in_n
+    right_v = up_v.cross(in_n).normalized()
+
+    hw_p, hh_p = size_wh[0] * 0.5, size_wh[1] * 0.5
+
+    # Sample rock surface across the full (w+0.36) x (h+0.36) stone surround footprint along -in_n
+    # to find the most-protruding (innermost) rock surface coordinate along `in_n`!
+    ref_base = hit_c
+    max_inward_proj = -1e9
+    sample_hits = 0
+    for su in (-1.0, -0.5, 0.0, 0.5, 1.0):
+        for sv in (-1.0, 0.0, 1.0):
+            sample_pt = ref_base + right_v * (su * (hw_p + 0.16)) + up_v * (sv * (hh_p + 0.14))
+            probe_start = sample_pt + in_n * 3.5
+            h_loc, _, _, _ = bvh_target.ray_cast(probe_start, -in_n, 9.0)
+            if h_loc is not None:
+                proj = (h_loc - ref_base).dot(in_n)
+                if proj > max_inward_proj:
+                    max_inward_proj = proj
+                sample_hits += 1
+    if sample_hits == 0:
+        max_inward_proj = 0.0
+
+    # Place recessed art plane strictly `proud_clearance` (8cm) in front of the innermost rock bump!
+    front_center = ref_base + in_n * (max_inward_proj + proud_clearance)
     bm = bmesh.new()
     uv_layer = bm.loops.layers.uv.new("UVMap")
-    w, h = size_wh[0] * 0.5, size_wh[1] * 0.5
-    t = 0.14
-    rot = Matrix.Rotation(math.radians(yaw_deg), 4, "Z")
-    # Front face lies on y_local = -t/2 facing -Y (rotated by yaw_deg)
-    corners = [
-        Vector((-w, -t * 0.5, -h)),
-        Vector(( w, -t * 0.5, -h)),
-        Vector(( w, -t * 0.5,  h)),
-        Vector((-w, -t * 0.5,  h)),
+
+    # 1) Recessed carved art face (material 0 = mat_art) with crisp [0..1] planar UVs
+    art_pts = [
+        front_center + right_v * (-hw_p) + up_v * (-hh_p),
+        front_center + right_v * ( hw_p) + up_v * (-hh_p),
+        front_center + right_v * ( hw_p) + up_v * ( hh_p),
+        front_center + right_v * (-hw_p) + up_v * ( hh_p),
     ]
-    back = [
-        Vector((-w - 0.06, t * 0.5, -h - 0.06)),
-        Vector(( w + 0.06, t * 0.5, -h - 0.06)),
-        Vector(( w + 0.06, t * 0.5,  h + 0.06)),
-        Vector((-w - 0.06, t * 0.5,  h + 0.06)),
+    av = [bm.verts.new(p) for p in art_pts]
+    f_art = bm.faces.new((av[0], av[1], av[2], av[3]))
+    orient_face_away(f_art, in_n)
+    f_art.material_index = 0
+    # Guarantee upright, un-mirrored UVs matching right_v (u: 0->1) and up_v (v: 0->1)!
+    art_uv_map = {av[0]: (0.0, 0.0), av[1]: (1.0, 0.0), av[2]: (1.0, 1.0), av[3]: (0.0, 1.0)}
+    for lp in f_art.loops:
+        lp[uv_layer].uv = art_uv_map[lp.vert]
+
+    # 2) Sculpted carved-stone surround bezel & deep rock-embedded monolith backing (material 1 = mat_frame_rock)
+    #    Bezel projects +0.07m proud around the art recess, then flares wider as it plunges 1.90m DEEP INTO the rock wall!
+    fw_f, fh_f = hw_p + 0.16, hh_p + 0.14
+    fw_b, fh_b = hw_p + 0.42, hh_p + 0.36
+    lip_pts = [
+        front_center + in_n * 0.06 + right_v * (-fw_f) + up_v * (-fh_f),
+        front_center + in_n * 0.06 + right_v * ( fw_f) + up_v * (-fh_f),
+        front_center + in_n * 0.06 + right_v * ( fw_f) + up_v * ( fh_f),
+        front_center + in_n * 0.06 + right_v * (-fw_f) + up_v * ( fh_f),
     ]
-    fv = [bm.verts.new(center + rot @ p) for p in corners]
-    bv = [bm.verts.new(center + rot @ p) for p in back]
-    f_front = bm.faces.new((fv[0], fv[1], fv[2], fv[3]))
-    uvs = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-    for lp, uv in zip(f_front.loops, uvs):
-        lp[uv_layer].uv = uv
-    # Side bevel frame
+    back_pts = [
+        front_center - in_n * embed_depth + right_v * (-fw_b) + up_v * (-fh_b),
+        front_center - in_n * embed_depth + right_v * ( fw_b) + up_v * (-fh_b),
+        front_center - in_n * embed_depth + right_v * ( fw_b) + up_v * ( fh_b),
+        front_center - in_n * embed_depth + right_v * (-fw_b) + up_v * ( fh_b),
+    ]
+    lv = [bm.verts.new(p) for p in lip_pts]
+    bv = [bm.verts.new(p) for p in back_pts]
+
+    def set_rock_uv(face):
+        face.material_index = 1
+        for lp in face.loops:
+            rel = lp.vert.co - front_center
+            lp[uv_layer].uv = (rel.dot(right_v) * 0.32 + rel.dot(in_n) * 0.32, rel.dot(up_v) * 0.32)
+
     for i in range(4):
         ni = (i + 1) % 4
-        fs = bm.faces.new((fv[ni], fv[i], bv[i], bv[ni]))
-        for lp in fs.loops:
-            lp[uv_layer].uv = (0.04, 0.04)
-    return bm_to_object(name, bm, [mat], parent, uv_scale=None, smooth=False)
+        # Inner bevel frame from art edge out to stone lip
+        f_in = bm.faces.new((av[i], lv[i], lv[ni], av[ni]))
+        orient_face_away(f_in, in_n)
+        set_rock_uv(f_in)
+        # Deep tapered stone side walls plunging 1.90m straight into the cave rock!
+        f_side = bm.faces.new((lv[i], bv[i], bv[ni], lv[ni]))
+        out_side = ((lv[i].co + lv[ni].co) * 0.5 - front_center)
+        out_side = out_side - in_n * out_side.dot(in_n)
+        orient_face_away(f_side, out_side.normalized())
+        set_rock_uv(f_side)
+
+    # Back cap sealed deep inside solid rock
+    f_back = bm.faces.new((bv[3], bv[2], bv[1], bv[0]))
+    orient_face_away(f_back, -in_n)
+    set_rock_uv(f_back)
+
+    obj = bm_to_object(name, bm, [mat_art, mat_frame_rock], parent, uv_scale=None, smooth=False)
+    return obj, front_center, in_n
 
 
 def build_skylight_beams(parent: bpy.types.Object, mat_beam) -> bpy.types.Object:
@@ -1155,18 +1264,63 @@ def main():
     mountain_obj = build_exterior_mountain(root, mat_mtn_cliff, mat_mtn_grass)
     pillars_obj, pillar_anchors = build_hall_pillars(root, mat_cave_wall, mat_stalactite)
     pool_obj = build_jade_spring_pool(root, mat_spring_water, mat_cave_wall)
+
+    # Build exact BVH trees of displaced interior cave rock & exterior cliff for 100% flush mounting!
+    bm_int_bvh = bmesh.new()
+    bm_int_bvh.from_mesh(interior_obj.data)
+    bvh_interior = BVHTree.FromBMesh(bm_int_bvh)
+    bm_ext_bvh = bmesh.new()
+    bm_ext_bvh.from_mesh(mountain_obj.data)
+    bvh_exterior = BVHTree.FromBMesh(bm_ext_bvh)
+
     flora_obj = build_bioluminescent_flora(
-        root, wall_anchors + pillar_anchors,
+        root, wall_anchors + pillar_anchors, bvh_interior,
         mat_vine, mat_berry_gold, mat_berry_cyan, mat_fungi_cyan, mat_fungi_teal, mat_moss_jade,
     )
     beams_obj = build_skylight_beams(root, mat_beam)
 
-    # Mount ancient plaques/murals cleanly on South Cave Mouth brow & Mid-Gallery walls!
-    plaque_obj = build_textured_panel("Cave_Portal_Plaque", Vector((0.0, -7.78, 4.25)), (2.55, 0.82), 0.0, mat_plaque, root)
-    # West wall of Mid-Gallery (y = 10.2, x_wall ~ -2.65 - 6.5 = -9.15 -> mount cleanly proud at -8.45 facing East/+X!)
-    mural_obj = build_textured_panel("Cave_Mural_Slab", Vector((-8.45, 10.20, 2.35)), (3.30, 2.10), 82.0, mat_mural, root)
-    # East wall of Mid-Gallery (y = 9.8, x_wall ~ -2.65 + 6.4 = +3.75 -> mount cleanly proud at +3.10 facing West/-X!)
-    chron_obj = build_textured_panel("Cave_Chronicle_Slab", Vector((3.10, 9.80, 2.25)), (2.50, 1.65), -82.0, mat_chronicle, root)
+    # Mount ancient plaques/murals 100% flush & deeply embedded (1.9m into solid rock!) via BVH wall projection!
+    # 1) South Cliff Portal Plaque ('烟霞古洞') embedded straight into the exterior cliff brow arch right above the cave mouth!
+    plaque_obj, p_pos, p_n = build_wall_embedded_panel(
+        "Cave_Portal_Plaque", bvh_exterior,
+        ray_origin=Vector((0.0, -14.0, 4.35)),
+        ray_dir_to_wall=Vector((0.0, 1.0, 0.0)),
+        size_wh=(2.55, 0.82),
+        mat_art=mat_plaque, mat_frame_rock=mat_mtn_cliff, parent=root,
+        wall_tangent_hint=Vector((1.0, 0.0, 0.0)),
+        embed_depth=2.40, proud_clearance=0.06,
+    )
+    # 2) West Wall Mural ('《烟山耕读》') flush along curving Mid-Gallery West rock wall (y = 10.20, z = 2.25)
+    cx_w0, hw_w0, _ = sample_spine(9.2)
+    cx_w1, hw_w1, _ = sample_spine(11.2)
+    west_tangent = Vector(((cx_w1 - hw_w1) - (cx_w0 - hw_w0), 2.0, 0.0)).normalized()
+    mural_obj, m_pos, m_n = build_wall_embedded_panel(
+        "Cave_Mural_Slab", bvh_interior,
+        ray_origin=Vector((-2.65, 10.20, 2.25)),
+        ray_dir_to_wall=Vector((-1.0, -0.45, 0.0)),
+        size_wh=(3.30, 2.10),
+        mat_art=mat_mural, mat_frame_rock=mat_cave_wall, parent=root,
+        wall_tangent_hint=west_tangent,
+        embed_depth=2.10, proud_clearance=0.07,
+    )
+    # 3) East Wall Chronicle ('《烟霞古洞志》') flush along curving Mid-Gallery East rock wall (y = 9.80, z = 2.15)
+    cx_e0, hw_e0, _ = sample_spine(8.8)
+    cx_e1, hw_e1, _ = sample_spine(10.8)
+    east_tangent = Vector(((cx_e1 + hw_e1) - (cx_e0 + hw_e0), 2.0, 0.0)).normalized()
+    chron_obj, c_pos, c_n = build_wall_embedded_panel(
+        "Cave_Chronicle_Slab", bvh_interior,
+        ray_origin=Vector((-2.55, 9.80, 2.15)),
+        ray_dir_to_wall=Vector((1.0, -0.35, 0.0)),
+        size_wh=(2.50, 1.65),
+        mat_art=mat_chronicle, mat_frame_rock=mat_cave_wall, parent=root,
+        wall_tangent_hint=east_tangent,
+        embed_depth=2.10, proud_clearance=0.07,
+    )
+    print(f"PANEL_MOUNT Cave_Portal_Plaque pos=({p_pos.x:.2f},{p_pos.y:.2f},{p_pos.z:.2f}) n=({p_n.x:.2f},{p_n.y:.2f})")
+    print(f"PANEL_MOUNT Cave_Mural_Slab    pos=({m_pos.x:.2f},{m_pos.y:.2f},{m_pos.z:.2f}) n=({m_n.x:.2f},{m_n.y:.2f})")
+    print(f"PANEL_MOUNT Cave_Chronicle_Slab pos=({c_pos.x:.2f},{c_pos.y:.2f},{c_pos.z:.2f}) n=({c_n.x:.2f},{c_n.y:.2f})")
+    bm_int_bvh.free()
+    bm_ext_bvh.free()
 
     all_objs = [root, interior_obj, mountain_obj, pillars_obj, pool_obj, flora_obj, beams_obj, plaque_obj, mural_obj, chron_obj]
     total_polys = sum(len(o.data.polygons) for o in all_objs if o.type == "MESH")

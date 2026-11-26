@@ -146,8 +146,8 @@ func rebuild_for_map():
 		_mark("airdrop_beacon", game.Layout.AIRDROP_BEACON, "北脊空投信标 · 呼叫补给", Color("ffd15c"))
 		var cave_c: Vector3 = game.Layout.YANXIA_CAVE_CENTER
 		_mark("cliff_inscription", game.Layout.BAMBOO_MAZE_MOYA + Vector3(-0.05, 0, 0.0), "摩崖石刻《竹石清音》", Color("e8b878"))
-		# v0.9.9.5_dev1 Grand Mountain Cavern placements: Mid-Gallery Mural, Grand Hall Jade Spring Tea Hearth, Deep '一线天' Rift Wall!
-		_mark("cave_mural", Vector3(cave_c.x - 7.75, 0, cave_c.z - 10.20), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
+		# v0.9.9.6_dev2 Grand Mountain Cavern placements: Mid-Gallery Mural (flush with Cave_Mural_Slab), Grand Hall Tea Hearth, Deep '一线天' Rift Wall!
+		_mark("cave_mural", Vector3(cave_c.x - 6.25, 0, cave_c.z - 8.22), "先民岩凿壁画《烟山耕读》", Color("8de8c0"))
 		_mark("cave_hearth", Vector3(cave_c.x - 5.65, 0, cave_c.z - 27.30), "寒潭茶灶与古竹简", Color("ffd15c"))
 		_mark("dimensional_rift", Vector3(cave_c.x - 3.50, 0, cave_c.z - 33.40), "次元石壁 · 跨界裂隙", Color("5ef5e8"))
 		_build_shortcut_stockade()
@@ -416,7 +416,7 @@ func _mark(id: String, at: Vector3, label: String, color: Color):
 		prompt.pixel_size = 0.0038
 		prompt.text = "摩崖石刻《竹石清音》 · [F]"
 	elif id == "cave_mural":
-		prompt.position = Vector3(-0.55, 2.68, 0.0)
+		prompt.position = Vector3(-0.35, 3.35, 0.0)
 		prompt.pixel_size = 0.0038
 		prompt.text = "先民岩凿壁画《烟山耕读》 · [F]"
 	elif id == "cave_hearth":

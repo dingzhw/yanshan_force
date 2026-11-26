@@ -15,6 +15,9 @@ extends Node3D
 
 const HIT_LAYER := 32  # Dedicated bit 5 for Cave Warden hitboxes (isolated from player/world masks)
 const HEAR_RADIUS := 19.0
+const PROXIMITY_SENSE_RADIUS := 6.0  # ~113.1 m^2 circle == ~1/3 of Yanxia Grand Hall floor area (~313-358 m^2)
+const PROXIMITY_INSTANT_RADIUS := 2.8
+const SMOKE_PROXIMITY_RADIUS := 2.4
 const BALLISTIC_RANGE := 26.0
 const TERRITORY_RADIUS := 28.0
 const MAX_HP_NORMAL := 280
@@ -70,6 +73,8 @@ var lance_beam_node: MeshInstance3D
 var lance_beam_mat: StandardMaterial3D
 var rush_lane_node: MeshInstance3D
 var rush_lane_mat: StandardMaterial3D
+var proximity_ring_node: MeshInstance3D
+var proximity_ring_mat: StandardMaterial3D
 var sonar_rings: Array = []
 var shock_waves: Array = []
 
@@ -92,6 +97,9 @@ var rush_count := 0
 var wall_slam_count := 0
 var decoy_lure_count := 0
 var shockwave_count := 0
+var proximity_sense_count := 0
+var proximity_warn_cd := 0.0
+var smoke_blind_left := 0.0
 var enraged_resonance := false
 var phase2_triggered := false
 var last_shot_pos := Vector3.ZERO
@@ -388,6 +396,28 @@ func _build_warden():
 	rush_lane_node.hide()
 	add_child(rush_lane_node)
 
+	# v0.9.9.6_dev2 Diegetic 6.0m Sculk Proximity Sensing Aura Ring (~1/3 of Grand Hall area!)
+	# Visually telegraphs the close-quarters presence/scent boundary where crouching/prone is STILL detected!
+	proximity_ring_node = MeshInstance3D.new()
+	proximity_ring_node.name = "WardenProximityRing"
+	var pr_mesh := TorusMesh.new()
+	pr_mesh.inner_radius = PROXIMITY_SENSE_RADIUS - 0.12
+	pr_mesh.outer_radius = PROXIMITY_SENSE_RADIUS
+	pr_mesh.rings = 48
+	pr_mesh.ring_segments = 8
+	proximity_ring_node.mesh = pr_mesh
+	proximity_ring_mat = StandardMaterial3D.new()
+	proximity_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	proximity_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	proximity_ring_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	proximity_ring_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	proximity_ring_mat.albedo_color = Color(0.24, 0.86, 0.94, 0.24)
+	proximity_ring_node.material_override = proximity_ring_mat
+	proximity_ring_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	proximity_ring_node.position = Vector3(0.0, 0.09, 0.0)
+	proximity_ring_node.scale = Vector3(1.0, 0.12, 1.0)
+	root_node.add_child(proximity_ring_node)
+
 func _ground_pos(xz: Vector3) -> Vector3:
 	if xz.z >= -135.5 and xz.z <= -92.5 and xz.x >= -90.0 and xz.x <= -58.0:
 		return Vector3(xz.x, _cave_floor_y(), xz.z)
@@ -441,6 +471,9 @@ func reset():
 	wall_slam_count = 0
 	decoy_lure_count = 0
 	shockwave_count = 0
+	proximity_sense_count = 0
+	proximity_warn_cd = 0.0
+	smoke_blind_left = 0.0
 	enraged_resonance = false
 	phase2_triggered = false
 	last_shot_pos = Vector3.ZERO
@@ -931,6 +964,7 @@ func on_smoke_emp(origin: Vector3):
 		shot_origin_active = false
 		echo_charging = false
 		echo_charge_left = 0.0
+		smoke_blind_left = maxf(smoke_blind_left, 3.5)
 		if lance_state == "charging":
 			lance_state = "idle"
 			if is_instance_valid(lance_beam_node):
@@ -1406,6 +1440,8 @@ func update(delta: float):
 	quake_cd = maxf(0.0, quake_cd - delta)
 	echo_sweep_cd = maxf(0.0, echo_sweep_cd - delta)
 	hud_ping_cd = maxf(0.0, hud_ping_cd - delta)
+	proximity_warn_cd = maxf(0.0, proximity_warn_cd - delta)
+	smoke_blind_left = maxf(0.0, smoke_blind_left - delta)
 	if hit_flash_left > 0.0:
 		hit_flash_left = maxf(0.0, hit_flash_left - delta)
 	if deflect_flash_left > 0.0:
@@ -1474,10 +1510,18 @@ func update(delta: float):
 		set_guard_arms(false, 0.0)
 		_sync_label()
 
-	# Acoustic sensing vs Anti-Crouch-Snipe Mandatory Reposition + 1.5s Stealth Silence Disengage!
+	# Acoustic sensing + 6.0m Close-Proximity Scent/Heartbeat Sensing (~1/3 of Grand Hall area!)
+	# Entering <=6.0m alerts the Warden EVEN while crouched [C] or prone [Z], preventing zero-risk cave looting!
 	var hspeed := Vector2(game.player.velocity.x, game.player.velocity.z).length()
 	var stance: int = game.player.stance
-	var in_smoke: bool = is_instance_valid(game.combat) and game.combat.player_in_smoke()
+	var in_smoke: bool = (smoke_blind_left > 0.0) or (is_instance_valid(game.combat) and game.combat.player_in_smoke())
+	var flat_dist_p := Vector2(ppos.x - root_node.position.x, ppos.z - root_node.position.z).length()
+	var eff_prox_r: float = SMOKE_PROXIMITY_RADIUS if in_smoke else PROXIMITY_SENSE_RADIUS
+	var player_in_proximity: bool = (
+		player_in_cave
+		and flat_dist_p <= eff_prox_r
+		and absf(ppos.y - root_node.position.y) < 3.4
+	)
 	var player_is_noisy: bool = (
 		player_in_cave
 		and dist_p <= HEAR_RADIUS
@@ -1485,6 +1529,25 @@ func update(delta: float):
 		and stance == game.player.STANCE_STAND
 		and hspeed > 0.35
 	)
+	var player_sensed_now: bool = player_is_noisy or player_in_proximity
+
+	# Update diegetic 6.0m proximity sensing ring color & pulse intensity
+	if is_instance_valid(proximity_ring_node) and is_instance_valid(proximity_ring_mat):
+		proximity_ring_node.visible = (state != "defeated" and is_mode_active())
+		var ring_sc: float = clampf(eff_prox_r / PROXIMITY_SENSE_RADIUS, 0.35, 1.0)
+		proximity_ring_node.scale = Vector3(ring_sc, 0.12, ring_sc)
+		if player_in_proximity:
+			var p_fast := 0.5 + 0.5 * sin(elapsed * 14.0)
+			proximity_ring_mat.albedo_color = Color(1.0, 0.30 + 0.24 * (1.0 - p_fast), 0.18, 0.44 + p_fast * 0.28)
+		elif state == "hunt":
+			var p_hunt := 0.5 + 0.5 * sin(elapsed * 6.5)
+			proximity_ring_mat.albedo_color = Color(1.0, 0.48, 0.24, 0.26 + p_hunt * 0.14)
+		elif state == "investigate":
+			var p_inv := 0.5 + 0.5 * sin(elapsed * 4.5)
+			proximity_ring_mat.albedo_color = Color(1.0, 0.78, 0.28, 0.24 + p_inv * 0.12)
+		else:
+			var p_calm := 0.5 + 0.5 * sin(elapsed * 2.2)
+			proximity_ring_mat.albedo_color = Color(0.24, 0.86, 0.94, 0.18 + p_calm * 0.08)
 
 	var camping_shot := is_camping_shot_origin(ppos)
 	if shot_origin_active and not camping_shot:
@@ -1493,7 +1556,23 @@ func update(delta: float):
 			game._notice("✦ 已潜行转移脱离弹道锁定点！保持静默 1.5 秒，石卫便会放弃搜索并放开双臂！", Color("7ceeff"))
 			_sync_label()
 
-	if player_is_noisy:
+	if player_in_proximity:
+		stealth_quiet_timer = 0.0
+		var prev_st := state
+		var prox_closeness := clampf(1.0 - flat_dist_p / maxf(0.5, eff_prox_r), 0.0, 1.0)
+		var prox_rate := (72.0 if is_conf_m else 58.0) * (1.0 + 0.55 * prox_closeness)
+		if flat_dist_p <= PROXIMITY_INSTANT_RADIUS:
+			noise_meter = maxf(noise_meter, 78.0)
+			register_noise(ppos, 18.0, proximity_warn_cd <= 0.0)
+		else:
+			register_noise(ppos, prox_rate * delta, proximity_warn_cd <= 0.0)
+		if prev_st == "patrol" and state != "patrol":
+			proximity_sense_count += 1
+		if proximity_warn_cd <= 0.0:
+			proximity_warn_cd = 2.6
+			spawn_sonar_ring(root_node.position, Color("ff7838") if state == "hunt" else Color("ffd15c"), eff_prox_r)
+			game._notice("👁 闯入循声守卫近身气息感知圈（%.0fm）！蹲伏/匍匐也会被察觉——速退至 %.0fm 外，或投 [G] 烟雾 / 射岩壁诱敌！" % [PROXIMITY_SENSE_RADIUS, PROXIMITY_SENSE_RADIUS], Color("ff8a48"))
+	elif player_is_noisy:
 		stealth_quiet_timer = 0.0
 		var rate := 36.0 if hspeed > 5.0 else 18.0
 		register_noise(ppos, rate * delta, false)
@@ -1505,7 +1584,7 @@ func update(delta: float):
 			start_sonic_lance(last_shot_pos)
 		_sync_label()
 	else:
-		# Player relocated out of firing nest (or in smoke) AND stays silent -> 1.5s disengage cleanly lowers arms!
+		# Player relocated out of firing nest (and outside 6.0m proximity aura!) AND stays silent -> 1.5s disengage cleanly lowers arms!
 		noise_meter = maxf(0.0, noise_meter - 24.0 * delta)
 		if state in ["hunt", "investigate"] or guard_arms:
 			stealth_quiet_timer += delta
@@ -1523,7 +1602,7 @@ func update(delta: float):
 				_sync_label()
 
 	# Guard timer countdown when player keeps making noise (non-stealth kiting still eventually opens arms on pursuit)
-	if guard_arms and player_is_noisy:
+	if guard_arms and player_sensed_now:
 		var kite_mult := 1.45 if (player_in_cave and dist_p > 4.6) else 0.75
 		guard_left = maxf(0.0, guard_left - delta * kite_mult)
 		if guard_left <= 0.0:
@@ -1537,21 +1616,21 @@ func update(delta: float):
 	var move_speed := 1.65
 	var rage_spd_mult := 1.22 if enraged_resonance else 1.0
 	if state == "hunt":
-		move_target = _ground_pos(_clamp_to_cave(ppos if player_is_noisy else investigate_pos))
+		move_target = _ground_pos(_clamp_to_cave(ppos if player_sensed_now else investigate_pos))
 		move_speed = ((1.40 if is_conf_m else 1.15) if guard_arms else (4.15 if is_conf_m else 3.55)) * rage_spd_mult
 		if sonar_cd <= 0.0:
 			sonar_cd = 2.4
 			game.play_sfx("warden_sonar", -9)
 			spawn_sonar_ring(root_node.position, Color("ffd166") if guard_arms else Color("ff5c5c"), 11.0)
 		var blast_range := 10.8 if is_conf_m else 9.5
-		if player_in_cave and player_is_noisy and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode:
+		if player_in_cave and player_sensed_now and dist_p <= blast_range and attack_cd <= 0.0 and game.rules.combat_mode:
 			_deliver_sonic_retaliation(dist_p < 3.8, guard_arms)
 		# Move 5 (v0.9.8): Blind Bull-Rush Charge toward noisy/moving mid-range prey (dodge sideways -> Wall-Slam 2.6s Core Expose!)
-		if player_in_cave and player_is_noisy and not camping_shot and dist_p >= 4.4 and dist_p <= 13.5 and rush_state == "idle" and rush_cd <= 0.0 and lance_state == "idle" and not echo_charging and game.rules.combat_mode:
+		if player_in_cave and player_sensed_now and not camping_shot and dist_p >= 4.4 and dist_p <= 13.5 and rush_state == "idle" and rush_cd <= 0.0 and lance_state == "idle" and not echo_charging and game.rules.combat_mode:
 			start_blind_rush(ppos)
 		# Move 3: Cavern Quake Stalactite Rings (+ Phase-2 Jumpable Shockwave!) during hunt
 		if (player_in_cave or dist_p <= BALLISTIC_RANGE) and not in_smoke and quake_cd <= 0.0 and lance_state == "idle" and rush_state == "idle" and game.rules.combat_mode:
-			_trigger_cavern_quake(ppos if (player_is_noisy or camping_shot) else investigate_pos)
+			_trigger_cavern_quake(ppos if (player_sensed_now or camping_shot) else investigate_pos)
 			if phase2_triggered:
 				_spawn_ground_shockwave()
 		# Move 4: Confidential-Only Active Echolocation Sweep!
@@ -1597,7 +1676,7 @@ func update(delta: float):
 		is_moving_now = true
 		stride_phase += delta * (move_speed * 2.45)
 	if state == "hunt" or guard_arms or lance_state == "charging":
-		var face_target := last_shot_pos if (camping_shot or lance_state == "charging") else (ppos if player_is_noisy else investigate_pos)
+		var face_target := last_shot_pos if (camping_shot or lance_state == "charging") else (ppos if player_sensed_now else investigate_pos)
 		var face_p := Vector2(face_target.x - root_node.position.x, face_target.z - root_node.position.z)
 		if face_p.length() > 0.25:
 			root_node.rotation.y = lerp_angle(root_node.rotation.y, atan2(face_p.x, face_p.y), minf(delta * 7.2, 1.0))
