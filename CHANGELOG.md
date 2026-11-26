@@ -12,6 +12,9 @@
   - 全部 10 张贴图转换为 1024px/512px 无损 PNG（Godot 导入 `IMAGE_ERRORS=0`），头发与眉睫强制输出 `alphaMode=MASK` 深度写入消除双后端透明穿帮；将眼球/眉睫/头发/牙齿 100% 刚性绑定至 `Head`（修复 Auto-Rig Pro 面部微骨权重落入 `Hips` 导致的动画偏移），重映射至精简 19 骨解剖骨架并烘焙自然松弛营地站姿循环动画 `Idle_Camp`；普通行动山脚营地与序章「烟山初行」同步统一生效。
 - **角色小传官方立绘 1:1 重制与文案同步（`game/assets/portraits/chen_guide.png`、`game/scripts/lore_codex_ui.gd`）**：
   - 直接由新版 3D 陈向导实体在 Blender 5.3 EEVEE 三点晨光影棚渲染半身前景，与江南山野营地虚化景深背景合成为 `512×640` 官方立绘，实现实机 3D 模型与图鉴立绘 1:1 完全一致，并同步更新「档案 I · 烟山活地图」着装描述及 `game/THIRD_PARTY.txt` 非商用试玩来源说明。
+- **彻底修复中文 Windows 环境下 Forward+ 启动界面偶发 `0xc0000374` 闪退热修（`game/project.godot`、`game/tests/smoke.gd`、`tools/verify_packaged.gd`）**：
+  - 通过 Windows 崩溃转储定位根因：Godot `4.7.2` Windows 官方构建的 `glslang` 在中文区域设置（`CP936`）下由 `WorkerThreadPool` 多线程并发编译新着色器时，会并发调用非线程安全的 `msvcrt!setlocale` 引发堆破坏（`0xc0000374`）；
+  - 在 `game/project.godot` 显式锁定 `[threading] worker_pool/max_threads=1` 串行化后台着色器编译，并加入 `smoke.gd` 与 `verify_packaged.gd` 防回归断言；修复后经 28 次 Forward+ 启动压测（15 次源码 Vulkan + 5 次源码 D3D12 + 5 次成品裸 Forward+ 冷启动 + 3 次模拟真实双击无参启动）**28/28 零闪退**，同时 GL Compatibility 巡检总均帧由 `171.02 FPS` 提升至 `192.02 FPS`、首入尖峰由 `685 ms` 降至 `130 ms`。
 
 ---
 

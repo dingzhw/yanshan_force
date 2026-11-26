@@ -151,6 +151,7 @@ func run():
 	verify(game.paused and game.menu.visible, "Escape keycode pauses and releases game")
 	game._input(escape)
 	verify(not game.paused and not game.menu.visible, "Escape resumes paused action")
+	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "v0.9.9.5_dev2 hotfix: threading/worker_pool/max_threads pinned to 1 to prevent Chinese-Windows CP936 glslang setlocale 0xc0000374 crash")
 	game.queue_free()
 	await process_frame
 	print("PLAYTEST_CHECKS_PASSED=", checks)
