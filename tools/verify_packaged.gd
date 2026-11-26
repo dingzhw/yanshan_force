@@ -402,6 +402,35 @@ func run():
 			)
 			ch2_i.free()
 	verify(v0995_dev2_chen_ok, "standalone PCK includes v0.9.9.5_dev2 unmodified high-fidelity Chen Guide GLB (Chen_Armature + Chen_VeteranHair + Idle_Camp)")
+	var v0996_dev1_ok := true
+	var v0996_specs := [
+		["res://assets/slice/v0996_haavk_trooper.glb", "Haavk_Armature", "haavk_trooper_Weapon"],
+		["res://assets/slice/v0996_vanguard_boss.glb", "Vanguard_Armature", "Vanguard_ChestCore"],
+		["res://assets/slice/v0996_skyfall_overlord.glb", "Overlord_Armature", "overlord_halo_ring"],
+		["res://assets/slice/v0996_ahsarah_guard.glb", "AhsarahGuard_Armature", "ahsarah_guard_Weapon"],
+		["res://assets/slice/v0996_boss_saeed.glb", "BossSaeed_Armature", "saeed_cloak_pivot"],
+		["res://assets/slice/v0996_boss_reis.glb", "BossReis_Armature", "reis_gramophone"],
+	]
+	for sp96 in v0996_specs:
+		if not ResourceLoader.exists(sp96[0]):
+			v0996_dev1_ok = false
+			break
+		var p96 = load(sp96[0])
+		if not (p96 is PackedScene):
+			v0996_dev1_ok = false
+			break
+		var i96: Node = p96.instantiate()
+		var ap96 := i96.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		var ok96 := (
+			i96.find_child(sp96[1], true, false) != null
+			and i96.find_child(sp96[2], true, false) != null
+			and ap96 != null and ap96.has_animation("Idle_Aim") and ap96.has_animation("Walk_Patrol") and ap96.has_animation("Run_Advance")
+		)
+		i96.free()
+		if not ok96:
+			v0996_dev1_ok = false
+			break
+	verify(v0996_dev1_ok, "standalone PCK includes all 6 v0.9.9.6_dev1 PBR skeletal character/boss GLBs (HAAVK/Vanguard/Overlord/Ahsarah/Saeed/Reis) with Idle_Aim/Walk_Patrol/Run_Advance")
 	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "standalone PCK pins threading/worker_pool/max_threads=1 to prevent Chinese-Windows CP936 glslang msvcrt setlocale 0xc0000374 startup crash")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")

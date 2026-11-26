@@ -5,16 +5,16 @@
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Engine](https://img.shields.io/badge/Godot-4.7.2%20Vulkan%20Forward%2B-blue.svg)
-![Version](https://img.shields.io/badge/Version-v0.9.9.5__dev2-amber.svg)
+![Version](https://img.shields.io/badge/Version-v0.9.9.6__dev1-amber.svg)
 
-## v0.9.9.5_dev2 试玩（未改动高精度原数模营地联络官「陈向导」+ 1:1 匹配官方立绘与角色小传同步）
+## v0.9.9.6_dev1 试玩（全阵营最后 6 位高精度 PBR 骨骼角色/首领换装 + 1:1 工作室匹配官方立绘）
 
-双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版基于 `v0.9.9.5_dev1` 进一步完成营地联络官外观与图鉴的全面统一：
-- **未改动高精度原数模「陈向导」（`npc_chen_guide.glb`）**：完整保留高精度原数模的俊朗五官、偏分短发、深蓝战术执勤服、炭灰防弹背心、肩挂无线对讲机、露指手套、护膝与作战靴（`87,772` 面、`14` 网格、10 张无损 PNG 贴图、`Alpha Mask` 发丝眉睫、19 骨解剖骨架与自然松弛 `Idle_Camp` 站姿），普通行动山脚营地与单人序章「烟山初行」同步生效。
-- **角色小传官方立绘 1:1 一致（`chen_guide.png` / `lore_codex_ui.gd`）**：由新版陈向导 3D 实体直接影棚渲染并合成江南晨光营地虚化背景（`512×640`），实现「图鉴立绘 = 实机 3D 模型」1:1 严格一致，并同步更新档案着装文案与非商用试玩资产边界标注。
-- **全量回归与四层成品验收**：核心回归（`smoke` 42/0、`slice` 229/0、`ahsarah` 108/0，累计 10 套 720 断言 0 失败）、Forward+ / GL Compatibility 双后端 8 图核验与独立包四层验真（`49/49` PCK 核验 + GL Compat 总均帧 **`171.02 FPS`** / 烟霞古洞口 **`152.46 FPS`**，RX 6600 + Forward+ 启动通过）全部完成。
+双击项目根目录的「开始烟山试玩.cmd」或独立包中的「开始试玩.cmd」。低负载入口使用 GL Compatibility，按 F6 可在当前后端内切换低画质。本版基于 `v0.9.9.5_dev2` 热修基线（保留中文 Windows Forward+ 零闪退 `max_threads=1` 守护），彻底替换烟山与阿萨拉全阵营最后 6 位旧无贴图低模角色与首领：
+- **烟山与阿萨拉 6 位角色/首领全量 PBR 骨骼化**：新增 6 份无损 8-bit PNG 内嵌贴图骨骼模型（`v0996_vanguard_boss.glb` 铁面词卫、`v0996_skyfall_overlord.glb` 3.68m 玄铁词尊含旋转黄金齿轮光轮、`v0996_haavk_trooper.glb` 纯白哈夫克特勤、`v0996_ahsarah_guard.glb` 红白头巾阿萨拉卫队、`v0996_boss_saeed.glb` 暗红兜帽披风赤枭·赛伊德、`v0996_boss_reis.glb` 墨镜鎏金肩甲与古董留声机军阀·雷斯），统一配备 `Idle_Aim / Walk_Patrol / Run_Advance` 骨骼动画与真实面罩/胸核材质绑定。
+- **角色小传 6 张官方立绘 1:1 同步换新**：由 6 位新版 3D 模型直接影棚渲染并合成阵营景深背景（`512×640`），实现烟山游侠、雾隐帮、阿萨拉卫队与哈夫克集团全图鉴立绘与游戏内实机 3D 造型 1:1 一致。
+- **双后端实机验收与四层独立包验真**：核心回归（`smoke`、`slice` 230/0、`ahsarah` 109/0、`combat` 129/0）、Forward+ / GL Compatibility 双后端 16 张全彩实机截图目检与独立包四层验真（`51/51` PCK 核验 + GL Compat 总均帧 **`160.72 FPS`** / B 区 **`141.23 FPS`** / 古洞口 **`129.91 FPS`** + Forward+ 3 次冷启动 `3/3` 零闪退）全部通过。
 
-[游戏发展路线图](docs/游戏发展路线图.md) · [v0.9.9.5_dev2 试玩说明](docs/v0.9.9.5_dev2-试玩说明.txt) · [v0.9.9.5_dev2 验收记录](docs/v0.9.9.5_dev2-验收记录.md) · [v0.9.9.5_dev1 验收记录](docs/v0.9.9.5_dev1-验收记录.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
+[游戏发展路线图](docs/游戏发展路线图.md) · [v0.9.9.6_dev1 试玩说明](docs/v0.9.9.6_dev1-试玩说明.txt) · [v0.9.9.6_dev1 验收记录](docs/v0.9.9.6_dev1-验收记录.md) · [v0.9.9.5_dev2 验收记录](docs/v0.9.9.5_dev2-验收记录.md) · [项目开发规则](docs/PROJECT_DEV_RULES.md)
 
 ---
 
@@ -28,7 +28,23 @@
 
 ---
 
-## 实机画面 · Screenshots (`v0.9.9.5_dev2` & `v0.9.9.5_dev1` & `v0.9.9.5`)
+## 实机画面 · Screenshots (`v0.9.9.6_dev1` & `v0.9.9.5_dev2` & `v0.9.9.5_dev1`)
+
+| 铁面词卫·雾隐先锋（烟山 B 区实拍，`v0.9.9.6_dev1`） | 玄铁词尊·雾隐机关王（3.68m 黑金巨像与黄金光轮，`v0.9.9.6_dev1`） |
+| :---: | :---: |
+| ![v0996dev1铁面词卫](docs/media/v0996_dev1_vanguard_boss.png) | ![v0996dev1玄铁词尊](docs/media/v0996_dev1_skyfall_overlord.png) |
+
+| 阿萨拉卫队（红白格纹头巾与卡宾枪，`v0.9.9.6_dev1`） | 哈夫克精锐特勤（纯白陶瓷复合甲与青蓝面罩，`v0.9.9.6_dev1`） |
+| :---: | :---: |
+| ![v0996dev1阿萨拉卫队](docs/media/v0996_dev1_ahsarah_guard.png) | ![v0996dev1哈夫克特勤](docs/media/v0996_dev1_haavk_trooper.png) |
+
+| 赤枭·赛伊德（深红兜帽披风与古铜飞枭徽，`v0.9.9.6_dev1`） | 阿萨拉军阀·雷斯（墨镜、鎏金肩甲与古董黄铜留声机，`v0.9.9.6_dev1`） |
+| :---: | :---: |
+| ![v0996dev1赤枭赛伊德](docs/media/v0996_dev1_boss_saeed.png) | ![v0996dev1军阀雷斯](docs/media/v0996_dev1_boss_reis.png) |
+
+| 角色小传 1:1 同步官方立绘 · 阿萨拉阵营（`v0.9.9.6_dev1`） | 角色小传 1:1 同步官方立绘 · 雾隐帮阵营（`v0.9.9.6_dev1`） |
+| :---: | :---: |
+| ![v0996dev1阿萨拉小传立绘](docs/media/v0996_dev1_codex_ahsarah.png) | ![v0996dev1雾隐帮小传立绘](docs/media/v0996_dev1_codex_mistbound.png) |
 
 | 营地联络官「陈向导」未改动原数模近景（Vulkan Forward+，`v0.9.9.5_dev2`） | 营地联络官「陈向导」同机位近景对照（GL Compatibility，`v0.9.9.5_dev2`） |
 | :---: | :---: |

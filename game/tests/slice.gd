@@ -28,7 +28,7 @@ func run():
 	await process_frame
 	game.start_action(true, "normal")
 	await frames(3)
-	verify(game.VERSION == "0.9.9.5_dev2" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.5_dev2 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
+	verify(game.VERSION == "0.9.9.6_dev1" and game.words.size() == 175 and game.crate_nodes.size() == 6, "v0.9.9.6_dev1 slice uses 175-entry word pack and 6 Yanshan blind-box vault crates")
 	var tac_counts := {"ammo_crate": 0, "smoke_emp": 0, "energy_drink": 0}
 	var active_ammo_norm := 0
 	var supply_count := 0
@@ -1225,6 +1225,20 @@ func run():
 		and chen_dev2_ap != null and chen_dev2_ap.has_animation("Idle_Camp")
 	)
 	verify(chen_dev2_ok, "v0.9.9.5_dev2: Camp Liaison Chen Guide mounts unmodified high-fidelity skeletal model (Chen_Armature + Chen_VeteranHair + Idle_Camp)")
+	# 13) v0.9.9.6_dev1 Yanshan Vanguard Boss & Skyfall Overlord PBR Skeletal GLBs
+	var vb_found := false
+	for zid_vb in game.combat.troops.keys():
+		for bot_vb in game.combat.troops[zid_vb]:
+			if is_instance_valid(bot_vb) and bot_vb.find_child("VanguardBossRig", true, false) != null and is_instance_valid(bot_vb.rig_anim_player) and bot_vb.rig_anim_player.has_animation("Idle_Aim"):
+				vb_found = true
+	game.start_action(true, "confidential")
+	await frames(3)
+	var ov_found := false
+	for zid_ov in game.combat.troops.keys():
+		for bot_ov in game.combat.troops[zid_ov]:
+			if is_instance_valid(bot_ov) and bot_ov.is_skyfall_overlord and bot_ov.find_child("SkyfallOverlordRig", true, false) != null and is_instance_valid(bot_ov.ov_halo) and is_instance_valid(bot_ov.rig_anim_player) and bot_ov.rig_anim_player.has_animation("Idle_Aim"):
+				ov_found = true
+	verify(vb_found and ov_found, "v0.9.9.6_dev1: Yanshan Vanguard Boss (VanguardBossRig) & Skyfall Overlord (SkyfallOverlordRig + overlord_halo_ring) mount PBR skeletal GLBs with animations")
 	game._end_run(false)
 
 	game.queue_free()

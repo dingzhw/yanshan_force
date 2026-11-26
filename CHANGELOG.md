@@ -4,6 +4,19 @@
 
 ---
 
+## [v0.9.9.6_dev1] - 2026-11-26
+
+交付 **「全阵营最后 6 位高精度 PBR 骨骼角色/首领全面换装 + 6 张 1:1 工作室匹配官方立绘」**（`v0.9.9.6` 收官封板第一阶段）：
+- **烟山与阿萨拉全阵营 6 位旧低模角色/首领全面 PBR 骨骼化（`tools/build_v0996_dev1_armored_units.py`、`tools/build_v0996_dev1_ahsarah_humans.py`、`game/scripts/word_soldier.gd`）**：
+  - **三位重装外骨骼单位（19 骨、`Idle_Aim / Walk_Patrol / Run_Advance`）**：哈夫克精锐特勤（`v0996_haavk_trooper.glb`，雪白陶瓷甲 + 炭黑内衬 + 青蓝面罩 + 脉冲步枪）、铁面词卫·雾隐先锋（`v0996_vanguard_boss.glb`，玄铁绯红狼首重甲 + 绯红面罩 + 六棱发光胸核 + 重机炮）、玄铁词尊·雾隐机关王（`v0996_skyfall_overlord.glb`，`3.68m` 黑曜鎏金巨像 + 豺狼角盔 + 旋转黄金齿轮法轮 `overlord_halo_ring` + 双臂黄金光刃）；
+  - **三位阿萨拉沙漠真人单位（65 骨、`Idle_Aim / Walk_Patrol / Run_Advance`）**：阿萨拉卫队（`v0996_ahsarah_guard.glb`，沙色作战服 + 皮革弹药包 + 红白格纹阿拉伯头巾 + 俊朗五官与战术卡宾枪）、赤枭·赛伊德（`v0996_boss_saeed.glb`，深暗红织物连帽与可摆动披风 `saeed_cloak_pivot` + 炭黑防弹背心 + 古铜飞枭胸徽 + 黑色面罩 + 复合弩与 M249）、阿萨拉军阀·雷斯（`v0996_boss_reis.glb`，飞行员墨镜 + 藏青军官服/防弹背心 + 黑曜鎏金立体肩甲 + 左肩紧凑可旋转古董黄铜大喇叭留声机 `reis_gramophone` + S12K 重霰弹）；
+  - 全部 6 份 GLB 强制输出经 `\x89PNG` 魔数强校验的无损 8-bit PNG 内嵌贴图与单一 `TEXCOORD_0`（`missing_uv0=0`、`IMAGE_ERRORS=0`），彻底杜绝 Godot 4.7.2 内嵌 JPEG 解码发白；实装 `_attach_skeletal_unit_rig()` 统一绑定真实面罩/胸核材质并隐藏阿萨拉常规士兵腹前多余胸核贴片，同时保留旧模型作为轻量化回退兼容。
+- **角色小传 6 张官方立绘 1:1 工作室同步换新（`tools/compose_v0996_dev1_portraits.py` → `game/assets/portraits/*.png`）**：
+  - 由 6 位新版 3D 实体直接影棚渲染半身像并叠加各自阵营专属景深背景合成 `512×640` 官方档案立绘（`haavk_trooper` / `vanguard_boss` / `skyfall_overlord` / `ahsarah_guard` / `saeed_fiery_owl` / `reis_warlord`），实现全阵营 1:1 图鉴与实机高度统一。
+- **全量验证与四层成品验收**：`smoke` + `slice (230/0)` + `ahsarah (109/0)` + `combat (129/0)` 全部零失败；Forward+（Vulkan）与 GL Compatibility（OpenGL 3.3）双后端 16 张实机截屏零错误目检通过；Windows 独立包 `51/51` PCK 核验、GL Compat 巡检均帧 `160.72 FPS`（古洞口 `129.91 FPS` / B 区 `141.23 FPS`）及 Forward+ 3 次冷启动 `3/3` 零闪退全部通过。
+
+---
+
 ## [v0.9.9.5_dev2] - 2026-11-26
 
 交付 **「未改动高精度原数模营地联络官『陈向导』+ 1:1 匹配官方立绘与角色小传同步」**：

@@ -1040,12 +1040,18 @@ func run():
 	game.start_action(true, "confidential")
 	await frames(4)
 	var ov_boss = game.combat.boss_unit
+	var ov_rig_ok: bool = (
+		is_instance_valid(ov_boss.ov_halo)
+		and (
+			(is_instance_valid(ov_boss.rig_anim_player) and ov_boss.find_child("Skeleton3D", true, false) != null)
+			or (is_instance_valid(ov_boss.ov_arm_l) and is_instance_valid(ov_boss.ov_arm_r) and is_instance_valid(ov_boss.ov_head))
+		)
+	)
 	verify(
 		is_instance_valid(ov_boss) and ov_boss.is_skyfall_overlord and ov_boss.skyfall_state == "idle"
 		and not ov_boss.visible and ov_boss.collision_layer == 0
-		and is_instance_valid(ov_boss.ov_arm_l) and is_instance_valid(ov_boss.ov_arm_r)
-		and is_instance_valid(ov_boss.ov_head) and is_instance_valid(ov_boss.ov_halo),
-		"v0.8.6: Confidential Overlord spawns hidden in clouds with 5-part articulated rig (arms/head/dharma halo)"
+		and ov_rig_ok,
+		"v0.8.6 / v0.9.9.6_dev1: Confidential Overlord spawns hidden in clouds with animated skeletal/articulated rig & spinning dharma halo"
 	)
 	# Aiming with ADS from ~44m away (clear of other camps) MUST NOT drop or engage Overlord!
 	var arena_c: Vector3 = game.Layout.CLOUD_ARENA_CENTER

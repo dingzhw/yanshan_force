@@ -38,7 +38,7 @@ func run():
 	await frames(4)
 
 	# 1. Fresh save strictly locks Ahsarah Fortress until unlocked via Yanxia Cave or Settings toggle
-	verify(game.VERSION == "0.9.9.5_dev2" and game.active_map_id == "yanshan", "v0.9.9.5_dev2 boots cleanly on Yanshan Base")
+	verify(game.VERSION == "0.9.9.6_dev1" and game.active_map_id == "yanshan", "v0.9.9.6_dev1 boots cleanly on Yanshan Base")
 	verify(game.rules.is_map_unlocked("yanshan") and not game.rules.is_map_unlocked("ahsarah"), "Ahsarah Fortress starts locked on a clean save")
 	verify(not game.switch_map("ahsarah"), "switch_map('ahsarah') cleanly refuses while locked")
 	verify(is_instance_valid(game.landscape) and is_instance_valid(game.landscape.dimensional_rift_node), "Yanxia Ancient Cave mounts sculpted Dimensional Rift Wall ('次元石壁') behind skylight")
@@ -583,6 +583,32 @@ func run():
 	verify(is_instance_valid(desert_terrain) and desert_terrain.material_override is ShaderMaterial, "v0.9.7: Ahsarah Desert uses multi-layer CC0 PBR spatial ShaderMaterial")
 	verify(heli_deck != null and heli_deck.find_child("*", true, false) is StaticBody3D, "v0.9.7: Ahsarah Helipad concrete deck has solid beveled trimesh collision (zero sinking feet)")
 	verify(is_instance_valid(scrub_mmi) and scrub_mmi.multimesh.instance_count >= 50 and is_instance_valid(stone_mmi) and stone_mmi.multimesh.instance_count >= 80, "v0.9.7: Ahsarah Desert scatters GPU-instanced photogrammetry scrub & stones")
+
+	# 13) v0.9.9.6_dev1 Full-Cast Ahsarah PBR Skeletal Models (Ahsarah Guard / HAAVK Trooper / Saeed / Warlord Reis)
+	game.start_action(true, "normal")
+	await frames(3)
+	var ag_rigs := 0
+	var hk_rigs := 0
+	var saeed_ok := false
+	for zid_a in game.combat.troops.keys():
+		for bot_a in game.combat.troops[zid_a]:
+			if not is_instance_valid(bot_a):
+				continue
+			if bot_a.find_child("AhsarahGuardRig", true, false) != null and is_instance_valid(bot_a.rig_anim_player) and bot_a.rig_anim_player.has_animation("Idle_Aim"):
+				ag_rigs += 1
+			elif bot_a.find_child("HaavkTrooperRig", true, false) != null and is_instance_valid(bot_a.rig_anim_player) and bot_a.rig_anim_player.has_animation("Idle_Aim"):
+				hk_rigs += 1
+			elif bot_a.find_child("CaptainSaeedRig", true, false) != null and is_instance_valid(bot_a.saeed_cloak) and is_instance_valid(bot_a.rig_anim_player) and bot_a.rig_anim_player.has_animation("Idle_Aim"):
+				saeed_ok = true
+	game.start_action(true, "confidential")
+	await frames(3)
+	var reis_ok := false
+	for zid_r in game.combat.troops.keys():
+		for bot_r in game.combat.troops[zid_r]:
+			if is_instance_valid(bot_r) and bot_r.is_skyfall_overlord and bot_r.find_child("WarlordReisRig", true, false) != null and is_instance_valid(bot_r.reis_gramophone) and is_instance_valid(bot_r.rig_anim_player) and bot_r.rig_anim_player.has_animation("Idle_Aim"):
+				reis_ok = true
+	verify(ag_rigs >= 4 and hk_rigs >= 2 and saeed_ok and reis_ok, "v0.9.9.6_dev1: Ahsarah Guard (%d), HAAVK Trooper (%d), Captain Saeed (+cloak) & Warlord Reis (+gramophone) all mount PBR skeletal GLBs" % [ag_rigs, hk_rigs])
+	game._end_run(false)
 
 	if FileAccess.file_exists(tmp_profile):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_profile))

@@ -89,6 +89,12 @@ const OVERLORD_TRIGGER_RADIUS := 22.0
 const AHSARAH_CHARS_GLB := "res://assets/slice/v090_ahsarah_characters.glb"
 const MISTBOUND_ASSAULT_GLB := "res://assets/slice/v097_mistbound_assault.glb"
 const MISTBOUND_SNIPER_GLB := "res://assets/slice/v097_mistbound_sniper.glb"
+const VANGUARD_BOSS_GLB := "res://assets/slice/v0996_vanguard_boss.glb"
+const SKYFALL_OVERLORD_GLB := "res://assets/slice/v0996_skyfall_overlord.glb"
+const HAAVK_TROOPER_GLB := "res://assets/slice/v0996_haavk_trooper.glb"
+const AHSARAH_GUARD_GLB := "res://assets/slice/v0996_ahsarah_guard.glb"
+const BOSS_SAEED_GLB := "res://assets/slice/v0996_boss_saeed.glb"
+const BOSS_REIS_GLB := "res://assets/slice/v0996_boss_reis.glb"
 
 var is_ahsarah_unit: bool = false
 var ahsarah_faction: String = "ahsarah"
@@ -137,6 +143,7 @@ var is_nemesis_bounty: bool = false
 var shield_material: StandardMaterial3D
 var frame_material: StandardMaterial3D
 var visor: StandardMaterial3D
+var base_visor_col: Color = Color("7ef0c8")
 var laser_beam: MeshInstance3D
 var legs: Array[Node3D] = []
 var rig_anim_player: AnimationPlayer = null
@@ -506,9 +513,11 @@ func _build_model():
 	word_label.outline_modulate = Color("03080b")
 	word_label.visibility_range_end = 102.0
 
-	# Embedded Glowing Chest Word Core Crystal (on regular troopers & drones — visible sci-fi word core on armor!)
+	# Embedded Glowing Chest Word Core Crystal (on Mistbound/drone units; hidden on formal Ahsarah PBR troopers so chest armor & rifle stay unobstructed!)
 	if archetype != Archetype.BOSS_WARDEN:
 		_build_chest_word_core(game)
+		if is_ahsarah_unit and archetype != Archetype.SCOUT_DRONE and is_instance_valid(chest_core_root):
+			chest_core_root.hide()
 
 	# Sniper / Aim Laser Sight Beam
 	laser_beam = MeshInstance3D.new()
@@ -613,38 +622,68 @@ func _attach_ahsarah_rig(game, rig_name: String, sc: float = 1.0) -> Node3D:
 	inst.queue_free()
 	return null
 
-func _attach_mistbound_rig(game, glb_path: String, sc: float, default_visor_col: Color) -> bool:
+func _attach_skeletal_unit_rig(
+	game,
+	glb_path: String,
+	rig_node_name: String,
+	sc: float,
+	default_visor_col: Color,
+	bind_core_mat: bool = false,
+	default_core_col: Color = Color("ff9d3b"),
+	create_visor_box_if_missing: bool = false
+) -> Node3D:
 	if not ResourceLoader.exists(glb_path):
-		return false
+		return null
 	if not game.scene_cache.has(glb_path):
 		game.scene_cache[glb_path] = load(glb_path)
 	var packed = game.scene_cache.get(glb_path)
 	if not (packed is PackedScene):
-		return false
+		return null
 	var inst: Node3D = packed.instantiate()
-	inst.name = "MistboundSkeletalRig"
+	inst.name = rig_node_name
 	inst.position = Vector3.ZERO
 	inst.scale = Vector3.ONE * sc
 	visual_root.add_child(inst)
 
-	# Bind unique duplicated visor StandardMaterial3D from Mistbound_Helmet so aim/stun flashes work independently!
+	# Bind unique duplicated Visor & optional ChestCore StandardMaterial3Ds directly from sculpted PBR GLB meshes!
+	base_visor_col = default_visor_col
 	visor = null
+	if bind_core_mat:
+		core_material = null
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m == null or m.mesh == null:
 			continue
 		for s in m.mesh.get_surface_count():
 			var smat := m.mesh.surface_get_material(s)
-			if smat is StandardMaterial3D and "Visor" in String(smat.resource_name):
+			if not (smat is StandardMaterial3D):
+				continue
+			var rname := String(smat.resource_name)
+			if visor == null and "Visor" in rname and not ("VisorEdge" in rname):
 				var dup := smat.duplicate() as StandardMaterial3D
 				dup.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				dup.emission_enabled = false
 				dup.albedo_color = default_visor_col
 				m.set_surface_override_material(s, dup)
 				visor = dup
-				break
+			elif bind_core_mat and core_material == null and "ChestCore" in rname:
+				var cdup := smat.duplicate() as StandardMaterial3D
+				cdup.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				cdup.emission_enabled = false
+				cdup.albedo_color = default_core_col
+				m.set_surface_override_material(s, cdup)
+				core_material = cdup
 	if visor == null:
-		visor = game._mesh_box(visual_root, Vector3(0, 1.72, 0.16), Vector3(0.24, 0.06, 0.04), default_visor_col).material_override
-		visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		if create_visor_box_if_missing:
+			visor = game._mesh_box(visual_root, Vector3(0, 1.72, 0.16), Vector3(0.24, 0.06, 0.04), default_visor_col).material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		else:
+			# Unhelmeted human characters (Ahsarah Guard / Saeed / Reis) keep clean sculpted faces with zero floating visor box!
+			visor = StandardMaterial3D.new()
+			visor.albedo_color = default_visor_col
+	if bind_core_mat and core_material == null:
+		core_material = StandardMaterial3D.new()
+		core_material.albedo_color = default_core_col
 
 	rig_anim_player = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	rig_anim_state = ""
@@ -656,14 +695,23 @@ func _attach_mistbound_rig(game, glb_path: String, sc: float, default_visor_col:
 		if rig_anim_player.has_animation("Idle_Aim"):
 			rig_anim_state = "Idle_Aim"
 			rig_anim_player.play("Idle_Aim")
-	return true
+	return inst
+
+func _attach_mistbound_rig(game, glb_path: String, sc: float, default_visor_col: Color) -> bool:
+	return _attach_skeletal_unit_rig(game, glb_path, "MistboundSkeletalRig", sc, default_visor_col, false, Color("ff9d3b"), true) != null
 
 func _build_assault_chassis(game):
 	if is_ahsarah_unit:
-		var rig_nm := "haavk_trooper" if ahsarah_faction == "haavk" else "ahsarah_guard"
+		var is_haavk := (ahsarah_faction == "haavk")
+		var v96_path := HAAVK_TROOPER_GLB if is_haavk else AHSARAH_GUARD_GLB
+		var rig_name := "HaavkTrooperRig" if is_haavk else "AhsarahGuardRig"
+		var vcol := Color("36e8ff") if is_haavk else Color("ffaa33")
+		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.03, vcol, false, Color("ff9d3b"), false) != null:
+			return
+		var rig_nm := "haavk_trooper" if is_haavk else "ahsarah_guard"
 		var rig := _attach_ahsarah_rig(game, rig_nm, 1.04)
 		if rig != null:
-			var vcol := Color("36e8ff") if ahsarah_faction == "haavk" else Color("ffaa33")
+			base_visor_col = vcol
 			visor = game._mesh_box(visual_root, Vector3(0, 1.76, 0.24), Vector3(0.28, 0.08, 0.04), vcol).material_override
 			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return
@@ -705,9 +753,15 @@ func _build_assault_chassis(game):
 
 func _build_sniper_chassis(game):
 	if is_ahsarah_unit:
-		var rig_nm := "haavk_trooper" if ahsarah_faction == "haavk" else "ahsarah_guard"
+		var is_haavk := (ahsarah_faction == "haavk")
+		var v96_path := HAAVK_TROOPER_GLB if is_haavk else AHSARAH_GUARD_GLB
+		var rig_name := "HaavkTrooperRig" if is_haavk else "AhsarahGuardRig"
+		if _attach_skeletal_unit_rig(game, v96_path, rig_name, 1.07, Color("ff4d6d"), false, Color("ff9d3b"), false) != null:
+			return
+		var rig_nm := "haavk_trooper" if is_haavk else "ahsarah_guard"
 		var rig := _attach_ahsarah_rig(game, rig_nm, 1.12)
 		if rig != null:
+			base_visor_col = Color("ff4d6d")
 			visor = game._mesh_box(visual_root, Vector3(0, 1.88, 0.26), Vector3(0.32, 0.09, 0.05), Color("ff4d6d")).material_override
 			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return
@@ -740,26 +794,31 @@ func _build_sniper_chassis(game):
 func _build_boss_chassis(game):
 	if is_ahsarah_unit:
 		if is_skyfall_overlord:
-			# Confidential Mode Boss: 「阿萨拉军阀·雷斯」 (Warlord Reis)
+			# Confidential Mode Boss: 「阿萨拉军阀·雷斯」 (Warlord Reis — v0.9.9.6_dev1 high-fidelity 65-bone skeletal GLB!)
 			ov_arm_l = null
 			ov_arm_r = null
 			ov_head = null
 			ov_halo = null
-			var r_rig := _attach_ahsarah_rig(game, "boss_reis", 1.32)
-			if r_rig != null:
-				r_rig.name = "WarlordReisRig"
-				ov_arm_l = r_rig.find_child("reis_arm_l", true, false) as Node3D
-				ov_arm_r = r_rig.find_child("reis_arm_r", true, false) as Node3D
-				reis_gramophone = r_rig.find_child("reis_gramophone", true, false) as Node3D
-			var rv_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.06, 0.36), Vector3(0.46, 0.12, 0.05), Color("ffd15c"))
-			visor = rv_box.material_override
-			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			var rc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.25, 0.56), Vector3(0.48, 0.48, 0.14), Color("ff9f38"))
-			core_material = rc_box.material_override
-			core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			reis_gramophone = null
+			var r_v96 := _attach_skeletal_unit_rig(game, BOSS_REIS_GLB, "WarlordReisRig", 1.24, Color("ffd15c"), true, Color("ff9f38"), false)
+			if r_v96 != null:
+				reis_gramophone = r_v96.find_child("reis_gramophone", true, false) as Node3D
+			else:
+				var r_rig := _attach_ahsarah_rig(game, "boss_reis", 1.32)
+				if r_rig != null:
+					r_rig.name = "WarlordReisRig"
+					ov_arm_l = r_rig.find_child("reis_arm_l", true, false) as Node3D
+					ov_arm_r = r_rig.find_child("reis_arm_r", true, false) as Node3D
+					reis_gramophone = r_rig.find_child("reis_gramophone", true, false) as Node3D
+				var rv_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.06, 0.36), Vector3(0.46, 0.12, 0.05), Color("ffd15c"))
+				visor = rv_box.material_override
+				visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				var rc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.25, 0.56), Vector3(0.48, 0.48, 0.14), Color("ff9f38"))
+				core_material = rc_box.material_override
+				core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			core_area = Area3D.new()
 			core_area.set_meta("hit_zone", "core")
-			core_area.position = Vector3(0, 2.25, 0.62)
+			core_area.position = Vector3(0, 2.15, 0.52)
 			core_area.collision_layer = 0
 			core_area.collision_mask = 0
 			add_child(core_area)
@@ -770,19 +829,28 @@ func _build_boss_chassis(game):
 			core_area.add_child(rcol)
 			return
 		else:
-			# Normal Mode Boss: 「赤枭·赛伊德」 (Captain Saeed)
-			var s_rig := _attach_ahsarah_rig(game, "boss_saeed", 1.12)
-			if s_rig != null:
-				s_rig.name = "CaptainSaeedRig"
-				saeed_cloak = s_rig.find_child("saeed_cloak_pivot", true, false) as Node3D
-				ov_arm_l = s_rig.find_child("saeed_arm_l", true, false) as Node3D
-				ov_arm_r = s_rig.find_child("saeed_arm_r", true, false) as Node3D
-			var sc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 1.56, 0.48), Vector3(0.40, 0.40, 0.12), Color("ff6c24"))
-			core_material = sc_box.material_override
-			core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			# Normal Mode Boss: 「赤枭·赛伊德」 (Captain Saeed — v0.9.9.6_dev1 high-fidelity 65-bone skeletal GLB!)
+			saeed_cloak = null
+			ov_arm_l = null
+			ov_arm_r = null
+			var s_v96 := _attach_skeletal_unit_rig(game, BOSS_SAEED_GLB, "CaptainSaeedRig", 1.08, Color("ffaa22"), true, Color("ff6c24"), false)
+			if s_v96 != null:
+				saeed_cloak = s_v96.find_child("saeed_cloak_pivot", true, false) as Node3D
+			else:
+				var s_rig := _attach_ahsarah_rig(game, "boss_saeed", 1.12)
+				if s_rig != null:
+					s_rig.name = "CaptainSaeedRig"
+					saeed_cloak = s_rig.find_child("saeed_cloak_pivot", true, false) as Node3D
+					ov_arm_l = s_rig.find_child("saeed_arm_l", true, false) as Node3D
+					ov_arm_r = s_rig.find_child("saeed_arm_r", true, false) as Node3D
+				var sc_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 1.56, 0.48), Vector3(0.40, 0.40, 0.12), Color("ff6c24"))
+				core_material = sc_box.material_override
+				core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				visor = game._mesh_box(visual_root, Vector3(0, 2.30, 0.34), Vector3(0.36, 0.10, 0.05), Color("ffaa22")).material_override
+				visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			core_area = Area3D.new()
 			core_area.set_meta("hit_zone", "core")
-			core_area.position = Vector3(0, 1.56, 0.54)
+			core_area.position = Vector3(0, 1.56, 0.44)
 			core_area.collision_layer = HIT_LAYER
 			core_area.collision_mask = 0
 			core_area.monitoring = false
@@ -793,44 +861,45 @@ func _build_boss_chassis(game):
 			var sccol := CollisionShape3D.new()
 			sccol.shape = scshape
 			core_area.add_child(sccol)
-			visor = game._mesh_box(visual_root, Vector3(0, 2.30, 0.34), Vector3(0.36, 0.10, 0.05), Color("ffaa22")).material_override
-			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return
 	if is_skyfall_overlord:
-		var path := "res://assets/slice/v082_bosses.glb"
-		var loaded_mesh := false
 		ov_arm_l = null
 		ov_arm_r = null
 		ov_head = null
 		ov_halo = null
-		if ResourceLoader.exists(path):
-			if not game.scene_cache.has(path):
-				game.scene_cache[path] = load(path)
-			var inst: Node3D = game.scene_cache[path].instantiate()
-			var tgt = inst.find_child("skyfall_overlord", true, false)
-			if tgt is Node3D:
-				if tgt.get_parent():
-					tgt.get_parent().remove_child(tgt)
-				tgt.owner = null
-				tgt.name = "SkyfallOverlordRig"
-				tgt.position = Vector3.ZERO
-				visual_root.add_child(tgt)
-				ov_arm_l = tgt.find_child("overlord_arm_l", true, false) as Node3D
-				ov_arm_r = tgt.find_child("overlord_arm_r", true, false) as Node3D
-				ov_head = tgt.find_child("overlord_head", true, false) as Node3D
-				ov_halo = tgt.find_child("overlord_halo_ring", true, false) as Node3D
-				loaded_mesh = true
-			inst.queue_free()
-		# Glowing visor handle for rage/stun color shifts
-		var v_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.40, 0.42), Vector3(0.56, 0.16, 0.06), Color("ff2838"))
-		visor = v_box.material_override
-		visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var c_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.42, 0.62), Vector3(0.50, 0.50, 0.16), Color("ff6c24"))
-		core_material = c_box.material_override
-		core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var ov_v96 := _attach_skeletal_unit_rig(game, SKYFALL_OVERLORD_GLB, "SkyfallOverlordRig", 1.0, Color("ff2838"), true, Color("ff6c24"), false)
+		var loaded_mesh := (ov_v96 != null)
+		if ov_v96 != null:
+			ov_halo = ov_v96.find_child("overlord_halo_ring", true, false) as Node3D
+		else:
+			var path := "res://assets/slice/v082_bosses.glb"
+			if ResourceLoader.exists(path):
+				if not game.scene_cache.has(path):
+					game.scene_cache[path] = load(path)
+				var inst: Node3D = game.scene_cache[path].instantiate()
+				var tgt = inst.find_child("skyfall_overlord", true, false)
+				if tgt is Node3D:
+					if tgt.get_parent():
+						tgt.get_parent().remove_child(tgt)
+					tgt.owner = null
+					tgt.name = "SkyfallOverlordRig"
+					tgt.position = Vector3.ZERO
+					visual_root.add_child(tgt)
+					ov_arm_l = tgt.find_child("overlord_arm_l", true, false) as Node3D
+					ov_arm_r = tgt.find_child("overlord_arm_r", true, false) as Node3D
+					ov_head = tgt.find_child("overlord_head", true, false) as Node3D
+					ov_halo = tgt.find_child("overlord_halo_ring", true, false) as Node3D
+					loaded_mesh = true
+				inst.queue_free()
+			var v_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 3.40, 0.42), Vector3(0.56, 0.16, 0.06), Color("ff2838"))
+			visor = v_box.material_override
+			visor.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			var c_box: MeshInstance3D = game._mesh_box(visual_root, Vector3(0, 2.42, 0.62), Vector3(0.50, 0.50, 0.16), Color("ff6c24"))
+			core_material = c_box.material_override
+			core_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		core_area = Area3D.new()
 		core_area.set_meta("hit_zone", "core")
-		core_area.position = Vector3(0, 2.42, 0.68)
+		core_area.position = Vector3(0, 2.42, 0.62)
 		core_area.collision_layer = 0
 		core_area.collision_mask = 0
 		add_child(core_area)
@@ -841,6 +910,23 @@ func _build_boss_chassis(game):
 		core_area.add_child(ccol_o)
 		if loaded_mesh:
 			return
+	# Normal Mode Yanshan B-Zone Boss: 「铁面词卫 · 雾隐先锋」 (v0.9.9.6_dev1 high-fidelity PBR skeletal GLB!)
+	var vb_v96 := _attach_skeletal_unit_rig(game, VANGUARD_BOSS_GLB, "VanguardBossRig", 1.0, Color("ff4f4f"), true, Color("ff9d3b"), false)
+	if vb_v96 != null:
+		core_area = Area3D.new()
+		core_area.set_meta("hit_zone", "core")
+		core_area.position = Vector3(0, 1.56, 0.44)
+		core_area.collision_layer = HIT_LAYER
+		core_area.collision_mask = 0
+		core_area.monitoring = false
+		core_area.monitorable = false
+		add_child(core_area)
+		var v_cshape := BoxShape3D.new()
+		v_cshape.size = Vector3(0.56, 0.52, 0.34)
+		var v_ccol := CollisionShape3D.new()
+		v_ccol.shape = v_cshape
+		core_area.add_child(v_ccol)
+		return
 	var obsidian_mat = _ceramic_plate_mat(Color("222c30"), false)
 	var gold_mat = _bronze_trim_mat(Color("d6a648"))
 	var armor_mat = _ceramic_plate_mat(Color("2f4b44"), true)
@@ -2543,12 +2629,13 @@ func _physics_process(delta: float):
 
 	if not combat.in_field():
 		return
-	if action == Action.AIM:
-		visor.albedo_color = Color("ffb347")
-	elif rage_hunting:
-		visor.albedo_color = Color("ff1e2e")
-	else:
-		visor.albedo_color = Color("ff4f4f") if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN] else Color("7ef0c8")
+	if is_instance_valid(visor):
+		if action == Action.AIM:
+			visor.albedo_color = Color("ffb347")
+		elif rage_hunting:
+			visor.albedo_color = Color("ff1e2e")
+		else:
+			visor.albedo_color = base_visor_col
 
 	if (engaged or distance <= 98.0) and distance > 0.05:
 		rotation.y = atan2(toward_player.x, toward_player.z)
