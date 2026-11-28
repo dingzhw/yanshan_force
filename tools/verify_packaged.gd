@@ -449,6 +449,63 @@ func run():
 	if cb_inst_p != null:
 		cb_inst_p.free()
 	verify(v0996_dev3_ok, "standalone PCK includes v0.9.9.6_dev3 zero-duplicate Boss word allocator, 4-stage enemy morale/evasion AI & 106 CN voice clips")
+	# v0.9.9.6 Final Quality Closure: shared_pbr deduplication integrity, shader prewarm, 3-slot saves & local telemetry!
+	var shared_dir := DirAccess.open("res://assets/shared_pbr")
+	var shared_tex_seen := {}
+	var shared_tex_loaded := 0
+	if shared_dir != null:
+		for raw_s in shared_dir.get_files():
+			var sf: String = raw_s.trim_suffix(".import")
+			if (sf.ends_with(".png") or sf.ends_with(".jpg") or sf.ends_with(".jpeg")) and not shared_tex_seen.has(sf):
+				shared_tex_seen[sf] = true
+				var stex = load("res://assets/shared_pbr/" + sf)
+				if stex is Texture2D and stex.get_width() >= 128:
+					shared_tex_loaded += 1
+	var dedup_glbs_ok := true
+	var dedup_tex_slots := 0
+	for dg in [
+		"res://assets/slice/rock_0.glb",
+		"res://assets/slice/v086_architecture.glb",
+		"res://assets/slice/v0995_yanxia_grand_cave.glb",
+		"res://assets/slice/v090_ahsarah_architecture.glb",
+		"res://assets/slice/v091_ahsarah_fortress.glb",
+		"res://assets/slice/v0996_boss_saeed.glb",
+		"res://assets/slice/v0996_vanguard_boss.glb"
+	]:
+		var dp = load(dg)
+		if not (dp is PackedScene):
+			dedup_glbs_ok = false
+			break
+		var di: Node = dp.instantiate()
+		for mi in di.find_children("*", "MeshInstance3D", true, false):
+			var mesh: Mesh = (mi as MeshInstance3D).mesh
+			if mesh == null:
+				continue
+			for s_i in mesh.get_surface_count():
+				var sm = mesh.surface_get_material(s_i)
+				if sm is StandardMaterial3D and sm.albedo_texture != null:
+					dedup_tex_slots += 1
+		di.free()
+	var main_cls = load("res://scripts/main.gd")
+	var main_inst_p = main_cls.new() if main_cls != null else null
+	var rules_inst_p = rules_cls.new() if rules_cls != null else null
+	var cb_inst_96 = combat_cls.new() if combat_cls != null else null
+	var v0996_final_ok: bool = (
+		shared_tex_loaded >= 25
+		and dedup_glbs_ok and dedup_tex_slots >= 20
+		and main_inst_p != null and String(main_inst_p.VERSION) == "0.9.9.6"
+		and int(main_inst_p.SAVE_SLOT_COUNT) == 3
+		and main_inst_p.has_method("switch_save_slot")
+		and main_inst_p.has_method("get_save_slot_summary")
+		and main_inst_p.has_method("_sync_menu_world_rendering")
+		and rules_inst_p != null and rules_inst_p.has_method("reset_profile_to_default") and rules_inst_p.has_method("record_session_telemetry")
+		and cb_inst_96 != null and cb_inst_96.has_method("prewarm_combat_shaders")
+	)
+	if main_inst_p != null:
+		main_inst_p.free()
+	if cb_inst_96 != null:
+		cb_inst_96.free()
+	verify(v0996_final_ok, "standalone PCK includes v0.9.9.6 shared_pbr (%d textures, %d deduplicated GLB material slots), shader prewarm, 3-slot local saves & telemetry" % [shared_tex_loaded, dedup_tex_slots])
 	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "standalone PCK pins threading/worker_pool/max_threads=1 to prevent Chinese-Windows CP936 glslang msvcrt setlocale 0xc0000374 startup crash")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")

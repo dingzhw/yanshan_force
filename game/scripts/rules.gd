@@ -374,49 +374,71 @@ var crates = []
 var supplies_opened = []
 var loot_rng := RandomNumberGenerator.new()
 
-var profile = {
-	"schema_version": PROFILE_SCHEMA_VERSION,
-	"saved_by_version": "0.9.9.3",
-	"coins": 0,
-	"xp": 0,
-	"points": 0,
-	"trophies": 0,
-	"reputation": 0,
-	"unlocked_maps": ["yanshan"],
-	"active_ranger": "shaoyu",
-	"unlocked_rangers": ["shaoyu"],
-	"character_cards": ["shaoyu"],
-	"bounties_completed": 0,
-	"warehouse": [],
-	"display_stand": [],
-	"owned": [],
-	"equipped": {"optic": "", "muzzle": "", "grip": ""},
-	"extractions": 0,
-	"prologue_completed": false,
-	"prologue_best_seconds": 0,
-	"mastery": {},
-	"review_due": {},
-	"learning_stats": {},
-	"lore_stats": DEFAULT_LORE_STATS.duplicate(true),
-	"settings": DEFAULT_SETTINGS.duplicate(true),
-	"last_run": {},
-	"stats": {},
-	"achievements": [],
-	"unlocked_charms": [],
-	"equipped_charm": "",
-	"collection": [],
-	"red_extracted": 0,
-	"gold_extracted": 0,
-	"small_gold_extracted": 0,
-	"best_haul": 0,
-	"best_item_title": "",
-	"best_item_value": 0
-}
+static func default_profile_dict() -> Dictionary:
+	return {
+		"schema_version": PROFILE_SCHEMA_VERSION,
+		"saved_by_version": "0.9.9.6",
+		"coins": 0,
+		"xp": 0,
+		"points": 0,
+		"trophies": 0,
+		"reputation": 0,
+		"unlocked_maps": ["yanshan"],
+		"active_ranger": "shaoyu",
+		"unlocked_rangers": ["shaoyu"],
+		"character_cards": ["shaoyu"],
+		"bounties_completed": 0,
+		"warehouse": [],
+		"display_stand": [],
+		"owned": [],
+		"equipped": {"optic": "", "muzzle": "", "grip": ""},
+		"extractions": 0,
+		"prologue_completed": false,
+		"prologue_best_seconds": 0,
+		"mastery": {},
+		"review_due": {},
+		"learning_stats": {},
+		"lore_stats": DEFAULT_LORE_STATS.duplicate(true),
+		"settings": DEFAULT_SETTINGS.duplicate(true),
+		"last_run": {},
+		"session_telemetry": [],
+		"stats": {},
+		"achievements": [],
+		"unlocked_charms": [],
+		"equipped_charm": "",
+		"collection": [],
+		"red_extracted": 0,
+		"gold_extracted": 0,
+		"small_gold_extracted": 0,
+		"best_haul": 0,
+		"best_item_title": "",
+		"best_item_value": 0
+	}
+
+var profile = default_profile_dict()
 
 var learning := LearningStore.new(profile)
 
 func _init():
 	loot_rng.randomize()
+
+func reset_profile_to_default():
+	profile = default_profile_dict()
+	learning = LearningStore.new(profile)
+	ensure_equipped()
+	ensure_map_profile()
+	ensure_ranger_profile()
+	ensure_lore_stats()
+	ensure_settings()
+
+func record_session_telemetry(entry: Dictionary):
+	## v0.9.9.6 Lightweight local session telemetry (stored strictly in user:// profile, capped at last 30 runs).
+	if not profile.has("session_telemetry") or not (profile["session_telemetry"] is Array):
+		profile["session_telemetry"] = []
+	var arr: Array = profile["session_telemetry"]
+	arr.append(entry.duplicate(true))
+	while arr.size() > 30:
+		arr.pop_front()
 
 func accuracy() -> float:
 	return float(correct) / float(answered) if answered > 0 else 0.0

@@ -4,6 +4,26 @@
 
 ---
 
+## [v0.9.9.6] - 2026-11-28
+
+**`v0.9` 质量收口正式封板** —— 集成全部 `v0.9.9.6_dev1–dev3` 内容，并彻底清零路线图阶段 C 最后 5 项工程/性能/存档治理任务（零遗留顺延至 `v0.10.0`）：
+- **全量 GLB 重复贴图去重与 PCK/ZIP 巨幅瘦身（`tools/dedup_glb_textures.py` → `game/assets/shared_pbr/`）**：
+  - 将跨 23 个 `.glb` 资产重复内嵌的 PBR 贴图抽离为标准 glTF 2.0 相对外部 URI（指向 `assets/shared_pbr/` 30 张共享图与既有 `assets/pbr_v097/`），并压实未引用二进制 `bufferView` 与清理冗余提取图；
+  - 实测 `.godot/imported/` 由 `319.44 MiB` 降至 **`216.42 MiB`（`-103.02 MiB`）**，重复 `.ctex` 浪费由 `67.21 MiB`（53 组）降至 **`0.68 MiB`（消除 99.0%）**；独立包 `YanshanBase.pck` 由 `316.48 MiB` 瘦身至 **`218.20 MiB`（`-98.28 MiB / -31.1%`）**，Windows 压缩包由 `349.77 MiB` 降至 **`252.09 MiB`（`-97.68 MiB / -27.9%`）**；Forward+ 与 GL Compatibility 双后端实机目检 100% 画质零退化。
+- **冷启动加速与首进战区卡顿尖峰根治（`game/scripts/main.gd`、`combat.gd`、`prologue.gd`、`wildlife.gd`）**：
+  - 主菜单遮罩期间通过 `_sync_menu_world_rendering()` 自动暂停隐藏主世界 3D 渲染管线（右侧 3D 沙盘由独立 `SubViewport` 流畅绘制不受影响），并延后初始化序章 3D 道具（含 `v072_collectibles` 青瓷加载）与阿萨拉 28 只荒漠生灵直至实际进章/切图；冷启动主菜单就绪耗时（`startup_menu_frame_ms`）由 `12,457 ms` 锐减至 **`5,586 ms`（`-55.2%`，稳居 `≤ 8s` 红线内）**，首帧隐藏主世界停顿由 `+6,403 ms` 压至 **`+51 ms`**；
+  - 新增 `combat.prewarm_combat_shaders()` 在各战区首次部署首 3 帧静默预热敌军/首领骨骼模型、词盾与战斗特效着色器，使烟山首营首进尖峰由 `736.89 ms` 骤降至 **`10.59 ms`（压低 70×）**、B 区首领首进尖峰由 `79.99 ms` 骤降至 **`7.17 ms`（压低 11×）**。
+- **升级前安全备份防覆盖 & 3 独立本地存档槽位（`game/scripts/main.gd`、`rules.gd`）**：
+  - 加固 `_backup_pre_upgrade_profile()` 写盘错误检查与逐字节回读校验并返回布尔值；若备份失败立即中止升级覆写、进入只读保护并在主菜单显著提示，确保历史旧档零覆盖风险；
+  - 交付 **3 个完全独立的本地存档槽位**（槽位 1 直接兼容全部历史 `profile-v070.json` 旧档，槽位 2/3 独立保存于 `profile-slot2.json` / `profile-slot3.json`，当前激活槽位持久化于 `save-slots-meta.json`），在左栏遥测区新增快捷「存档槽 ▾」微标并在 ⚙ 设置面板底部提供直观的 3 槽位切换卡（行动进行中自动锁定防误切）。
+- **阿萨拉高负载性能巡检、本地运行遥测、核显一键复测工具与透明资产边界（`performance_tour.gd`、`release_playtest.py`、`game/THIRD_PARTY.txt`）**：
+  - `performance_tour.gd` 扩展第 4 段「阿萨拉三景高负载扫描」（零号大坝全景 `164.81 FPS` / 巴克什集市战斗 `132.23 FPS` / 行政堡垒首领战 `167.94 FPS`，P95 均 `< 10 ms`）；
+  - 存档新增轻量本地运行遥测 `session_telemetry`（最近 30 局耗时、求助次数、正确率与结束原因，100% 离线）；
+  - 发行包与根目录新增一键 **`核显目标机复测.cmd`** 及 [docs/v0.9.9.6-5700G核显实测留白模板.md](docs/v0.9.9.6-5700G核显实测留白模板.md)；更新 `game/THIRD_PARTY.txt` 顶部明确区分开源可分发核心（Tier A）与家庭非商用试玩资产及 CC0 回退替换清单（Tier B）。
+- **全量回归与同步五层成品验收**：6 套核心源码回归 **645 / 645 零失败**；独立包 `54/54` PCK 核验（含 30 张 `shared_pbr` 与 97 处去重 GLB 材质槽）、GL Compat 冷/热启动 `7,231 / 6,081 ms`、GL Compat 全 4 段 7 场景巡检 `all_sections_verified=true`、Forward+ 3 次冷启动 `3/3` 零闪退与 ZIP CRC/SHA256 核验全通过。
+
+---
+
 ## [v0.9.9.6_dev3] - 2026-11-28
 
 交付 **「烟霞古洞地面落地/石壁阴刻先人壁画/洞口零穿模封边/外围山体与远景柔化 · 首领战零重复词池与护卫词牌降噪 · 敌军 4 阶段动态态度台词/40 条离线中文配音与第 4 阶段畏惧躲避 AI」**：

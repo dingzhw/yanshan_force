@@ -42,6 +42,27 @@ def write_launchers(folder: Path, relative_exe: str = "YanshanBase.exe", root_en
             ':balanced\n'
             f'start "" {exe} -- --qa --hardware-check --low-quality\n'
         ),
+        "核显目标机复测.cmd": (
+            '@echo off\n'
+            'setlocal\n'
+            f'set "DRZ_DIAGNOSTICS_DIR=%~dp0{diagnostics}"\n'
+            'echo =========================================================\n'
+            'echo  Yanshan Force - 5700G / Vega 8 iGPU Benchmark Tour\n'
+            'echo  Renderer: gl_compatibility + --low-quality + --auto-quit\n'
+            'echo  Output:   %DRZ_DIAGNOSTICS_DIR%\n'
+            'echo =========================================================\n'
+            f'start "" /wait {exe} --rendering-method gl_compatibility -- --qa --hardware-check --low-quality --auto-quit\n'
+            'set "RC=%ERRORLEVEL%"\n'
+            'echo.\n'
+            'if "%RC%"=="0" (\n'
+            '  echo [PASS] Benchmark completed! See latest performance-*.json in:\n'
+            '  echo        %DRZ_DIAGNOSTICS_DIR%\n'
+            ') else (\n'
+            '  echo [FAIL] Benchmark exited with code %RC%. Check diagnostics folder.\n'
+            ')\n'
+            'pause\n'
+            'exit /b %RC%\n'
+        ),
     }
     for name, contents in scripts.items():
         (folder / name).write_bytes(contents.replace("\n", "\r\n").encode("ascii"))
@@ -201,10 +222,12 @@ def main():
         f"启动入口说明:\n"
         f"- 开始试玩.cmd: 默认 Forward+ (Vulkan)，独显或现代核显推荐\n"
         f"- 低负载启动.cmd: GL Compatibility (OpenGL) + 低画质，集成显卡/低配电脑推荐\n"
-        f"- 性能巡检.cmd: 自动跑完自由靶场、正式行动与四景帧时，报告写入 diagnostics/\n\n"
-        f"存档与备份位置:\n"
-        f"- %APPDATA%\\Godot\\app_userdata\\烟山基地 · 英语搜撤试玩\\profile-v070.json\n"
-        f"- 升级旧档前自动创建 profile-backup-pre-v3.json\n",
+        f"- 性能巡检.cmd: 自动跑完自由靶场、正式行动、烟山四景与阿萨拉三景帧时，报告写入 diagnostics/\n"
+        f"- 核显目标机复测.cmd: 面向 5700G / Vega 8 核显的一键同步复测脚本（自动退出并汇总 diagnostics/ 报告）\n\n"
+        f"存档与多槽位位置 (v0.9.9.6 支持 3 独立本地槽位):\n"
+        f"- 槽位 1 (默认主档/兼容旧档): %APPDATA%\\Godot\\app_userdata\\烟山基地 · 英语搜撤试玩\\profile-v070.json\n"
+        f"- 槽位 2 / 3: profile-slot2.json / profile-slot3.json（当前槽位记录于 save-slots-meta.json）\n"
+        f"- 升级旧档前自动创建并校验 profile-backup-pre-v3.json（若备份失败将中止覆盖并开启只读保护）\n",
         encoding="utf-8-sig",
     )
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:

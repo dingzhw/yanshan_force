@@ -18,7 +18,8 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.9.6_dev3"
+const VERSION = "0.9.9.6"
+const SAVE_SLOT_COUNT = 3
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -85,11 +86,16 @@ var question_help_used := false
 var question_audio_assisted := false
 var question_audiovisual_played := false
 var run_started_ms := -1
+var run_help_count: int = 0
+var active_save_slot: int = 1
+var slot_base_dir_override: String = ""
 var profile_read_failed := false
+var profile_backup_failed := false
 var last_save_error := ""
 var last_backup_path := ""
 var _unknown_profile_fields: Dictionary = {}
 var force_save_fail_for_test := false
+var force_backup_fail_for_test := false
 var distractor_rng := RandomNumberGenerator.new()
 
 var ui: Control
@@ -120,6 +126,9 @@ var setting_cn_voice_slider: HSlider
 var setting_cn_voice_lbl: Label
 var setting_sens_slider: HSlider
 var setting_sens_lbl: Label
+var save_slot_buttons: Array = []
+var save_slot_info_label: Label
+var sidebar_slot_badge: Button
 var terminal_title_label: Label
 var radar_title_label: Label
 var stance_widget
@@ -245,6 +254,7 @@ func _ready():
 	_load_words()
 	sentences = LearningStore.load_sentences()
 	cloze_index = LearningStore.build_cloze_index(sentences)
+	_load_active_slot_meta()
 	_load_profile()
 	startup_ms["font_voice_profile"] = Time.get_ticks_msec() - step_begin
 	step_begin = Time.get_ticks_msec()
@@ -304,6 +314,7 @@ func _ready():
 	_sync_settings_ui()
 	_apply_initial_menu_selection()
 	_refresh_menu()
+	_sync_menu_world_rendering()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	startup_ms["loot_and_menu"] = Time.get_ticks_msec() - step_begin
 	startup_ms["ready_total"] = Time.get_ticks_msec() - startup_begin
@@ -633,35 +644,173 @@ func _load_words():
 func cloze_for_word(word_id: String) -> Dictionary:
 	return cloze_index.get(word_id, {})
 
+func _slot_base_dir() -> String:
+	return slot_base_dir_override if slot_base_dir_override != "" else "user://"
+
+func _slots_meta_path() -> String:
+	return _slot_base_dir().path_join("save-slots-meta.json")
+
+func slot_path(slot_idx: int) -> String:
+	var idx := clampi(slot_idx, 1, SAVE_SLOT_COUNT)
+	var base := _slot_base_dir()
+	if idx == 1:
+		return base.path_join("profile-v070.json")
+	return base.path_join("profile-slot%d.json" % idx)
+
+func _load_active_slot_meta():
+	if profile_path_override != "" or (qa_mode and slot_base_dir_override == ""):
+		active_save_slot = 1
+		return
+	var mp := _slots_meta_path()
+	if not FileAccess.file_exists(mp):
+		active_save_slot = 1
+		return
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(mp))
+	if parsed is Dictionary:
+		active_save_slot = clampi(int(parsed.get("active_slot", 1)), 1, SAVE_SLOT_COUNT)
+
+func _save_active_slot_meta() -> bool:
+	if profile_path_override != "" or (qa_mode and slot_base_dir_override == ""):
+		return true
+	var base := _slot_base_dir()
+	if base != "user://":
+		DirAccess.make_dir_recursive_absolute(base)
+	var mp := _slots_meta_path()
+	var f := FileAccess.open(mp, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify({"active_slot": active_save_slot, "version": VERSION}, "\t"))
+	var err := f.get_error()
+	f.close()
+	return err == OK
+
+func get_save_slot_summary(slot_idx: int) -> Dictionary:
+	var idx := clampi(slot_idx, 1, SAVE_SLOT_COUNT)
+	var sp := slot_path(idx)
+	var out := {
+		"slot": idx,
+		"path": sp,
+		"exists": false,
+		"coins": 0,
+		"extractions": 0,
+		"mastered": 0,
+		"prologue_done": false,
+		"saved_by": "",
+		"label": "空槽位 · 新建进度"
+	}
+	if not FileAccess.file_exists(sp):
+		return out
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(sp))
+	if not (parsed is Dictionary):
+		out["exists"] = true
+		out["label"] = "⚠ 存档损坏"
+		return out
+	out["exists"] = true
+	out["coins"] = maxi(0, int(parsed.get("coins", 0)))
+	out["extractions"] = maxi(0, int(parsed.get("extractions", 0)))
+	out["prologue_done"] = bool(parsed.get("prologue_completed", false))
+	out["saved_by"] = str(parsed.get("saved_by_version", ""))
+	var ls_tmp := LearningStore.new(parsed)
+	var mastered_cnt: int = ls_tmp.mastered_count(words) if not words.is_empty() else 0
+	out["mastered"] = mastered_cnt
+	out["label"] = "%d词 · %d币 · %d撤" % [mastered_cnt, int(out["coins"]), int(out["extractions"])]
+	return out
+
+func switch_save_slot(slot_idx: int) -> bool:
+	if rules.phase in ["active", "extracting"]:
+		if is_instance_valid(menu_status):
+			menu_status.text = "⚠ 行动进行中无法切换存档槽，请先撤离或放弃本局。"
+		return false
+	var target := clampi(slot_idx, 1, SAVE_SLOT_COUNT)
+	active_save_slot = target
+	_save_active_slot_meta()
+	rules.reset_profile_to_default()
+	_load_profile()
+	if active_map_id == "ahsarah" and not rules.is_map_unlocked("ahsarah"):
+		switch_map("yanshan")
+	if is_instance_valid(camp_display_stand):
+		refresh_camp_display_stand()
+	_sync_settings_ui()
+	_apply_initial_menu_selection()
+	_refresh_menu()
+	if is_instance_valid(menu_status):
+		var sm := get_save_slot_summary(active_save_slot)
+		menu_status.text = "已切换至【存档槽 %d】(%s)" % [active_save_slot, str(sm.label)]
+	return true
+
+func _sync_menu_world_rendering():
+	## v0.9.9.6: Main menu has an opaque backdrop + its own isolated 3D WarMap SubViewport (own_world_3d=true),
+	## so skipping the hidden main-world 3D pass while the menu is visible cuts cold startup time dramatically!
+	if DisplayServer.get_name() == "headless":
+		return
+	var menu_up: bool = is_instance_valid(menu) and menu.visible
+	var vp := get_viewport()
+	if is_instance_valid(vp):
+		vp.disable_3d = menu_up
+	if is_instance_valid(war_map):
+		war_map.set_rendering_active(menu_up)
+
 func _save_path() -> String:
 	if profile_path_override != "":
 		return profile_path_override
-	return "user://qa-profile.json" if qa_mode else "user://profile-v070.json"
+	if qa_mode and slot_base_dir_override == "":
+		return "user://qa-profile.json"
+	return slot_path(active_save_slot)
 
-func _backup_pre_upgrade_profile(_source_path: String, raw_text: String):
-	var bak_path: String = (profile_path_override + ".pre-v3.bak") if profile_path_override != "" else "user://profile-backup-pre-v3.json"
+func _backup_pre_upgrade_profile(_source_path: String, raw_text: String) -> bool:
+	## v0.9.9.6 Hardened upgrade backup: writes pre-v3 snapshot and verifies byte-for-byte readback.
+	## Returns false on ANY write/readback failure so caller aborts migration overwrite cleanly!
+	var bak_path: String
+	if profile_path_override != "":
+		bak_path = profile_path_override + ".pre-v3.bak"
+	elif active_save_slot == 1:
+		bak_path = _slot_base_dir().path_join("profile-backup-pre-v3.json")
+	else:
+		bak_path = _slot_base_dir().path_join("profile-slot%d-backup-pre-v3.json" % active_save_slot)
+	if force_backup_fail_for_test:
+		profile_backup_failed = true
+		last_save_error = "升级前备份失败（QA 模拟受阻），已中止升级覆盖并开启只读保护：" + bak_path
+		push_warning("Pre-upgrade backup failed (simulated): " + bak_path)
+		return false
 	if FileAccess.file_exists(bak_path):
-		last_backup_path = bak_path
-		return
+		var existing := FileAccess.get_file_as_string(bak_path)
+		if existing.length() > 0:
+			last_backup_path = bak_path
+			return true
 	var bf := FileAccess.open(bak_path, FileAccess.WRITE)
-	if bf != null:
-		bf.store_string(raw_text)
-		bf.close()
-		last_backup_path = bak_path
+	if bf == null:
+		profile_backup_failed = true
+		last_save_error = "升级前备份创建失败，已中止覆盖旧档并开启只读保护：" + bak_path
+		push_warning("Cannot create pre-upgrade backup: " + bak_path)
+		return false
+	bf.store_string(raw_text)
+	var w_err := bf.get_error()
+	bf.close()
+	var verify_text := FileAccess.get_file_as_string(bak_path) if FileAccess.file_exists(bak_path) else ""
+	if w_err != OK or verify_text != raw_text:
+		profile_backup_failed = true
+		last_save_error = "升级前备份校验失败，已中止覆盖旧档并开启只读保护：" + bak_path
+		push_warning("Pre-upgrade backup verification mismatch: " + bak_path)
+		return false
+	last_backup_path = bak_path
+	return true
 
 func _load_profile():
-	if qa_mode and profile_path_override == "":
+	if qa_mode and profile_path_override == "" and slot_base_dir_override == "":
 		return
 	profile_read_failed = false
+	profile_backup_failed = false
 	last_save_error = ""
 	_unknown_profile_fields.clear()
 	var path := _save_path()
 	var loaded_from_legacy_file := false
 	if not FileAccess.file_exists(path):
-		if profile_path_override != "":
+		if profile_path_override != "" or active_save_slot != 1:
 			return
 		var fallback := ""
-		for candidate in ["user://profile-v067.json", "user://profile-v01.json"]:
+		var base := _slot_base_dir()
+		for cand_name in ["profile-v067.json", "profile-v01.json"]:
+			var candidate := base.path_join(cand_name)
 			if FileAccess.file_exists(candidate):
 				fallback = candidate
 				break
@@ -679,7 +828,9 @@ func _load_profile():
 	if data is Dictionary:
 		var incoming_schema: int = int(data.get("schema_version", 1))
 		if loaded_from_legacy_file or incoming_schema < Rules.PROFILE_SCHEMA_VERSION:
-			_backup_pre_upgrade_profile(path, raw_text)
+			if not _backup_pre_upgrade_profile(path, raw_text):
+				profile_read_failed = true
+				profile_backup_failed = true
 		for k in data.keys():
 			if not rules.profile.has(k):
 				_unknown_profile_fields[k] = data[k]
@@ -711,15 +862,21 @@ func _load_profile():
 	rules.ensure_equipped()
 
 func _save() -> bool:
-	if qa_mode and profile_path_override == "":
+	if qa_mode and profile_path_override == "" and slot_base_dir_override == "":
 		return true
 	if force_save_fail_for_test:
 		last_save_error = "模拟磁盘写入受阻（QA 测试）"
+		return false
+	if profile_backup_failed:
+		if last_save_error == "":
+			last_save_error = "升级前备份失败，为防止覆盖旧档已进入只读保护"
 		return false
 	if profile_read_failed:
 		last_save_error = "原存档读取失败，为防止覆盖已中止写入"
 		return false
 	var path := _save_path()
+	if slot_base_dir_override != "" and profile_path_override == "":
+		DirAccess.make_dir_recursive_absolute(slot_base_dir_override)
 	var temp := path + ".tmp"
 	var file := FileAccess.open(temp, FileAccess.WRITE)
 	if file == null:
@@ -1751,10 +1908,25 @@ func _build_ui():
 	tele_box.add_theme_stylebox_override("panel", tb_s)
 	sidebar.add_child(tele_box)
 
-	_text(tele_box, "SYS // 干员战备遥测", Vector2(10, 6), Vector2(220, 14), 10, Color("5a8494"))
-	menu_finance = _text(tele_box, "", Vector2(10, 22), Vector2(222, 62), 11, Color("f6ce78"))
+	_text(tele_box, "SYS // 干员遥测", Vector2(10, 6), Vector2(128, 16), 10, Color("5a8494"))
+	sidebar_slot_badge = _button(tele_box, "存档槽 1 ▾", Rect2(146, 4, 88, 20), func():
+		armory_panel.hide()
+		settings_panel.show()
+		_sync_settings_ui()
+	)
+	sidebar_slot_badge.add_theme_font_size_override("font_size", 10)
+	sidebar_slot_badge.tooltip_text = "点击打开设置切换 3 个独立本地存档槽位"
+	_style_mech_button(sidebar_slot_badge, Color("13242c"), Color("355e6c"), Color("8de8c0"), Color("3ef0b4"), 2)
+	for st_n in ["normal", "hover", "pressed", "disabled"]:
+		var sbox := sidebar_slot_badge.get_theme_stylebox(st_n)
+		if sbox is StyleBoxFlat:
+			sbox.content_margin_top = 1
+			sbox.content_margin_bottom = 1
+			sbox.content_margin_left = 6
+			sbox.content_margin_right = 6
+	menu_finance = _text(tele_box, "", Vector2(10, 34), Vector2(222, 54), 11, Color("f6ce78"))
 	menu_finance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	menu_status = _text(tele_box, "", Vector2(10, 86), Vector2(222, 48), 10, Color("86a8b2"))
+	menu_status = _text(tele_box, "", Vector2(10, 92), Vector2(222, 42), 10, Color("86a8b2"))
 	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	abandon_button = _button(sidebar, "✕ 放弃本局", Rect2(12, 674, 242, 34), func(): _end_run(false, "放弃本局"))
@@ -1840,20 +2012,20 @@ func _build_ui():
 	_style_mech_button(deploy_back_btn, Color("162630"), Color("4a7488"), Color("eefaff"), Color("78c0d8"), 4)
 	deploy_back_btn.hide()
 
-	# Comfort, Audio, Sensitivity & Strict Review Settings Drawer (Right side of Menu/Pause)
+	# Comfort, Audio, Sensitivity, Strict Review & 3-Slot Local Save Drawer (Right side of Menu/Pause)
 	settings_panel = Control.new()
 	settings_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	settings_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	menu.add_child(settings_panel)
-	_panel(settings_panel, Rect2(634, 56, 560, 608), Color(0.038, 0.082, 0.102, 0.97), Color("8de8c0"))
-	_text(settings_panel, "⚙ 舒适、音量与学习设置", Vector2(662, 86), Vector2(390, 36), 24, MINT)
-	_button(settings_panel, "收起", Rect2(1104, 86, 64, 36), func(): settings_panel.hide())
+	_panel(settings_panel, Rect2(624, 30, 580, 662), Color(0.038, 0.082, 0.102, 0.97), Color("8de8c0"))
+	_text(settings_panel, "⚙ 舒适、音量与本地多存档设置", Vector2(652, 48), Vector2(420, 34), 22, MINT)
+	_button(settings_panel, "收起", Rect2(1118, 46, 64, 34), func(): settings_panel.hide())
 
 	setting_shake_cb = CheckBox.new()
 	setting_shake_cb.text = "减震动 / 关闭镜头震动（降低晕动，保留清晰文字与命中提示）"
-	setting_shake_cb.position = Vector2(662, 134)
-	setting_shake_cb.size = Vector2(506, 28)
-	setting_shake_cb.add_theme_font_size_override("font_size", 14)
+	setting_shake_cb.position = Vector2(652, 90)
+	setting_shake_cb.size = Vector2(526, 26)
+	setting_shake_cb.add_theme_font_size_override("font_size", 13)
 	setting_shake_cb.toggled.connect(func(on: bool):
 		rules.set_setting("reduce_screen_shake", on)
 		_save()
@@ -1862,9 +2034,9 @@ func _build_ui():
 
 	setting_tp_cb = CheckBox.new()
 	setting_tp_cb.text = "默认第三人称越肩视角（局内可随时按 [P]/[F5] 秒切 1P/3P）"
-	setting_tp_cb.position = Vector2(662, 166)
-	setting_tp_cb.size = Vector2(506, 28)
-	setting_tp_cb.add_theme_font_size_override("font_size", 14)
+	setting_tp_cb.position = Vector2(652, 118)
+	setting_tp_cb.size = Vector2(526, 26)
+	setting_tp_cb.add_theme_font_size_override("font_size", 13)
 	setting_tp_cb.toggled.connect(func(on: bool):
 		rules.set_setting("default_third_person", on)
 		if is_instance_valid(player):
@@ -1873,10 +2045,10 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_tp_cb)
 
-	setting_sfx_lbl = _text(settings_panel, "枪械与环境音效音量：100%", Vector2(662, 200), Vector2(500, 24), 14, CREAM)
+	setting_sfx_lbl = _text(settings_panel, "枪械与环境音效音量：100%", Vector2(652, 150), Vector2(520, 22), 13, CREAM)
 	setting_sfx_slider = HSlider.new()
-	setting_sfx_slider.position = Vector2(662, 224)
-	setting_sfx_slider.size = Vector2(500, 24)
+	setting_sfx_slider.position = Vector2(652, 172)
+	setting_sfx_slider.size = Vector2(520, 22)
 	setting_sfx_slider.min_value = 0.0
 	setting_sfx_slider.max_value = 1.0
 	setting_sfx_slider.step = 0.05
@@ -1888,11 +2060,11 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_sfx_slider)
 
-	setting_voice_lbl = _text(settings_panel, "英语语音读音音量：100%", Vector2(662, 256), Vector2(336, 24), 14, MINT)
-	_button(settings_panel, "🔊 试听英语读音", Rect2(1012, 252, 150, 30), func(): speak_english("Dragon Boat Festival"))
+	setting_voice_lbl = _text(settings_panel, "英语语音读音音量：100%", Vector2(652, 200), Vector2(356, 22), 13, MINT)
+	_button(settings_panel, "🔊 试听英语读音", Rect2(1022, 196, 150, 28), func(): speak_english("Dragon Boat Festival"))
 	setting_voice_slider = HSlider.new()
-	setting_voice_slider.position = Vector2(662, 284)
-	setting_voice_slider.size = Vector2(500, 24)
+	setting_voice_slider.position = Vector2(652, 226)
+	setting_voice_slider.size = Vector2(520, 22)
 	setting_voice_slider.min_value = 0.0
 	setting_voice_slider.max_value = 1.0
 	setting_voice_slider.step = 0.05
@@ -1904,13 +2076,13 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_voice_slider)
 
-	setting_cn_voice_lbl = _text(settings_panel, "阵营与首领中文配音音量：100%", Vector2(662, 316), Vector2(336, 24), 14, GOLD)
-	_button(settings_panel, "🎙 试听中文配音", Rect2(1012, 312, 150, 30), func():
+	setting_cn_voice_lbl = _text(settings_panel, "阵营与首领中文配音音量：100%", Vector2(652, 254), Vector2(356, 22), 13, GOLD)
+	_button(settings_panel, "🎙 试听中文配音", Rect2(1022, 250, 150, 28), func():
 		play_cn_voice("reis_01" if is_ahsarah_map() else "over_02", 6.0, true, false)
 	)
 	setting_cn_voice_slider = HSlider.new()
-	setting_cn_voice_slider.position = Vector2(662, 344)
-	setting_cn_voice_slider.size = Vector2(500, 24)
+	setting_cn_voice_slider.position = Vector2(652, 280)
+	setting_cn_voice_slider.size = Vector2(520, 22)
 	setting_cn_voice_slider.min_value = 0.0
 	setting_cn_voice_slider.max_value = 1.0
 	setting_cn_voice_slider.step = 0.05
@@ -1922,10 +2094,10 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_cn_voice_slider)
 
-	setting_sens_lbl = _text(settings_panel, "鼠标视角灵敏度：1.00x", Vector2(662, 376), Vector2(500, 24), 14, GOLD)
+	setting_sens_lbl = _text(settings_panel, "鼠标视角灵敏度：1.00x", Vector2(652, 308), Vector2(520, 22), 13, GOLD)
 	setting_sens_slider = HSlider.new()
-	setting_sens_slider.position = Vector2(662, 400)
-	setting_sens_slider.size = Vector2(500, 24)
+	setting_sens_slider.position = Vector2(652, 330)
+	setting_sens_slider.size = Vector2(520, 22)
 	setting_sens_slider.min_value = 0.4
 	setting_sens_slider.max_value = 2.2
 	setting_sens_slider.step = 0.05
@@ -1939,9 +2111,9 @@ func _build_ui():
 
 	setting_strict_cb = CheckBox.new()
 	setting_strict_cb.text = "严格今日到期复习门禁（跨单元全词库必做，切单元不可跳过）"
-	setting_strict_cb.position = Vector2(662, 434)
-	setting_strict_cb.size = Vector2(506, 28)
-	setting_strict_cb.add_theme_font_size_override("font_size", 14)
+	setting_strict_cb.position = Vector2(652, 360)
+	setting_strict_cb.size = Vector2(526, 26)
+	setting_strict_cb.add_theme_font_size_override("font_size", 13)
 	setting_strict_cb.toggled.connect(func(on: bool):
 		rules.set_setting("strict_daily_review", on)
 		_save()
@@ -1951,9 +2123,9 @@ func _build_ui():
 
 	setting_autospeak_cb = CheckBox.new()
 	setting_autospeak_cb.text = "开镜瞄准与遇敌切题时自动先播报英文读音（推荐开启 · 音形义联动）"
-	setting_autospeak_cb.position = Vector2(662, 466)
-	setting_autospeak_cb.size = Vector2(506, 28)
-	setting_autospeak_cb.add_theme_font_size_override("font_size", 14)
+	setting_autospeak_cb.position = Vector2(652, 388)
+	setting_autospeak_cb.size = Vector2(526, 26)
+	setting_autospeak_cb.add_theme_font_size_override("font_size", 13)
 	setting_autospeak_cb.toggled.connect(func(on: bool):
 		rules.set_setting("auto_speak_on_switch", on)
 		_save()
@@ -1962,9 +2134,9 @@ func _build_ui():
 
 	setting_ahsarah_unlock_cb = CheckBox.new()
 	setting_ahsarah_unlock_cb.text = "试玩快捷开关：直接解锁【阿萨拉堡垒】战区（家长/试玩体验用）"
-	setting_ahsarah_unlock_cb.position = Vector2(662, 498)
-	setting_ahsarah_unlock_cb.size = Vector2(506, 28)
-	setting_ahsarah_unlock_cb.add_theme_font_size_override("font_size", 14)
+	setting_ahsarah_unlock_cb.position = Vector2(652, 416)
+	setting_ahsarah_unlock_cb.size = Vector2(526, 26)
+	setting_ahsarah_unlock_cb.add_theme_font_size_override("font_size", 13)
 	setting_ahsarah_unlock_cb.toggled.connect(func(on: bool):
 		rules.set_setting("unlock_ahsarah_preview", on)
 		_save()
@@ -1977,9 +2149,24 @@ func _build_ui():
 	)
 	settings_panel.add_child(setting_ahsarah_unlock_cb)
 
+	# v0.9.9.6: 3 Independent Local Save Slots Switcher (Slot 1 = legacy-compatible main save)
+	var slot_div := ColorRect.new()
+	slot_div.position = Vector2(652, 452)
+	slot_div.size = Vector2(524, 1)
+	slot_div.color = Color("2b4a56")
+	settings_panel.add_child(slot_div)
+
+	_text(settings_panel, "🗂 本地多存档槽位（3 槽完全独立 · 家庭双人轮流游玩互不干扰）", Vector2(652, 460), Vector2(526, 22), 13, GOLD)
+	save_slot_buttons.clear()
+	for s_i in range(1, SAVE_SLOT_COUNT + 1):
+		var sb: Button = _button(settings_panel, "存档槽 %d" % s_i, Rect2(652 + (s_i - 1) * 178, 488, 168, 56), switch_save_slot.bind(s_i))
+		sb.add_theme_font_size_override("font_size", 12)
+		save_slot_buttons.append(sb)
+	save_slot_info_label = _text(settings_panel, "当前使用：存档槽 1（主档 · 自动兼容全部历史旧档与升级前安全备份）", Vector2(652, 550), Vector2(526, 24), 12, Color("9ef5dc"))
+
 	var set_note: Label = _text(settings_panel,
-		"说明：\n• 局内按 [P]/[F5] 秒切 1P/3P 视角；按 [F1] 开关完整战况与按键表。\n• 英语读音拥有最高优先级，播报单词时自动压低敌方中文喊话。\n• 低配核显可按 [F6] 关闭实时阴影，或使用「低负载启动.cmd」。",
-		Vector2(662, 536), Vector2(502, 110), 13, Color("9ec4b5"))
+		"说明：\n• 局内按 [P]/[F5] 秒切 1P/3P 视角；按 [F1] 开关完整战况与按键表。\n• 英语读音拥有最高优先级，播报单词时自动压低敌方中文喊话。\n• 低配核显可按 [F6] 关闭实时阴影，或使用「低负载启动.cmd」/「核显目标机复测.cmd」。",
+		Vector2(652, 582), Vector2(526, 98), 12, Color("9ec4b5"))
 	set_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	settings_panel.hide()
 
@@ -2078,6 +2265,36 @@ func _sync_settings_ui():
 		var ms: float = float(st.get("mouse_sensitivity", 1.0))
 		setting_sens_slider.set_value_no_signal(ms)
 		setting_sens_lbl.text = "鼠标视角灵敏度：%.2fx" % ms
+	_refresh_save_slot_ui()
+
+func _refresh_save_slot_ui():
+	var in_run: bool = rules.phase in ["active", "extracting"]
+	if is_instance_valid(sidebar_slot_badge):
+		sidebar_slot_badge.text = "存档槽 %d ▾" % active_save_slot
+		sidebar_slot_badge.disabled = in_run
+	for i in save_slot_buttons.size():
+		var s_idx: int = i + 1
+		var btn: Button = save_slot_buttons[i]
+		if not is_instance_valid(btn):
+			continue
+		var sm := get_save_slot_summary(s_idx)
+		var is_cur := (s_idx == active_save_slot)
+		var head := ("★ 槽位 %d (当前)" if is_cur else ("槽位 %d (主档)" if s_idx == 1 else "槽位 %d")) % s_idx
+		btn.text = "%s\n%s" % [head, str(sm.label)]
+		btn.disabled = in_run
+		btn.tooltip_text = "行动结束后可切换" if in_run else ("当前激活槽位：" + str(sm.path) if is_cur else "点击切换到槽位 %d（%s）" % [s_idx, str(sm.label)])
+		if is_cur:
+			_style_mech_button(btn, Color("164a3e"), Color("48c9a0"), Color("f6fffb"), Color("5ff5c4"), 4)
+		else:
+			_style_mech_button(btn, Color("121e26"), Color("2f4a58"), Color("cde2ec"), Color("5a8496"), 3)
+	if is_instance_valid(save_slot_info_label):
+		var note := "主档 · 自动兼容历史旧档" if active_save_slot == 1 else "独立槽位 · 与主档完全隔离"
+		if profile_backup_failed:
+			save_slot_info_label.text = "⚠ 存档槽 %d 只读保护中：升级前备份失败，原旧档未被覆盖！" % active_save_slot
+			save_slot_info_label.add_theme_color_override("font_color", Color("ff8080"))
+		else:
+			save_slot_info_label.text = "当前激活：存档槽 %d（%s）%s" % [active_save_slot, note, " · 行动中暂不可切换" if in_run else ""]
+			save_slot_info_label.add_theme_color_override("font_color", Color("9ef5dc"))
 
 func _pending_retest() -> Array:
 	if bool(rules.setting("strict_daily_review", true)):
@@ -2308,8 +2525,10 @@ func _refresh_menu(result = ""):
 		else:
 			menu_summary.text = str(lm.get("desc", ""))
 		menu_status.text = "学习统计区分「独立答对」与「提示/练习」，真实反映掌握进度。"
-		if profile_read_failed or last_save_error != "":
-			menu_summary.text = "⚠ 存档状态提醒：" + (last_save_error if last_save_error != "" else "存档读取异常，已保护原文件不覆盖。") + "\n" + menu_summary.text
+		if profile_read_failed or profile_backup_failed or last_save_error != "":
+			menu_summary.text = "⚠ 存档保护提醒：" + (last_save_error if last_save_error != "" else "存档读取或升级备份异常，已开启只读保护，原文件未被覆盖。") + "\n" + menu_summary.text
+			menu_status.text = "⚠ 只读保护：" + (last_save_error if last_save_error != "" else "请检查存档目录权限。")
+	_refresh_save_slot_ui()
 
 	var unlocked_cnt: int = rules.unlocked_warehouse_count()
 	var unlocked_val: int = rules.unlocked_warehouse_value()
@@ -2493,6 +2712,7 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 		if rules.phase in ["active", "extracting"]:
 			_end_run(false, "切换行动")
 		run_started_ms = Time.get_ticks_msec()
+		run_help_count = 0
 		review_button.hide()
 		review_overlay.hide()
 		armory_panel.hide()
@@ -2618,8 +2838,7 @@ func start_action(as_combat = false, op_tier: String = "normal"):
 	player.active = true
 	player.camera.fov = 75
 	menu.hide()
-	if is_instance_valid(war_map):
-		war_map.set_rendering_active(false)
+	_sync_menu_world_rendering()
 	hud.show()
 	combat_panel.show()
 	_refresh_terminal_title()
@@ -2914,6 +3133,8 @@ func resolve_answer(index: int, mobile = false):
 		if wid_w != "":
 			rules.learning.record_recognition(wid_w, correct, choices.size(), question_help_used, -1, "camp_warmup", recognition_modality())
 	else:
+		if question_help_used:
+			run_help_count += 1
 		var rec_scene := "combat_word" if mobile else "practice_station"
 		var rec_mod := recognition_modality()
 		if not rules.answer(correct, str(question.get("id", "")), choices.size(), question_help_used, rec_scene, rec_mod):
@@ -3542,13 +3763,32 @@ func _end_run(success: bool, title = ""):
 	var duration := maxf(0.0, (Time.get_ticks_msec() - run_started_ms) / 1000.0) if run_started_ms >= 0 else 0.0
 	run_started_ms = -1
 	var due_now := _pending_retest().size()
+	var title_s := str(title)
+	var end_reason: String = "extracted" if success else (title_s if title_s != "" else ("timeout" if time_left <= 0.0 else "ended"))
 	rules.profile.last_run = {
 		"wall_clock_seconds": duration,
 		"mode": rules.mode_label(),
+		"map": active_map_id,
 		"extracted": success,
+		"end_reason": end_reason,
+		"help_points": run_help_count,
 		"nemesis_cleared": rules.nemesis_cleared,
 		"due_remaining": due_now
 	}
+	rules.record_session_telemetry({
+		"ts": int(Time.get_unix_time_from_system()),
+		"version": VERSION,
+		"slot": active_save_slot,
+		"map": active_map_id,
+		"mode": rules.mode_label(),
+		"duration_sec": snappedf(duration, 0.1),
+		"answered": rules.answered,
+		"correct": rules.correct,
+		"accuracy_pct": roundi(rules.accuracy() * 100.0),
+		"help_points": run_help_count,
+		"extracted": success,
+		"end_reason": end_reason
+	})
 	var saved := _save()
 	if is_instance_valid(achievements):
 		if int(rules.profile.get("red_extracted", 0)) > 0:
@@ -3577,6 +3817,7 @@ func _end_run(success: bool, title = ""):
 	player.active = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	menu.show()
+	_sync_menu_world_rendering()
 	hud.hide()
 	_refresh_menu(title if title != "" else ("成功撤离！" if success else "行动结束"))
 	review_button.visible = not wrong_words.is_empty()
@@ -3666,6 +3907,7 @@ func _input(event):
 				player.active = false
 				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 				menu.show()
+				_sync_menu_world_rendering()
 				hud.hide()
 				_refresh_menu("行动暂停")
 			get_viewport().set_input_as_handled()

@@ -13,6 +13,7 @@ const BEACON_CLUE_EN := "Look beside the green celadon cup. The signal points no
 
 var game
 var active: bool = false
+var _props_built: bool = false
 var stage: String = "inactive"  # "briefing" | "skirmish" | "beacon_clue" | "return_camp" | "completed"
 var busy: bool = false
 
@@ -50,9 +51,15 @@ var current_modal_kind: String = ""
 func setup(g):
 	game = g
 	clue_rng.randomize()
-	_build_world_props()
+	# v0.9.9.6: Defer heavy 3D prologue props (Chen Guide rig + collectible celadon bundle) until Prologue starts!
 	_build_modal_ui()
 	set_active(false)
+
+func ensure_world_props_built():
+	if _props_built:
+		return
+	_props_built = true
+	_build_world_props()
 
 func _marker_ground(marker_name: String, fallback: Vector3) -> Vector3:
 	var m := get_node_or_null(marker_name) as Node3D
@@ -209,6 +216,8 @@ func _build_modal_ui():
 	modal_overlay.hide()
 
 func set_active(on: bool):
+	if on:
+		ensure_world_props_built()
 	active = on
 	visible = on
 	if is_instance_valid(npc_node):

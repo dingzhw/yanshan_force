@@ -1,3 +1,46 @@
+===============================================================================
+ASSET DISTRIBUTION & PUBLIC REPLACEMENT BOUNDARY (v0.9.9.6)
+===============================================================================
+This project is built strictly for non-commercial personal/family offline
+educational playtesting. Assets in this repository fall into TWO distinct
+tiers so that any future public or open-source redistribution stays 100% clean:
+
+[TIER A — Open-Source Redistributable Core (MIT / CC0 / CC BY 4.0 / OFL)]
+- Engine & Game Scripts: Godot Engine (MIT), project GDScript/Python tools,
+  Kenney Starter Kit FPS adaptation (MIT), Kenney Nature & Survival Kits (CC0).
+- Fonts & Open PBR/3D: Noto Sans SC (OFL 1.1), Poly Haven CC0 1K textures &
+  photogrammetry rocks/bushes (`assets/pbr_v097/`, `assets/shared_pbr/`),
+  ambientCG CC0 textures, Blender Studio Human Base Meshes v1.4.1 (CC0),
+  Quaternius Modular Men & UAL (CC0), KayKit Animations 1.1 (CC0),
+  Polyfork 3D wildlife models (CC BY 4.0, see `licenses/CC-BY-4.0.txt`),
+  Tabasco M4 rifle geometry (CC0), and all local procedural Blender/Python
+  props, landmarks, collectibles, murals, maps, and synthesized WAV SFX.
+
+[TIER B — Personal/Family Playtest-Only Assets (REPLACE BEFORE PUBLIC RELEASE)]
+- Textbook Vocabulary & Sentence Bank (`data/wordpacks/`, `data/learning/jiangsu-5a-sentences.json`):
+  Transcribed from local Grade 5A textbook appendix for home study; replace
+  with open wordlists/sentences for public redistribution.
+- Pre-Synthesized Offline EN/CN Voice Packs (`assets/voice/`, `assets/voice_cn/`):
+  Generated locally via edge-tts Neural voices; regenerate via
+  `tools/build_voice_pack.py` & `tools/build_cn_voice_pack.py` with open TTS
+  models or original recordings before public redistribution.
+- Community/Fan 3D Characters, Wildlife & Matching Studio Portraits:
+  * `assets/slice/player_shaoyu.glb` (v2 hero + Mixamo mocap) -> CC0 fallback: `tools/build_v095_shaoyu_refined.py`
+  * `assets/slice/npc_chen_guide.glb` & `assets/slice/v097_mistbound_*.glb` -> CC0 fallback: `tools/build_v097_characters_and_anims.py`
+  * `assets/slice/v098_cave_warden.glb` -> CC0 fallback: `tools/build_v098_cave_warden.py`
+  * `assets/slice/v0996_*.glb` (6 faction troopers/bosses) -> CC0/procedural fallbacks preserved in `v082_bosses.glb` & `v090_ahsarah_characters.glb`
+  * `assets/slice/wildlife/animal_rabbit.glb` (BlendSwap fan art) -> CC BY 4.0 fallback: `tools/build_v0611_wildlife_rigs.py`
+  * `assets/slice/wildlife/animal_deer.glb` (free wildlife stag) -> Procedural fallback: `tools/build_v086_wildlife_rigs.py`
+  * `assets/portraits/*.png` & `assets/warmap/*_hd.png` -> Re-render or replace with CC0 portraits/maps if publicly redistributing.
+
+v0.9.9.6 Shared PBR Texture Deduplication (`assets/shared_pbr/`):
+- Byte-identical textures previously embedded across multiple `.glb` archives
+  were deduplicated via `tools/dedup_glb_textures.py` into canonical relative
+  glTF 2.0 external URI references (`../shared_pbr/` and `../pbr_v097/`).
+  Each file in `assets/shared_pbr/` carries the exact same license tier (Tier A
+  or Tier B) as the source GLBs documented below.
+===============================================================================
+
 This game uses Godot Engine (MIT) and Kenney game assets (CC0).
 Player movement/camera code is adapted from Kenney Starter Kit FPS (MIT).
 Original FPS revision: 185fd2326d74a5cf858cffc616f87cf9696f9cc0

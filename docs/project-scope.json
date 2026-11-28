@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-28",
-  "stage": "v0.9.9.6_dev3 · 烟霞古洞地面落地与石壁阴刻先人壁画重构、洞口100%闭合密封、外围山体与远景柔化、首领战零重复词池与护卫降噪、敌军4阶段动态态度台词/40条全新离线中文语音（共106条）与第4阶段小兵畏惧躲避AI",
+  "stage": "v0.9.9.6（v0.9 质量收口正式版）· GLB 重复贴图去重瘦身(-98.28 MiB PCK)、冷启动减半(5.59s)与首进战区尖峰削平(736ms→10.6ms)、升级前备份失败防覆盖保护与3独立本地存档槽位、阿萨拉高负载巡检/本地遥测与5700G核显一键复测工具",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -101,9 +101,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 106 条 8 音色阵营/首领/4阶段动态态度中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，当前开发里程碑 v0.9.9.6_dev3"
+    "version_control": "Git，当前正式收官里程碑 v0.9.9.6"
   },
-  "playtest": "playtest/windows-v0.9.9.6_dev3/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.6/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

@@ -52,8 +52,11 @@ func sample_combat(zone_index: int) -> Dictionary:
 		game._end_run(false)
 	game.start_action(true, "normal")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# Wait 4 frames at Spawn Camp so deployment shader prewarm completes cleanly before entering combat camp!
+	for _i in 4:
+		await get_tree().process_frame
 	var center: Vector3 = game.combat.zone_center(zone_index)
-	var stand: Vector3 = game.Layout.on_ground(center + Vector3(0.6, 0, 4.8))
+	var stand: Vector3 = game.active_layout.on_ground(center + Vector3(0.6, 0, 4.8))
 	game.player.position = stand + Vector3.UP * 0.08
 	game.player.yaw = 0.0
 	game.player.pitch = -0.025
@@ -65,6 +68,7 @@ func sample_combat(zone_index: int) -> Dictionary:
 	while Time.get_ticks_msec() < until and game.rules.phase == "active" and game.combat.zone == zone_index:
 		await get_tree().process_frame
 	var result := stop_sampling()
+	result["map"] = String(game.active_map_id)
 	result["zone"] = String(game.combat.zone_info(zone_index).id)
 	result["squad_size"] = squad_size
 	result["sample_completed"] = game.combat.zone == zone_index and Time.get_ticks_msec() >= until
@@ -76,6 +80,8 @@ func sample_landmark(label: String, stand_pos: Vector3, yaw_rad: float, pitch_ra
 		game._end_run(false)
 	game.start_action(combat_mode, "normal")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	for _i in 4:
+		await get_tree().process_frame
 	game.player.position = stand_pos
 	game.player.yaw = yaw_rad
 	game.player.pitch = pitch_rad
@@ -86,6 +92,7 @@ func sample_landmark(label: String, stand_pos: Vector3, yaw_rad: float, pitch_ra
 	while Time.get_ticks_msec() < until and game.rules.phase == "active":
 		await get_tree().process_frame
 	var result := stop_sampling()
+	result["map"] = String(game.active_map_id)
 	result["scene"] = label
 	result["sample_completed"] = Time.get_ticks_msec() >= until
 	game._end_run(false)
@@ -305,7 +312,7 @@ func run():
 	var formal_ok: bool = bool(formal_res.supply_opened and formal_res.crate_opened and formal_res.extraction_completed)
 
 	# =========================================================================
-	# PART 3: 4-Scene Frame-Time Benchmark Sweep (30 FPS / 33.3ms P95 Budget)
+	# PART 3: Yanshan 4-Scene Frame-Time Benchmark Sweep (30 FPS / 33.3ms P95 Budget)
 	# =========================================================================
 	var normal_first := await sample_combat(0)
 	var normal_b := await sample_combat(2)
@@ -314,8 +321,32 @@ func run():
 	var wangdao_pos: Vector3 = game.landscape.wangdao_deck_pos + Vector3(0, 0.12, -0.35) if is_instance_valid(game.landscape) else game.Layout.on_ground(game.Layout.WANGDAO_PAVILION + Vector3(1.7, 0.0, 4.0))
 	var wangdao_scene := await sample_landmark("wangdao_overlook", wangdao_pos, PI, -0.14, false)
 
-	var scenes_ok: bool = bool(normal_first.sample_completed and normal_b.sample_completed and cave_scene.sample_completed and wangdao_scene.sample_completed)
+	# =========================================================================
+	# PART 4 (v0.9.9.6): Ahsarah Fortress High-Load 3-Scene Benchmark Sweep (No Save Mutation)
+	# =========================================================================
+	var prev_ah_preview: bool = bool(game.rules.setting("unlock_ahsarah_preview", false))
+	var prev_map_id: String = String(game.active_map_id)
+	game.rules.set_setting("unlock_ahsarah_preview", true)
+	var ah_switched: bool = game.switch_map("ahsarah")
+	var ahsarah_dam := {"sample_completed": false, "p95_frame_ms": 0.0, "max_frame_ms": 0.0, "first_entry_spike_ms": 0.0}
+	var ahsarah_bazaar := {"sample_completed": false, "p95_frame_ms": 0.0, "max_frame_ms": 0.0, "first_entry_spike_ms": 0.0}
+	var ahsarah_fortress := {"sample_completed": false, "p95_frame_ms": 0.0, "max_frame_ms": 0.0, "first_entry_spike_ms": 0.0}
+	if ah_switched:
+		var dam_pos: Vector3 = game.AhsarahLayout.on_ground(Vector3(0.0, 0.0, -78.0)) + Vector3(0, 0.18, 0)
+		ahsarah_dam = await sample_landmark("ahsarah_dam_overlook", dam_pos, 0.0, 0.04, true)
+		ahsarah_bazaar = await sample_combat(1)
+		ahsarah_fortress = await sample_combat(2)
+	game.switch_map(prev_map_id if prev_map_id != "" else "yanshan")
+	game.rules.set_setting("unlock_ahsarah_preview", prev_ah_preview)
+
+	var ahsarah_ok: bool = bool(ah_switched and ahsarah_dam.sample_completed and ahsarah_bazaar.sample_completed and ahsarah_fortress.sample_completed)
+	var scenes_ok: bool = bool(normal_first.sample_completed and normal_b.sample_completed and cave_scene.sample_completed and wangdao_scene.sample_completed and ahsarah_ok)
 	var verified: bool = practice_completed and formal_ok and scenes_ok
+
+	var all_sampled := [practice, normal_first, normal_b, cave_scene, wangdao_scene, ahsarah_dam, ahsarah_bazaar, ahsarah_fortress]
+	var worst_spike := 0.0
+	for sc in all_sampled:
+		worst_spike = maxf(worst_spike, float(sc.get("max_frame_ms", 0.0)))
 
 	var p95: float = practice.p95_frame_ms
 	var report = {
@@ -335,6 +366,7 @@ func run():
 		"average_fps": practice.average_fps,
 		"p95_frame_ms": p95,
 		"max_frame_ms": practice.max_frame_ms,
+		"max_single_frame_spike_ms": worst_spike,
 		"first_entry_spike_ms": practice.first_entry_spike_ms,
 		"practice_training_passed": practice_completed,
 		"formal_combat_supply_extract": formal_res,
@@ -348,6 +380,10 @@ func run():
 		"normal_b_outpost": normal_b,
 		"yanxia_cave_entrance": cave_scene,
 		"wangdao_overlook": wangdao_scene,
+		"ahsarah_dam_overlook": ahsarah_dam,
+		"ahsarah_bazaar_combat": ahsarah_bazaar,
+		"ahsarah_fortress_boss": ahsarah_fortress,
+		"ahsarah_highload_verified": ahsarah_ok,
 		"all_sections_verified": verified,
 		"profile_saved": false
 	}
@@ -367,11 +403,15 @@ func run():
 		game._end_run(false)
 	game.menu_title.text = "巡检全部通过" if verified and file != null else "巡检发现问题"
 	game.menu_summary.text = (
-		"1. 自由靶场纯训练：%s · P95 %.1f ms\n" % ["通过" if practice_completed else "失败", p95]
-		+ "2. 正式行动开箱撤离：%s（箱/密码/撤离）\n" % ("通过" if formal_ok else "失败")
-		+ "3. 四景帧时 P95：首营 %.1f / B区 %.1f / 古洞 %.1f / 望稻 %.1f ms\n%s" % [
-			normal_first.p95_frame_ms, normal_b.p95_frame_ms, cave_scene.p95_frame_ms, wangdao_scene.p95_frame_ms,
-			"报告已写入 diagnostics 文件夹。" if file != null else "诊断报告写入失败。"
+		"1. 自由靶场纯训练：%s · P95 %.1f ms | 2. 正式行动开箱撤离：%s\n" % [
+			"通过" if practice_completed else "失败", p95, "通过" if formal_ok else "失败"
+		]
+		+ "3. 烟山四景 P95：首营 %.1f / B区 %.1f / 古洞 %.1f / 望稻 %.1f ms\n" % [
+			normal_first.p95_frame_ms, normal_b.p95_frame_ms, cave_scene.p95_frame_ms, wangdao_scene.p95_frame_ms
+		]
+		+ "4. 阿萨拉三景 P95：大坝 %.1f / 集市 %.1f / 堡垒 %.1f ms · %s" % [
+			ahsarah_dam.p95_frame_ms, ahsarah_bazaar.p95_frame_ms, ahsarah_fortress.p95_frame_ms,
+			"报告已写入 diagnostics/" if file != null else "报告写入失败"
 		]
 	)
 	game.menu_status.text = report.gpu

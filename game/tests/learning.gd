@@ -417,6 +417,85 @@ func run():
 	)
 	m_old.free()
 
+	# =========================================================================
+	# v0.9.9.6: Hardened Upgrade Backup (Failure Abort + Read-Only Guard),
+	# 3 Independent Local Save Slots (2-Player Switch), & Local Session Telemetry
+	# =========================================================================
+	# 1) Hardened backup failure MUST abort migration overwrite & preserve legacy file SHA-256!
+	var bak_fail_path := "user://qa-v0996-legacy-bakfail.json"
+	var bak_fail_bak := bak_fail_path + ".pre-v3.bak"
+	if FileAccess.file_exists(bak_fail_bak):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(bak_fail_bak))
+	var bf_f := FileAccess.open(bak_fail_path, FileAccess.WRITE)
+	bf_f.store_string(JSON.stringify({"schema_version": 1, "coins": 321, "extractions": 2}, "\t"))
+	bf_f.close()
+	var bf_sha_before := FileAccess.get_sha256(bak_fail_path)
+	var m_bf = load("res://scripts/main.gd").new()
+	m_bf.profile_path_override = bak_fail_path
+	m_bf.force_backup_fail_for_test = true
+	m_bf._load_profile()
+	m_bf.rules.profile.coins = 9999
+	var bf_save_ok: bool = m_bf._save()
+	var bf_sha_after := FileAccess.get_sha256(bak_fail_path)
+	verify(
+		m_bf.profile_backup_failed and m_bf.profile_read_failed and not bf_save_ok and bf_sha_after == bf_sha_before and m_bf.last_save_error.contains("备份"),
+		"v0.9.9.6: simulated pre-upgrade backup failure aborts overwrite, enters read-only guard & keeps legacy file SHA-256 intact"
+	)
+	m_bf.free()
+
+	# 2) 3 Independent Local Save Slots (Slot 1 = legacy profile-v070.json, Slot 2/3 isolated)
+	var slot_dir := ProjectSettings.globalize_path("user://qa-v0996-slots")
+	DirAccess.make_dir_recursive_absolute(slot_dir)
+	for fname in ["profile-v070.json", "profile-slot2.json", "profile-slot3.json", "save-slots-meta.json", "profile-backup-pre-v3.json"]:
+		var fp := slot_dir.path_join(fname)
+		if FileAccess.file_exists(fp):
+			DirAccess.remove_absolute(fp)
+	var prev_override: String = str(game.profile_path_override)
+	game.profile_path_override = ""
+	game.slot_base_dir_override = slot_dir
+	# Seed Slot 1 (Player A)
+	verify(game.switch_save_slot(1) and game.active_save_slot == 1, "v0.9.9.6: switches cleanly to Save Slot 1 (legacy-compatible profile-v070.json)")
+	game.rules.profile.coins = 777
+	game.rules.profile.extractions = 4
+	verify(game._save(), "v0.9.9.6: saves Player A state into Slot 1")
+	# Switch to Slot 2 (Player B) — must start completely clean & isolated!
+	verify(game.switch_save_slot(2) and game.active_save_slot == 2 and int(game.rules.profile.coins) == 0 and int(game.rules.profile.extractions) == 0, "v0.9.9.6: switching to empty Slot 2 isolates Player B with clean 0 coins/extractions")
+	game.rules.profile.coins = 250
+	game.rules.profile.extractions = 1
+	verify(game._save(), "v0.9.9.6: saves Player B state into Slot 2")
+	# Switch to Slot 3 (Player C) & verify Slot 1/2 summaries!
+	verify(game.switch_save_slot(3) and int(game.rules.profile.coins) == 0, "v0.9.9.6: switching to Slot 3 stays isolated from Slots 1 and 2")
+	var sum1: Dictionary = game.get_save_slot_summary(1)
+	var sum2: Dictionary = game.get_save_slot_summary(2)
+	var sum3: Dictionary = game.get_save_slot_summary(3)
+	verify(
+		int(sum1.coins) == 777 and int(sum1.extractions) == 4 and int(sum2.coins) == 250 and int(sum2.extractions) == 1 and not bool(sum3.exists),
+		"v0.9.9.6: get_save_slot_summary accurately reports independent progress across all 3 local save slots"
+	)
+	# Switch back to Slot 1 and confirm Player A data restored intact; also check meta reload!
+	verify(game.switch_save_slot(1) and int(game.rules.profile.coins) == 777 and int(game.rules.profile.extractions) == 4, "v0.9.9.6: switching back to Slot 1 restores Player A data without cross-contamination")
+	game.switch_save_slot(2)
+	var meta_reloader = load("res://scripts/main.gd").new()
+	meta_reloader.slot_base_dir_override = slot_dir
+	meta_reloader._load_active_slot_meta()
+	meta_reloader._load_profile()
+	verify(meta_reloader.active_save_slot == 2 and int(meta_reloader.rules.profile.coins) == 250, "v0.9.9.6: active save slot persists via save-slots-meta.json across restart")
+	meta_reloader.free()
+
+	# 3) Local session_telemetry records run duration, help_points, accuracy & end_reason on _end_run()!
+	game.start_action(false, "normal")
+	var mid_run_switch_blocked: bool = not game.switch_save_slot(1)
+	game.run_help_count = 2
+	game._end_run(false, "测试退出")
+	var telem: Array = game.rules.profile.get("session_telemetry", [])
+	var last_t: Dictionary = telem[-1] if not telem.is_empty() else {}
+	verify(
+		mid_run_switch_blocked and not telem.is_empty() and int(last_t.get("slot", 0)) == 2 and int(last_t.get("help_points", -1)) == 2 and str(last_t.get("end_reason", "")) == "测试退出" and last_t.has("duration_sec"),
+		"v0.9.9.6: blocks slot switch mid-run and records lightweight local session_telemetry (duration, help_points, end_reason, slot) on _end_run()"
+	)
+	game.slot_base_dir_override = ""
+	game.profile_path_override = prev_override
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

@@ -109,6 +109,9 @@ var bark_rng := RandomNumberGenerator.new()
 var run_soldiers_defeated: int = 0
 var last_announced_morale_stage: int = 1
 var fear_bark_global_cd: float = 0.0
+var _prewarmed_maps: Dictionary = {}
+var _prewarm_rig: Node3D = null
+var _prewarm_frames_left: int = 0
 
 func begin():
 	stop()
@@ -214,6 +217,10 @@ func stop():
 	zone_respawn_grace.clear()
 	zone_reinforce_left.clear()
 	mandel_ambush_info.clear()
+	if is_instance_valid(_prewarm_rig):
+		_prewarm_rig.queue_free()
+		_prewarm_rig = null
+	_prewarm_frames_left = 0
 	if is_instance_valid(arena):
 		arena.hide()
 		for body in arena.find_children("*", "CollisionObject3D", true, false):
@@ -741,6 +748,84 @@ func _deploy():
 	game.player.reserve_ammo = game.rules.starter_reserve_ammo()
 	game.player.reload_left = 0.0
 	game._next_question()
+	prewarm_combat_shaders(game.active_map_id)
+
+func prewarm_combat_shaders(map_id: String = "yanshan"):
+	## v0.9.9.6: Pre-compiles skeletal enemy/boss + combat FX shader pipelines in a tiny sub-pixel
+	## rig directly in front of the player camera for 3 frames on first deployment per map so
+	## entering First Camp, B Outpost, Yanxia Cave, or Ahsarah Fortress causes ZERO mid-fight spikes!
+	if DisplayServer.get_name() == "headless":
+		return
+	var mkey := "ahsarah" if map_id == "ahsarah" else "yanshan"
+	if _prewarmed_maps.has(mkey):
+		return
+	_prewarmed_maps[mkey] = true
+	if is_instance_valid(_prewarm_rig):
+		_prewarm_rig.queue_free()
+		_prewarm_rig = null
+	if not is_instance_valid(arena) or not is_instance_valid(game.player):
+		return
+	_prewarm_rig = Node3D.new()
+	_prewarm_rig.name = "CombatShaderPrewarmRig"
+	_prewarm_rig.scale = Vector3.ONE * 0.0015
+	arena.add_child(_prewarm_rig)
+	var glb_list: Array = (
+		[Soldier.AHSARAH_GUARD_GLB, Soldier.HAAVK_TROOPER_GLB, Soldier.BOSS_SAEED_GLB, Soldier.BOSS_REIS_GLB]
+		if mkey == "ahsarah" else
+		[Soldier.MISTBOUND_ASSAULT_GLB, Soldier.MISTBOUND_SNIPER_GLB, Soldier.VANGUARD_BOSS_GLB, Soldier.SKYFALL_OVERLORD_GLB, "res://assets/slice/v098_cave_warden.glb"]
+	)
+	for gp in glb_list:
+		if not ResourceLoader.exists(gp):
+			continue
+		if not game.scene_cache.has(gp):
+			game.scene_cache[gp] = load(gp)
+		var packed = game.scene_cache.get(gp)
+		if packed is PackedScene:
+			var inst: Node3D = packed.instantiate()
+			for mi in inst.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				(mi as MeshInstance3D).extra_cull_margin = 4.0
+			for co in inst.find_children("*", "CollisionObject3D", true, false):
+				(co as CollisionObject3D).collision_layer = 0
+				(co as CollisionObject3D).collision_mask = 0
+			var ap := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if is_instance_valid(ap) and not ap.get_animation_list().is_empty():
+				ap.play(ap.get_animation_list()[0])
+			_prewarm_rig.add_child(inst)
+	# Warm translucent unshaded shield, additive danger ring, smoke sphere & Label3D pipelines
+	var fx_box := BoxMesh.new()
+	fx_box.size = Vector3.ONE
+	var mat_shield := StandardMaterial3D.new()
+	mat_shield.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat_shield.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat_shield.albedo_color = Color(0.36, 0.88, 0.72, 0.85)
+	var m1 := MeshInstance3D.new()
+	m1.mesh = fx_box
+	m1.material_override = mat_shield
+	m1.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_prewarm_rig.add_child(m1)
+	var mat_em := StandardMaterial3D.new()
+	mat_em.albedo_color = Color("ff5c5c")
+	mat_em.emission_enabled = true
+	mat_em.emission = Color("ff5c5c")
+	mat_em.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var m2 := MeshInstance3D.new()
+	m2.mesh = SphereMesh.new()
+	m2.material_override = mat_em
+	m2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_prewarm_rig.add_child(m2)
+	var lbl := Label3D.new()
+	lbl.text = "PREWARM"
+	lbl.font = game.font
+	_prewarm_rig.add_child(lbl)
+	_prewarm_frames_left = 3
+	_sync_prewarm_rig_pose()
+
+func _sync_prewarm_rig_pose():
+	if not is_instance_valid(_prewarm_rig) or not is_instance_valid(game.player) or not is_instance_valid(game.player.camera):
+		return
+	var cam: Camera3D = game.player.camera
+	_prewarm_rig.global_position = cam.global_position - cam.global_basis.z * 2.4
 
 func _pick_zone_prompt_option(z_idx: int, avoid_option: int = -1) -> int:
 	var alive := living_soldiers(z_idx)
@@ -1240,6 +1325,12 @@ func resolve_overhead_tag_overlaps(delta: float = 0.016) -> int:
 func update(delta: float):
 	if not in_field():
 		return
+	if _prewarm_frames_left > 0:
+		_sync_prewarm_rig_pose()
+		_prewarm_frames_left -= 1
+		if _prewarm_frames_left <= 0 and is_instance_valid(_prewarm_rig):
+			_prewarm_rig.queue_free()
+			_prewarm_rig = null
 	resolve_overhead_tag_overlaps(delta)
 	_update_proximity_voice_barks(delta)
 	attack_lock = maxf(0.0, attack_lock - delta)

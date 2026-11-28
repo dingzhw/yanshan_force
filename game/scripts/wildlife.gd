@@ -14,6 +14,7 @@ var sky_egrets: Array = []
 var flora_nodes: Array = []
 var desert_animals: Array = []
 var desert_falcons: Array = []
+var _desert_spawned := false
 var discovered_species: Dictionary = {}
 var discovered_desert_species: Dictionary = {}
 var collected_flora: Dictionary = {}
@@ -23,11 +24,21 @@ var frozen_for_capture := false
 var map_enabled := true
 var rng := RandomNumberGenerator.new()
 
+func _ensure_desert_spawned():
+	if _desert_spawned:
+		return
+	_desert_spawned = true
+	_spawn_desert_wildlife()
+	_spawn_desert_falcons()
+	_reset_desert_wildlife_state()
+
 func set_active_map(map_id: String):
 	active_map_id = "ahsarah" if map_id == "ahsarah" else "yanshan"
 	map_enabled = true
 	visible = true
 	var is_ys := (active_map_id == "yanshan")
+	if not is_ys:
+		_ensure_desert_spawned()
 	if is_instance_valid(yanshan_root):
 		yanshan_root.visible = is_ys
 	if is_instance_valid(ahsarah_root):
@@ -247,8 +258,7 @@ func setup(g):
 	_spawn_wildlife()
 	_spawn_sky_egrets()
 	_spawn_flora_spots()
-	_spawn_desert_wildlife()
-	_spawn_desert_falcons()
+	# v0.9.9.6: Defer 28 rigged Ahsarah desert critters until Ahsarah map is actually entered!
 	reset()
 	set_active_map(game.active_map_id if is_instance_valid(game) else "yanshan")
 
@@ -823,6 +833,10 @@ func reset():
 		f.set_meta("tag_shown_once", false)
 		var ring: MeshInstance3D = f.get_meta("ring_node")
 		ring.visible = true
+	_reset_desert_wildlife_state()
+	set_active_map(active_map_id)
+
+func _reset_desert_wildlife_state():
 	for da in desert_animals:
 		da.state = "idle"
 		da.timer = 0.0
@@ -849,7 +863,6 @@ func reset():
 			(df.vis as Node3D).scale = Vector3.ONE * float(df.base_scale)
 			(df.vis as Node3D).rotation = Vector3(0.0, 0.0, 0.22)
 		_play_critter_anim(df.anim, ["Fly"], 1.38)
-	set_active_map(active_map_id)
 
 func _flash_animal_tag(a: Dictionary, duration: float = 2.2, force_show: bool = false):
 	if not force_show and bool(a.get("tag_shown_once", false)):
