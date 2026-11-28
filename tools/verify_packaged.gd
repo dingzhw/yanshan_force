@@ -493,19 +493,21 @@ func run():
 	var v0996_final_ok: bool = (
 		shared_tex_loaded >= 25
 		and dedup_glbs_ok and dedup_tex_slots >= 20
-		and main_inst_p != null and String(main_inst_p.VERSION) == "0.9.9.6"
+		and main_inst_p != null and String(main_inst_p.VERSION) == "0.9.9.7"
 		and int(main_inst_p.SAVE_SLOT_COUNT) == 3
 		and main_inst_p.has_method("switch_save_slot")
 		and main_inst_p.has_method("get_save_slot_summary")
 		and main_inst_p.has_method("_sync_menu_world_rendering")
-		and rules_inst_p != null and rules_inst_p.has_method("reset_profile_to_default") and rules_inst_p.has_method("record_session_telemetry")
+		and main_inst_p.has_method("review_unlock_remaining")
+		and rules_inst_p != null and int(rules_cls.DAILY_REVIEW_UNLOCK_CAP) == 13
+		and rules_inst_p.has_method("reset_profile_to_default") and rules_inst_p.has_method("record_session_telemetry")
 		and cb_inst_96 != null and cb_inst_96.has_method("prewarm_combat_shaders")
 	)
 	if main_inst_p != null:
 		main_inst_p.free()
 	if cb_inst_96 != null:
 		cb_inst_96.free()
-	verify(v0996_final_ok, "standalone PCK includes v0.9.9.6 shared_pbr (%d textures, %d deduplicated GLB material slots), shader prewarm, 3-slot local saves & telemetry" % [shared_tex_loaded, dedup_tex_slots])
+	verify(v0996_final_ok, "standalone PCK includes v0.9.9.7 shared_pbr (%d textures, %d deduplicated GLB material slots), shader prewarm, 3-slot local saves, telemetry & 13-word daily review unlock cap" % [shared_tex_loaded, dedup_tex_slots])
 	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "standalone PCK pins threading/worker_pool/max_threads=1 to prevent Chinese-Windows CP936 glslang msvcrt setlocale 0xc0000374 startup crash")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")

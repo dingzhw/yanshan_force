@@ -339,8 +339,13 @@ func open_retest(entries: Array):
 	_clear_loot_cards()
 	swap_button.hide()
 	overlay.show()
-	title_label.text = "单词与句型复测"
-	status_label.text = "根据中文独立写出英文。答错后先学习正解，稍后换序练习（看答案后输入仅计练习完成，不虚计独立答对）。"
+	var total_due_now: int = game._pending_retest().size()
+	var cap_n: int = int(game.Rules.DAILY_REVIEW_UNLOCK_CAP)
+	title_label.text = "单词与句型复测（单次解锁上限 %d 词）" % cap_n
+	if total_due_now > stages.size():
+		status_label.text = "当前共积压 %d 题，本轮解锁仅需完成 %d 题即可出击！答错后先看正解稍后换序巩固。" % [total_due_now, stages.size()]
+	else:
+		status_label.text = "根据中文独立写出英文。答错后先学习正解，稍后换序练习（看答案后输入仅计练习完成，不虚计独立答对）。"
 	status_label.add_theme_color_override("font_color", game.CREAM)
 	_refresh_stage_ui()
 
@@ -654,6 +659,7 @@ func _submit_retest(typed: String):
 			var entry: Dictionary = game.rules.profile.mastery.get(tid, {})
 			var stage := int(entry.get("srs_stage", 0))
 			feedback = "★ 独立答对！已排入【%s】复习计划。" % SrsScheduler.stage_label(stage)
+		game.record_review_unlock_progress(tid)
 		game.play_sfx("hit_correct", -11)
 	else:
 		retest_revealed_ids[tid] = true
@@ -674,12 +680,18 @@ func _submit_retest(typed: String):
 		input_box.editable = false
 		submit_button.disabled = true
 		var rem_due: int = game._pending_retest().size()
+		var rem_unlock: int = game.review_unlock_remaining()
+		var cap_n: int = int(game.Rules.DAILY_REVIEW_UNLOCK_CAP)
 		if rem_due == 0:
 			stage_label.text = "今日复习全部完成！"
 			feedback += "\n🎉 今日到期复习已清零，所有行动模式现已解锁！"
 			game.play_sfx("cipher_unlock", -10)
+		elif rem_unlock == 0:
+			stage_label.text = "本次解锁复习达标（%d / %d）！" % [cap_n, cap_n]
+			feedback += "\n🎉 已完成本次 %d 词解锁上限，所有行动模式现已解锁！（其余 %d 题将在实战与下次解锁分批巩固）" % [cap_n, rem_due]
+			game.play_sfx("cipher_unlock", -10)
 		else:
-			stage_label.text = "本组复测结束（仍余 %d 题）" % rem_due
+			stage_label.text = "本组复测结束（本次解锁还需 %d 题 · 总余 %d 题）" % [rem_unlock, rem_due]
 		game._refresh_progress()
 	status_label.text = feedback
 

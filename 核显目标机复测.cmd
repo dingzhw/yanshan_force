@@ -1,12 +1,12 @@
 @echo off
 setlocal
-set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.9.9.6\diagnostics"
+set "DRZ_DIAGNOSTICS_DIR=%~dp0playtest\windows-v0.9.9.7\diagnostics"
 echo =========================================================
 echo  Yanshan Force - 5700G / Vega 8 iGPU Benchmark Tour
 echo  Renderer: gl_compatibility + --low-quality + --auto-quit
 echo  Output:   %DRZ_DIAGNOSTICS_DIR%
 echo =========================================================
-start "" /wait "%~dp0playtest\windows-v0.9.9.6\YanshanBase.exe" --rendering-method gl_compatibility -- --qa --hardware-check --low-quality --auto-quit
+start "" /wait "%~dp0playtest\windows-v0.9.9.7\YanshanBase.exe" --rendering-method gl_compatibility -- --qa --hardware-check --low-quality --auto-quit
 set "RC=%ERRORLEVEL%"
 echo.
 if "%RC%"=="0" (

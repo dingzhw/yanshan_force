@@ -28,6 +28,7 @@ const SAFE_BOX_SLOTS = 2
 const MAX_DISPLAY_STAND = 4
 const MAX_RARITY = 7
 const PROFILE_SCHEMA_VERSION = 3
+const DAILY_REVIEW_UNLOCK_CAP = 13
 
 const DEFAULT_SETTINGS = {
 	"strict_daily_review": true,
@@ -377,7 +378,7 @@ var loot_rng := RandomNumberGenerator.new()
 static func default_profile_dict() -> Dictionary:
 	return {
 		"schema_version": PROFILE_SCHEMA_VERSION,
-		"saved_by_version": "0.9.9.6",
+		"saved_by_version": "0.9.9.7",
 		"coins": 0,
 		"xp": 0,
 		"points": 0,

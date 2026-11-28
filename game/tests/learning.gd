@@ -496,6 +496,65 @@ func run():
 	game.slot_base_dir_override = ""
 	game.profile_path_override = prev_override
 
+	# =========================================================================
+	# v0.9.9.7: Lucky-13 Daily Review Unlock Cap (at most 13 words per unlock!)
+	# =========================================================================
+	game.rules.set_setting("strict_daily_review", true)
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
+	game.reset_review_unlock_cycle()
+	# Simulate returning after 1 week away with 110 overdue words!
+	var week_ago_ts: int = Srs.now_unix() - 7 * Srs.DAY_SECONDS
+	for idx_13 in mini(110, game.words.size()):
+		var w13: Dictionary = game.words[idx_13]
+		game.rules.profile.mastery[str(w13.id)] = {
+			"seen": 2, "correct": 2, "independent_correct": 2, "wrong": 0,
+			"srs_stage": 1, "independent_streak": 1, "last_reviewed_ts": week_ago_ts - Srs.DAY_SECONDS,
+			"next_due_ts": week_ago_ts
+		}
+	game._refresh_progress()
+	var total_backlog: int = game._pending_retest().size()
+	var need_init: int = game.review_unlock_remaining()
+	var blocked_110: bool = not game.try_menu_deploy(true, "normal")
+	var batch_size_1: int = game.cipher_terminal.stages.size()
+	verify(
+		total_backlog == 110 and need_init == 13 and blocked_110 and batch_size_1 == 13 and game.retest_button.text.contains("13"),
+		"v0.9.9.7: 110 overdue words after 1-week break caps unlock review batch strictly at 13 (not 110!)"
+	)
+	# Partial progress: clear 6 words then close modal -> remaining unlock requirement must drop to 7 (no cheat, no lost progress!)
+	for _k in 6:
+		game.cipher_terminal.submit_text(str(game.cipher_terminal.target_word.english))
+	game.cipher_terminal.close()
+	var need_mid: int = game.review_unlock_remaining()
+	var still_blocked_mid: bool = not game.try_menu_deploy(true, "normal")
+	var batch_size_2: int = game.cipher_terminal.stages.size()
+	verify(
+		need_mid == 7 and still_blocked_mid and batch_size_2 == 7 and game._pending_retest().size() == 104,
+		"v0.9.9.7: closing halfway after 6/13 words preserves progress and requires only the remaining 7 words"
+	)
+	# Complete the remaining 7 words -> unlocks deployment IMMEDIATELY while preserving the 97 remaining backlog words in SRS!
+	for _k2 in 7:
+		game.cipher_terminal.submit_text(str(game.cipher_terminal.target_word.english))
+	var unlock_banner_ok: bool = game.cipher_terminal.unlocked and game.cipher_terminal.status_label.text.contains("13")
+	game.cipher_terminal.close()
+	var backlog_preserved: int = game._pending_retest().size()
+	var can_deploy_after_13: bool = (not game.daily_review_required()) and game.try_menu_deploy(true, "normal")
+	verify(
+		unlock_banner_ok and backlog_preserved == 97 and can_deploy_after_13 and game.rules.phase == "active",
+		"v0.9.9.7: passing 13 total review words immediately unlocks deployment while preserving remaining 97 backlog words in SRS"
+	)
+	# Completing a real run (answered > 0) starts a fresh unlock cycle capped again at 13!
+	game.rules.open_question()
+	game.rules.answer(true)
+	game._end_run(false, "局终测试")
+	verify(
+		game.daily_review_required() and game.review_unlock_remaining() == 13 and game._pending_retest().size() == 97,
+		"v0.9.9.7: finishing a real play session starts a fresh unlock cycle capped again at 13 words"
+	)
+	game.rules.profile.review_due.clear()
+	game.rules.profile.mastery.clear()
+	game.reset_review_unlock_cycle()
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.25).timeout

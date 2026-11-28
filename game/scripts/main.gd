@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.9.6"
+const VERSION = "0.9.9.7"
 const SAVE_SLOT_COUNT = 3
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
@@ -87,6 +87,7 @@ var question_audio_assisted := false
 var question_audiovisual_played := false
 var run_started_ms := -1
 var run_help_count: int = 0
+var review_unlock_cleared_ids: Dictionary = {}
 var active_save_slot: int = 1
 var slot_base_dir_override: String = ""
 var profile_read_failed := false
@@ -724,6 +725,7 @@ func switch_save_slot(slot_idx: int) -> bool:
 	var target := clampi(slot_idx, 1, SAVE_SLOT_COUNT)
 	active_save_slot = target
 	_save_active_slot_meta()
+	reset_review_unlock_cycle()
 	rules.reset_profile_to_default()
 	_load_profile()
 	if active_map_id == "ahsarah" and not rules.is_map_unlocked("ahsarah"):
@@ -798,6 +800,7 @@ func _backup_pre_upgrade_profile(_source_path: String, raw_text: String) -> bool
 func _load_profile():
 	if qa_mode and profile_path_override == "" and slot_base_dir_override == "":
 		return
+	reset_review_unlock_cycle()
 	profile_read_failed = false
 	profile_backup_failed = false
 	last_save_error = ""
@@ -2301,8 +2304,25 @@ func _pending_retest() -> Array:
 		return rules.learning.pending(words + sentences, 0, true)
 	return rules.learning.pending(words + sentences, unit_picker.selected, include_extra.button_pressed)
 
+func reset_review_unlock_cycle():
+	review_unlock_cleared_ids.clear()
+
+func record_review_unlock_progress(term_id: String):
+	if term_id != "":
+		review_unlock_cleared_ids[term_id] = true
+
+func review_unlock_remaining() -> int:
+	## v0.9.9.7: Caps every unlock review session at DAILY_REVIEW_UNLOCK_CAP (13 words max)
+	## so returning after a multi-day break never forces 100+ words before playing!
+	## Remaining overdue backlog stays intact in SRS for gameplay & subsequent unlock batches.
+	var total_due := _pending_retest().size()
+	if total_due <= 0:
+		return 0
+	var cap_left := maxi(0, Rules.DAILY_REVIEW_UNLOCK_CAP - review_unlock_cleared_ids.size())
+	return mini(total_due, cap_left)
+
 func daily_review_required() -> bool:
-	return (rules.phase not in ["active", "extracting"]) and not _pending_retest().is_empty()
+	return (rules.phase not in ["active", "extracting"]) and review_unlock_remaining() > 0
 
 func try_menu_deploy(as_combat: bool, op_tier: String = "normal") -> bool:
 	var same_active_run: bool = (rules.phase in ["active", "extracting"]) and (bool(rules.combat_mode) == bool(as_combat)) and (rules.operation_tier == op_tier)
@@ -2311,13 +2331,17 @@ func try_menu_deploy(as_combat: bool, op_tier: String = "normal") -> bool:
 		return true
 	if op_tier == "prologue":
 		# First-time players can always enter the standalone Prologue directly from a clean save!
-		if not bool(rules.profile.get("prologue_completed", false)) or _pending_retest().is_empty():
+		if not bool(rules.profile.get("prologue_completed", false)) or review_unlock_remaining() == 0:
 			start_prologue_chapter(true)
 			return true
-	if not _pending_retest().is_empty():
-		var rem := _pending_retest().size()
+	var need_unlock := review_unlock_remaining()
+	if need_unlock > 0:
+		var total_due := _pending_retest().size()
 		var scope_note := "（全词库严格模式）" if bool(rules.setting("strict_daily_review", true)) else "（当前单元范围）"
-		menu_status.text = "🔒 请先完成今日到期复习%s（剩 %d 题），全部通过后自动解锁出击！" % [scope_note, rem]
+		if total_due > need_unlock:
+			menu_status.text = "🔒 请先完成本次解锁复习%s（还需 %d 题 · 每次上限 %d 题 / 总积压 %d 题），通过后立即解锁！" % [scope_note, need_unlock, Rules.DAILY_REVIEW_UNLOCK_CAP, total_due]
+		else:
+			menu_status.text = "🔒 请先完成今日到期复习%s（剩 %d 题），全部通过后自动解锁出击！" % [scope_note, need_unlock]
 		play_sfx("warning_lock", -12)
 		_open_retest()
 		return false
@@ -2338,7 +2362,9 @@ func _open_retest():
 	if rules.phase not in ["active", "extracting"]:
 		var todo := _pending_retest()
 		if not todo.is_empty():
-			cipher_terminal.open_retest(todo)
+			var need_unlock := review_unlock_remaining()
+			var batch_limit: int = need_unlock if need_unlock > 0 else Rules.DAILY_REVIEW_UNLOCK_CAP
+			cipher_terminal.open_retest(todo.slice(0, mini(todo.size(), batch_limit)))
 
 func _apply_initial_menu_selection():
 	## v0.9.9.4: Clean new saves open straight onto '00 // 剧情模式' with one-click Prologue deploy;
@@ -2422,8 +2448,9 @@ func _current_landmark_meta() -> Dictionary:
 
 func _refresh_progress():
 	var pending := _pending_retest().size()
+	var need_unlock := review_unlock_remaining()
 	var in_run: bool = rules.phase in ["active", "extracting"]
-	var blocked_by_review: bool = (not in_run) and pending > 0
+	var blocked_by_review: bool = (not in_run) and need_unlock > 0
 	var strict_on: bool = bool(rules.setting("strict_daily_review", true))
 	if is_instance_valid(prologue_button):
 		var done_p: bool = bool(rules.profile.get("prologue_completed", false))
@@ -2432,13 +2459,19 @@ func _refresh_progress():
 		else:
 			prologue_button.text = "▶ 启动序章：烟山初行 [推荐首玩 · 5–8分钟]"
 	if blocked_by_review:
-		retest_button.text = "🔒 今日到期复习（%s剩 %d 题）" % ["全词库" if strict_on else "本单元", pending]
+		if pending > need_unlock:
+			retest_button.text = "🔒 解锁复习（还需 %d/%d · 积压 %d）" % [need_unlock, Rules.DAILY_REVIEW_UNLOCK_CAP, pending]
+		else:
+			retest_button.text = "🔒 今日到期复习（%s剩 %d 题）" % ["全词库" if strict_on else "本单元", need_unlock]
 		_style_mech_button(retest_button, Color("482c10"), Color("d89a3c"), Color("fff0c8"), Color("ffc84a"), 4)
 		start_button.text = "🔒 普通行动"
 		confidential_button.text = "🔒 机密行动"
 		practice_button.text = "🔒 自由靶场"
 	else:
-		retest_button.text = "今日到期复测 · 0 题待练 ✓" if pending == 0 else "今日到期复测 · %d 题待练" % pending
+		if pending == 0:
+			retest_button.text = "今日到期复测 · 0 题待练 ✓"
+		else:
+			retest_button.text = "✓ 已解锁 · 可选续练（余 %d 题）" % pending
 		_style_mech_button(retest_button, Color("101b24"), Color("2c4452"), Color("9ebcc8"), Color("467282"), 3)
 		start_button.text = ("▶ 继续%s" % rules.mode_label()) if in_run else "▶ 部署：普通行动 [15分·3营]"
 		confidential_button.text = "⚡ 机密行动 [20分·3营]"
@@ -3762,6 +3795,10 @@ func _end_run(success: bool, title = ""):
 		rules.abandon()
 	var duration := maxf(0.0, (Time.get_ticks_msec() - run_started_ms) / 1000.0) if run_started_ms >= 0 else 0.0
 	run_started_ms = -1
+	# v0.9.9.7: Start a fresh 13-word max unlock cycle after finishing a real play session
+	# (avoid punishing an immediate accidental misclick exit with 0 answers in < 30s).
+	if success or rules.answered > 0 or duration >= 30.0:
+		reset_review_unlock_cycle()
 	var due_now := _pending_retest().size()
 	var title_s := str(title)
 	var end_reason: String = "extracted" if success else (title_s if title_s != "" else ("timeout" if time_left <= 0.0 else "ended"))

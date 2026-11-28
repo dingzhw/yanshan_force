@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-11-28",
-  "stage": "v0.9.9.6（v0.9 质量收口正式版）· GLB 重复贴图去重瘦身(-98.28 MiB PCK)、冷启动减半(5.59s)与首进战区尖峰削平(736ms→10.6ms)、升级前备份失败防覆盖保护与3独立本地存档槽位、阿萨拉高负载巡检/本地遥测与5700G核显一键复测工具",
+  "stage": "v0.9.9.7（V0.9 最终收官封板版）· 幸运13词单次解锁复习上限(防久别回归百词劝退) + GLB贴图去重瘦身(-98.28 MiB PCK) + 冷启动<6s与首进尖峰削平 + 升级备份防覆盖与3独立本地存档槽位 + 阿萨拉7场景巡检与5700G核显一键复测工具",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -59,6 +59,7 @@
         "雾隐帮·西北高地营"
       ],
       "daily_review_gate": true,
+      "daily_review_unlock_cap": 13,
       "achievements_count": 30,
       "weapon_charms_count": 16,
       "practice_available": true,
@@ -101,9 +102,9 @@
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
     "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 106 条 8 音色阵营/首领/4阶段动态态度中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，当前正式收官里程碑 v0.9.9.6"
+    "version_control": "Git，当前 V0.9 最终收官里程碑 v0.9.9.7"
   },
-  "playtest": "playtest/windows-v0.9.9.6/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.7/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",
