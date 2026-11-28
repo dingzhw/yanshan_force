@@ -439,6 +439,16 @@ func run():
 	if cw_inst_p != null:
 		cw_inst_p.free()
 	verify(v0996_dev2_ok, "standalone PCK includes v0.9.9.6_dev2 Cave Warden 6.0m (~1/3 hall) proximity sensing radius")
+	var cb_inst_p = combat_cls.new() if combat_cls != null else null
+	var v0996_dev3_ok: bool = (
+		cb_inst_p != null
+		and cb_inst_p.has_method("get_enemy_morale_stage")
+		and cb_inst_p.has_method("get_zone_duplicate_words")
+		and cn_entries.size() >= 106
+	)
+	if cb_inst_p != null:
+		cb_inst_p.free()
+	verify(v0996_dev3_ok, "standalone PCK includes v0.9.9.6_dev3 zero-duplicate Boss word allocator, 4-stage enemy morale/evasion AI & 106 CN voice clips")
 	verify(int(ProjectSettings.get_setting("threading/worker_pool/max_threads", -1)) == 1, "standalone PCK pins threading/worker_pool/max_threads=1 to prevent Chinese-Windows CP936 glslang msvcrt setlocale 0xc0000374 startup crash")
 	verify(FileAccess.file_exists("res://licenses/Slice-CC0-sources.txt") and FileAccess.file_exists("res://licenses/Quaternius-UAL-CC0.txt") and FileAccess.file_exists("res://licenses/KayKit-Animations-CC0.txt"), "standalone PCK carries full source and CC0 character/animation license notices")
 	verify(not FileAccess.file_exists("res://tests/smoke.gd"), "development tests excluded from distribution")

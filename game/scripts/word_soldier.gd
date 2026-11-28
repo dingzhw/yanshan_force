@@ -140,6 +140,9 @@ var tag_label: Label3D
 var base_tag_text: String = ""
 var base_border_col: Color = Color("5ce0b8")
 var is_nemesis_bounty: bool = false
+var boss_focus_suppressed: bool = false
+var boss_focus_dimmed: bool = false
+var fear_evade_bark_cd: float = 0.0
 var shield_material: StandardMaterial3D
 var frame_material: StandardMaterial3D
 var visor: StandardMaterial3D
@@ -1125,13 +1128,58 @@ func on_wrong_hit_flash():
 		take_cover()
 		cover_left = 0.65
 
+func is_fearing_player() -> bool:
+	## v0.9.9.6_dev3 Stage-4 Fear & Evasion: ONLY regular minions fear a dominant high-accuracy player!
+	## Bosses (VanguardBoss / SkyfallOverlord / Saeed / Reis) are 100% IMMUNE and stay fearless!
+	if defeated or archetype == Archetype.BOSS_WARDEN or is_skyfall_overlord:
+		return false
+	if not is_instance_valid(combat) or not combat.has_method("get_enemy_morale_stage"):
+		return false
+	if combat.get_enemy_morale_stage() < 4:
+		return false
+	if combat.is_rage_hunting(zone):
+		return false
+	return true
+
+func set_boss_focus_mode(suppressed: bool, dimmed: bool = false):
+	## v0.9.9.6_dev3 Boss Word Clarity:
+	## - While Confidential Overlord/Reis is alive & landed, suppress surrounding escort word tags so player focuses 100% on Boss 1->5 / 1->3 shields!
+	## - While Normal Boss multi-shield is active & prompted, softly dim escort tags so Boss's bright shields stand out!
+	if archetype == Archetype.BOSS_WARDEN:
+		return
+	boss_focus_suppressed = suppressed
+	boss_focus_dimmed = dimmed and not suppressed
+	if defeated or not is_instance_valid(shield_area):
+		return
+	if boss_focus_suppressed:
+		shield_area.hide()
+		shield_area.collision_layer = 0
+		if is_instance_valid(tag_tether):
+			tag_tether.hide()
+		return
+	if not assigned_word.is_empty():
+		show_word(str(assigned_word.get("english", "")), false)
+		var alpha_s := 0.44 if boss_focus_dimmed else 0.93
+		var alpha_f := 0.46 if boss_focus_dimmed else 0.94
+		if is_instance_valid(shield_material):
+			shield_material.albedo_color.a = alpha_s
+		if is_instance_valid(frame_material):
+			frame_material.albedo_color.a = alpha_f
+		if is_instance_valid(word_label):
+			word_label.modulate = Color(0.76, 0.82, 0.86, 0.62) if boss_focus_dimmed else Color(1.0, 1.0, 1.0, 1.0)
+
 func _active_border_col() -> Color:
 	return Color("f5b030") if is_nemesis_bounty else base_border_col
 
 func _active_tag_text() -> String:
-	return ("★ 宿敌复习 · " + base_tag_text) if is_nemesis_bounty else base_tag_text
+	var core := ("★ 宿敌复习 · " + base_tag_text) if is_nemesis_bounty else base_tag_text
+	if is_fearing_player():
+		return "😰 " + core + " · 退避"
+	return core
 
 func _active_tag_col() -> Color:
+	if is_fearing_player():
+		return Color("ffbe76")
 	return Color("ffd86b") if is_nemesis_bounty else Color("9ef5dc")
 
 func set_nemesis_bounty(active: bool):
@@ -2177,10 +2225,12 @@ func show_word(word: String, _new_question: bool):
 	# NEVER revive a defeated soldier mid-wave! Dead units stay eliminated until the whole wave is cleared.
 	if defeated:
 		return
-	if is_skyfall_overlord or vanguard_multi_active():
+	if is_skyfall_overlord or vanguard_multi_active() or boss_focus_suppressed:
 		if is_instance_valid(shield_area):
 			shield_area.hide()
 			shield_area.collision_layer = 0
+		if is_instance_valid(tag_tether):
+			tag_tether.hide()
 		_refresh_hp_bar()
 		return
 	var has_word := word != ""
@@ -2326,6 +2376,8 @@ func take_cover():
 		_refresh_cover_poses(player_at)
 	action = Action.COVER
 	cover_left = 1.15 if combat.is_single_attacker_mode() else (0.78 if archetype == Archetype.SCOUT_DRONE else 0.95)
+	if is_fearing_player():
+		cover_left *= 1.45
 
 func _update_laser(player_eye: Vector3):
 	if action != Action.AIM or defeated or stun_left > 0:
@@ -2499,23 +2551,42 @@ func _physics_process(delta: float):
 	cooldown = maxf(0, cooldown - delta * (1.35 if rage_hunting else 1.0))
 	cover_reposition_cd = maxf(0.0, cover_reposition_cd - delta)
 	suppress_cd = maxf(0.0, suppress_cd - delta)
+	fear_evade_bark_cd = maxf(0.0, fear_evade_bark_cd - delta)
 	peek_phase += delta
 	var goal := position
 	var speed := move_speed() * (1.32 if rage_hunting else 1.0)
+	var fearing_now := is_fearing_player()
+	if fearing_now and is_instance_valid(tag_label) and knockdown_left <= 0.0 and not tag_label.text.begins_with("😰"):
+		tag_label.text = _active_tag_text()
+		tag_label.modulate = _active_tag_col()
 
 	if archetype == Archetype.BOSS_WARDEN and engaged and is_skyfall_overlord:
 		# Action moves handled cleanly inside _step_overlord_ai(); suppress legacy passive ring timer
 		pass
 
 	if not engaged:
-		# Standby Garrison at Camp Origin: patrol quietly around camp, DO NOT chase player until aggroed!
+		# Standby Garrison at Camp Origin: patrol quietly — EXCEPT Stage-4 terrified minions back away when player approaches!
 		action = Action.PATROL
 		is_bounding_to_cover = false
 		visual_root.rotation.x = 0.0
-		speed *= 0.58
-		if position.distance_to(patrol[patrol_index]) < 0.55:
-			patrol_index = (patrol_index + 1) % patrol.size()
-		goal = patrol[patrol_index]
+		if fearing_now and distance <= 24.0:
+			var camp_c0: Vector3 = combat.zone_center(zone)
+			var away_p := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+			var flee_pt := position + away_p * 5.2
+			var off_f0 := Vector2(flee_pt.x - camp_c0.x, flee_pt.z - camp_c0.z)
+			if off_f0.length() > 16.5:
+				off_f0 = off_f0.normalized() * 16.5
+				flee_pt = Vector3(camp_c0.x + off_f0.x, flee_pt.y, camp_c0.z + off_f0.y)
+			goal = flee_pt
+			speed *= 1.05
+			if fear_evade_bark_cd <= 0.0 and distance <= 21.0:
+				fear_evade_bark_cd = 12.0
+				combat.trigger_fear_evasion_bark(zone, distance)
+		else:
+			speed *= 0.58
+			if position.distance_to(patrol[patrol_index]) < 0.55:
+				patrol_index = (patrol_index + 1) % patrol.size()
+			goal = patrol[patrol_index]
 	elif action == Action.COVER:
 		visual_root.rotation.x = 0.0
 		goal = cover_goal
@@ -2557,20 +2628,39 @@ func _physics_process(delta: float):
 					begin_tactical_engagement(true)
 
 		var d_cover_player: float = Vector2(player_at.x - cover.x, player_at.z - cover.z).length()
-		var too_close_thresh: float = 6.2 if combat.is_single_attacker_mode() else 4.4
+		var too_close_thresh: float = 14.5 if fearing_now else (6.2 if combat.is_single_attacker_mode() else 4.4)
 		if not is_bounding_to_cover and cover_reposition_cd <= 0.0:
 			if (archetype != Archetype.BOSS_WARDEN and distance < too_close_thresh) or d_cover_player > attack_range() - 1.2 or (not combat.is_single_attacker_mode() and archetype != Archetype.BOSS_WARDEN):
 				begin_tactical_engagement(true)
 
 		var can_engage_now: bool = rage_hunting or combat.is_designated_attacker(self)
+		var fear_retreating: bool = fearing_now and distance < 14.5 and occluded_prompt_time <= 1.0
 		var heavy_ready_aim: bool = (archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]) and shield_layers >= max_shield_layers and distance >= 5.5
-		if can_engage_now and (not is_bounding_to_cover or heavy_ready_aim or rage_hunting) and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
+		if can_engage_now and not fear_retreating and (not is_bounding_to_cover or heavy_ready_aim or rage_hunting) and distance < attack_range() and cooldown <= 0 and combat.clear_shot(position) and combat.reserve_attack(self):
 			is_bounding_to_cover = false
 			visual_root.rotation.x = 0.0
 			action = Action.AIM
-			aim_left = aim_windup() * (0.78 if rage_hunting else 1.0)
+			aim_left = aim_windup() * (0.78 if rage_hunting else (1.18 if fearing_now else 1.0))
 			if archetype in [Archetype.SNIPER_GUARD, Archetype.BOSS_WARDEN]:
 				game.play_sfx("warning_lock", -13)
+		elif fear_retreating:
+			# v0.9.9.6_dev3 Stage-4 Fearful Minion Evasion: back away & seek distant cover instead of charging!
+			is_bounding_to_cover = false
+			visual_root.rotation.x = 0.06
+			var camp_cf: Vector3 = combat.zone_center(zone)
+			var away_f := (-toward_player.normalized()) if distance > 0.05 else Vector3.FORWARD
+			var sidestep_f := away_f.rotated(Vector3.UP, side * 0.32)
+			var flee_dst := position + sidestep_f * 6.5
+			var off_cf := Vector2(flee_dst.x - camp_cf.x, flee_dst.z - camp_cf.z)
+			if off_cf.length() > 22.5:
+				off_cf = off_cf.normalized() * 22.5
+				flee_dst = Vector3(camp_cf.x + off_cf.x, flee_dst.y, camp_cf.z + off_cf.y)
+			# If carrying the active prompt, bias slightly toward peek visibility so player is never soft-locked!
+			goal = flee_dst if option != int(game.answer_index) else flee_dst.lerp(peek_goal, 0.28)
+			speed *= 1.14
+			if fear_evade_bark_cd <= 0.0 and distance <= 14.0:
+				fear_evade_bark_cd = 11.0
+				combat.trigger_fear_evasion_bark(zone, distance)
 		elif rage_hunting:
 			# v0.8.1 #8: 3-Wrong Rage Hunt — entire camp charges relentlessly toward the player (even distant snipers!)
 			is_bounding_to_cover = false

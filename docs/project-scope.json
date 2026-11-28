@@ -1,6 +1,6 @@
 {
-  "recorded_date": "2026-11-26",
-  "stage": "v0.9.9.6_dev2 · 烟霞古洞壁画/石匾/荧光藤与山顶植被零浮空贴岩重构、古洞循音石卫 6.0m（约大厅 1/3 面积）近身感知圈、恢复开镜遇敌自动先发音（音画同现不误罚掌握）与全图物资/角色接地排雷",
+  "recorded_date": "2026-11-28",
+  "stage": "v0.9.9.6_dev3 · 烟霞古洞地面落地与石壁阴刻先人壁画重构、洞口100%闭合密封、外围山体与远景柔化、首领战零重复词池与护卫降噪、敌军4阶段动态态度台词/40条全新离线中文语音（共106条）与第4阶段小兵畏惧躲避AI",
   "working_title": "英语单词搜撤游戏",
   "vocabulary_scope": {
     "source": "五年级上册英语课本单元词汇表（示例词库）",
@@ -99,11 +99,11 @@
   "technical_direction": {
     "engine": "Godot 4.7.2 Standard Windows x86_64",
     "renderer": "Forward+ 标准与同后端 F6 低档；另设 GL Compatibility 低负载入口",
-    "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 66 条 8 音色阵营/首领中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
+    "initial_platform": "Windows 单人离线（内置 341 条美式自然女声离线 OGG 语音包 + 106 条 8 音色阵营/首领/4阶段动态态度中文离线 OGG 配音 + 43 条程序化战斗音效 WAV + Windows 系统 TTS 兜底）",
     "initial_resolution": "1280x720",
-    "version_control": "Git，当前开发里程碑 v0.9.9.6_dev2"
+    "version_control": "Git，当前开发里程碑 v0.9.9.6_dev3"
   },
-  "playtest": "playtest/windows-v0.9.9.6_dev2/YanshanBase.exe",
+  "playtest": "playtest/windows-v0.9.9.6_dev3/YanshanBase.exe",
   "challenge_points": [
     "A · 山脚营地",
     "林间前哨",

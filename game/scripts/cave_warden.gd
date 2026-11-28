@@ -414,8 +414,8 @@ func _build_warden():
 	proximity_ring_mat.albedo_color = Color(0.24, 0.86, 0.94, 0.24)
 	proximity_ring_node.material_override = proximity_ring_mat
 	proximity_ring_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	proximity_ring_node.position = Vector3(0.0, 0.09, 0.0)
-	proximity_ring_node.scale = Vector3(1.0, 0.12, 1.0)
+	proximity_ring_node.position = Vector3(0.0, 0.022, 0.0)
+	proximity_ring_node.scale = Vector3(1.0, 0.05, 1.0)
 	root_node.add_child(proximity_ring_node)
 
 func _ground_pos(xz: Vector3) -> Vector3:

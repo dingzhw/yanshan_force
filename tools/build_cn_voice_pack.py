@@ -217,6 +217,62 @@ LINES = [
     ("cave_06", "cave_warden", "skill_rush", "响动暴露了你的位置——石躯冲锋！", "响动暴露了你的位置，石躯冲锋！"),
     ("cave_07", "cave_warden", "wall_stun", "呃……石壁震裂！双盾暂开！", "呃，石壁震裂！双盾暂开！"),
     ("cave_08", "cave_warden", "decoy_lure", "那边……有碎石声响？", "那边，有碎石声响？"),
+
+    # =========================================================================
+    # v0.9.9.6_dev3: 4-Stage Dynamic Enemy Morale / Respect Dialogue Lines (+40)
+    #   stage1: 趾高气昂 (Arrogant / mocking)
+    #   stage2: 慎重 (Cautious / warning squadmates)
+    #   stage3: 敬佩 (Impressed by marksmanship & English vocabulary)
+    #   stage4: 恐惧躲避 (Terrified / evasive — regular minions ONLY)
+    #   stage3_4: Boss fearless respect lines (immune to fleeing!)
+    # =========================================================================
+    # Mistbound Soldiers (12 lines: 3 per stage)
+    ("mb_s1_01", "mistbound_soldier", "stage1", "哪来的小毛孩？就这点本事也敢闯烟山，待会儿把你抓住！", None),
+    ("mb_s1_02", "mistbound_soldier", "stage1", "哈哈哈，看你慌成那样，今天别想走出这片林子！", None),
+    ("mb_s1_03", "mistbound_soldier", "stage1", "不过是个菜鸟游侠，兄弟们围上去捉活的！", None),
+    ("mb_s2_01", "mistbound_soldier", "stage2", "等等，这小子有点东西，大家别轻敌，快找掩体！", None),
+    ("mb_s2_02", "mistbound_soldier", "stage2", "这家伙认词挺稳的，收起轻视，注意互相掩护！", None),
+    ("mb_s2_03", "mistbound_soldier", "stage2", "不好对付，先把词盾护紧，别随便露头！", None),
+    ("mb_s3_01", "mistbound_soldier", "stage3", "天哪，他枪法也太准了，英语单词怎么全认识？！", None),
+    ("mb_s3_02", "mistbound_soldier", "stage3", "这游侠不一般，连破好几面词盾，词汇量太吓人了！", None),
+    ("mb_s3_03", "mistbound_soldier", "stage3", "真是高手，一枪一个准，英语比咱们全营都厉害！", None),
+    ("mb_s4_01", "mistbound_soldier", "stage4", "快撤快撤！那位可怕的游侠又靠过来了，别跟他硬拼！", None),
+    ("mb_s4_02", "mistbound_soldier", "stage4", "完蛋了，他朝这边走过来了，快躲到掩体后面去！", None),
+    ("mb_s4_03", "mistbound_soldier", "stage4", "我打不过他啊！枪法那么准还什么词都认识，快跑！", None),
+
+    # Ahsarah Guards (12 lines: 3 per stage)
+    ("ag_s1_01", "ahsarah_guard", "stage1", "哟，就凭你也敢闯阿萨拉？赶紧投降，省得挨揍！", None),
+    ("ag_s1_02", "ahsarah_guard", "stage1", "哈哈，这身手也太菜了，弟兄们一起上，抓住他！", None),
+    ("ag_s1_03", "ahsarah_guard", "stage1", "外来小鬼，连咱俩练练的资格都没有！", None),
+    ("ag_s2_01", "ahsarah_guard", "stage2", "喂，这人枪口稳得很，大家提高警惕，别大意！", None),
+    ("ag_s2_02", "ahsarah_guard", "stage2", "别往前瞎冲了，他记单词准着呢，先依托沙袋防守！", None),
+    ("ag_s2_03", "ahsarah_guard", "stage2", "情况不对，这不是普通菜鸟，注意侧翼掩护！", None),
+    ("ag_s3_01", "ahsarah_guard", "stage3", "乖乖，他枪法怎么这么神，英文词盾根本挡不住他！", None),
+    ("ag_s3_02", "ahsarah_guard", "stage3", "这家伙英语单词认得真多，咱们小队快被他拆光了！", None),
+    ("ag_s3_03", "ahsarah_guard", "stage3", "太厉害了，枪准词更准，难怪一路打穿防线！", None),
+    ("ag_s4_01", "ahsarah_guard", "stage4", "不好，那煞星靠过来了！快往后躲，千万别露头！", None),
+    ("ag_s4_02", "ahsarah_guard", "stage4", "快退后找掩体！跟他正面打简直是送人头！", None),
+    ("ag_s4_03", "ahsarah_guard", "stage4", "别过来！他枪法太恐怖了，咱们先避避风头！", None),
+
+    # HAAVK Security Troopers (8 lines: 2 per stage)
+    ("haavk_s1_01", "haavk_trooper", "stage1", "评估完成，目标威胁等级极低，执行快速抓捕。", None),
+    ("haavk_s1_02", "haavk_trooper", "stage1", "业余入侵者，预计三十秒内解除其武装。", None),
+    ("haavk_s2_01", "haavk_trooper", "stage2", "修正评估：目标命中率偏高，切换谨慎掩体战术。", None),
+    ("haavk_s2_02", "haavk_trooper", "stage2", "警告，目标具备稳定破词能力，停止正面冒进。", None),
+    ("haavk_s3_01", "haavk_trooper", "stage3", "惊人数据：目标枪法精准且词汇库极其深厚，建议全员敬畏应对。", None),
+    ("haavk_s3_02", "haavk_trooper", "stage3", "目标已连续精准破译多层词盾，作战素质远超预期！", None),
+    ("haavk_s4_01", "haavk_trooper", "stage4", "高危警报！目标正在逼近，所有常规特勤立刻后撤规避！", None),
+    ("haavk_s4_02", "haavk_trooper", "stage4", "战力差距过大，放弃正面交火，优先撤离至远端掩体！", None),
+
+    # Bosses Fearless Respect Lines (8 lines: 2 per Boss, IMMUNE to fleeing!)
+    ("iron_s34_01", "boss_ironface", "stage3_4", "难怪手下都吓得不敢露头……好，枪法与词功都不错，让我亲自领教！", "难怪手下都吓得不敢露头。好，枪法与词功都不错，让我亲自领教！"),
+    ("iron_s34_02", "boss_ironface", "stage3_4", "小兵怕你，我铁面词卫可不怕！亮出你的真本事吧！", None),
+    ("over_s34_01", "boss_overlord", "stage3_4", "能逼退雾隐众兵，尔等枪法与词汇确有几分火候，可敢接我玄铁法轮？", None),
+    ("over_s34_02", "boss_overlord", "stage3_4", "众卒皆惧尔威名？呵，在本座面前，且看你这双利眼能撑几合！", None),
+    ("saeed_s34_01", "boss_saeed", "stage3_4", "连我的卫队都被你吓得四处躲藏……不错，你终于配做赤枭的猎物了！", "连我的卫队都被你吓得四处躲藏。不错，你终于配做赤枭的猎物了！"),
+    ("saeed_s34_02", "boss_saeed", "stage3_4", "枪法狠辣，英文也难不倒你——好久没遇过这么像样的对手了！", "枪法狠辣，英文也难不倒你，好久没遇过这么像样的对手了！"),
+    ("reis_s34_01", "boss_reis", "stage3_4", "哈哈哈！听说你把我的手下吓破了胆？太棒了，唯有强者配得上我的交响乐！", None),
+    ("reis_s34_02", "boss_reis", "stage3_4", "枪准、词绝、胆大！雷斯向你致敬——但阿萨拉的黄金，仍需用子弹来拿！", "枪准、词绝、胆大！雷斯向你致敬，但阿萨拉的黄金，仍需用子弹来拿！"),
 ]
 
 

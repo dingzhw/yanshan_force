@@ -106,12 +106,18 @@ var proximity_bark_cd: Dictionary = {}
 var proximity_bark_tick: float = 1.2
 var combat_bark_timer: float = 8.0
 var bark_rng := RandomNumberGenerator.new()
+var run_soldiers_defeated: int = 0
+var last_announced_morale_stage: int = 1
+var fear_bark_global_cd: float = 0.0
 
 func begin():
 	stop()
 	stage = Stage.FIELD
 	field_hits = 0
 	field_answers = 0
+	run_soldiers_defeated = 0
+	last_announced_morale_stage = 1
+	fear_bark_global_cd = 0.0
 	rage_left = 0.0
 	wave_wrong_stacks = 0
 	wrong_attempts_on_current = 0
@@ -182,6 +188,9 @@ func stop():
 	rage_hunt_zone = -1
 	wave_had_wrong_shot = false
 	last_kill_pos = Vector3.ZERO
+	run_soldiers_defeated = 0
+	last_announced_morale_stage = 1
+	fear_bark_global_cd = 0.0
 	boss_unit = null
 	active_attacker = null
 	active_attacker_idle = 0.0
@@ -323,6 +332,7 @@ func _mark_zone_cleared(z_idx: int):
 		game._notice("★ 已击退曼德尔砖拦截小队！+20 积分 · 备弹 +4 · 返回破译站按 [F] 继续破译！", game.MINT)
 		return
 	game.rules.outposts_cleared += 1
+	_check_morale_stage_transition(z_idx)
 	game.rules.score += game.Rules.OUTPOST_CLEAR_SCORE
 	game.player.medkits += 1
 	var clear_ammo := 6 if game.rules.is_confidential() else 8
@@ -466,6 +476,144 @@ func _pick_seed_word() -> Dictionary:
 		return game.wrong_words.pick_random()
 	return game.question_queue.pop_back()
 
+func get_enemy_morale_stage() -> int:
+	## v0.9.9.6_dev3 4-Stage Dynamic Enemy Attitude System:
+	##   Stage 1 (趾高气昂): Fresh start / low kills — enemies mock & underestimate the player.
+	##   Stage 2 (慎重戒备): Proven steady hits/kills — enemies warn each other & stop underestimating.
+	##   Stage 3 (暗生敬佩): High accuracy & kills — enemies admire marksmanship & English mastery.
+	##   Stage 4 (畏惧退避): Dominant kills & high accuracy — regular minions fear & evade player (Bosses IMMUNE!).
+	var acc: float = (float(field_hits) / float(field_answers)) if field_answers > 0 else 1.0
+	var kills: int = run_soldiers_defeated
+	var streak_now: int = int(game.rules.streak) if (is_instance_valid(game) and is_instance_valid(game.rules)) else 0
+	var cleared_now: int = int(game.rules.outposts_cleared) if (is_instance_valid(game) and is_instance_valid(game.rules)) else 0
+	if (kills >= 12 and acc >= 0.78) or (streak_now >= 8 and kills >= 8) or (cleared_now >= 3 and acc >= 0.75):
+		return 4
+	if (kills >= 7 and acc >= 0.70) or (streak_now >= 5 and kills >= 4) or (cleared_now >= 2 and acc >= 0.65):
+		return 3
+	if (kills >= 3 and acc >= 0.58) or streak_now >= 3 or cleared_now >= 1:
+		return 2
+	return 1
+
+func get_enemy_morale_label(stage_val: int = -1) -> String:
+	var st: int = stage_val if stage_val >= 1 else get_enemy_morale_stage()
+	match st:
+		1: return "趾高气昂"
+		2: return "慎重戒备"
+		3: return "暗生敬佩"
+		_: return "畏惧退避"
+
+func _check_morale_stage_transition(z_idx: int = -1):
+	var cur_stage := get_enemy_morale_stage()
+	if cur_stage <= last_announced_morale_stage:
+		return
+	last_announced_morale_stage = cur_stage
+	var vz: int = z_idx if z_idx >= 0 else (zone if zone >= 0 else 0)
+	var grp := _voice_group_for_zone(vz, false)
+	var tag := "stage%d" % cur_stage
+	if cur_stage == 2:
+		game._notice("💬 敌军士气动摇【第2阶段·慎重】：敌兵见你枪稳词准，开始收起轻视！", Color("ffe082"))
+	elif cur_stage == 3:
+		game._notice("💬 敌军震惊【第3阶段·敬佩】：敌军惊叹你的枪法与英语词汇量！", Color("8ef5c8"))
+	elif cur_stage >= 4:
+		game._notice("😰 敌军胆寒【第4阶段·畏惧】：普通小兵靠近时将主动后撤躲避！（首领不受影响）", Color("ffbe76"))
+	if not game.paused:
+		game.play_cn_voice_group(grp, tag, 12.0, false)
+
+func trigger_fear_evasion_bark(z_idx: int, dist_m: float):
+	if fear_bark_global_cd > 0.0 or game.paused or get_enemy_morale_stage() < 4:
+		return
+	var grp := _voice_group_for_zone(z_idx, false)
+	if game.play_cn_voice_group(grp, "stage4", dist_m, false) != "":
+		fear_bark_global_cd = 9.0
+
+func _collect_zone_active_words(z_idx: int, exclude_soldier = null) -> Dictionary:
+	## v0.9.9.6_dev3: Collects EVERY active English word (lowercased) across all living units
+	## in `z_idx` — including regular overhead word tags, Normal Boss Vanguard multi-shields (2-3),
+	## AND Confidential Overlord/Reis multi-shields (3-5) — to mathematically prevent duplicates!
+	var used := {}
+	for s in living_soldiers(z_idx):
+		if s == exclude_soldier:
+			continue
+		if s.is_skyfall_overlord:
+			for sd in s.multi_shields:
+				if not bool(sd.get("broken", false)) and sd.get("word") is Dictionary:
+					var w_ov := str((sd.word as Dictionary).get("english", "")).to_lower()
+					if w_ov != "":
+						used[w_ov] = true
+		elif s.vanguard_multi_active():
+			for vd in s.vanguard_shields:
+				if bool(vd.get("active", false)) and vd.get("word") is Dictionary:
+					var w_vg := str((vd.word as Dictionary).get("english", "")).to_lower()
+					if w_vg != "":
+						used[w_vg] = true
+		else:
+			var w_s := str(s.assigned_word.get("english", "")).to_lower()
+			if w_s != "":
+				used[w_s] = true
+	return used
+
+func _build_unique_zone_words(z_idx: int, count: int, exclude_soldier = null, extra_exclude: Array = []) -> Array:
+	## Guaranteed collision-free word allocator for Boss multi-shields, minions, rerolls & drones.
+	var forbidden := _collect_zone_active_words(z_idx, exclude_soldier)
+	for ex in extra_exclude:
+		var k := str(ex).to_lower()
+		if k != "":
+			forbidden[k] = true
+	var picked: Array = []
+	var picked_keys := {}
+	for _attempt in 6:
+		var seed_w := _pick_seed_word()
+		var s_key := str(seed_w.get("english", "")).to_lower()
+		if s_key == "" or forbidden.has(s_key) or picked_keys.has(s_key):
+			continue
+		var batch: Array = game._pick_smart_distractors(seed_w, count + 6)
+		for w in batch:
+			var k := str(w.get("english", "")).to_lower()
+			if k != "" and not forbidden.has(k) and not picked_keys.has(k):
+				picked.append(w)
+				picked_keys[k] = true
+				if picked.size() >= count:
+					break
+		if picked.size() >= count:
+			break
+	if picked.size() < count and not game.words.is_empty():
+		var start_i := shot_rng.randi_range(0, game.words.size() - 1)
+		for offset in game.words.size():
+			var w: Dictionary = game.words[(start_i + offset) % game.words.size()]
+			var k := str(w.get("english", "")).to_lower()
+			if k != "" and not forbidden.has(k) and not picked_keys.has(k):
+				picked.append(w)
+				picked_keys[k] = true
+				if picked.size() >= count:
+					break
+	picked.shuffle()
+	return picked
+
+func get_zone_duplicate_words(z_idx: int) -> Array:
+	## Diagnostic & QA invariant: returns any duplicate English word active across all living units & Boss shields in z_idx!
+	var seen := {}
+	var dups: Array = []
+	for s in living_soldiers(z_idx):
+		var unit_words: Array = []
+		if s.is_skyfall_overlord:
+			for sd in s.multi_shields:
+				if not bool(sd.get("broken", false)) and sd.get("word") is Dictionary:
+					unit_words.append(str((sd.word as Dictionary).get("english", "")))
+		elif s.vanguard_multi_active():
+			for vd in s.vanguard_shields:
+				if bool(vd.get("active", false)) and vd.get("word") is Dictionary:
+					unit_words.append(str((vd.word as Dictionary).get("english", "")))
+		else:
+			unit_words.append(str(s.assigned_word.get("english", "")))
+		for w in unit_words:
+			var k: String = str(w).to_lower()
+			if k == "":
+				continue
+			if seen.has(k) and not (k in dups):
+				dups.append(k)
+			seen[k] = true
+	return dups
+
 func _build_wave_words(count: int) -> Array:
 	var seed_word := _pick_seed_word()
 	var words_list: Array = game._pick_smart_distractors(seed_word, count)
@@ -487,11 +635,32 @@ func _spawn_camp_wave(z_idx: int):
 			if is_instance_valid(old_s):
 				old_s.collision_layer = 0
 				old_s.queue_free()
+	troops[z_idx] = []
 	var wave_idx := int(waves_done.get(z_idx, 0))
 	var sq_count := _roll_wave_squad_size(z_idx, wave_idx)
 	wave_squad_size[z_idx] = sq_count
 	var archetypes := _squad_archetypes(z_idx, wave_idx, sq_count)
-	var words_n := _build_wave_words(sq_count)
+	var has_skyfall_boss := false
+	for a_chk in archetypes:
+		if a_chk == Soldier.Archetype.BOSS_WARDEN and game.rules.is_confidential():
+			has_skyfall_boss = true
+			break
+	# v0.9.9.6_dev3: When Confidential Overlord/Reis spawns (5 shields), allocate all 5 Boss words + squad words from ONE strictly disjoint pool!
+	var total_needed := sq_count + (4 if has_skyfall_boss else 0)
+	var disjoint_pool := _build_wave_words(total_needed)
+	var overlord_words: Array = []
+	var words_n: Array = []
+	if has_skyfall_boss:
+		overlord_words = disjoint_pool.slice(0, 5)
+		var rem_idx := 5
+		for i in sq_count:
+			if archetypes[i] == Soldier.Archetype.BOSS_WARDEN and game.rules.is_confidential():
+				words_n.append(overlord_words[0])
+			else:
+				words_n.append(disjoint_pool[mini(rem_idx, disjoint_pool.size() - 1)])
+				rem_idx += 1
+	else:
+		words_n = disjoint_pool.slice(0, sq_count)
 	wave_words[z_idx] = words_n
 	var covers: Array = camp_covers[z_idx]
 	# Spread squad evenly across the 6 wide-spaced camp cover slots (leaving unoccupied covers + clear lanes!)
@@ -508,7 +677,7 @@ func _spawn_camp_wave(z_idx: int):
 		soldier.set_nemesis_bounty(game.rules.learning.is_nemesis(str(words_n[i].get("id", ""))))
 		# v0.8.1 #3: Word shields are clearly shown from spawn so players can scout & snipe from afar!
 		if skyfall_boss:
-			soldier.configure_overlord_sequence(_build_wave_words(5))
+			soldier.configure_overlord_sequence(overlord_words)
 		else:
 			soldier.show_word(str(words_n[i].get("english", "")), false)
 		soldiers.append(soldier)
@@ -623,23 +792,13 @@ func _reroll_soldier_word(z_idx: int, soldier):
 		return
 	if soldier.vanguard_multi_active():
 		var slots := 3 if soldier.boss_phase == 1 else 2
-		soldier.configure_vanguard_shields(_build_wave_words(slots), slots)
+		soldier.configure_vanguard_shields(_build_unique_zone_words(z_idx, slots, soldier), slots)
 		if wave_words.has(z_idx) and soldier.option < wave_words[z_idx].size():
 			wave_words[z_idx][soldier.option] = soldier.expected_vanguard_word()
 		return
 	var old_en := str(soldier.assigned_word.get("english", "")).to_lower()
-	var fresh := _pick_seed_word()
-	for _try in 12:
-		var f_en := str(fresh.get("english", "")).to_lower()
-		var clash := (f_en == old_en)
-		if not clash:
-			for other in living_soldiers(z_idx):
-				if other != soldier and str(other.assigned_word.get("english", "")).to_lower() == f_en:
-					clash = true
-					break
-		if not clash:
-			break
-		fresh = _pick_seed_word()
+	var fresh_list := _build_unique_zone_words(z_idx, 1, soldier, [old_en])
+	var fresh: Dictionary = fresh_list[0] if not fresh_list.is_empty() else _pick_seed_word()
 	if wave_words.has(z_idx) and soldier.option < wave_words[z_idx].size():
 		wave_words[z_idx][soldier.option] = fresh
 	soldier.assigned_word = fresh
@@ -653,7 +812,7 @@ func _sync_active_prompt_from_zone(z_idx: int, reset_timer: bool = false) -> boo
 	var alive := living_soldiers(z_idx)
 	if z_idx == 2 and chosen == boss_unit and not chosen.is_skyfall_overlord and alive.size() == 1 and not chosen.vanguard_multi_active():
 		var solo_slots := 3 if chosen.boss_phase == 1 else 2
-		chosen.configure_vanguard_shields(_build_wave_words(solo_slots), solo_slots)
+		chosen.configure_vanguard_shields(_build_unique_zone_words(z_idx, solo_slots, chosen), solo_slots)
 		if wave_words.has(z_idx) and chosen.option < wave_words[z_idx].size():
 			wave_words[z_idx][chosen.option] = chosen.expected_vanguard_word()
 	game.choices = wave_words.get(z_idx, [])
@@ -684,7 +843,7 @@ func _select_next_wave_prompt(z_idx: int, avoid_option: int = -1, preserve_exist
 	# v0.8.6 Normal Mode Boss: never degenerate into a lone 1-word punching bag!
 	if z_idx == 2 and chosen == boss_unit and not chosen.is_skyfall_overlord and alive.size() == 1 and not chosen.vanguard_multi_active():
 		var solo_slots := 3 if chosen.boss_phase == 1 else 2
-		chosen.configure_vanguard_shields(_build_wave_words(solo_slots), solo_slots)
+		chosen.configure_vanguard_shields(_build_unique_zone_words(z_idx, solo_slots, chosen), solo_slots)
 		if wave_words.has(z_idx) and chosen.option < wave_words[z_idx].size():
 			wave_words[z_idx][chosen.option] = chosen.expected_vanguard_word()
 	game.choices = wave_words[z_idx]
@@ -874,7 +1033,8 @@ func engage_camp(z_idx: int, preserve_prompt: bool = false):
 				game.play_sfx("boss_phase", -11)
 		else:
 			var grp_en := _voice_group_for_zone(z_idx, false)
-			game.play_cn_voice_group(grp_en, "combat", 12.0, false)
+			var m_stage_en := get_enemy_morale_stage()
+			game.play_cn_voice_group(grp_en, "stage%d" % m_stage_en, 12.0, false)
 			if is_ah:
 				var fac := str(zone_info(z_idx).get("faction", "ahsarah"))
 				if fac == "haavk":
@@ -941,8 +1101,10 @@ func _voice_group_for_zone(z_idx: int, prefer_boss: bool = false) -> String:
 func _update_proximity_voice_barks(delta: float):
 	if not in_field() or not is_instance_valid(game.player) or game.paused:
 		return
+	fear_bark_global_cd = maxf(0.0, fear_bark_global_cd - delta)
 	for zk in proximity_bark_cd.keys():
 		proximity_bark_cd[zk] = maxf(0.0, float(proximity_bark_cd[zk]) - delta)
+	var m_stage := get_enemy_morale_stage()
 	if zone >= 0 and is_zone_engaged(zone):
 		combat_bark_timer -= delta
 		if combat_bark_timer <= 0.0:
@@ -950,7 +1112,8 @@ func _update_proximity_voice_barks(delta: float):
 			var use_boss: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and bark_rng.randf() < 0.65)
 			var grp_c := _voice_group_for_zone(zone, use_boss)
 			var dist_c: float = game.player.position.distance_to(zone_center(zone))
-			game.play_cn_voice_group(grp_c, "combat", dist_c, false)
+			var tag_c: String = ("stage3_4" if m_stage >= 3 else "combat") if use_boss else ("stage%d" % m_stage)
+			game.play_cn_voice_group(grp_c, tag_c, dist_c, false)
 		return
 	proximity_bark_tick -= delta
 	if proximity_bark_tick > 0.0:
@@ -970,13 +1133,14 @@ func _update_proximity_voice_barks(delta: float):
 			best_d = d
 			best_z = z_idx
 	if best_z >= 0:
-		if bark_rng.randf() < 0.58:
-			var prefer_b: bool = (best_z == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and bark_rng.randf() < 0.72)
+		if bark_rng.randf() < 0.68:
+			var prefer_b: bool = (best_z == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and bark_rng.randf() < 0.68)
 			var grp := _voice_group_for_zone(best_z, prefer_b)
-			if game.play_cn_voice_group(grp, "proximity", best_d, false) != "":
-				proximity_bark_cd[best_z] = bark_rng.randf_range(18.0, 26.0)
+			var tag_p: String = ("stage3_4" if m_stage >= 3 else "proximity") if prefer_b else ("stage%d" % m_stage)
+			if game.play_cn_voice_group(grp, tag_p, best_d, false) != "":
+				proximity_bark_cd[best_z] = bark_rng.randf_range(16.0, 23.0)
 		else:
-			proximity_bark_cd[best_z] = 5.5
+			proximity_bark_cd[best_z] = 5.0
 
 func resolve_overhead_tag_overlaps(delta: float = 0.016) -> int:
 	## v0.9.9.5 Multi-target screen-space anti-overlap for overhead holographic word tags:
@@ -1445,6 +1609,8 @@ func show_question():
 	var words_5: Array = wave_words.get(zone, [])
 	var alive_count := 0
 	var active_is_nemesis := false
+	var overlord_active: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord)
+	var vanguard_focus: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.vanguard_multi_active() and game.answer_index == boss_unit.option)
 	for slot_i in troops[zone].size():
 		var soldier = troops[zone][slot_i]
 		if not is_instance_valid(soldier) or soldier.defeated:
@@ -1453,9 +1619,12 @@ func show_question():
 		if soldier.option == game.answer_index and soldier.is_nemesis_bounty:
 			active_is_nemesis = true
 		var w_text := str(soldier.assigned_word.get("english", "")) if not soldier.assigned_word.is_empty() else (str(words_5[slot_i].english) if slot_i < words_5.size() else "")
-		soldier.show_word(w_text, false)
-
-	var overlord_active: bool = (zone == 2 and is_instance_valid(boss_unit) and not boss_unit.defeated and boss_unit.is_skyfall_overlord)
+		if soldier != boss_unit:
+			# v0.9.9.6_dev3: Suppress escort word tags while Overlord 5/3-shield duel is active;
+			# softly dim escort tags while Normal Boss 2/3-shield prompt is active!
+			soldier.set_boss_focus_mode(overlord_active and boss_unit.skyfall_state == "landed", vanguard_focus)
+		else:
+			soldier.show_word(w_text, false)
 	var is_ah_q: bool = game.is_ahsarah_map()
 	if overlord_active and prompt_reveal_left <= 0.0:
 		if boss_unit.overlord_ultimate_state in ["descending", "holding", "lifting"]:
@@ -1660,6 +1829,9 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 			game.achievements.record_stat("soldiers_defeated", 1)
 			if is_instance_valid(game.player) and game.player.position.distance_to(soldier.position) >= 35.0:
 				game.achievements.record_stat("sniper_kills", 1)
+	if is_instance_valid(soldier) and soldier.defeated:
+		run_soldiers_defeated += 1
+	_check_morale_stage_transition(soldier.zone if is_instance_valid(soldier) else zone)
 
 	var nemesis_tag := ""
 	if is_instance_valid(soldier) and soldier.is_nemesis_bounty and first_choice_independent:
@@ -1686,7 +1858,7 @@ func _score_wave_correct(soldier, is_crit: bool, prefix: String, grant_bullet_am
 func _rotate_boss_word_and_prompt(boss):
 	if boss.vanguard_multi_active():
 		var slots := 3 if boss.boss_phase == 1 else 2
-		boss.configure_vanguard_shields(_build_wave_words(slots), slots)
+		boss.configure_vanguard_shields(_build_unique_zone_words(2, slots, boss), slots)
 		var v_word: Dictionary = boss.expected_vanguard_word()
 		if wave_words.has(2) and boss.option < wave_words[2].size():
 			wave_words[2][boss.option] = v_word
@@ -1695,16 +1867,9 @@ func _rotate_boss_word_and_prompt(boss):
 		zone_prompt_option[2] = boss.option
 		_select_next_wave_prompt(2, -1, true)
 		return
-	var fresh := _pick_seed_word()
-	for _try in 8:
-		var clash := false
-		for w in wave_words.get(2, []):
-			if str(w.english).to_lower() == str(fresh.english).to_lower():
-				clash = true
-				break
-		if not clash:
-			break
-		fresh = _pick_seed_word()
+	var old_b_en := str(boss.assigned_word.get("english", "")).to_lower()
+	var fresh_list := _build_unique_zone_words(2, 1, boss, [old_b_en])
+	var fresh: Dictionary = fresh_list[0] if not fresh_list.is_empty() else _pick_seed_word()
 	if wave_words.has(2) and boss.option < wave_words[2].size():
 		wave_words[2][boss.option] = fresh
 	boss.assigned_word = fresh
@@ -1842,13 +2007,15 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 				game.achievements.record_stat("best_streak", game.rules.streak, true)
 			var br: Dictionary = soldier.break_overlord_shield(slot_idx)
 			if bool(br.get("dead", false)):
+				run_soldiers_defeated += 1
 				if is_instance_valid(game.achievements):
 					game.achievements.record_stat("soldiers_defeated", 1)
 					game.achievements.record_stat("skyfall_boss_defeated", 1)
 				_on_boss_defeated(soldier)
+				_check_morale_stage_transition(target_z)
 				_advance_wave_after_kill(target_z)
 			elif bool(br.get("entered_round_two", false)):
-				soldier.configure_overlord_round_two(_build_wave_words(3))
+				soldier.configure_overlord_round_two(_build_unique_zone_words(target_z, 3, soldier))
 				game.play_sfx("gramophone_chord" if game.is_ahsarah_map() else "boss_phase", -6)
 				game.screen_flash.color = Color(1.0, 0.72, 0.20, 0.22)
 				var r2_nxt: Dictionary = soldier.expected_overlord_word()
@@ -1898,7 +2065,7 @@ func hit_bullet(collider, muzzle_id: String = "", _hit_pos: Vector3 = Vector3.ZE
 			if not exp_word.is_empty():
 				game.speak_english(str(exp_word.get("english", "")))
 			var reshuffle_n := 3 if soldier.overlord_round >= 2 else 5
-			soldier.reset_overlord_sequence(_build_wave_words(reshuffle_n))
+			soldier.reset_overlord_sequence(_build_unique_zone_words(target_z, reshuffle_n, soldier))
 			game.screen_flash.color = Color(1.0, 0.22, 0.14, 0.24)
 			if soldier.overlord_round >= 2:
 				game._notice("⚠ 二轮顺序错误（应击 %s）！3 面公转金盾重洗且倒计时缩短！" % str(exp_word.get("english", "")), Color("ff5c66"))
@@ -2172,9 +2339,12 @@ func _spawn_boss_support_drones(boss, max_new: int = 2):
 	if to_add <= 0:
 		return
 	var covers: Array = camp_covers.get(2, [])
-	var extra_words := _build_wave_words(to_add)
+	# v0.9.9.6_dev3: Strictly exclude ALL active Boss multi-shield words & existing escorts' words!
+	var extra_words := _build_unique_zone_words(2, to_add, null)
 	var support_arch: int = Soldier.Archetype.ASSAULT_BOT if game.is_ahsarah_map() else Soldier.Archetype.SCOUT_DRONE
 	for i in to_add:
+		if i >= extra_words.size():
+			break
 		var slot_opt: int = troops[2].size()
 		var drone := Soldier.new()
 		arena.add_child(drone)
@@ -2184,7 +2354,10 @@ func _spawn_boss_support_drones(boss, max_new: int = 2):
 		var dw: Dictionary = extra_words[i]
 		drone.assigned_word = dw
 		drone.set_nemesis_bounty(game.rules.learning.is_nemesis(str(dw.get("id", ""))))
-		drone.show_word(str(dw.get("english", "")), false)
+		if boss.is_skyfall_overlord and boss.skyfall_state == "landed":
+			drone.set_boss_focus_mode(true, false)
+		else:
+			drone.show_word(str(dw.get("english", "")), false)
 		drone.begin_tactical_engagement(true)
 		troops[2].append(drone)
 		if wave_words.has(2):
@@ -2195,7 +2368,7 @@ func on_boss_phase_shift(boss, next_phase: int):
 		return
 	game.play_sfx("boss_phase", -9)
 	if next_phase == 2:
-		boss.configure_vanguard_shields(_build_wave_words(2), 2)
+		boss.configure_vanguard_shields(_build_unique_zone_words(2, 2, boss), 2)
 		if wave_words.has(2) and boss.option < wave_words[2].size():
 			wave_words[2][boss.option] = boss.expected_vanguard_word()
 		if not boss.vanguard_drones_spawned:
@@ -2215,7 +2388,7 @@ func on_boss_phase_shift(boss, next_phase: int):
 			if is_instance_valid(game.player):
 				spawn_danger_ring(game.player.position, 3.4, 22)
 	elif next_phase == 1:
-		boss.configure_vanguard_shields(_build_wave_words(3), 3)
+		boss.configure_vanguard_shields(_build_unique_zone_words(2, 3, boss), 3)
 		if wave_words.has(2) and boss.option < wave_words[2].size():
 			wave_words[2][boss.option] = boss.expected_vanguard_word()
 		boss.vanguard_move_cd = 1.9
@@ -2244,6 +2417,9 @@ func _on_boss_defeated(boss):
 	if game.rules.boss_defeated:
 		return
 	game.rules.boss_defeated = true
+	for rem_s in living_soldiers(2):
+		if rem_s != boss and rem_s.has_method("set_boss_focus_mode"):
+			rem_s.set_boss_focus_mode(false, false)
 	game.rules.score += game.Rules.BOSS_DEFEAT_SCORE
 	game.player.add_reserve_ammo(8 if game.rules.is_confidential() else 10)
 	var is_ah_boss: bool = game.is_ahsarah_map()
@@ -3032,16 +3208,17 @@ func claim_tactical_cover(soldier, force_new_cover: bool = false) -> Dictionary:
 	var all_anchors: Array = []
 	for p in camp_list:
 		all_anchors.append({"pos": p, "is_parapet": true})
-	# Include roadside natural tree/rock covers when player steps outside camp (>17m) or in Confidential flanking!
-	if d_player_camp > 17.0 or game.rules.is_confidential():
+	# Include roadside natural tree/rock covers when player steps outside camp (>17m), Confidential flanking, or Stage-4 minion fear!
+	var fearing_cover: bool = soldier.has_method("is_fearing_player") and soldier.is_fearing_player()
+	if d_player_camp > 17.0 or game.rules.is_confidential() or fearing_cover:
 		for op in outer_list:
 			all_anchors.append({"pos": op, "is_parapet": false})
 
 	if all_anchors.is_empty():
 		return {"idx": 0, "anchor": soldier.cover, "shelter_pos": soldier.home, "peek_pos": soldier.home, "is_parapet": true}
 
-	var ideal_min := 11.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (8.2 if is_single_attacker_mode() else 6.2)
-	var ideal_max := 20.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (17.2 if is_single_attacker_mode() else 14.5)
+	var ideal_min := 15.5 if fearing_cover else (11.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (8.2 if is_single_attacker_mode() else 6.2))
+	var ideal_max := 25.0 if fearing_cover else (20.5 if soldier.archetype in [Soldier.Archetype.SNIPER_GUARD, Soldier.Archetype.BOSS_WARDEN] else (17.2 if is_single_attacker_mode() else 14.5))
 
 	var best_idx := 0
 	var best_score := -1e9

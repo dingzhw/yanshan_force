@@ -1274,6 +1274,93 @@ func run():
 		)
 	game._end_run(false)
 
+	# 15. v0.9.9.6_dev3 Zero-Duplicate Boss/Minion Words + 4-Stage Morale Progression & Stage-4 Minion Fear Evasion (Boss Immune!)
+	game.start_action(true, "normal")
+	await frames(4)
+	game.combat.engage_camp(2)
+	var b96 = game.combat.boss_unit
+	var dup_p1: Array = game.combat.get_zone_duplicate_words(2)
+	game.combat.on_boss_phase_shift(b96, 2)
+	var dup_p2: Array = game.combat.get_zone_duplicate_words(2)
+	game.combat.on_boss_phase_shift(b96, 1)
+	var dup_p3: Array = game.combat.get_zone_duplicate_words(2)
+	for _rr in 5:
+		game.combat._rotate_boss_word_and_prompt(b96)
+	var dup_rot: Array = game.combat.get_zone_duplicate_words(2)
+	verify(
+		dup_p1.is_empty() and dup_p2.is_empty() and dup_p3.is_empty() and dup_rot.is_empty(),
+		"v0.9.9.6_dev3: Boss Phase 1/2/3, support drones & multi-shield rotations guarantee ZERO duplicate words across all units in zone (dups=%s/%s/%s/%s)" % [str(dup_p1), str(dup_p2), str(dup_p3), str(dup_rot)]
+	)
+	# Verify 4-stage enemy morale progression (1 -> 2 -> 3 -> 4), Stage-4 CN voice lines, Stage-4 minion fear/evasion & Boss immunity!
+	game.combat.run_soldiers_defeated = 0
+	game.combat.field_hits = 0
+	game.combat.field_answers = 0
+	game.rules.streak = 0
+	game.rules.outposts_cleared = 0
+	var st1: int = game.combat.get_enemy_morale_stage()
+	game.combat.run_soldiers_defeated = 4
+	game.combat.field_hits = 4
+	game.combat.field_answers = 5
+	var st2: int = game.combat.get_enemy_morale_stage()
+	game.combat.run_soldiers_defeated = 8
+	game.combat.field_hits = 8
+	game.combat.field_answers = 10
+	var st3: int = game.combat.get_enemy_morale_stage()
+	game.combat.run_soldiers_defeated = 14
+	game.combat.field_hits = 14
+	game.combat.field_answers = 16
+	var st4: int = game.combat.get_enemy_morale_stage()
+	var minion_fear_ok: bool = false
+	var boss_fear_immune: bool = not bool(b96.is_fearing_player())
+	var retreat_ok: bool = false
+	var test_minion = null
+	for ms in game.combat.living_soldiers(0):
+		if ms.archetype != Soldier.Archetype.BOSS_WARDEN:
+			test_minion = ms
+			break
+	if is_instance_valid(test_minion):
+		minion_fear_ok = bool(test_minion.is_fearing_player())
+		# Place player 7m from minion in Stage 4 -> minion actively retreats farther away instead of charging!
+		var c0: Vector3 = game.combat.zone_center(0)
+		test_minion.position = game.Layout.on_ground(c0)
+		game.player.position = game.Layout.on_ground(c0 + Vector3(0.0, 0.0, 7.0))
+		var d_before: float = Vector2(test_minion.position.x - game.player.position.x, test_minion.position.z - game.player.position.z).length()
+		for _step_f in 25:
+			test_minion._physics_process(0.05)
+		var d_after: float = Vector2(test_minion.position.x - game.player.position.x, test_minion.position.z - game.player.position.z).length()
+		retreat_ok = d_after > d_before + 0.6
+	game.cn_voice_cd = 0.0
+	var s1_id: String = game.play_cn_voice_group("mistbound_soldier", "stage1", 10.0, true)
+	game.cn_voice_cd = 0.0
+	var s4_id: String = game.play_cn_voice_group("mistbound_soldier", "stage4", 10.0, true)
+	game.cn_voice_cd = 0.0
+	var boss_s34_id: String = game.play_cn_voice_group("boss_ironface", "stage3_4", 10.0, true)
+	verify(
+		st1 == 1 and st2 == 2 and st3 == 3 and st4 == 4 and minion_fear_ok and boss_fear_immune and retreat_ok and s1_id.begins_with("mb_s1_") and s4_id.begins_with("mb_s4_") and boss_s34_id.begins_with("iron_s34_"),
+		"v0.9.9.6_dev3: 4-stage enemy morale progresses 1->2->3->4 with dedicated CN voices; Stage-4 minions fear & retreat while Boss stays 100% immune"
+	)
+	game._end_run(false)
+
+	# 16. v0.9.9.6_dev3 Confidential Overlord zero-duplicate & escort word suppression during Boss duel
+	game.start_action(true, "confidential")
+	await frames(4)
+	game.combat.engage_camp(2)
+	var ov96 = game.combat.boss_unit
+	ov96.force_land_skyfall()
+	game.combat.show_question()
+	var dup_ov1: Array = game.combat.get_zone_duplicate_words(2)
+	var escorts_suppressed := true
+	for es in game.combat.living_soldiers(2):
+		if es != ov96 and es.shield_area.visible:
+			escorts_suppressed = false
+	ov96.configure_overlord_round_two(game.combat._build_unique_zone_words(2, 3, ov96))
+	var dup_ov2: Array = game.combat.get_zone_duplicate_words(2)
+	verify(
+		dup_ov1.is_empty() and dup_ov2.is_empty() and escorts_suppressed,
+		"v0.9.9.6_dev3: Confidential Overlord Round 1 & 2 maintain zero duplicate words and suppress distracting escort word tags during Boss duel"
+	)
+	game._end_run(false)
+
 	game.queue_free()
 	await process_frame
 	await create_timer(0.3).timeout

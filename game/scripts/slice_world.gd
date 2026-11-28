@@ -511,10 +511,10 @@ func _ground():
 			var sd := float(game.Layout.stream_distance(x, z))
 			if sd < 2.22 and z >= s_zmin - 1.2:
 				vh -= 0.055 * (1.0 - smoothstep(1.48, 2.22, sd))
-			if z >= -137.0 and z <= -93.0 and x >= -93.0 and x <= -57.0:
+			if z >= -137.0 and z <= -95.0 and x >= -93.0 and x <= -57.0:
 				var sp_g2: Vector2 = game.Layout.cave_spine_at_z(z)
 				var wx := 1.0 - smoothstep(sp_g2.y + 0.25, sp_g2.y + 1.85, absf(x - sp_g2.x))
-				var wz := smoothstep(-136.6, -134.8, z) * (1.0 - smoothstep(-94.2, -93.1, z))
+				var wz := smoothstep(-136.6, -134.8, z) * (1.0 - smoothstep(-97.8, -95.2, z))
 				vh -= 0.72 * wx * wz
 			vis_y[idx] = vh
 			verts[idx] = Vector3(x, vh, z)
@@ -1307,7 +1307,8 @@ void fragment(){
 	_batch(quad, smat, shade_tx, false)
 
 func _hill_height(x: float, z: float) -> float:
-	return 8.5 + 18.0 * exp(-pow((x + 88.0) / 56.0, 2.0) - pow((z + 275.0) / 55.0, 2.0)) + 25.0 * exp(-pow((x - 62.0) / 72.0, 2.0) - pow((z + 305.0) / 68.0, 2.0)) + 5.5 * sin(x * 0.022 + z * 0.016)
+	# v0.9.9.6_dev3: Gentle rolling mist-draped valley foothills (eliminates abrupt smooth bulging domes outside west/north fence!)
+	return 2.2 + 6.8 * exp(-pow((x + 110.0) / 86.0, 2.0) - pow((z + 325.0) / 88.0, 2.0)) + 9.2 * exp(-pow((x - 70.0) / 96.0, 2.0) - pow((z + 335.0) / 92.0, 2.0)) + 2.8 * sin(x * 0.018 + z * 0.014)
 
 func _outer_stream_x(z: float) -> float:
 	var max_z := float(game.Layout.MAX_Z)
@@ -3351,8 +3352,10 @@ func _build_bamboo_maze_and_yanxia_cave():
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				continue
 			if m_n.contains("Interior") or m_n.contains("Exterior") or m_n.contains("Pillars"):
-				if m_n.contains("Interior") or m_n.contains("Exterior"):
+				if m_n.contains("Exterior"):
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+				elif m_n.contains("Interior"):
+					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 				var trishp := mi.mesh.create_trimesh_shape()
 				if trishp != null:
 					trishp.backface_collision = true
@@ -3379,11 +3382,15 @@ func _build_bamboo_maze_and_yanxia_cave():
 	# Smooth analytical walkable wet-limestone floor slabs covering Throat + Mid-Gallery + Grand Hall + Sanctum
 	# PLUS watertight South Portal flank/seam seals matching BambooStoneMaze row-6 forecourt!
 	var cave_floor_boxes := [
-		[Vector3(-0.75, -0.174, 0.80), Vector3(8.50, 0.40, 14.50)],     # Entrance mouth & narrow throat floor (top = +0.026m)
+		[Vector3(-0.75, -0.174, 1.40), Vector3(8.50, 0.40, 15.60)],     # Entrance mouth & narrow throat floor (top = +0.026m)
 		[Vector3(-2.80, -0.174, -10.50), Vector3(17.50, 0.40, 12.50)],  # Mid-gallery floor
 		[Vector3(-3.50, -0.174, -24.50), Vector3(26.50, 0.40, 22.50)],  # Grand Cavern Hall + '一线天' sanctum floor
 		[Vector3(-9.20, 0.42, -28.40), Vector3(6.20, 0.82, 5.10)],      # Grand Hall Jade Spring Pool rim guard
 		[Vector3(-6.53, 0.46, -28.40), Vector3(1.04, 0.88, 0.94)],      # Ancestral stone tea hearth collider
+		# v0.9.9.6_dev3: Watertight entrance cheek & brow solid seals immediately flanking the 4.1m walkable doorway!
+		[Vector3(-4.95, 3.30, 6.40), Vector3(5.40, 7.20, 6.80)],        # West entrance flank solid bedrock collider
+		[Vector3( 4.95, 3.30, 6.40), Vector3(5.40, 7.20, 6.80)],        # East entrance flank solid bedrock collider
+		[Vector3( 0.00, 5.75, 6.50), Vector3(6.40, 3.40, 4.40)],        # Cave portal upper rock brow collider
 	]
 	if not grand_loaded:
 		cave_floor_boxes.append([Vector3(-5.05, 2.85, -0.35), Vector3(3.60, 6.20, 14.00)])
@@ -3414,9 +3421,10 @@ func _build_bamboo_maze_and_yanxia_cave():
 	var light_specs := [
 		[Vector3(-0.55, 2.85, 1.20), Color("5eead8"), 1.35, 10.5],      # Narrow throat bioluminescent wall moss/vines
 		[Vector3(-2.65, 6.80, -10.50), Color("c4f2ff"), 2.45, 18.0],    # Mid-Gallery Skylight ('洞顶空窗') daylight pool
-		[Vector3(-5.10, 2.65, -8.10), Color("ffd49c"), 1.75, 10.5],     # Warm raking light illuminating '烟山耕读' & '烟霞古洞志' wall carvings
-		[Vector3(-3.50, 7.80, -23.00), Color("4ce4d8"), 2.55, 24.0],    # Grand Cavern Hall bioluminescent wall flora ambient
-		[Vector3(-7.60, 2.60, -28.10), Color("7cf2dc"), 1.85, 12.5],    # Jade Spring Pool & warm hearth alcove glow
+		[Vector3(-4.85, 3.05, -7.25), Color("ffd8a4"), 2.25, 11.5],     # Warm raking light grazing carved '烟山耕读' rock-carved relief
+		[Vector3( 1.20, 3.05, -7.05), Color("ffd8a4"), 2.00, 10.0],     # Dedicated warm raking accent for East rock-carved chronicle relief
+		[Vector3(-3.50, 7.80, -23.00), Color("4ce4d8"), 2.45, 24.0],    # Grand Cavern Hall bioluminescent wall flora ambient
+		[Vector3(-7.60, 3.60, -28.10), Color("38c6ba"), 1.15, 11.5],    # Deep emerald Jade Spring Pool & warm hearth alcove glow
 		[Vector3(-3.50, 7.60, -32.20), Color("caf6ff"), 2.75, 16.0],    # Deepest '一线天' vertical fissure sunbeam glow
 	]
 	for ls in light_specs:
@@ -3431,7 +3439,7 @@ func _build_bamboo_maze_and_yanxia_cave():
 		ol.distance_fade_length = 12.0
 		cave_root.add_child(ol)
 
-	var chron_lbl: Label3D = game._label3d(cave_root, "石壁题志 ·《烟霞古洞志》", Vector3(2.45, 3.25, -7.90), 20, Color("e8dec2"))
+	var chron_lbl: Label3D = game._label3d(cave_root, "石壁阴刻 ·《烟霞古洞志》", Vector3(2.65, 3.25, -7.83), 20, Color("e8dec2"))
 	chron_lbl.pixel_size = 0.0036
 	chron_lbl.visibility_range_end = 13.0
 	var pool_lbl: Label3D = game._label3d(cave_root, "洞中寒潭 · 荧光清泉", Vector3(-9.20, 1.65, -28.40), 20, Color("9ef5e2"))
@@ -3467,27 +3475,27 @@ func _build_bamboo_maze_and_yanxia_cave():
 	dimensional_rift_label.visibility_range_end = 16.5
 	refresh_dimensional_rift_visual(false, is_instance_valid(game) and is_instance_valid(game.rules) and game.rules.is_ahsarah_permanently_unlocked())
 
-	# Lush bamboo groves & ferns grounded cleanly (-0.22m root seat) onto exact mountain_surface_z slopes (ZERO floating!)
+	# Lush bamboo groves & ferns BVH-grounded cleanly (-0.24m root seat) onto the graceful 16.4m hillside (ZERO floating!)
 	var peak_bamboo_local := [
-		Vector3(-6.2, 8.24, 4.2), Vector3(5.6, 7.73, 3.8),
-		Vector3(-12.5, 14.44, -5.5), Vector3(6.8, 11.10, -6.2),
-		Vector3(-14.2, 17.96, -16.5), Vector3(7.4, 18.28, -18.0),
-		Vector3(-11.8, 19.93, -23.5), Vector3(4.2, 19.80, -24.0),
-		Vector3(-11.2, 17.54, -31.5), Vector3(4.5, 16.46, -32.0),
-		Vector3(-6.5, 16.02, -38.0), Vector3(-0.5, 15.47, -37.5),
+		Vector3(-5.80, 6.69, 3.60), Vector3(5.40, 6.61, 3.40),
+		Vector3(-10.80, 10.52, -5.20), Vector3(6.50, 9.42, -5.80),
+		Vector3(-12.20, 14.96, -16.00), Vector3(7.60, 14.75, -17.20),
+		Vector3(-10.50, 16.78, -23.00), Vector3(4.60, 15.30, -23.50),
+		Vector3(-10.00, 14.97, -30.80), Vector3(4.50, 14.88, -31.20),
+		Vector3(-6.20, 14.21, -36.20), Vector3(-0.40, 14.84, -35.80),
 	]
 	for pbl in peak_bamboo_local:
 		var wp: Vector3 = cave_root.position + pbl
 		maze_clump_tx.append(Transform3D(Basis(Vector3.UP, m_rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * m_rng.randf_range(0.95, 1.35)), wp))
 	var peak_ferns_local := [
-		Vector3(7.00, 18.85, -22.00), Vector3(6.20, 18.24, -17.22),
-		Vector3(3.92, 17.44, -13.16), Vector3(0.52, 17.93, -10.45),
-		Vector3(-3.50, 17.46, -9.50), Vector3(-7.52, 18.57, -10.45),
-		Vector3(-10.92, 18.10, -13.16), Vector3(-13.20, 19.57, -17.22),
-		Vector3(-14.00, 18.57, -22.00), Vector3(-13.20, 17.55, -26.78),
-		Vector3(-10.92, 17.36, -30.84), Vector3(-7.52, 18.55, -33.55),
-		Vector3(-3.50, 19.08, -34.50), Vector3(0.52, 18.59, -33.55),
-		Vector3(3.92, 17.23, -30.84), Vector3(6.20, 18.53, -26.78),
+		Vector3(6.10, 15.05, -21.50), Vector3(5.38, 15.76, -25.90),
+		Vector3(3.32, 15.61, -29.63), Vector3(0.24, 15.28, -32.12),
+		Vector3(-3.40, 16.18, -33.00), Vector3(-7.04, 15.79, -32.12),
+		Vector3(-10.12, 15.54, -29.63), Vector3(-12.18, 16.38, -25.90),
+		Vector3(-12.90, 17.06, -21.50), Vector3(-12.18, 15.68, -17.10),
+		Vector3(-10.12, 14.22, -13.37), Vector3(-7.04, 14.06, -10.88),
+		Vector3(-3.40, 13.79, -10.00), Vector3(0.24, 13.63, -10.88),
+		Vector3(3.32, 13.84, -13.37), Vector3(5.38, 14.72, -17.10),
 	]
 	for pf_i in peak_ferns_local.size():
 		var pfl: Vector3 = peak_ferns_local[pf_i]

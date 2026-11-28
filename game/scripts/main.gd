@@ -18,7 +18,7 @@ const SrsScheduler = preload("res://scripts/srs_scheduler.gd")
 const Achievements = preload("res://scripts/achievements.gd")
 const Rangers = preload("res://scripts/rangers.gd")
 const PrologueScene = preload("res://scenes/prologue_chapter.tscn")
-const VERSION = "0.9.9.6_dev2"
+const VERSION = "0.9.9.6_dev3"
 const HudWidgets = preload("res://scripts/hud_widgets.gd")
 const LoreCodexUI = preload("res://scripts/lore_codex_ui.gd")
 const WarMap3D = preload("res://scripts/war_map_3d.gd")
@@ -427,13 +427,26 @@ func play_cn_voice(line_id: String, distance_m: float = 12.0, force_priority: bo
 	last_cn_voice_id = line_id
 	cn_voice_cd = 2.6 if force_priority else 4.2
 	var speaker: String = str(meta.get("speaker", "敌方频段"))
+	var vtag: String = str(meta.get("tag", ""))
+	if vtag == "stage1":
+		speaker += " · 嚣张"
+	elif vtag == "stage2":
+		speaker += " · 慎重"
+	elif vtag == "stage3":
+		speaker += " · 敬佩"
+	elif vtag == "stage4":
+		speaker += " · 畏惧"
+	elif vtag == "stage3_4":
+		speaker += " · 劲敌"
 	var sub: String = str(meta.get("text", ""))
 	if show_caption and sub != "":
 		var grp: String = str(meta.get("group", ""))
-		var cap_col := Color("ff9e58") if ("saeed" in grp or "ironface" in grp) else (
+		var cap_col := Color("ffbe76") if vtag == "stage4" else (
+			Color("8ef5c8") if vtag == "stage3" else (
+			Color("ff9e58") if ("saeed" in grp or "ironface" in grp) else (
 			Color("ffd86b") if ("reis" in grp or "overlord" in grp) else (
-			Color("7ceeff") if ("haavk" in grp or "cave" in grp) else Color("f3d8a8")))
-		show_radio_caption(speaker, sub, cap_col, 3.8 if force_priority else 3.2)
+			Color("7ceeff") if ("haavk" in grp or "cave" in grp) else Color("f3d8a8")))))
+		show_radio_caption(speaker, sub, cap_col, 3.8 if force_priority else 3.4)
 	var gain: float = float(rules.setting("cn_voice_volume", 1.0))
 	if qa_mode or DisplayServer.get_name() == "headless" or gain <= 0.005:
 		return true
